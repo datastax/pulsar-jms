@@ -46,6 +46,18 @@ final class Utils {
     }
   }
 
+  public interface RunnableWithException<T> {
+    T run() throws Exception;
+  }
+
+  public static <T> T invoke(RunnableWithException<T> code) throws JMSException {
+    try {
+      return code.run();
+    } catch (Throwable err) {
+      throw handleException(err);
+    }
+  }
+
   public static void executeListener(PulsarSession session, Runnable code) {
     currentSession.set(session);
     try {

@@ -18,6 +18,7 @@ package com.datastax.oss.pulsar.jms;
 import java.io.Serializable;
 import java.util.Objects;
 import javax.jms.BytesMessage;
+import javax.jms.Connection;
 import javax.jms.Destination;
 import javax.jms.IllegalStateException;
 import javax.jms.InvalidDestinationException;
@@ -41,13 +42,15 @@ import javax.jms.TemporaryTopic;
 import javax.jms.TextMessage;
 import javax.jms.Topic;
 import javax.jms.TopicSubscriber;
+import javax.jms.TransactionRolledBackException;
+import org.apache.pulsar.client.api.Producer;
 import org.apache.pulsar.client.api.transaction.Transaction;
 
 public class PulsarSession implements Session {
 
   private final PulsarConnection connection;
   private final int sessionMode;
-  private final Transaction transaction;
+  final Transaction transaction;
   private MessageListenerWrapper messageListenerWrapper;
 
   public PulsarSession(int sessionMode, PulsarConnection connection) throws JMSException {
@@ -174,7 +177,7 @@ public class PulsarSession implements Session {
    */
   @Override
   public StreamMessage createStreamMessage() throws JMSException {
-    throw new UnsupportedOperationException();
+    return new PulsarMessage.PulsarStreamMessage();
   }
 
   /**
@@ -193,7 +196,7 @@ public class PulsarSession implements Session {
    */
   @Override
   public TextMessage createTextMessage() throws JMSException {
-    throw new UnsupportedOperationException();
+    return new PulsarMessage.PulsarTextMessage(null);
   }
 
   /**
@@ -213,7 +216,7 @@ public class PulsarSession implements Session {
    */
   @Override
   public TextMessage createTextMessage(String text) throws JMSException {
-    throw new UnsupportedOperationException();
+    return new PulsarMessage.PulsarTextMessage(text);
   }
 
   /**
@@ -225,7 +228,7 @@ public class PulsarSession implements Session {
    */
   @Override
   public boolean getTransacted() throws JMSException {
-    return false;
+    return transaction != null;
   }
 
   /**
@@ -241,7 +244,7 @@ public class PulsarSession implements Session {
    */
   @Override
   public int getAcknowledgeMode() throws JMSException {
-    return 0;
+    return sessionMode;
   }
 
   /**
@@ -267,7 +270,13 @@ public class PulsarSession implements Session {
    *     error during commit.
    */
   @Override
-  public void commit() throws JMSException {}
+  public void commit() throws JMSException {
+    Utils.checkNotOnListener(this);
+    if (transaction == null) {
+      throw new IllegalStateException("session is not transacted");
+    }
+    Utils.get(transaction.commit());
+  }
 
   /**
    * Rolls back any messages done in this transaction and releases any locks currently held.
@@ -290,7 +299,13 @@ public class PulsarSession implements Session {
    *     internal error.
    */
   @Override
-  public void rollback() throws JMSException {}
+  public void rollback() throws JMSException {
+    Utils.checkNotOnListener(this);
+    if (transaction == null) {
+      throw new IllegalStateException("session is not transacted");
+    }
+    Utils.get(transaction.abort());
+  }
 
   /**
    * Closes the session.
@@ -467,7 +482,7 @@ public class PulsarSession implements Session {
    */
   @Override
   public MessageProducer createProducer(Destination destination) throws JMSException {
-    throw new UnsupportedOperationException();
+    return new PulsarMessageProducer(this, destination);
   }
 
   /**
@@ -1226,5 +1241,18 @@ public class PulsarSession implements Session {
   @Override
   public void unsubscribe(String name) throws JMSException {
     throw new UnsupportedOperationException();
+  }
+
+  Producer<byte[]> getProducerForDestination(PulsarDestination defaultDestination)
+      throws JMSException {
+    return Utils.invoke(
+        () ->
+            connection
+                .getFactory()
+                .getPulsarClient()
+                .newProducer()
+                .topic(defaultDestination.topicName)
+                .loadConf(connection.getFactory().getProducerConfiguration())
+                .create());
   }
 }

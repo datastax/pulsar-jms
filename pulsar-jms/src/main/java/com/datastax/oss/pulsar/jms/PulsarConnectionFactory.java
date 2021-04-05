@@ -15,6 +15,8 @@
  */
 package com.datastax.oss.pulsar.jms;
 
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import javax.jms.Connection;
@@ -35,11 +37,33 @@ public class PulsarConnectionFactory implements ConnectionFactory, AutoCloseable
   private final String clientId;
   private final PulsarClient pulsarClient;
   private final PulsarAdmin pulsarAdmin;
+  private final Map<String, Object> producerConfiguration;
+  private final Map<String, Object> consumerConfiguration;
 
   public PulsarConnectionFactory(Map<String, Object> properties) throws PulsarClientException {
+    properties = new HashMap(properties);
+
+    Map<String, Object> producerConfiguration =
+        (Map<String, Object>) properties.remove("producerConfig");
+    if (producerConfiguration != null) {
+      this.producerConfiguration = new HashMap(producerConfiguration);
+    } else {
+      this.producerConfiguration = Collections.emptyMap();
+    }
+
+    Map<String, Object> consumerConfigurationM =
+        (Map<String, Object>) properties.remove("consumerConfig");
+    if (consumerConfigurationM != null) {
+      this.consumerConfiguration = new HashMap(consumerConfigurationM);
+    } else {
+      this.consumerConfiguration = Collections.emptyMap();
+    }
     this.clientId = properties.getOrDefault("clientId", UUID.randomUUID().toString()).toString();
-    String webServiceUrl =
-        properties.getOrDefault("webServiceUrl", "http://localhost:8080").toString();
+    String webServiceUrl = (String) properties.remove("webServiceUrl");
+    if (webServiceUrl == null) {
+      webServiceUrl = "http://localhost:8080";
+    }
+
     PulsarClient pulsarClient = null;
     PulsarAdmin pulsarAdmin = null;
     try {
@@ -392,5 +416,13 @@ public class PulsarConnectionFactory implements ConnectionFactory, AutoCloseable
     } catch (PulsarClientException err) {
       log.info("Error closing PulsarClient", err);
     }
+  }
+
+  Map<String, Object> getProducerConfiguration() {
+    return producerConfiguration;
+  }
+
+  Map<String, Object> getConsumerConfiguration() {
+    return consumerConfiguration;
   }
 }
