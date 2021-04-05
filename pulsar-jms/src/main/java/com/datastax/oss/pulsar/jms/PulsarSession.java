@@ -16,9 +16,14 @@
 package com.datastax.oss.pulsar.jms;
 
 import java.io.Serializable;
+import java.util.Objects;
 import javax.jms.BytesMessage;
 import javax.jms.Destination;
+import javax.jms.IllegalStateException;
+import javax.jms.InvalidDestinationException;
+import javax.jms.InvalidSelectorException;
 import javax.jms.JMSException;
+import javax.jms.JMSRuntimeException;
 import javax.jms.MapMessage;
 import javax.jms.Message;
 import javax.jms.MessageConsumer;
@@ -36,15 +41,23 @@ import javax.jms.TemporaryTopic;
 import javax.jms.TextMessage;
 import javax.jms.Topic;
 import javax.jms.TopicSubscriber;
+import org.apache.pulsar.client.api.transaction.Transaction;
 
 public class PulsarSession implements Session {
 
   private final PulsarConnection connection;
   private final int sessionMode;
+  private final Transaction transaction;
+  private MessageListenerWrapper messageListenerWrapper;
 
-  public PulsarSession(int sessionMode, PulsarConnection connection) {
+  public PulsarSession(int sessionMode, PulsarConnection connection) throws JMSException {
     this.connection = connection;
     this.sessionMode = sessionMode;
+    if (sessionMode == SESSION_TRANSACTED) {
+      transaction = Utils.get(connection.getFactory().getPulsarClient().newTransaction().build());
+    } else {
+      transaction = null;
+    }
   }
 
   /**
@@ -331,7 +344,12 @@ public class PulsarSession implements Session {
    * @throws JMSException if the JMS provider fails to close the session due to some internal error.
    */
   @Override
-  public void close() throws JMSException {}
+  public void close() throws JMSException {
+    Utils.checkNotOnListener(this);
+    if (transaction != null) {
+      Utils.get(transaction.abort());
+    }
+  }
 
   /**
    * Stops message delivery in this session, and restarts message delivery with the oldest
@@ -355,7 +373,12 @@ public class PulsarSession implements Session {
    * @throws IllegalStateException if the method is called by a transacted session.
    */
   @Override
-  public void recover() throws JMSException {}
+  public void recover() throws JMSException {
+    if (transaction != null) {
+      throw new IllegalStateException("cannot call this method inside a transacted session");
+    }
+    throw new UnsupportedOperationException();
+  }
 
   /**
    * Returns the session's distinguished message listener (optional).
@@ -378,7 +401,7 @@ public class PulsarSession implements Session {
    */
   @Override
   public MessageListener getMessageListener() throws JMSException {
-    return null;
+    return messageListenerWrapper != null ? messageListenerWrapper.getListener() : null;
   }
 
   /**
@@ -406,7 +429,10 @@ public class PulsarSession implements Session {
    * @see ServerSession
    */
   @Override
-  public void setMessageListener(MessageListener listener) throws JMSException {}
+  public void setMessageListener(MessageListener listener) throws JMSException {
+    Objects.requireNonNull(listener);
+    this.messageListenerWrapper = new MessageListenerWrapper(listener, this);
+  }
 
   /**
    * Optional operation, intended to be used only by Application Servers, not by ordinary JMS
@@ -420,7 +446,9 @@ public class PulsarSession implements Session {
    * @see ServerSession
    */
   @Override
-  public void run() {}
+  public void run() {
+    throw new JMSRuntimeException("not supported");
+  }
 
   /**
    * Creates a {@code MessageProducer} to send messages to the specified destination.
@@ -480,7 +508,14 @@ public class PulsarSession implements Session {
   @Override
   public MessageConsumer createConsumer(Destination destination, String messageSelector)
       throws JMSException {
+    messageSelectorNotSupported(messageSelector);
     return null;
+  }
+
+  private void messageSelectorNotSupported(String messageSelector) throws InvalidSelectorException {
+    if (messageSelector != null && !messageSelector.isEmpty()) {
+      throw new InvalidSelectorException("Message selectors are not supported on Pulsar");
+    }
   }
 
   /**
@@ -515,6 +550,7 @@ public class PulsarSession implements Session {
   @Override
   public MessageConsumer createConsumer(
       Destination destination, String messageSelector, boolean noLocal) throws JMSException {
+    messageSelectorNotSupported(messageSelector);
     return null;
   }
 
@@ -560,7 +596,7 @@ public class PulsarSession implements Session {
   @Override
   public MessageConsumer createSharedConsumer(Topic topic, String sharedSubscriptionName)
       throws JMSException {
-    return null;
+    throw new UnsupportedOperationException();
   }
 
   /**
@@ -608,7 +644,8 @@ public class PulsarSession implements Session {
   @Override
   public MessageConsumer createSharedConsumer(
       Topic topic, String sharedSubscriptionName, String messageSelector) throws JMSException {
-    return null;
+    messageSelectorNotSupported(messageSelector);
+    throw new UnsupportedOperationException();
   }
 
   /**
@@ -632,7 +669,7 @@ public class PulsarSession implements Session {
    */
   @Override
   public Queue createQueue(String queueName) throws JMSException {
-    return null;
+    return new PulsarQueue(queueName);
   }
 
   /**
@@ -656,7 +693,7 @@ public class PulsarSession implements Session {
    */
   @Override
   public Topic createTopic(String topicName) throws JMSException {
-    return null;
+    return new PulsarTopic(topicName);
   }
 
   /**
@@ -726,7 +763,7 @@ public class PulsarSession implements Session {
    */
   @Override
   public TopicSubscriber createDurableSubscriber(Topic topic, String name) throws JMSException {
-    return null;
+    throw new UnsupportedOperationException();
   }
 
   /**
@@ -808,7 +845,8 @@ public class PulsarSession implements Session {
   @Override
   public TopicSubscriber createDurableSubscriber(
       Topic topic, String name, String messageSelector, boolean noLocal) throws JMSException {
-    return null;
+    messageSelectorNotSupported(messageSelector);
+    throw new UnsupportedOperationException();
   }
 
   /**
@@ -878,7 +916,7 @@ public class PulsarSession implements Session {
    */
   @Override
   public MessageConsumer createDurableConsumer(Topic topic, String name) throws JMSException {
-    return null;
+    throw new UnsupportedOperationException();
   }
 
   /**
@@ -960,7 +998,8 @@ public class PulsarSession implements Session {
   @Override
   public MessageConsumer createDurableConsumer(
       Topic topic, String name, String messageSelector, boolean noLocal) throws JMSException {
-    return null;
+    messageSelectorNotSupported(messageSelector);
+    throw new UnsupportedOperationException();
   }
 
   /**
@@ -1027,7 +1066,7 @@ public class PulsarSession implements Session {
    */
   @Override
   public MessageConsumer createSharedDurableConsumer(Topic topic, String name) throws JMSException {
-    return null;
+    throw new UnsupportedOperationException();
   }
 
   /**
@@ -1098,7 +1137,8 @@ public class PulsarSession implements Session {
   @Override
   public MessageConsumer createSharedDurableConsumer(
       Topic topic, String name, String messageSelector) throws JMSException {
-    return null;
+    messageSelectorNotSupported(messageSelector);
+    throw new UnsupportedOperationException();
   }
 
   /**
@@ -1112,7 +1152,7 @@ public class PulsarSession implements Session {
    */
   @Override
   public QueueBrowser createBrowser(Queue queue) throws JMSException {
-    return null;
+    throw new UnsupportedOperationException();
   }
 
   /**
@@ -1131,7 +1171,8 @@ public class PulsarSession implements Session {
    */
   @Override
   public QueueBrowser createBrowser(Queue queue, String messageSelector) throws JMSException {
-    return null;
+    messageSelectorNotSupported(messageSelector);
+    throw new UnsupportedOperationException();
   }
 
   /**
@@ -1145,7 +1186,7 @@ public class PulsarSession implements Session {
    */
   @Override
   public TemporaryQueue createTemporaryQueue() throws JMSException {
-    return null;
+    throw new UnsupportedOperationException();
   }
 
   /**
@@ -1159,7 +1200,7 @@ public class PulsarSession implements Session {
    */
   @Override
   public TemporaryTopic createTemporaryTopic() throws JMSException {
-    return null;
+    throw new UnsupportedOperationException();
   }
 
   /**
@@ -1183,5 +1224,7 @@ public class PulsarSession implements Session {
    * @since JMS 1.1
    */
   @Override
-  public void unsubscribe(String name) throws JMSException {}
+  public void unsubscribe(String name) throws JMSException {
+    throw new UnsupportedOperationException();
+  }
 }

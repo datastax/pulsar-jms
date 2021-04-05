@@ -21,6 +21,9 @@ import javax.jms.Connection;
 import javax.jms.ConnectionFactory;
 import javax.jms.JMSContext;
 import javax.jms.JMSException;
+import javax.jms.JMSRuntimeException;
+import javax.jms.JMSSecurityException;
+import javax.jms.JMSSecurityRuntimeException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.admin.PulsarAdmin;
 import org.apache.pulsar.client.api.PulsarClient;
@@ -30,13 +33,37 @@ import org.apache.pulsar.client.api.PulsarClientException;
 public class PulsarConnectionFactory implements ConnectionFactory, AutoCloseable {
 
   private final String clientId;
-  private PulsarClient pulsarClient;
-  private PulsarAdmin pulsarAdmin;
+  private final PulsarClient pulsarClient;
+  private final PulsarAdmin pulsarAdmin;
 
-  public PulsarConnectionFactory(Map<String, Object> properties) throws Exception {
+  public PulsarConnectionFactory(Map<String, Object> properties) throws PulsarClientException {
     this.clientId = properties.getOrDefault("clientId", UUID.randomUUID().toString()).toString();
-    this.pulsarClient = PulsarClient.builder().loadConf(properties).build();
-    this.pulsarAdmin = PulsarAdmin.builder().build();
+    String webServiceUrl =
+        properties.getOrDefault("webServiceUrl", "http://localhost:8080").toString();
+    PulsarClient pulsarClient = null;
+    PulsarAdmin pulsarAdmin = null;
+    try {
+      pulsarAdmin = PulsarAdmin.builder().serviceHttpUrl(webServiceUrl).build();
+      pulsarClient = PulsarClient.builder().serviceUrl(webServiceUrl).loadConf(properties).build();
+    } catch (PulsarClientException err) {
+      if (pulsarAdmin != null) {
+        pulsarAdmin.close();
+      }
+      if (pulsarClient != null) {
+        pulsarClient.close();
+      }
+      throw err;
+    }
+    this.pulsarClient = pulsarClient;
+    this.pulsarAdmin = pulsarAdmin;
+  }
+
+  public PulsarClient getPulsarClient() {
+    return pulsarClient;
+  }
+
+  public PulsarAdmin getPulsarAdmin() {
+    return pulsarAdmin;
   }
 
   /**

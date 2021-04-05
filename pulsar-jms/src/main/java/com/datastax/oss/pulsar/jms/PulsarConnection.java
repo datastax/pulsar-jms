@@ -37,6 +37,10 @@ public class PulsarConnection implements Connection {
     this.factory = factory;
   }
 
+  public PulsarConnectionFactory getFactory() {
+    return factory;
+  }
+
   /**
    * Creates a {@code Session} object, specifying {@code transacted} and {@code acknowledgeMode}.
    *
