@@ -76,7 +76,7 @@ public class PulsarSession implements Session {
    */
   @Override
   public BytesMessage createBytesMessage() throws JMSException {
-    return null;
+    throw new UnsupportedOperationException();
   }
 
   /**
@@ -116,7 +116,7 @@ public class PulsarSession implements Session {
    */
   @Override
   public Message createMessage() throws JMSException {
-    return null;
+    throw new UnsupportedOperationException();
   }
 
   /**
@@ -135,7 +135,7 @@ public class PulsarSession implements Session {
    */
   @Override
   public ObjectMessage createObjectMessage() throws JMSException {
-    return null;
+    throw new UnsupportedOperationException();
   }
 
   /**
@@ -155,7 +155,7 @@ public class PulsarSession implements Session {
    */
   @Override
   public ObjectMessage createObjectMessage(Serializable object) throws JMSException {
-    return null;
+    throw new UnsupportedOperationException();
   }
 
   /**
@@ -174,7 +174,7 @@ public class PulsarSession implements Session {
    */
   @Override
   public StreamMessage createStreamMessage() throws JMSException {
-    return null;
+    throw new UnsupportedOperationException();
   }
 
   /**
@@ -193,7 +193,7 @@ public class PulsarSession implements Session {
    */
   @Override
   public TextMessage createTextMessage() throws JMSException {
-    return null;
+    throw new UnsupportedOperationException();
   }
 
   /**
@@ -213,7 +213,7 @@ public class PulsarSession implements Session {
    */
   @Override
   public TextMessage createTextMessage(String text) throws JMSException {
-    return null;
+    throw new UnsupportedOperationException();
   }
 
   /**
@@ -467,7 +467,7 @@ public class PulsarSession implements Session {
    */
   @Override
   public MessageProducer createProducer(Destination destination) throws JMSException {
-    return null;
+    throw new UnsupportedOperationException();
   }
 
   /**
@@ -483,7 +483,7 @@ public class PulsarSession implements Session {
    */
   @Override
   public MessageConsumer createConsumer(Destination destination) throws JMSException {
-    return null;
+    throw new UnsupportedOperationException();
   }
 
   /**
@@ -509,7 +509,7 @@ public class PulsarSession implements Session {
   public MessageConsumer createConsumer(Destination destination, String messageSelector)
       throws JMSException {
     messageSelectorNotSupported(messageSelector);
-    return null;
+    throw new UnsupportedOperationException();
   }
 
   private void messageSelectorNotSupported(String messageSelector) throws InvalidSelectorException {
@@ -551,7 +551,7 @@ public class PulsarSession implements Session {
   public MessageConsumer createConsumer(
       Destination destination, String messageSelector, boolean noLocal) throws JMSException {
     messageSelectorNotSupported(messageSelector);
-    return null;
+    throw new UnsupportedOperationException();
   }
 
   /**

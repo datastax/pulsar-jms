@@ -215,7 +215,7 @@ public class PulsarConnection implements Connection {
    */
   @Override
   public Session createSession(int sessionMode) throws JMSException {
-    return createSession(sessionMode);
+    return new PulsarSession(sessionMode, this);
   }
 
   /**
