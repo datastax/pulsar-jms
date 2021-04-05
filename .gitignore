@@ -1,0 +1,17 @@
+.settings
+.DS_Store
+
+/.idea
+*.iml
+.classpath
+.project
+
+.java-version
+
+target/
+dependency-reduced-pom.xml
+
+pulsar-dist/dependency-reduced-pom.xml
+
+logs/
+/pulsar-impl/nbproject/
