@@ -79,7 +79,7 @@ public class PulsarSession implements Session {
    */
   @Override
   public BytesMessage createBytesMessage() throws JMSException {
-    throw new UnsupportedOperationException();
+    return new PulsarMessage.PulsarBufferedMessage();
   }
 
   /**
@@ -99,7 +99,7 @@ public class PulsarSession implements Session {
    */
   @Override
   public MapMessage createMapMessage() throws JMSException {
-    return null;
+    return new PulsarMessage.PulsarMapMessage();
   }
 
   /**
@@ -119,7 +119,7 @@ public class PulsarSession implements Session {
    */
   @Override
   public Message createMessage() throws JMSException {
-    throw new UnsupportedOperationException();
+    return new PulsarMessage.SimpleMessage();
   }
 
   /**
@@ -138,7 +138,7 @@ public class PulsarSession implements Session {
    */
   @Override
   public ObjectMessage createObjectMessage() throws JMSException {
-    throw new UnsupportedOperationException();
+    return new PulsarMessage.PulsarObjectMessage(null);
   }
 
   /**
@@ -158,7 +158,7 @@ public class PulsarSession implements Session {
    */
   @Override
   public ObjectMessage createObjectMessage(Serializable object) throws JMSException {
-    throw new UnsupportedOperationException();
+    return new PulsarMessage.PulsarObjectMessage(object);
   }
 
   /**
@@ -177,7 +177,7 @@ public class PulsarSession implements Session {
    */
   @Override
   public StreamMessage createStreamMessage() throws JMSException {
-    return new PulsarMessage.PulsarStreamMessage();
+    return new PulsarMessage.PulsarBufferedMessage();
   }
 
   /**

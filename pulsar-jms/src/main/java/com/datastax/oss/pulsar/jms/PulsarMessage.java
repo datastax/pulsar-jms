@@ -20,23 +20,45 @@ import java.io.ByteArrayOutputStream;
 import java.io.EOFException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.Map;
+import javax.jms.BytesMessage;
 import javax.jms.DeliveryMode;
 import javax.jms.Destination;
 import javax.jms.JMSException;
+import javax.jms.MapMessage;
 import javax.jms.Message;
 import javax.jms.MessageEOFException;
 import javax.jms.MessageFormatException;
 import javax.jms.MessageNotReadableException;
 import javax.jms.MessageNotWriteableException;
 import javax.jms.MessageProducer;
+import javax.jms.ObjectMessage;
 import javax.jms.Session;
 import javax.jms.StreamMessage;
 import javax.jms.TextMessage;
 import org.apache.pulsar.client.api.TypedMessageBuilder;
 
 abstract class PulsarMessage implements Message {
+
+  private String messageId;
+  protected boolean writable = true;
+  private long jmsTimestamp;
+  private byte[] correlationId;
+  private Destination jmsReplyTo;
+  private Destination destination;
+  private int deliveryMode = Message.DEFAULT_DELIVERY_MODE;
+  private String jmsType;
+  private boolean jmsRedelivered;
+  private long jmsExpiration;
+  private long jmsDeliveryTime;
+  private int jmsPriority = Message.DEFAULT_PRIORITY;
+  private final Map<String, String> properties = new HashMap<>();
+
   /**
    * Gets the message ID.
    *
@@ -69,7 +91,7 @@ abstract class PulsarMessage implements Message {
    */
   @Override
   public String getJMSMessageID() throws JMSException {
-    return null;
+    return messageId;
   }
 
   /**
@@ -85,7 +107,9 @@ abstract class PulsarMessage implements Message {
    * @see Message#getJMSMessageID()
    */
   @Override
-  public void setJMSMessageID(String id) throws JMSException {}
+  public void setJMSMessageID(String id) throws JMSException {
+    this.messageId = id;
+  }
 
   /**
    * Gets the message timestamp.
@@ -114,7 +138,7 @@ abstract class PulsarMessage implements Message {
    */
   @Override
   public long getJMSTimestamp() throws JMSException {
-    return 0;
+    return jmsTimestamp;
   }
 
   /**
@@ -130,7 +154,9 @@ abstract class PulsarMessage implements Message {
    * @see Message#getJMSTimestamp()
    */
   @Override
-  public void setJMSTimestamp(long timestamp) throws JMSException {}
+  public void setJMSTimestamp(long timestamp) throws JMSException {
+    this.jmsTimestamp = timestamp;
+  }
 
   /**
    * Gets the correlation ID as an array of bytes for the message.
@@ -146,7 +172,7 @@ abstract class PulsarMessage implements Message {
    */
   @Override
   public byte[] getJMSCorrelationIDAsBytes() throws JMSException {
-    return new byte[0];
+    return correlationId;
   }
 
   /**
@@ -171,7 +197,9 @@ abstract class PulsarMessage implements Message {
    * @see Message#getJMSCorrelationIDAsBytes()
    */
   @Override
-  public void setJMSCorrelationIDAsBytes(byte[] correlationID) throws JMSException {}
+  public void setJMSCorrelationIDAsBytes(byte[] correlationID) throws JMSException {
+    this.correlationId = correlationID;
+  }
 
   /**
    * Sets the correlation ID for the message.
@@ -211,7 +239,9 @@ abstract class PulsarMessage implements Message {
    * @see Message#setJMSCorrelationIDAsBytes(byte[])
    */
   @Override
-  public void setJMSCorrelationID(String correlationID) throws JMSException {}
+  public void setJMSCorrelationID(String correlationID) throws JMSException {
+    this.correlationId = correlationID.getBytes(StandardCharsets.UTF_8);
+  }
 
   /**
    * Gets the correlation ID for the message.
@@ -228,7 +258,7 @@ abstract class PulsarMessage implements Message {
    */
   @Override
   public String getJMSCorrelationID() throws JMSException {
-    return null;
+    return correlationId != null ? new String(correlationId, StandardCharsets.UTF_8) : null;
   }
 
   /**
@@ -241,7 +271,7 @@ abstract class PulsarMessage implements Message {
    */
   @Override
   public Destination getJMSReplyTo() throws JMSException {
-    return null;
+    return jmsReplyTo;
   }
 
   /**
@@ -267,7 +297,9 @@ abstract class PulsarMessage implements Message {
    * @see Message#getJMSReplyTo()
    */
   @Override
-  public void setJMSReplyTo(Destination replyTo) throws JMSException {}
+  public void setJMSReplyTo(Destination replyTo) throws JMSException {
+    this.jmsReplyTo = replyTo;
+  }
 
   /**
    * Gets the {@code Destination} object for this message.
@@ -288,7 +320,7 @@ abstract class PulsarMessage implements Message {
    */
   @Override
   public Destination getJMSDestination() throws JMSException {
-    return null;
+    return destination;
   }
 
   /**
@@ -305,7 +337,9 @@ abstract class PulsarMessage implements Message {
    * @see Message#getJMSDestination()
    */
   @Override
-  public void setJMSDestination(Destination destination) throws JMSException {}
+  public void setJMSDestination(Destination destination) throws JMSException {
+    this.destination = destination;
+  }
 
   /**
    * Gets the {@code DeliveryMode} value specified for this message.
@@ -318,7 +352,7 @@ abstract class PulsarMessage implements Message {
    */
   @Override
   public int getJMSDeliveryMode() throws JMSException {
-    return 0;
+    return deliveryMode;
   }
 
   /**
@@ -336,7 +370,9 @@ abstract class PulsarMessage implements Message {
    * @see DeliveryMode
    */
   @Override
-  public void setJMSDeliveryMode(int deliveryMode) throws JMSException {}
+  public void setJMSDeliveryMode(int deliveryMode) throws JMSException {
+    this.deliveryMode = deliveryMode;
+  }
 
   /**
    * Gets an indication of whether this message is being redelivered.
@@ -352,7 +388,7 @@ abstract class PulsarMessage implements Message {
    */
   @Override
   public boolean getJMSRedelivered() throws JMSException {
-    return false;
+    return jmsRedelivered;
   }
 
   /**
@@ -369,7 +405,9 @@ abstract class PulsarMessage implements Message {
    * @see Message#getJMSRedelivered()
    */
   @Override
-  public void setJMSRedelivered(boolean redelivered) throws JMSException {}
+  public void setJMSRedelivered(boolean redelivered) throws JMSException {
+    this.jmsRedelivered = jmsRedelivered;
+  }
 
   /**
    * Gets the message type identifier supplied by the client when the message was sent.
@@ -381,7 +419,7 @@ abstract class PulsarMessage implements Message {
    */
   @Override
   public String getJMSType() throws JMSException {
-    return null;
+    return jmsType;
   }
 
   /**
@@ -410,7 +448,9 @@ abstract class PulsarMessage implements Message {
    * @see Message#getJMSType()
    */
   @Override
-  public void setJMSType(String type) throws JMSException {}
+  public void setJMSType(String type) throws JMSException {
+    this.jmsType = type;
+  }
 
   /**
    * Gets the message's expiration time.
@@ -436,7 +476,7 @@ abstract class PulsarMessage implements Message {
    */
   @Override
   public long getJMSExpiration() throws JMSException {
-    return 0;
+    return jmsExpiration;
   }
 
   /**
@@ -453,7 +493,9 @@ abstract class PulsarMessage implements Message {
    * @see Message#getJMSExpiration()
    */
   @Override
-  public void setJMSExpiration(long expiration) throws JMSException {}
+  public void setJMSExpiration(long expiration) throws JMSException {
+    this.jmsExpiration = jmsExpiration;
+  }
 
   /**
    * Gets the message's delivery time value.
@@ -475,7 +517,7 @@ abstract class PulsarMessage implements Message {
    */
   @Override
   public long getJMSDeliveryTime() throws JMSException {
-    return 0;
+    return jmsDeliveryTime;
   }
 
   /**
@@ -493,7 +535,9 @@ abstract class PulsarMessage implements Message {
    * @since JMS 2.0
    */
   @Override
-  public void setJMSDeliveryTime(long deliveryTime) throws JMSException {}
+  public void setJMSDeliveryTime(long deliveryTime) throws JMSException {
+    this.jmsDeliveryTime = deliveryTime;
+  }
 
   /**
    * Gets the message priority level.
@@ -513,7 +557,7 @@ abstract class PulsarMessage implements Message {
    */
   @Override
   public int getJMSPriority() throws JMSException {
-    return 0;
+    return jmsPriority;
   }
 
   /**
@@ -530,7 +574,10 @@ abstract class PulsarMessage implements Message {
    * @see Message#getJMSPriority()
    */
   @Override
-  public void setJMSPriority(int priority) throws JMSException {}
+  public void setJMSPriority(int priority) throws JMSException {
+    this.jmsPriority = priority;
+  }
+
 
   /**
    * Clears a message's properties.
@@ -541,7 +588,9 @@ abstract class PulsarMessage implements Message {
    *     internal error.
    */
   @Override
-  public void clearProperties() throws JMSException {}
+  public void clearProperties() throws JMSException {
+    properties.clear();
+  }
 
   /**
    * Indicates whether a property value exists.
@@ -553,7 +602,7 @@ abstract class PulsarMessage implements Message {
    */
   @Override
   public boolean propertyExists(String name) throws JMSException {
-    return false;
+    return properties.containsKey(name);
   }
 
   /**
@@ -567,7 +616,7 @@ abstract class PulsarMessage implements Message {
    */
   @Override
   public boolean getBooleanProperty(String name) throws JMSException {
-    return false;
+    return Utils.invoke(() -> Boolean.parseBoolean(properties.getOrDefault(name, "false")));
   }
 
   /**
@@ -581,7 +630,7 @@ abstract class PulsarMessage implements Message {
    */
   @Override
   public byte getByteProperty(String name) throws JMSException {
-    return 0;
+    return Utils.invoke(() -> Byte.parseByte(properties.getOrDefault(name, "0")));
   }
 
   /**
@@ -595,7 +644,7 @@ abstract class PulsarMessage implements Message {
    */
   @Override
   public short getShortProperty(String name) throws JMSException {
-    return 0;
+    return Utils.invoke(() -> Short.parseShort(properties.getOrDefault(name, "0")));
   }
 
   /**
@@ -609,7 +658,7 @@ abstract class PulsarMessage implements Message {
    */
   @Override
   public int getIntProperty(String name) throws JMSException {
-    return 0;
+    return Utils.invoke(() -> Integer.parseInt(properties.getOrDefault(name, "0")));
   }
 
   /**
@@ -623,7 +672,7 @@ abstract class PulsarMessage implements Message {
    */
   @Override
   public long getLongProperty(String name) throws JMSException {
-    return 0;
+    return Utils.invoke(() -> Long.parseLong(properties.getOrDefault(name, "0")));
   }
 
   /**
@@ -637,7 +686,7 @@ abstract class PulsarMessage implements Message {
    */
   @Override
   public float getFloatProperty(String name) throws JMSException {
-    return 0;
+    return Utils.invoke(() -> Float.parseFloat(properties.getOrDefault(name, "0")));
   }
 
   /**
@@ -651,7 +700,7 @@ abstract class PulsarMessage implements Message {
    */
   @Override
   public double getDoubleProperty(String name) throws JMSException {
-    return 0;
+    return Utils.invoke(() -> Double.parseDouble(properties.getOrDefault(name, "0")));
   }
 
   /**
@@ -666,7 +715,7 @@ abstract class PulsarMessage implements Message {
    */
   @Override
   public String getStringProperty(String name) throws JMSException {
-    return null;
+    return Utils.invoke(() -> properties.getOrDefault(name, ""));
   }
 
   /**
@@ -685,7 +734,7 @@ abstract class PulsarMessage implements Message {
    */
   @Override
   public Object getObjectProperty(String name) throws JMSException {
-    return null;
+    return Utils.invoke(() -> properties.getOrDefault(name, null));
   }
 
   /**
@@ -700,7 +749,7 @@ abstract class PulsarMessage implements Message {
    */
   @Override
   public Enumeration getPropertyNames() throws JMSException {
-    return null;
+    return Collections.enumeration(properties.keySet());
   }
 
   /**
@@ -713,7 +762,10 @@ abstract class PulsarMessage implements Message {
    * @throws MessageNotWriteableException if properties are read-only
    */
   @Override
-  public void setBooleanProperty(String name, boolean value) throws JMSException {}
+  public void setBooleanProperty(String name, boolean value) throws JMSException {
+    checkWritableProperty(name);
+    properties.put(name, Boolean.toString(value));
+  }
 
   /**
    * Sets a {@code byte} property value with the specified name into the message.
@@ -725,7 +777,10 @@ abstract class PulsarMessage implements Message {
    * @throws MessageNotWriteableException if properties are read-only
    */
   @Override
-  public void setByteProperty(String name, byte value) throws JMSException {}
+  public void setByteProperty(String name, byte value) throws JMSException {
+    checkWritableProperty(name);
+    properties.put(name, Byte.toString(value));
+  }
 
   /**
    * Sets a {@code short} property value with the specified name into the message.
@@ -737,7 +792,10 @@ abstract class PulsarMessage implements Message {
    * @throws MessageNotWriteableException if properties are read-only
    */
   @Override
-  public void setShortProperty(String name, short value) throws JMSException {}
+  public void setShortProperty(String name, short value) throws JMSException {
+    checkWritableProperty(name);
+    properties.put(name, Short.toString(value));
+  }
 
   /**
    * Sets an {@code int} property value with the specified name into the message.
@@ -749,7 +807,10 @@ abstract class PulsarMessage implements Message {
    * @throws MessageNotWriteableException if properties are read-only
    */
   @Override
-  public void setIntProperty(String name, int value) throws JMSException {}
+  public void setIntProperty(String name, int value) throws JMSException {
+    checkWritableProperty(name);
+    properties.put(name, Integer.toString(value));
+  }
 
   /**
    * Sets a {@code long} property value with the specified name into the message.
@@ -761,7 +822,10 @@ abstract class PulsarMessage implements Message {
    * @throws MessageNotWriteableException if properties are read-only
    */
   @Override
-  public void setLongProperty(String name, long value) throws JMSException {}
+  public void setLongProperty(String name, long value) throws JMSException {
+    checkWritableProperty(name);
+    properties.put(name, Long.toString(value));
+  }
 
   /**
    * Sets a {@code float} property value with the specified name into the message.
@@ -773,7 +837,10 @@ abstract class PulsarMessage implements Message {
    * @throws MessageNotWriteableException if properties are read-only
    */
   @Override
-  public void setFloatProperty(String name, float value) throws JMSException {}
+  public void setFloatProperty(String name, float value) throws JMSException {
+    checkWritableProperty(name);
+    properties.put(name, Float.toString(value));
+  }
 
   /**
    * Sets a {@code double} property value with the specified name into the message.
@@ -785,7 +852,10 @@ abstract class PulsarMessage implements Message {
    * @throws MessageNotWriteableException if properties are read-only
    */
   @Override
-  public void setDoubleProperty(String name, double value) throws JMSException {}
+  public void setDoubleProperty(String name, double value) throws JMSException {
+    checkWritableProperty(name);
+    properties.put(name, Double.toString(value));
+  }
 
   /**
    * Sets a {@code String} property value with the specified name into the message.
@@ -797,7 +867,10 @@ abstract class PulsarMessage implements Message {
    * @throws MessageNotWriteableException if properties are read-only
    */
   @Override
-  public void setStringProperty(String name, String value) throws JMSException {}
+  public void setStringProperty(String name, String value) throws JMSException {
+    checkWritableProperty(name);
+    properties.put(name, value);
+  }
 
   /**
    * Sets a Java object property value with the specified name into the message.
@@ -813,7 +886,14 @@ abstract class PulsarMessage implements Message {
    * @throws MessageNotWriteableException if properties are read-only
    */
   @Override
-  public void setObjectProperty(String name, Object value) throws JMSException {}
+  public void setObjectProperty(String name, Object value) throws JMSException {
+    checkWritableProperty(name);
+    if (value != null) {
+      properties.put(name, value.toString());
+    } else {
+      properties.put(name, null);
+    }
+  }
 
   /**
    * Acknowledges all consumed messages of the session of this consumed message.
@@ -839,124 +919,61 @@ abstract class PulsarMessage implements Message {
    * @see Session#CLIENT_ACKNOWLEDGE
    */
   @Override
-  public void acknowledge() throws JMSException {}
-
-  /**
-   * Clears out the message body. Clearing a message's body does not clear its header values or
-   * property entries.
-   *
-   * <p>If this message body was read-only, calling this method leaves the message body in the same
-   * state as an empty body in a newly created message.
-   *
-   * @throws JMSException if the JMS provider fails to clear the message body due to some internal
-   *     error.
-   */
-  @Override
-  public void clearBody() throws JMSException {}
-
-  /**
-   * Returns the message body as an object of the specified type. This method may be called on any
-   * type of message except for <tt>StreamMessage</tt>. The message body must be capable of being
-   * assigned to the specified type. This means that the specified class or interface must be either
-   * the same as, or a superclass or superinterface of, the class of the message body. If the
-   * message has no body then any type may be specified and null is returned.
-   *
-   * <p>
-   *
-   * @param c The type to which the message body will be assigned. <br>
-   *     If the message is a {@code TextMessage} then this parameter must be set to {@code
-   *     String.class} or another type to which a {@code String} is assignable. <br>
-   *     If the message is a {@code ObjectMessage} then parameter must must be set to {@code
-   *     java.io.Serializable.class} or another type to which the body is assignable. <br>
-   *     If the message is a {@code MapMessage} then this parameter must be set to {@code
-   *     java.util.Map.class} (or {@code java.lang.Object.class}). <br>
-   *     If the message is a {@code BytesMessage} then this parameter must be set to {@code
-   *     byte[].class} (or {@code java.lang.Object.class}). This method will reset the {@code
-   *     BytesMessage} before and after use.<br>
-   *     If the message is a {@code TextMessage}, {@code ObjectMessage}, {@code MapMessage} or
-   *     {@code BytesMessage} and the message has no body, then the above does not apply and this
-   *     parameter may be set to any type; the returned value will always be null.<br>
-   *     If the message is a {@code Message} (but not one of its subtypes) then this parameter may
-   *     be set to any type; the returned value will always be null.
-   * @return the message body
-   * @throws MessageFormatException
-   *     <ul>
-   *       <li>if the message is a {@code StreamMessage}
-   *       <li>if the message body cannot be assigned to the specified type
-   *       <li>if the message is an {@code ObjectMessage} and object deserialization fails.
-   *     </ul>
-   *
-   * @throws JMSException if the JMS provider fails to get the message body due to some internal
-   *     error.
-   * @since JMS 2.0
-   */
-  @Override
-  public <T> T getBody(Class<T> c) throws JMSException {
-    return null;
+  public void acknowledge() throws JMSException {
+    throw new UnsupportedOperationException();
   }
 
-  /**
-   * Returns whether the message body is capable of being assigned to the specified type. If this
-   * method returns true then a subsequent call to the method {@code getBody} on the same message
-   * with the same type argument would not throw a MessageFormatException.
-   *
-   * <p>If the message is a {@code StreamMessage} then false is always returned. If the message is a
-   * {@code ObjectMessage} and object deserialization fails then false is returned. If the message
-   * has no body then any type may be specified and true is returned.
-   *
-   * @param c The specified type <br>
-   *     If the message is a {@code TextMessage} then this method will only return true if this
-   *     parameter is set to {@code String.class} or another type to which a {@code String} is
-   *     assignable. <br>
-   *     If the message is a {@code ObjectMessage} then this method will only return true if this
-   *     parameter is set to {@code java.io.Serializable.class} or another class to which the body
-   *     is assignable. <br>
-   *     If the message is a {@code MapMessage} then this method will only return true if this
-   *     parameter is set to {@code java.util.Map.class} (or {@code java.lang.Object.class}). <br>
-   *     If the message is a {@code BytesMessage} then this this method will only return true if
-   *     this parameter is set to {@code byte[].class} (or {@code java.lang.Object.class}). <br>
-   *     If the message is a {@code TextMessage}, {@code ObjectMessage}, {@code MapMessage} or
-   *     {@code BytesMessage} and the message has no body, then the above does not apply and this
-   *     method will return true irrespective of the value of this parameter.<br>
-   *     If the message is a {@code Message} (but not one of its subtypes) then this method will
-   *     return true irrespective of the value of this parameter.
-   * @return whether the message body is capable of being assigned to the specified type
-   * @throws JMSException if the JMS provider fails to return a value due to some internal error.
-   */
-  @Override
-  public abstract boolean isBodyAssignableTo(Class c) throws JMSException;
+  protected final void checkWritable() throws MessageNotWriteableException {
+    if (!writable) throw new MessageNotWriteableException("not writable");
+  }
+
+  protected final void checkReadable() throws MessageNotReadableException {
+    if (writable) throw new MessageNotReadableException("not readable");
+  }
+
+  protected final void checkWritableProperty(String name) throws JMSException {
+    if (name == null || name.isEmpty()) {
+      throw new IllegalArgumentException("Invalid map key "+name);
+    }
+    if (!writable) {
+      throw new MessageNotWriteableException("Not writeable");
+    }
+  }
 
   final void send(TypedMessageBuilder<byte[]> producer) throws JMSException {
     prepareForSend(producer);
+    producer.properties(properties);
     Utils.invoke(() -> producer.send());
   }
 
   abstract void prepareForSend(TypedMessageBuilder<byte[]> producer) throws JMSException;
 
-  static final class PulsarStreamMessage extends PulsarMessage implements StreamMessage {
+  static class PulsarBufferedMessage extends PulsarMessage implements BytesMessage, StreamMessage {
 
     private ByteArrayOutputStream stream;
     private byte[] originalMessage;
     private ObjectInputStream dataInputStream;
     private ObjectOutputStream dataOutputStream;
 
-    PulsarStreamMessage(byte[] payload) throws JMSException {
+    PulsarBufferedMessage(byte[] payload) throws JMSException {
       try {
         this.dataInputStream = new ObjectInputStream(new ByteArrayInputStream(payload));
         this.originalMessage = payload;
         this.stream = null;
         this.dataOutputStream = null;
+        writable = false;
       } catch (Exception err) {
         throw Utils.handleException(err);
       }
     }
 
-    PulsarStreamMessage() throws JMSException {
+    PulsarBufferedMessage() throws JMSException {
       try {
         this.dataInputStream = null;
         this.stream = new ByteArrayOutputStream();
         this.dataOutputStream = new ObjectOutputStream(stream);
         this.originalMessage = null;
+        this.writable = true;
       } catch (Exception err) {
         throw Utils.handleException(err);
       }
@@ -995,14 +1012,61 @@ abstract class PulsarMessage implements Message {
       return byte[].class == c;
     }
 
+    /**
+     * Returns the message body as an object of the specified type. This method may be called on any type of message except
+     * for <tt>StreamMessage</tt>. The message body must be capable of being assigned to the specified type. This means that
+     * the specified class or interface must be either the same as, or a superclass or superinterface of, the class of the
+     * message body. If the message has no body then any type may be specified and null is returned.
+     * <p>
+     *
+     * @param c The type to which the message body will be assigned. <br>
+     *          If the message is a {@code TextMessage} then this parameter must be set to {@code String.class} or another type to
+     *          which a {@code String} is assignable. <br>
+     *          If the message is a {@code ObjectMessage} then parameter must must be set to {@code java.io.Serializable.class} or
+     *          another type to which the body is assignable. <br>
+     *          If the message is a {@code MapMessage} then this parameter must be set to {@code java.util.Map.class} (or
+     *          {@code java.lang.Object.class}). <br>
+     *          If the message is a {@code BytesMessage} then this parameter must be set to {@code byte[].class} (or
+     *          {@code java.lang.Object.class}). This method will reset the {@code BytesMessage} before and after use.<br>
+     *          If the message is a {@code TextMessage}, {@code ObjectMessage}, {@code MapMessage} or {@code BytesMessage} and the
+     *          message has no body, then the above does not apply and this parameter may be set to any type; the returned value will
+     *          always be null.<br>
+     *          If the message is a {@code Message} (but not one of its subtypes) then this parameter may be set to any type; the
+     *          returned value will always be null.
+     * @return the message body
+     * @throws MessageFormatException <ul>
+     *                                <li>if the message is a {@code StreamMessage}
+     *                                <li>if the message body cannot be assigned to the specified type
+     *                                <li>if the message is an {@code ObjectMessage} and object deserialization fails.
+     *                                </ul>
+     * @throws JMSException           if the JMS provider fails to get the message body due to some internal error.
+     * @since JMS 2.0
+     */
+    @Override
+    public <T> T getBody(Class<T> c) throws JMSException {
+      if (c != byte[].class) {
+        throw new MessageFormatException("only class byte[]");
+      }
+      if (originalMessage != null) {
+        return (T) originalMessage;
+      }
+      return (T) stream.toByteArray();
+    }
+
     @Override
     void prepareForSend(TypedMessageBuilder<byte[]> producer) throws JMSException {
-      if (stream != null) {
-        // write mode
-        producer.value(stream.toByteArray());
-      } else {
-        // read mode
-        producer.value(originalMessage);
+      try {
+        if (stream != null) {
+          // write mode
+          dataOutputStream.flush();
+          dataOutputStream.close();
+          producer.value(stream.toByteArray());
+        } else {
+          // read mode
+          producer.value(originalMessage);
+        }
+      } catch (Exception err) {
+        throw Utils.handleException(err);
       }
     }
 
@@ -1291,13 +1355,6 @@ abstract class PulsarMessage implements Message {
       }
     }
 
-    private void checkWritable() throws MessageNotWriteableException {
-      if (dataOutputStream == null) throw new MessageNotWriteableException("not writable");
-    }
-
-    private void checkReadable() throws MessageNotReadableException {
-      if (dataInputStream == null) throw new MessageNotReadableException("not readable");
-    }
 
     /**
      * Writes a {@code byte} to the stream message.
@@ -1512,14 +1569,18 @@ abstract class PulsarMessage implements Message {
     }
 
     /**
-     * Puts the message body in read-only mode and repositions the stream to the beginning.
+     * Clears out the message body. Clearing a message's body does not clear its header values or
+     * property entries.
      *
-     * @throws JMSException if the JMS provider fails to reset the message due to some internal
+     * <p>If this message body was read-only, calling this method leaves the message body in the same
+     * state as an empty body in a newly created message.
+     *
+     * @throws JMSException if the JMS provider fails to clear the message body due to some internal
      *     error.
-     * @throws MessageFormatException if the message has an invalid format.
      */
     @Override
-    public void reset() throws JMSException {
+    public void clearBody() throws JMSException {
+      this.writable = true;
       try {
         if (stream != null) {
           this.dataInputStream =
@@ -1533,6 +1594,153 @@ abstract class PulsarMessage implements Message {
         handleException(err);
       }
     }
+
+    /**
+     * Puts the message body in read-only mode and repositions the stream to the beginning.
+     *
+     * @throws JMSException if the JMS provider fails to reset the message due to some internal
+     *     error.
+     * @throws MessageFormatException if the message has an invalid format.
+     */
+    @Override
+    public void reset() throws JMSException {
+      this.writable = false;
+      try {
+        if (stream != null) {
+          this.originalMessage = stream.toByteArray();
+          this.dataInputStream =
+                  new ObjectInputStream(new ByteArrayInputStream(originalMessage));
+          this.stream = null;
+          this.dataOutputStream = null;
+        } else {
+          this.dataInputStream = new ObjectInputStream(new ByteArrayInputStream(originalMessage));
+        }
+      } catch (Exception err) {
+        handleException(err);
+      }
+    }
+    /**
+     * Gets the number of bytes of the message body when the message is in read-only mode. The value returned can be used to
+     * allocate a byte array. The value returned is the entire length of the message body, regardless of where the pointer
+     * for reading the message is currently located.
+     *
+     * @return number of bytes in the message
+     * @throws JMSException                if the JMS provider fails to read the message due to some internal error.
+     * @throws MessageNotReadableException if the message is in write-only mode.
+     * @since JMS 1.1
+     */
+    @Override
+    public long getBodyLength() throws JMSException {
+      checkReadable();
+      return originalMessage.length;
+    }
+
+    /**
+     * Reads an unsigned 8-bit number from the bytes message stream.
+     *
+     * @return the next byte from the bytes message stream, interpreted as an unsigned 8-bit number
+     * @throws JMSException                if the JMS provider fails to read the message due to some internal error.
+     * @throws MessageEOFException         if unexpected end of bytes stream has been reached.
+     * @throws MessageNotReadableException if the message is in write-only mode.
+     */
+    @Override
+    public int readUnsignedByte() throws JMSException {
+      checkReadable();
+      try {
+        return dataInputStream.readUnsignedByte();
+      } catch (Exception err) {
+        return handleException(err);
+      }
+    }
+
+    /**
+     * Reads an unsigned 16-bit number from the bytes message stream.
+     *
+     * @return the next two bytes from the bytes message stream, interpreted as an unsigned 16-bit integer
+     * @throws JMSException                if the JMS provider fails to read the message due to some internal error.
+     * @throws MessageEOFException         if unexpected end of bytes stream has been reached.
+     * @throws MessageNotReadableException if the message is in write-only mode.
+     */
+    @Override
+    public int readUnsignedShort() throws JMSException {
+      checkReadable();
+      try {
+        return dataInputStream.readUnsignedShort();
+      } catch (Exception err) {
+        return handleException(err);
+      }
+    }
+
+    /**
+     * Reads a string that has been encoded using a modified UTF-8 format from the bytes message stream.
+     *
+     * <p>
+     * For more information on the UTF-8 format, see "File System Safe UCS Transformation Format (FSS_UTF)", X/Open
+     * Preliminary Specification, X/Open Company Ltd., Document Number: P316. This information also appears in ISO/IEC
+     * 10646, Annex P.
+     *
+     * @return a Unicode string from the bytes message stream
+     * @throws JMSException                if the JMS provider fails to read the message due to some internal error.
+     * @throws MessageEOFException         if unexpected end of bytes stream has been reached.
+     * @throws MessageNotReadableException if the message is in write-only mode.
+     */
+    @Override
+    public String readUTF() throws JMSException {
+      return readString();
+    }
+
+    /**
+     * Reads a portion of the bytes message stream.
+     *
+     * <p>
+     * If the length of array {@code value} is less than the number of bytes remaining to be read from the stream, the array
+     * should be filled. A subsequent call reads the next increment, and so on.
+     *
+     * <p>
+     * If the number of bytes remaining in the stream is less than the length of array {@code value}, the bytes should be
+     * read into the array. The return value of the total number of bytes read will be less than the length of the array,
+     * indicating that there are no more bytes left to be read from the stream. The next read of the stream returns -1.
+     *
+     * <p>
+     * If {@code length} is negative, or {@code length} is greater than the length of the array {@code value}, then an
+     * {@code IndexOutOfBoundsException} is thrown. No bytes will be read from the stream for this exception case.
+     *
+     * @param value  the buffer into which the data is read
+     * @param length the number of bytes to read; must be less than or equal to {@code value.length}
+     * @return the total number of bytes read into the buffer, or -1 if there is no more data because the end of the stream
+     * has been reached
+     * @throws JMSException                if the JMS provider fails to read the message due to some internal error.
+     * @throws MessageNotReadableException if the message is in write-only mode.
+     */
+    @Override
+    public int readBytes(byte[] value, int length) throws JMSException {
+      checkReadable();
+      if (value == null) {
+        return -1;
+      }
+      try {
+        return dataInputStream.read(value, 0, length);
+      } catch (Exception err) {
+        return handleException(err);
+      }
+    }
+
+    /**
+     * Writes a string to the bytes message stream using UTF-8 encoding in a machine-independent manner.
+     *
+     * <p>
+     * For more information on the UTF-8 format, see "File System Safe UCS Transformation Format (FSS_UTF)", X/Open
+     * Preliminary Specification, X/Open Company Ltd., Document Number: P316. This information also appears in ISO/IEC
+     * 10646, Annex P.
+     *
+     * @param value the {@code String} value to be written
+     * @throws JMSException                 if the JMS provider fails to write the message due to some internal error.
+     * @throws MessageNotWriteableException if the message is in read-only mode.
+     */
+    @Override
+    public void writeUTF(String value) throws JMSException {
+      writeString(value);
+    }
   }
 
   static final class PulsarTextMessage extends PulsarMessage implements TextMessage {
@@ -1545,6 +1753,16 @@ abstract class PulsarMessage implements Message {
     @Override
     public boolean isBodyAssignableTo(Class c) {
       return c == String.class;
+    }
+
+    @Override
+    public void clearBody() throws JMSException {
+      this.text = null;
+    }
+
+    @Override
+    public <T> T getBody(Class<T> c) throws JMSException {
+      return Utils.invoke(() -> c.cast(text));
     }
 
     @Override
@@ -1573,6 +1791,535 @@ abstract class PulsarMessage implements Message {
     @Override
     public String getText() throws JMSException {
       return text;
+    }
+  }
+
+  final static class SimpleMessage extends PulsarMessage {
+    @Override
+    public void clearBody() throws JMSException {
+    }
+
+    @Override
+    public <T> T getBody(Class<T> c) throws JMSException {
+      return null;
+    }
+
+    @Override
+    public boolean isBodyAssignableTo(Class c) throws JMSException {
+      return false;
+    }
+
+    @Override
+    void prepareForSend(TypedMessageBuilder<byte[]> producer) throws JMSException {
+        // null value
+        producer.value(null);
+    }
+  }
+
+  final static class PulsarObjectMessage extends PulsarMessage implements ObjectMessage {
+
+    private Serializable object;
+
+    public PulsarObjectMessage(Serializable object) {
+      this.object = object;
+    }
+
+    @Override
+    public boolean isBodyAssignableTo(Class c) throws JMSException {
+      return c.isAssignableFrom(Serializable.class);
+    }
+
+    @Override
+    public void clearBody() throws JMSException {
+      this.object = null;
+    }
+
+    @Override
+    public <T> T getBody(Class<T> c) throws JMSException {
+      if (object == null) {
+        return null;
+      }
+      return Utils.invoke(() -> c.cast(object));
+    }
+
+    @Override
+    void prepareForSend(TypedMessageBuilder<byte[]> producer) throws JMSException {
+      if (object == null) {
+        producer.value(null);
+        return;
+      }
+      try {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ObjectOutputStream oo = new ObjectOutputStream(out);
+        oo.writeUnshared(object);
+        oo.flush();
+        oo.close();
+        producer.value(out.toByteArray());
+      } catch (Exception err) {
+        throw Utils.handleException(err);
+      }
+    }
+
+    /**
+     * Sets the serializable object containing this message's data. It is important to note that an {@code ObjectMessage}
+     * contains a snapshot of the object at the time {@code setObject()} is called; subsequent modifications of the object
+     * will have no effect on the {@code ObjectMessage} body.
+     *
+     * @param object the message's data
+     * @throws JMSException                 if the JMS provider fails to set the object due to some internal error.
+     * @throws MessageFormatException       if object serialization fails.
+     * @throws MessageNotWriteableException if the message is in read-only mode.
+     */
+    @Override
+    public void setObject(Serializable object) throws JMSException {
+      this.object = object;
+    }
+
+    /**
+     * Gets the serializable object containing this message's data. The default value is null.
+     *
+     * @return the serializable object containing this message's data
+     * @throws JMSException           if the JMS provider fails to get the object due to some internal error.
+     * @throws MessageFormatException if object deserialization fails.
+     */
+    @Override
+    public Serializable getObject() throws JMSException {
+      return object;
+    }
+  }
+
+  final static class PulsarMapMessage extends PulsarMessage implements MapMessage {
+
+    private final Map<String, Object> map = new HashMap<>();
+    public PulsarMapMessage() {
+      writable = true;
+    }
+
+    public PulsarMapMessage(byte[] payload) throws JMSException {
+      writable = false;
+      try {
+        ByteArrayInputStream in = new ByteArrayInputStream(payload);
+        ObjectInputStream input = new ObjectInputStream(in);
+        int size = input.readInt();
+        for (int i = 0; i < size; i++) {
+          String key = input.readUTF();
+          Object value = input.readUnshared();
+          map.put(key, value);
+        }
+      } catch (Exception err) {
+        throw Utils.handleException(err);
+      }
+    }
+
+    @Override
+    public void clearBody() throws JMSException {
+      map.clear();
+    }
+
+    @Override
+    public <T> T getBody(Class<T> c) throws JMSException {
+        if (c == Map.class) {
+          return (T) map;
+        }
+        throw new MessageFormatException("only java.util.Map is supported");
+    }
+
+    @Override
+    public boolean isBodyAssignableTo(Class c) throws JMSException {
+      return c == Map.class;
+    }
+
+    @Override
+    void prepareForSend(TypedMessageBuilder<byte[]> producer) throws JMSException {
+      if (map.isEmpty()) {
+        producer.value(null);
+        return;
+      }
+      try {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ObjectOutputStream oo = new ObjectOutputStream(out);
+        oo.writeInt(map.size());
+        for (Map.Entry<String, Object> entry : map.entrySet()) {
+          oo.writeUTF(entry.getKey()); // already not null and not empty
+          oo.writeUnshared(entry.getValue());
+        }
+        oo.flush();
+        oo.close();
+        producer.value(out.toByteArray());
+      } catch (Exception err) {
+        throw Utils.handleException(err);
+      }
+    }
+
+    /**
+     * Returns the {@code boolean} value with the specified name.
+     *
+     * @param name the name of the {@code boolean}
+     * @return the {@code boolean} value with the specified name
+     * @throws JMSException           if the JMS provider fails to read the message due to some internal error.
+     * @throws MessageFormatException if this type conversion is invalid.
+     */
+    @Override
+    public boolean getBoolean(String name) throws JMSException {
+      return Utils.invoke(() -> (Boolean) map.get(name));
+    }
+
+    /**
+     * Returns the {@code byte} value with the specified name.
+     *
+     * @param name the name of the {@code byte}
+     * @return the {@code byte} value with the specified name
+     * @throws JMSException           if the JMS provider fails to read the message due to some internal error.
+     * @throws MessageFormatException if this type conversion is invalid.
+     */
+    @Override
+    public byte getByte(String name) throws JMSException {
+      return Utils.invoke(() -> (Byte) map.get(name));
+    }
+
+    /**
+     * Returns the {@code short} value with the specified name.
+     *
+     * @param name the name of the {@code short}
+     * @return the {@code short} value with the specified name
+     * @throws JMSException           if the JMS provider fails to read the message due to some internal error.
+     * @throws MessageFormatException if this type conversion is invalid.
+     */
+    @Override
+    public short getShort(String name) throws JMSException {
+      return Utils.invoke(() -> (Short) map.get(name));
+    }
+
+    /**
+     * Returns the Unicode character value with the specified name.
+     *
+     * @param name the name of the Unicode character
+     * @return the Unicode character value with the specified name
+     * @throws JMSException           if the JMS provider fails to read the message due to some internal error.
+     * @throws MessageFormatException if this type conversion is invalid.
+     */
+    @Override
+    public char getChar(String name) throws JMSException {
+      return Utils.invoke(() -> (Character) map.get(name));
+    }
+
+    /**
+     * Returns the {@code int} value with the specified name.
+     *
+     * @param name the name of the {@code int}
+     * @return the {@code int} value with the specified name
+     * @throws JMSException           if the JMS provider fails to read the message due to some internal error.
+     * @throws MessageFormatException if this type conversion is invalid.
+     */
+    @Override
+    public int getInt(String name) throws JMSException {
+      return Utils.invoke(() -> (Integer) map.get(name));
+    }
+
+    /**
+     * Returns the {@code long} value with the specified name.
+     *
+     * @param name the name of the {@code long}
+     * @return the {@code long} value with the specified name
+     * @throws JMSException           if the JMS provider fails to read the message due to some internal error.
+     * @throws MessageFormatException if this type conversion is invalid.
+     */
+    @Override
+    public long getLong(String name) throws JMSException {
+      return Utils.invoke(() -> (Long) map.get(name));
+    }
+
+    /**
+     * Returns the {@code float} value with the specified name.
+     *
+     * @param name the name of the {@code float}
+     * @return the {@code float} value with the specified name
+     * @throws JMSException           if the JMS provider fails to read the message due to some internal error.
+     * @throws MessageFormatException if this type conversion is invalid.
+     */
+    @Override
+    public float getFloat(String name) throws JMSException {
+      return Utils.invoke(() -> (Float) map.get(name));
+    }
+
+    /**
+     * Returns the {@code double} value with the specified name.
+     *
+     * @param name the name of the {@code double}
+     * @return the {@code double} value with the specified name
+     * @throws JMSException           if the JMS provider fails to read the message due to some internal error.
+     * @throws MessageFormatException if this type conversion is invalid.
+     */
+    @Override
+    public double getDouble(String name) throws JMSException {
+      return Utils.invoke(() -> (Double) map.get(name));
+    }
+
+    /**
+     * Returns the {@code String} value with the specified name.
+     *
+     * @param name the name of the {@code String}
+     * @return the {@code String} value with the specified name; if there is no item by this name, a null value is returned
+     * @throws JMSException           if the JMS provider fails to read the message due to some internal error.
+     * @throws MessageFormatException if this type conversion is invalid.
+     */
+    @Override
+    public String getString(String name) throws JMSException {
+      return Utils.invoke(() -> (String) map.get(name));
+    }
+
+    /**
+     * Returns the byte array value with the specified name.
+     *
+     * @param name the name of the byte array
+     * @return a copy of the byte array value with the specified name; if there is no item by this name, a null value is
+     * returned.
+     * @throws JMSException           if the JMS provider fails to read the message due to some internal error.
+     * @throws MessageFormatException if this type conversion is invalid.
+     */
+    @Override
+    public byte[] getBytes(String name) throws JMSException {
+      return Utils.invoke(() -> (byte[]) map.get(name));
+    }
+
+    /**
+     * Returns the value of the object with the specified name.
+     *
+     * <p>
+     * This method can be used to return, in objectified format, an object in the Java programming language ("Java object")
+     * that had been stored in the Map with the equivalent {@code setObject} method call, or its equivalent primitive
+     * <code>set<I>type</I></code> method.
+     *
+     * <p>
+     * Note that byte values are returned as {@code byte[]}, not {@code Byte[]}.
+     *
+     * @param name the name of the Java object
+     * @return a copy of the Java object value with the specified name, in objectified format (for example, if the object
+     * was set as an {@code int}, an {@code Integer} is returned); if there is no item by this name, a null value is
+     * returned
+     * @throws JMSException if the JMS provider fails to read the message due to some internal error.
+     */
+    @Override
+    public Object getObject(String name) throws JMSException {
+      return Utils.invoke(() -> map.get(name));
+    }
+
+    /**
+     * Returns an {@code Enumeration} of all the names in the {@code MapMessage} object.
+     *
+     * @return an enumeration of all the names in this {@code MapMessage}
+     * @throws JMSException if the JMS provider fails to read the message due to some internal error.
+     */
+    @Override
+    public Enumeration getMapNames() throws JMSException {
+      return Collections.enumeration(map.keySet());
+    }
+
+    /**
+     * Sets a {@code boolean} value with the specified name into the Map.
+     *
+     * @param name  the name of the {@code boolean}
+     * @param value the {@code boolean} value to set in the Map
+     * @throws JMSException                 if the JMS provider fails to write the message due to some internal error.
+     * @throws IllegalArgumentException     if the name is null or if the name is an empty string.
+     * @throws MessageNotWriteableException if the message is in read-only mode.
+     */
+    @Override
+    public void setBoolean(String name, boolean value) throws JMSException {
+      checkWritableProperty(name);
+      map.put(name, value);
+    }
+
+
+    /**
+     * Sets a {@code byte} value with the specified name into the Map.
+     *
+     * @param name  the name of the {@code byte}
+     * @param value the {@code byte} value to set in the Map
+     * @throws JMSException                 if the JMS provider fails to write the message due to some internal error.
+     * @throws IllegalArgumentException     if the name is null or if the name is an empty string.
+     * @throws MessageNotWriteableException if the message is in read-only mode.
+     */
+    @Override
+    public void setByte(String name, byte value) throws JMSException {
+      checkWritableProperty(name);
+      map.put(name, value);
+    }
+
+    /**
+     * Sets a {@code short} value with the specified name into the Map.
+     *
+     * @param name  the name of the {@code short}
+     * @param value the {@code short} value to set in the Map
+     * @throws JMSException                 if the JMS provider fails to write the message due to some internal error.
+     * @throws IllegalArgumentException     if the name is null or if the name is an empty string.
+     * @throws MessageNotWriteableException if the message is in read-only mode.
+     */
+    @Override
+    public void setShort(String name, short value) throws JMSException {
+      checkWritableProperty(name);
+      map.put(name, value);
+    }
+
+    /**
+     * Sets a Unicode character value with the specified name into the Map.
+     *
+     * @param name  the name of the Unicode character
+     * @param value the Unicode character value to set in the Map
+     * @throws JMSException                 if the JMS provider fails to write the message due to some internal error.
+     * @throws IllegalArgumentException     if the name is null or if the name is an empty string.
+     * @throws MessageNotWriteableException if the message is in read-only mode.
+     */
+    @Override
+    public void setChar(String name, char value) throws JMSException {
+      checkWritableProperty(name);
+      map.put(name, value);
+    }
+
+    /**
+     * Sets an {@code int} value with the specified name into the Map.
+     *
+     * @param name  the name of the {@code int}
+     * @param value the {@code int} value to set in the Map
+     * @throws JMSException                 if the JMS provider fails to write the message due to some internal error.
+     * @throws IllegalArgumentException     if the name is null or if the name is an empty string.
+     * @throws MessageNotWriteableException if the message is in read-only mode.
+     */
+    @Override
+    public void setInt(String name, int value) throws JMSException {
+      checkWritableProperty(name);
+      map.put(name, value);
+    }
+
+    /**
+     * Sets a {@code long} value with the specified name into the Map.
+     *
+     * @param name  the name of the {@code long}
+     * @param value the {@code long} value to set in the Map
+     * @throws JMSException                 if the JMS provider fails to write the message due to some internal error.
+     * @throws IllegalArgumentException     if the name is null or if the name is an empty string.
+     * @throws MessageNotWriteableException if the message is in read-only mode.
+     */
+    @Override
+    public void setLong(String name, long value) throws JMSException {
+      checkWritableProperty(name);
+      map.put(name, value);
+    }
+
+    /**
+     * Sets a {@code float} value with the specified name into the Map.
+     *
+     * @param name  the name of the {@code float}
+     * @param value the {@code float} value to set in the Map
+     * @throws JMSException                 if the JMS provider fails to write the message due to some internal error.
+     * @throws IllegalArgumentException     if the name is null or if the name is an empty string.
+     * @throws MessageNotWriteableException if the message is in read-only mode.
+     */
+    @Override
+    public void setFloat(String name, float value) throws JMSException {
+      checkWritableProperty(name);
+      map.put(name, value);
+    }
+
+    /**
+     * Sets a {@code double} value with the specified name into the Map.
+     *
+     * @param name  the name of the {@code double}
+     * @param value the {@code double} value to set in the Map
+     * @throws JMSException                 if the JMS provider fails to write the message due to some internal error.
+     * @throws IllegalArgumentException     if the name is null or if the name is an empty string.
+     * @throws MessageNotWriteableException if the message is in read-only mode.
+     */
+    @Override
+    public void setDouble(String name, double value) throws JMSException {
+      checkWritableProperty(name);
+      map.put(name, value);
+    }
+
+    /**
+     * Sets a {@code String} value with the specified name into the Map.
+     *
+     * @param name  the name of the {@code String}
+     * @param value the {@code String} value to set in the Map
+     * @throws JMSException                 if the JMS provider fails to write the message due to some internal error.
+     * @throws IllegalArgumentException     if the name is null or if the name is an empty string.
+     * @throws MessageNotWriteableException if the message is in read-only mode.
+     */
+    @Override
+    public void setString(String name, String value) throws JMSException {
+      checkWritableProperty(name);
+      map.put(name, value);
+    }
+
+    /**
+     * Sets a byte array value with the specified name into the Map.
+     *
+     * @param name  the name of the byte array
+     * @param value the byte array value to set in the Map; the array is copied so that the value for {@code name} will not
+     *              be altered by future modifications
+     * @throws JMSException                 if the JMS provider fails to write the message due to some internal error.
+     * @throws IllegalArgumentException     if the name is null, or if the name is an empty string.
+     * @throws MessageNotWriteableException if the message is in read-only mode.
+     */
+    @Override
+    public void setBytes(String name, byte[] value) throws JMSException {
+      checkWritableProperty(name);
+      map.put(name, value);
+    }
+
+    /**
+     * Sets a portion of the byte array value with the specified name into the Map.
+     *
+     * @param name   the name of the byte array
+     * @param value  the byte array value to set in the Map
+     * @param offset the initial offset within the byte array
+     * @param length the number of bytes to use
+     * @throws JMSException                 if the JMS provider fails to write the message due to some internal error.
+     * @throws IllegalArgumentException     if the name is null or if the name is an empty string.
+     * @throws MessageNotWriteableException if the message is in read-only mode.
+     */
+    @Override
+    public void setBytes(String name, byte[] value, int offset, int length) throws JMSException {
+      checkWritableProperty(name);
+      if (offset == 0 && length == value.length) {
+        map.put(name, value);
+      } else {
+        byte[] copy = new byte[length];
+        System.arraycopy(value, offset, copy, 0, length);
+        map.put(name, copy);
+      }
+    }
+
+    /**
+     * Sets an object value with the specified name into the Map.
+     *
+     * <p>
+     * This method works only for the objectified primitive object types ({@code Integer}, {@code Double},
+     * {@code Long}&nbsp;...), {@code String} objects, and byte arrays.
+     *
+     * @param name  the name of the Java object
+     * @param value the Java object value to set in the Map
+     * @throws JMSException                 if the JMS provider fails to write the message due to some internal error.
+     * @throws IllegalArgumentException     if the name is null or if the name is an empty string.
+     * @throws MessageFormatException       if the object is invalid.
+     * @throws MessageNotWriteableException if the message is in read-only mode.
+     */
+    @Override
+    public void setObject(String name, Object value) throws JMSException {
+      checkWritableProperty(name);
+      map.put(name, value);
+    }
+
+    /**
+     * Indicates whether an item exists in this {@code MapMessage} object.
+     *
+     * @param name the name of the item to test
+     * @return true if the item exists
+     * @throws JMSException if the JMS provider fails to determine if the item exists due to some internal error.
+     */
+    @Override
+    public boolean itemExists(String name) throws JMSException {
+      return map.containsKey(name);
     }
   }
 }

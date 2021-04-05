@@ -23,12 +23,18 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
+import javax.jms.BytesMessage;
 import javax.jms.Connection;
 import javax.jms.Destination;
+import javax.jms.MapMessage;
+import javax.jms.Message;
 import javax.jms.MessageProducer;
+import javax.jms.ObjectMessage;
 import javax.jms.Session;
 import javax.jms.StreamMessage;
 import javax.jms.TextMessage;
+
+import org.apache.zookeeper.OpResult;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -66,41 +72,24 @@ public class SimpleTest {
             producer.send(textMsg);
 
             StreamMessage streamMessage = session.createStreamMessage();
-            streamMessage.writeBoolean(true);
-            streamMessage.writeChar('a');
-            streamMessage.writeInt(123);
-            streamMessage.writeLong(1244l);
-            streamMessage.writeShort((short) 213);
-            streamMessage.writeByte((byte) 1);
             streamMessage.writeBytes("foo".getBytes(StandardCharsets.UTF_8));
-            streamMessage.writeDouble(1.2d);
-            streamMessage.writeFloat(1.5f);
-            streamMessage.writeBytes("foo".getBytes(StandardCharsets.UTF_8), 2, 1);
-            streamMessage.writeObject("test");
-
             producer.send(streamMessage);
 
-            streamMessage.reset();
-            assertEquals(true, streamMessage.readBoolean());
-            assertEquals('a', streamMessage.readChar());
-            assertEquals(123, streamMessage.readInt());
-            assertEquals(1244l, streamMessage.readLong());
-            assertEquals((short) 213, streamMessage.readShort());
-            assertEquals((byte) 1, streamMessage.readByte());
-            byte[] buffer = new byte[3];
-            assertEquals(3, streamMessage.readBytes(buffer));
-            assertArrayEquals("foo".getBytes(StandardCharsets.UTF_8), buffer);
-            assertEquals(1.2d, streamMessage.readDouble(), 0);
-            assertEquals(1.5f, streamMessage.readFloat(), 0);
-            ;
-            buffer = new byte[1];
-            assertEquals(1, streamMessage.readBytes(buffer));
-            assertArrayEquals("o".getBytes(StandardCharsets.UTF_8), buffer);
-            assertEquals("test", streamMessage.readObject());
+            BytesMessage bytesMessage = session.createBytesMessage();
+            bytesMessage.writeInt(234);
+            producer.send(bytesMessage);
 
-            // additional spec validations for edge cases
-            assertEquals(-1, streamMessage.readBytes(null));
-            assertEquals(-1, streamMessage.readBytes(buffer));
+            Message headerOnly = session.createMessage();
+            headerOnly.setBooleanProperty("myproperty", true);
+            producer.send(headerOnly);
+
+            ObjectMessage objectMessage = session.createObjectMessage("test");
+            producer.send(objectMessage);
+
+            MapMessage mapMessage = session.createMapMessage();
+            mapMessage.setBoolean("p1", true);
+            producer.send(mapMessage);
+
           }
         }
       }
