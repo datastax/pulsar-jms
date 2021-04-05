@@ -22,11 +22,13 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Map;
 import javax.jms.BytesMessage;
+import javax.jms.CompletionListener;
 import javax.jms.DeliveryMode;
 import javax.jms.Destination;
 import javax.jms.JMSException;
@@ -41,21 +43,22 @@ import javax.jms.ObjectMessage;
 import javax.jms.Session;
 import javax.jms.StreamMessage;
 import javax.jms.TextMessage;
+import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.api.TypedMessageBuilder;
 
 abstract class PulsarMessage implements Message {
 
-  private String messageId;
+  private volatile String messageId;
   protected boolean writable = true;
-  private long jmsTimestamp;
+  private volatile long jmsTimestamp;
   private byte[] correlationId;
   private Destination jmsReplyTo;
   private Destination destination;
   private int deliveryMode = Message.DEFAULT_DELIVERY_MODE;
   private String jmsType;
   private boolean jmsRedelivered;
-  private long jmsExpiration;
-  private long jmsDeliveryTime;
+  private volatile long jmsExpiration;
+  private volatile long jmsDeliveryTime;
   private int jmsPriority = Message.DEFAULT_PRIORITY;
   private final Map<String, String> properties = new HashMap<>();
 
@@ -578,7 +581,6 @@ abstract class PulsarMessage implements Message {
     this.jmsPriority = priority;
   }
 
-
   /**
    * Clears a message's properties.
    *
@@ -933,22 +935,101 @@ abstract class PulsarMessage implements Message {
 
   protected final void checkWritableProperty(String name) throws JMSException {
     if (name == null || name.isEmpty()) {
-      throw new IllegalArgumentException("Invalid map key "+name);
+      throw new IllegalArgumentException("Invalid map key " + name);
     }
     if (!writable) {
       throw new MessageNotWriteableException("Not writeable");
     }
   }
 
+  protected abstract String messageType();
+
+  final void sendAsync(TypedMessageBuilder<byte[]> producer, CompletionListener completionListener)
+      throws JMSException {
+    prepareForSend(producer);
+    producer.properties(properties);
+    // useful for deserialization
+    producer.property("JMS_PulsarMessageType", messageType());
+    if (jmsReplyTo != null) {
+      producer.property("JSMReplyTo", ((PulsarDestination) jmsReplyTo).topicName);
+    }
+    if (jmsType != null) {
+      producer.property("JMSType", jmsType);
+    }
+    if (jmsPriority != Message.DEFAULT_PRIORITY) {
+      producer.property("JMSPriority", jmsPriority + "");
+    }
+
+    this.jmsTimestamp = System.currentTimeMillis();
+    producer
+        .sendAsync()
+        .whenComplete(
+            (messageIdFromServer, error) -> {
+              if (error != null) {
+                completionListener.onException(this, Utils.handleException(error));
+              } else {
+                this.messageId = "ID:" + Arrays.toString(messageIdFromServer.toByteArray());
+                this.jmsDeliveryTime = System.currentTimeMillis();
+                // we do not know in the producer about the actual time-to-live
+                this.jmsExpiration = 0;
+                completionListener.onCompletion(this);
+              }
+            });
+  }
+
   final void send(TypedMessageBuilder<byte[]> producer) throws JMSException {
     prepareForSend(producer);
     producer.properties(properties);
-    Utils.invoke(() -> producer.send());
+    // useful for deserialization
+    producer.property("JMS_PulsarMessageType", messageType());
+    if (jmsReplyTo != null) {
+      producer.property("JSMReplyTo", ((PulsarDestination) jmsReplyTo).topicName);
+    }
+    if (jmsType != null) {
+      producer.property("JMSType", jmsType);
+    }
+    if (jmsPriority != Message.DEFAULT_PRIORITY) {
+      producer.property("JMSPriority", jmsPriority + "");
+    }
+
+    this.jmsTimestamp = System.currentTimeMillis();
+    MessageId messageIdFromServer = Utils.invoke(() -> producer.send());
+    this.messageId = "ID:" + Arrays.toString(messageIdFromServer.toByteArray());
+    this.jmsDeliveryTime = System.currentTimeMillis();
+    // we do not know in the producer about the actual time-to-live
+    this.jmsExpiration = 0;
   }
 
   abstract void prepareForSend(TypedMessageBuilder<byte[]> producer) throws JMSException;
 
-  static class PulsarBufferedMessage extends PulsarMessage implements BytesMessage, StreamMessage {
+  static final class PulsarStreamMessage extends PulsarBufferedMessage {
+    public PulsarStreamMessage(byte[] payload) throws JMSException {
+      super(payload);
+    }
+
+    public PulsarStreamMessage() throws JMSException {}
+
+    @Override
+    protected String messageType() {
+      return "stream";
+    }
+  }
+
+  static final class PulsarBytesMessage extends PulsarBufferedMessage {
+    public PulsarBytesMessage(byte[] payload) throws JMSException {
+      super(payload);
+    }
+
+    public PulsarBytesMessage() throws JMSException {}
+
+    @Override
+    protected String messageType() {
+      return "bytes";
+    }
+  }
+
+  abstract static class PulsarBufferedMessage extends PulsarMessage
+      implements BytesMessage, StreamMessage {
 
     private ByteArrayOutputStream stream;
     private byte[] originalMessage;
@@ -1013,33 +1094,39 @@ abstract class PulsarMessage implements Message {
     }
 
     /**
-     * Returns the message body as an object of the specified type. This method may be called on any type of message except
-     * for <tt>StreamMessage</tt>. The message body must be capable of being assigned to the specified type. This means that
-     * the specified class or interface must be either the same as, or a superclass or superinterface of, the class of the
-     * message body. If the message has no body then any type may be specified and null is returned.
+     * Returns the message body as an object of the specified type. This method may be called on any
+     * type of message except for <tt>StreamMessage</tt>. The message body must be capable of being
+     * assigned to the specified type. This means that the specified class or interface must be
+     * either the same as, or a superclass or superinterface of, the class of the message body. If
+     * the message has no body then any type may be specified and null is returned.
+     *
      * <p>
      *
      * @param c The type to which the message body will be assigned. <br>
-     *          If the message is a {@code TextMessage} then this parameter must be set to {@code String.class} or another type to
-     *          which a {@code String} is assignable. <br>
-     *          If the message is a {@code ObjectMessage} then parameter must must be set to {@code java.io.Serializable.class} or
-     *          another type to which the body is assignable. <br>
-     *          If the message is a {@code MapMessage} then this parameter must be set to {@code java.util.Map.class} (or
-     *          {@code java.lang.Object.class}). <br>
-     *          If the message is a {@code BytesMessage} then this parameter must be set to {@code byte[].class} (or
-     *          {@code java.lang.Object.class}). This method will reset the {@code BytesMessage} before and after use.<br>
-     *          If the message is a {@code TextMessage}, {@code ObjectMessage}, {@code MapMessage} or {@code BytesMessage} and the
-     *          message has no body, then the above does not apply and this parameter may be set to any type; the returned value will
-     *          always be null.<br>
-     *          If the message is a {@code Message} (but not one of its subtypes) then this parameter may be set to any type; the
-     *          returned value will always be null.
+     *     If the message is a {@code TextMessage} then this parameter must be set to {@code
+     *     String.class} or another type to which a {@code String} is assignable. <br>
+     *     If the message is a {@code ObjectMessage} then parameter must must be set to {@code
+     *     java.io.Serializable.class} or another type to which the body is assignable. <br>
+     *     If the message is a {@code MapMessage} then this parameter must be set to {@code
+     *     java.util.Map.class} (or {@code java.lang.Object.class}). <br>
+     *     If the message is a {@code BytesMessage} then this parameter must be set to {@code
+     *     byte[].class} (or {@code java.lang.Object.class}). This method will reset the {@code
+     *     BytesMessage} before and after use.<br>
+     *     If the message is a {@code TextMessage}, {@code ObjectMessage}, {@code MapMessage} or
+     *     {@code BytesMessage} and the message has no body, then the above does not apply and this
+     *     parameter may be set to any type; the returned value will always be null.<br>
+     *     If the message is a {@code Message} (but not one of its subtypes) then this parameter may
+     *     be set to any type; the returned value will always be null.
      * @return the message body
-     * @throws MessageFormatException <ul>
-     *                                <li>if the message is a {@code StreamMessage}
-     *                                <li>if the message body cannot be assigned to the specified type
-     *                                <li>if the message is an {@code ObjectMessage} and object deserialization fails.
-     *                                </ul>
-     * @throws JMSException           if the JMS provider fails to get the message body due to some internal error.
+     * @throws MessageFormatException
+     *     <ul>
+     *       <li>if the message is a {@code StreamMessage}
+     *       <li>if the message body cannot be assigned to the specified type
+     *       <li>if the message is an {@code ObjectMessage} and object deserialization fails.
+     *     </ul>
+     *
+     * @throws JMSException if the JMS provider fails to get the message body due to some internal
+     *     error.
      * @since JMS 2.0
      */
     @Override
@@ -1355,7 +1442,6 @@ abstract class PulsarMessage implements Message {
       }
     }
 
-
     /**
      * Writes a {@code byte} to the stream message.
      *
@@ -1572,8 +1658,8 @@ abstract class PulsarMessage implements Message {
      * Clears out the message body. Clearing a message's body does not clear its header values or
      * property entries.
      *
-     * <p>If this message body was read-only, calling this method leaves the message body in the same
-     * state as an empty body in a newly created message.
+     * <p>If this message body was read-only, calling this method leaves the message body in the
+     * same state as an empty body in a newly created message.
      *
      * @throws JMSException if the JMS provider fails to clear the message body due to some internal
      *     error.
@@ -1588,7 +1674,10 @@ abstract class PulsarMessage implements Message {
           this.stream = null;
           this.dataOutputStream = null;
         } else {
-          this.dataInputStream = new ObjectInputStream(new ByteArrayInputStream(originalMessage));
+          this.stream = new ByteArrayOutputStream();
+          this.dataOutputStream = new ObjectOutputStream(stream);
+          this.originalMessage = null;
+          this.dataInputStream = null;
         }
       } catch (Exception err) {
         handleException(err);
@@ -1607,9 +1696,9 @@ abstract class PulsarMessage implements Message {
       this.writable = false;
       try {
         if (stream != null) {
+          this.dataOutputStream.flush();
           this.originalMessage = stream.toByteArray();
-          this.dataInputStream =
-                  new ObjectInputStream(new ByteArrayInputStream(originalMessage));
+          this.dataInputStream = new ObjectInputStream(new ByteArrayInputStream(originalMessage));
           this.stream = null;
           this.dataOutputStream = null;
         } else {
@@ -1620,12 +1709,13 @@ abstract class PulsarMessage implements Message {
       }
     }
     /**
-     * Gets the number of bytes of the message body when the message is in read-only mode. The value returned can be used to
-     * allocate a byte array. The value returned is the entire length of the message body, regardless of where the pointer
-     * for reading the message is currently located.
+     * Gets the number of bytes of the message body when the message is in read-only mode. The value
+     * returned can be used to allocate a byte array. The value returned is the entire length of the
+     * message body, regardless of where the pointer for reading the message is currently located.
      *
      * @return number of bytes in the message
-     * @throws JMSException                if the JMS provider fails to read the message due to some internal error.
+     * @throws JMSException if the JMS provider fails to read the message due to some internal
+     *     error.
      * @throws MessageNotReadableException if the message is in write-only mode.
      * @since JMS 1.1
      */
@@ -1639,8 +1729,9 @@ abstract class PulsarMessage implements Message {
      * Reads an unsigned 8-bit number from the bytes message stream.
      *
      * @return the next byte from the bytes message stream, interpreted as an unsigned 8-bit number
-     * @throws JMSException                if the JMS provider fails to read the message due to some internal error.
-     * @throws MessageEOFException         if unexpected end of bytes stream has been reached.
+     * @throws JMSException if the JMS provider fails to read the message due to some internal
+     *     error.
+     * @throws MessageEOFException if unexpected end of bytes stream has been reached.
      * @throws MessageNotReadableException if the message is in write-only mode.
      */
     @Override
@@ -1656,9 +1747,11 @@ abstract class PulsarMessage implements Message {
     /**
      * Reads an unsigned 16-bit number from the bytes message stream.
      *
-     * @return the next two bytes from the bytes message stream, interpreted as an unsigned 16-bit integer
-     * @throws JMSException                if the JMS provider fails to read the message due to some internal error.
-     * @throws MessageEOFException         if unexpected end of bytes stream has been reached.
+     * @return the next two bytes from the bytes message stream, interpreted as an unsigned 16-bit
+     *     integer
+     * @throws JMSException if the JMS provider fails to read the message due to some internal
+     *     error.
+     * @throws MessageEOFException if unexpected end of bytes stream has been reached.
      * @throws MessageNotReadableException if the message is in write-only mode.
      */
     @Override
@@ -1672,16 +1765,17 @@ abstract class PulsarMessage implements Message {
     }
 
     /**
-     * Reads a string that has been encoded using a modified UTF-8 format from the bytes message stream.
+     * Reads a string that has been encoded using a modified UTF-8 format from the bytes message
+     * stream.
      *
-     * <p>
-     * For more information on the UTF-8 format, see "File System Safe UCS Transformation Format (FSS_UTF)", X/Open
-     * Preliminary Specification, X/Open Company Ltd., Document Number: P316. This information also appears in ISO/IEC
-     * 10646, Annex P.
+     * <p>For more information on the UTF-8 format, see "File System Safe UCS Transformation Format
+     * (FSS_UTF)", X/Open Preliminary Specification, X/Open Company Ltd., Document Number: P316.
+     * This information also appears in ISO/IEC 10646, Annex P.
      *
      * @return a Unicode string from the bytes message stream
-     * @throws JMSException                if the JMS provider fails to read the message due to some internal error.
-     * @throws MessageEOFException         if unexpected end of bytes stream has been reached.
+     * @throws JMSException if the JMS provider fails to read the message due to some internal
+     *     error.
+     * @throws MessageEOFException if unexpected end of bytes stream has been reached.
      * @throws MessageNotReadableException if the message is in write-only mode.
      */
     @Override
@@ -1692,24 +1786,25 @@ abstract class PulsarMessage implements Message {
     /**
      * Reads a portion of the bytes message stream.
      *
-     * <p>
-     * If the length of array {@code value} is less than the number of bytes remaining to be read from the stream, the array
-     * should be filled. A subsequent call reads the next increment, and so on.
+     * <p>If the length of array {@code value} is less than the number of bytes remaining to be read
+     * from the stream, the array should be filled. A subsequent call reads the next increment, and
+     * so on.
      *
-     * <p>
-     * If the number of bytes remaining in the stream is less than the length of array {@code value}, the bytes should be
-     * read into the array. The return value of the total number of bytes read will be less than the length of the array,
-     * indicating that there are no more bytes left to be read from the stream. The next read of the stream returns -1.
+     * <p>If the number of bytes remaining in the stream is less than the length of array {@code
+     * value}, the bytes should be read into the array. The return value of the total number of
+     * bytes read will be less than the length of the array, indicating that there are no more bytes
+     * left to be read from the stream. The next read of the stream returns -1.
      *
-     * <p>
-     * If {@code length} is negative, or {@code length} is greater than the length of the array {@code value}, then an
-     * {@code IndexOutOfBoundsException} is thrown. No bytes will be read from the stream for this exception case.
+     * <p>If {@code length} is negative, or {@code length} is greater than the length of the array
+     * {@code value}, then an {@code IndexOutOfBoundsException} is thrown. No bytes will be read
+     * from the stream for this exception case.
      *
-     * @param value  the buffer into which the data is read
+     * @param value the buffer into which the data is read
      * @param length the number of bytes to read; must be less than or equal to {@code value.length}
-     * @return the total number of bytes read into the buffer, or -1 if there is no more data because the end of the stream
-     * has been reached
-     * @throws JMSException                if the JMS provider fails to read the message due to some internal error.
+     * @return the total number of bytes read into the buffer, or -1 if there is no more data
+     *     because the end of the stream has been reached
+     * @throws JMSException if the JMS provider fails to read the message due to some internal
+     *     error.
      * @throws MessageNotReadableException if the message is in write-only mode.
      */
     @Override
@@ -1726,15 +1821,16 @@ abstract class PulsarMessage implements Message {
     }
 
     /**
-     * Writes a string to the bytes message stream using UTF-8 encoding in a machine-independent manner.
+     * Writes a string to the bytes message stream using UTF-8 encoding in a machine-independent
+     * manner.
      *
-     * <p>
-     * For more information on the UTF-8 format, see "File System Safe UCS Transformation Format (FSS_UTF)", X/Open
-     * Preliminary Specification, X/Open Company Ltd., Document Number: P316. This information also appears in ISO/IEC
-     * 10646, Annex P.
+     * <p>For more information on the UTF-8 format, see "File System Safe UCS Transformation Format
+     * (FSS_UTF)", X/Open Preliminary Specification, X/Open Company Ltd., Document Number: P316.
+     * This information also appears in ISO/IEC 10646, Annex P.
      *
      * @param value the {@code String} value to be written
-     * @throws JMSException                 if the JMS provider fails to write the message due to some internal error.
+     * @throws JMSException if the JMS provider fails to write the message due to some internal
+     *     error.
      * @throws MessageNotWriteableException if the message is in read-only mode.
      */
     @Override
@@ -1748,6 +1844,11 @@ abstract class PulsarMessage implements Message {
 
     public PulsarTextMessage(String text) {
       this.text = text;
+    }
+
+    @Override
+    protected String messageType() {
+      return "text";
     }
 
     @Override
@@ -1794,10 +1895,9 @@ abstract class PulsarMessage implements Message {
     }
   }
 
-  final static class SimpleMessage extends PulsarMessage {
+  static final class SimpleMessage extends PulsarMessage {
     @Override
-    public void clearBody() throws JMSException {
-    }
+    public void clearBody() throws JMSException {}
 
     @Override
     public <T> T getBody(Class<T> c) throws JMSException {
@@ -1811,17 +1911,27 @@ abstract class PulsarMessage implements Message {
 
     @Override
     void prepareForSend(TypedMessageBuilder<byte[]> producer) throws JMSException {
-        // null value
-        producer.value(null);
+      // null value
+      producer.value(null);
+    }
+
+    @Override
+    protected String messageType() {
+      return "header";
     }
   }
 
-  final static class PulsarObjectMessage extends PulsarMessage implements ObjectMessage {
+  static final class PulsarObjectMessage extends PulsarMessage implements ObjectMessage {
 
     private Serializable object;
 
     public PulsarObjectMessage(Serializable object) {
       this.object = object;
+    }
+
+    @Override
+    protected String messageType() {
+      return "object";
     }
 
     @Override
@@ -1861,13 +1971,14 @@ abstract class PulsarMessage implements Message {
     }
 
     /**
-     * Sets the serializable object containing this message's data. It is important to note that an {@code ObjectMessage}
-     * contains a snapshot of the object at the time {@code setObject()} is called; subsequent modifications of the object
-     * will have no effect on the {@code ObjectMessage} body.
+     * Sets the serializable object containing this message's data. It is important to note that an
+     * {@code ObjectMessage} contains a snapshot of the object at the time {@code setObject()} is
+     * called; subsequent modifications of the object will have no effect on the {@code
+     * ObjectMessage} body.
      *
      * @param object the message's data
-     * @throws JMSException                 if the JMS provider fails to set the object due to some internal error.
-     * @throws MessageFormatException       if object serialization fails.
+     * @throws JMSException if the JMS provider fails to set the object due to some internal error.
+     * @throws MessageFormatException if object serialization fails.
      * @throws MessageNotWriteableException if the message is in read-only mode.
      */
     @Override
@@ -1879,7 +1990,7 @@ abstract class PulsarMessage implements Message {
      * Gets the serializable object containing this message's data. The default value is null.
      *
      * @return the serializable object containing this message's data
-     * @throws JMSException           if the JMS provider fails to get the object due to some internal error.
+     * @throws JMSException if the JMS provider fails to get the object due to some internal error.
      * @throws MessageFormatException if object deserialization fails.
      */
     @Override
@@ -1888,11 +1999,17 @@ abstract class PulsarMessage implements Message {
     }
   }
 
-  final static class PulsarMapMessage extends PulsarMessage implements MapMessage {
+  static final class PulsarMapMessage extends PulsarMessage implements MapMessage {
 
     private final Map<String, Object> map = new HashMap<>();
+
     public PulsarMapMessage() {
       writable = true;
+    }
+
+    @Override
+    protected String messageType() {
+      return "map";
     }
 
     public PulsarMapMessage(byte[] payload) throws JMSException {
@@ -1918,10 +2035,10 @@ abstract class PulsarMessage implements Message {
 
     @Override
     public <T> T getBody(Class<T> c) throws JMSException {
-        if (c == Map.class) {
-          return (T) map;
-        }
-        throw new MessageFormatException("only java.util.Map is supported");
+      if (c == Map.class) {
+        return (T) map;
+      }
+      throw new MessageFormatException("only java.util.Map is supported");
     }
 
     @Override
@@ -1956,7 +2073,8 @@ abstract class PulsarMessage implements Message {
      *
      * @param name the name of the {@code boolean}
      * @return the {@code boolean} value with the specified name
-     * @throws JMSException           if the JMS provider fails to read the message due to some internal error.
+     * @throws JMSException if the JMS provider fails to read the message due to some internal
+     *     error.
      * @throws MessageFormatException if this type conversion is invalid.
      */
     @Override
@@ -1969,7 +2087,8 @@ abstract class PulsarMessage implements Message {
      *
      * @param name the name of the {@code byte}
      * @return the {@code byte} value with the specified name
-     * @throws JMSException           if the JMS provider fails to read the message due to some internal error.
+     * @throws JMSException if the JMS provider fails to read the message due to some internal
+     *     error.
      * @throws MessageFormatException if this type conversion is invalid.
      */
     @Override
@@ -1982,7 +2101,8 @@ abstract class PulsarMessage implements Message {
      *
      * @param name the name of the {@code short}
      * @return the {@code short} value with the specified name
-     * @throws JMSException           if the JMS provider fails to read the message due to some internal error.
+     * @throws JMSException if the JMS provider fails to read the message due to some internal
+     *     error.
      * @throws MessageFormatException if this type conversion is invalid.
      */
     @Override
@@ -1995,7 +2115,8 @@ abstract class PulsarMessage implements Message {
      *
      * @param name the name of the Unicode character
      * @return the Unicode character value with the specified name
-     * @throws JMSException           if the JMS provider fails to read the message due to some internal error.
+     * @throws JMSException if the JMS provider fails to read the message due to some internal
+     *     error.
      * @throws MessageFormatException if this type conversion is invalid.
      */
     @Override
@@ -2008,7 +2129,8 @@ abstract class PulsarMessage implements Message {
      *
      * @param name the name of the {@code int}
      * @return the {@code int} value with the specified name
-     * @throws JMSException           if the JMS provider fails to read the message due to some internal error.
+     * @throws JMSException if the JMS provider fails to read the message due to some internal
+     *     error.
      * @throws MessageFormatException if this type conversion is invalid.
      */
     @Override
@@ -2021,7 +2143,8 @@ abstract class PulsarMessage implements Message {
      *
      * @param name the name of the {@code long}
      * @return the {@code long} value with the specified name
-     * @throws JMSException           if the JMS provider fails to read the message due to some internal error.
+     * @throws JMSException if the JMS provider fails to read the message due to some internal
+     *     error.
      * @throws MessageFormatException if this type conversion is invalid.
      */
     @Override
@@ -2034,7 +2157,8 @@ abstract class PulsarMessage implements Message {
      *
      * @param name the name of the {@code float}
      * @return the {@code float} value with the specified name
-     * @throws JMSException           if the JMS provider fails to read the message due to some internal error.
+     * @throws JMSException if the JMS provider fails to read the message due to some internal
+     *     error.
      * @throws MessageFormatException if this type conversion is invalid.
      */
     @Override
@@ -2047,7 +2171,8 @@ abstract class PulsarMessage implements Message {
      *
      * @param name the name of the {@code double}
      * @return the {@code double} value with the specified name
-     * @throws JMSException           if the JMS provider fails to read the message due to some internal error.
+     * @throws JMSException if the JMS provider fails to read the message due to some internal
+     *     error.
      * @throws MessageFormatException if this type conversion is invalid.
      */
     @Override
@@ -2059,8 +2184,10 @@ abstract class PulsarMessage implements Message {
      * Returns the {@code String} value with the specified name.
      *
      * @param name the name of the {@code String}
-     * @return the {@code String} value with the specified name; if there is no item by this name, a null value is returned
-     * @throws JMSException           if the JMS provider fails to read the message due to some internal error.
+     * @return the {@code String} value with the specified name; if there is no item by this name, a
+     *     null value is returned
+     * @throws JMSException if the JMS provider fails to read the message due to some internal
+     *     error.
      * @throws MessageFormatException if this type conversion is invalid.
      */
     @Override
@@ -2072,9 +2199,10 @@ abstract class PulsarMessage implements Message {
      * Returns the byte array value with the specified name.
      *
      * @param name the name of the byte array
-     * @return a copy of the byte array value with the specified name; if there is no item by this name, a null value is
-     * returned.
-     * @throws JMSException           if the JMS provider fails to read the message due to some internal error.
+     * @return a copy of the byte array value with the specified name; if there is no item by this
+     *     name, a null value is returned.
+     * @throws JMSException if the JMS provider fails to read the message due to some internal
+     *     error.
      * @throws MessageFormatException if this type conversion is invalid.
      */
     @Override
@@ -2085,19 +2213,19 @@ abstract class PulsarMessage implements Message {
     /**
      * Returns the value of the object with the specified name.
      *
-     * <p>
-     * This method can be used to return, in objectified format, an object in the Java programming language ("Java object")
-     * that had been stored in the Map with the equivalent {@code setObject} method call, or its equivalent primitive
-     * <code>set<I>type</I></code> method.
+     * <p>This method can be used to return, in objectified format, an object in the Java
+     * programming language ("Java object") that had been stored in the Map with the equivalent
+     * {@code setObject} method call, or its equivalent primitive <code>set<I>type</I></code>
+     * method.
      *
-     * <p>
-     * Note that byte values are returned as {@code byte[]}, not {@code Byte[]}.
+     * <p>Note that byte values are returned as {@code byte[]}, not {@code Byte[]}.
      *
      * @param name the name of the Java object
-     * @return a copy of the Java object value with the specified name, in objectified format (for example, if the object
-     * was set as an {@code int}, an {@code Integer} is returned); if there is no item by this name, a null value is
-     * returned
-     * @throws JMSException if the JMS provider fails to read the message due to some internal error.
+     * @return a copy of the Java object value with the specified name, in objectified format (for
+     *     example, if the object was set as an {@code int}, an {@code Integer} is returned); if
+     *     there is no item by this name, a null value is returned
+     * @throws JMSException if the JMS provider fails to read the message due to some internal
+     *     error.
      */
     @Override
     public Object getObject(String name) throws JMSException {
@@ -2108,7 +2236,8 @@ abstract class PulsarMessage implements Message {
      * Returns an {@code Enumeration} of all the names in the {@code MapMessage} object.
      *
      * @return an enumeration of all the names in this {@code MapMessage}
-     * @throws JMSException if the JMS provider fails to read the message due to some internal error.
+     * @throws JMSException if the JMS provider fails to read the message due to some internal
+     *     error.
      */
     @Override
     public Enumeration getMapNames() throws JMSException {
@@ -2118,10 +2247,11 @@ abstract class PulsarMessage implements Message {
     /**
      * Sets a {@code boolean} value with the specified name into the Map.
      *
-     * @param name  the name of the {@code boolean}
+     * @param name the name of the {@code boolean}
      * @param value the {@code boolean} value to set in the Map
-     * @throws JMSException                 if the JMS provider fails to write the message due to some internal error.
-     * @throws IllegalArgumentException     if the name is null or if the name is an empty string.
+     * @throws JMSException if the JMS provider fails to write the message due to some internal
+     *     error.
+     * @throws IllegalArgumentException if the name is null or if the name is an empty string.
      * @throws MessageNotWriteableException if the message is in read-only mode.
      */
     @Override
@@ -2130,14 +2260,14 @@ abstract class PulsarMessage implements Message {
       map.put(name, value);
     }
 
-
     /**
      * Sets a {@code byte} value with the specified name into the Map.
      *
-     * @param name  the name of the {@code byte}
+     * @param name the name of the {@code byte}
      * @param value the {@code byte} value to set in the Map
-     * @throws JMSException                 if the JMS provider fails to write the message due to some internal error.
-     * @throws IllegalArgumentException     if the name is null or if the name is an empty string.
+     * @throws JMSException if the JMS provider fails to write the message due to some internal
+     *     error.
+     * @throws IllegalArgumentException if the name is null or if the name is an empty string.
      * @throws MessageNotWriteableException if the message is in read-only mode.
      */
     @Override
@@ -2149,10 +2279,11 @@ abstract class PulsarMessage implements Message {
     /**
      * Sets a {@code short} value with the specified name into the Map.
      *
-     * @param name  the name of the {@code short}
+     * @param name the name of the {@code short}
      * @param value the {@code short} value to set in the Map
-     * @throws JMSException                 if the JMS provider fails to write the message due to some internal error.
-     * @throws IllegalArgumentException     if the name is null or if the name is an empty string.
+     * @throws JMSException if the JMS provider fails to write the message due to some internal
+     *     error.
+     * @throws IllegalArgumentException if the name is null or if the name is an empty string.
      * @throws MessageNotWriteableException if the message is in read-only mode.
      */
     @Override
@@ -2164,10 +2295,11 @@ abstract class PulsarMessage implements Message {
     /**
      * Sets a Unicode character value with the specified name into the Map.
      *
-     * @param name  the name of the Unicode character
+     * @param name the name of the Unicode character
      * @param value the Unicode character value to set in the Map
-     * @throws JMSException                 if the JMS provider fails to write the message due to some internal error.
-     * @throws IllegalArgumentException     if the name is null or if the name is an empty string.
+     * @throws JMSException if the JMS provider fails to write the message due to some internal
+     *     error.
+     * @throws IllegalArgumentException if the name is null or if the name is an empty string.
      * @throws MessageNotWriteableException if the message is in read-only mode.
      */
     @Override
@@ -2179,10 +2311,11 @@ abstract class PulsarMessage implements Message {
     /**
      * Sets an {@code int} value with the specified name into the Map.
      *
-     * @param name  the name of the {@code int}
+     * @param name the name of the {@code int}
      * @param value the {@code int} value to set in the Map
-     * @throws JMSException                 if the JMS provider fails to write the message due to some internal error.
-     * @throws IllegalArgumentException     if the name is null or if the name is an empty string.
+     * @throws JMSException if the JMS provider fails to write the message due to some internal
+     *     error.
+     * @throws IllegalArgumentException if the name is null or if the name is an empty string.
      * @throws MessageNotWriteableException if the message is in read-only mode.
      */
     @Override
@@ -2194,10 +2327,11 @@ abstract class PulsarMessage implements Message {
     /**
      * Sets a {@code long} value with the specified name into the Map.
      *
-     * @param name  the name of the {@code long}
+     * @param name the name of the {@code long}
      * @param value the {@code long} value to set in the Map
-     * @throws JMSException                 if the JMS provider fails to write the message due to some internal error.
-     * @throws IllegalArgumentException     if the name is null or if the name is an empty string.
+     * @throws JMSException if the JMS provider fails to write the message due to some internal
+     *     error.
+     * @throws IllegalArgumentException if the name is null or if the name is an empty string.
      * @throws MessageNotWriteableException if the message is in read-only mode.
      */
     @Override
@@ -2209,10 +2343,11 @@ abstract class PulsarMessage implements Message {
     /**
      * Sets a {@code float} value with the specified name into the Map.
      *
-     * @param name  the name of the {@code float}
+     * @param name the name of the {@code float}
      * @param value the {@code float} value to set in the Map
-     * @throws JMSException                 if the JMS provider fails to write the message due to some internal error.
-     * @throws IllegalArgumentException     if the name is null or if the name is an empty string.
+     * @throws JMSException if the JMS provider fails to write the message due to some internal
+     *     error.
+     * @throws IllegalArgumentException if the name is null or if the name is an empty string.
      * @throws MessageNotWriteableException if the message is in read-only mode.
      */
     @Override
@@ -2224,10 +2359,11 @@ abstract class PulsarMessage implements Message {
     /**
      * Sets a {@code double} value with the specified name into the Map.
      *
-     * @param name  the name of the {@code double}
+     * @param name the name of the {@code double}
      * @param value the {@code double} value to set in the Map
-     * @throws JMSException                 if the JMS provider fails to write the message due to some internal error.
-     * @throws IllegalArgumentException     if the name is null or if the name is an empty string.
+     * @throws JMSException if the JMS provider fails to write the message due to some internal
+     *     error.
+     * @throws IllegalArgumentException if the name is null or if the name is an empty string.
      * @throws MessageNotWriteableException if the message is in read-only mode.
      */
     @Override
@@ -2239,10 +2375,11 @@ abstract class PulsarMessage implements Message {
     /**
      * Sets a {@code String} value with the specified name into the Map.
      *
-     * @param name  the name of the {@code String}
+     * @param name the name of the {@code String}
      * @param value the {@code String} value to set in the Map
-     * @throws JMSException                 if the JMS provider fails to write the message due to some internal error.
-     * @throws IllegalArgumentException     if the name is null or if the name is an empty string.
+     * @throws JMSException if the JMS provider fails to write the message due to some internal
+     *     error.
+     * @throws IllegalArgumentException if the name is null or if the name is an empty string.
      * @throws MessageNotWriteableException if the message is in read-only mode.
      */
     @Override
@@ -2254,11 +2391,12 @@ abstract class PulsarMessage implements Message {
     /**
      * Sets a byte array value with the specified name into the Map.
      *
-     * @param name  the name of the byte array
-     * @param value the byte array value to set in the Map; the array is copied so that the value for {@code name} will not
-     *              be altered by future modifications
-     * @throws JMSException                 if the JMS provider fails to write the message due to some internal error.
-     * @throws IllegalArgumentException     if the name is null, or if the name is an empty string.
+     * @param name the name of the byte array
+     * @param value the byte array value to set in the Map; the array is copied so that the value
+     *     for {@code name} will not be altered by future modifications
+     * @throws JMSException if the JMS provider fails to write the message due to some internal
+     *     error.
+     * @throws IllegalArgumentException if the name is null, or if the name is an empty string.
      * @throws MessageNotWriteableException if the message is in read-only mode.
      */
     @Override
@@ -2270,12 +2408,13 @@ abstract class PulsarMessage implements Message {
     /**
      * Sets a portion of the byte array value with the specified name into the Map.
      *
-     * @param name   the name of the byte array
-     * @param value  the byte array value to set in the Map
+     * @param name the name of the byte array
+     * @param value the byte array value to set in the Map
      * @param offset the initial offset within the byte array
      * @param length the number of bytes to use
-     * @throws JMSException                 if the JMS provider fails to write the message due to some internal error.
-     * @throws IllegalArgumentException     if the name is null or if the name is an empty string.
+     * @throws JMSException if the JMS provider fails to write the message due to some internal
+     *     error.
+     * @throws IllegalArgumentException if the name is null or if the name is an empty string.
      * @throws MessageNotWriteableException if the message is in read-only mode.
      */
     @Override
@@ -2293,15 +2432,15 @@ abstract class PulsarMessage implements Message {
     /**
      * Sets an object value with the specified name into the Map.
      *
-     * <p>
-     * This method works only for the objectified primitive object types ({@code Integer}, {@code Double},
-     * {@code Long}&nbsp;...), {@code String} objects, and byte arrays.
+     * <p>This method works only for the objectified primitive object types ({@code Integer}, {@code
+     * Double}, {@code Long}&nbsp;...), {@code String} objects, and byte arrays.
      *
-     * @param name  the name of the Java object
+     * @param name the name of the Java object
      * @param value the Java object value to set in the Map
-     * @throws JMSException                 if the JMS provider fails to write the message due to some internal error.
-     * @throws IllegalArgumentException     if the name is null or if the name is an empty string.
-     * @throws MessageFormatException       if the object is invalid.
+     * @throws JMSException if the JMS provider fails to write the message due to some internal
+     *     error.
+     * @throws IllegalArgumentException if the name is null or if the name is an empty string.
+     * @throws MessageFormatException if the object is invalid.
      * @throws MessageNotWriteableException if the message is in read-only mode.
      */
     @Override
@@ -2315,7 +2454,8 @@ abstract class PulsarMessage implements Message {
      *
      * @param name the name of the item to test
      * @return true if the item exists
-     * @throws JMSException if the JMS provider fails to determine if the item exists due to some internal error.
+     * @throws JMSException if the JMS provider fails to determine if the item exists due to some
+     *     internal error.
      */
     @Override
     public boolean itemExists(String name) throws JMSException {

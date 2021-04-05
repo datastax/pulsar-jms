@@ -16,6 +16,8 @@
 package com.datastax.oss.pulsar.jms;
 
 import java.io.Serializable;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import javax.jms.BytesMessage;
 import javax.jms.Connection;
@@ -52,6 +54,7 @@ public class PulsarSession implements Session {
   private final int sessionMode;
   final Transaction transaction;
   private MessageListenerWrapper messageListenerWrapper;
+  private final Map<PulsarDestination, Producer<byte[]>> producers = new HashMap<>();
 
   public PulsarSession(int sessionMode, PulsarConnection connection) throws JMSException {
     this.connection = connection;
@@ -61,6 +64,10 @@ public class PulsarSession implements Session {
     } else {
       transaction = null;
     }
+  }
+
+  PulsarConnectionFactory getFactory() {
+    return connection.getFactory();
   }
 
   /**
@@ -79,7 +86,7 @@ public class PulsarSession implements Session {
    */
   @Override
   public BytesMessage createBytesMessage() throws JMSException {
-    return new PulsarMessage.PulsarBufferedMessage();
+    return new PulsarMessage.PulsarBytesMessage();
   }
 
   /**
@@ -177,7 +184,7 @@ public class PulsarSession implements Session {
    */
   @Override
   public StreamMessage createStreamMessage() throws JMSException {
-    return new PulsarMessage.PulsarBufferedMessage();
+    return new PulsarMessage.PulsarStreamMessage();
   }
 
   /**
@@ -1241,18 +1248,5 @@ public class PulsarSession implements Session {
   @Override
   public void unsubscribe(String name) throws JMSException {
     throw new UnsupportedOperationException();
-  }
-
-  Producer<byte[]> getProducerForDestination(PulsarDestination defaultDestination)
-      throws JMSException {
-    return Utils.invoke(
-        () ->
-            connection
-                .getFactory()
-                .getPulsarClient()
-                .newProducer()
-                .topic(defaultDestination.topicName)
-                .loadConf(connection.getFactory().getProducerConfiguration())
-                .create());
   }
 }

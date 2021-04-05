@@ -16,6 +16,7 @@
 package com.datastax.oss.pulsar.jms;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import javax.jms.IllegalStateException;
 import javax.jms.JMSException;
@@ -24,10 +25,14 @@ final class Utils {
   private Utils() {}
 
   public static JMSException handleException(Throwable cause) {
+    while (cause instanceof CompletionException) {
+      cause = cause.getCause();
+    }
     if (cause instanceof InterruptedException) {
       Thread.currentThread().interrupt();
     }
-    JMSException err = new JMSException(cause.getMessage());
+    JMSException err = new JMSException(cause + "");
+    err.initCause(cause);
     if (cause instanceof Exception) {
       err.setLinkedException((Exception) cause);
     } else {

@@ -294,8 +294,8 @@ class PulsarMessageProducer implements MessageProducer {
    */
   @Override
   public void send(Message message) throws JMSException {
-    Producer<byte[]> producerForDestination = session.getProducerForDestination(defaultDestination);
-    sendMessage(producerForDestination, message);
+    validateMessageSend(defaultDestination, 0);
+    sendMessage(defaultDestination, message);
   }
 
   /**
@@ -316,7 +316,13 @@ class PulsarMessageProducer implements MessageProducer {
    */
   @Override
   public void send(Message message, int deliveryMode, int priority, long timeToLive)
-      throws JMSException {}
+      throws JMSException {
+    validateMessageSend(defaultDestination, timeToLive);
+    PulsarMessage pulsarMessage = (PulsarMessage) message;
+    message.setJMSDeliveryMode(deliveryMode);
+    message.setJMSPriority(priority);
+    sendMessage(defaultDestination, message);
+  }
 
   /**
    * Sends a message to a destination for an unidentified message producer using the {@code
@@ -337,7 +343,13 @@ class PulsarMessageProducer implements MessageProducer {
    * @since JMS 1.1
    */
   @Override
-  public void send(Destination destination, Message message) throws JMSException {}
+  public void send(Destination destination, Message message) throws JMSException {
+    validateMessageSend(destination, 0);
+    PulsarMessage pulsarMessage = (PulsarMessage) message;
+    message.setJMSDeliveryMode(deliveryMode);
+    message.setJMSPriority(priority);
+    sendMessage(destination, message);
+  }
 
   /**
    * Sends a message to a destination for an unidentified message producer, specifying delivery
@@ -363,7 +375,22 @@ class PulsarMessageProducer implements MessageProducer {
   @Override
   public void send(
       Destination destination, Message message, int deliveryMode, int priority, long timeToLive)
-      throws JMSException {}
+      throws JMSException {
+    validateMessageSend(destination, timeToLive);
+    PulsarMessage pulsarMessage = (PulsarMessage) message;
+    message.setJMSDeliveryMode(deliveryMode);
+    message.setJMSPriority(priority);
+    sendMessage(destination, message);
+  }
+
+  private void validateMessageSend(Destination destination, long timeToLive) throws JMSException {
+    if (destination == null) {
+      throw new UnsupportedOperationException("destination is null");
+    }
+    if (timeToLive > 0) {
+      throw new JMSException("timeToLive not supported");
+    }
+  }
 
   /**
    * Sends a message using the {@code MessageProducer}'s default delivery mode, priority, and time
@@ -493,7 +520,13 @@ class PulsarMessageProducer implements MessageProducer {
    * @since JMS 2.0
    */
   @Override
-  public void send(Message message, CompletionListener completionListener) throws JMSException {}
+  public void send(Message message, CompletionListener completionListener) throws JMSException {
+    validateMessageSend(defaultDestination, 0);
+    PulsarMessage pulsarMessage = (PulsarMessage) message;
+    message.setJMSDeliveryMode(deliveryMode);
+    message.setJMSPriority(priority);
+    sendMessage(defaultDestination, message, completionListener);
+  }
 
   /**
    * Sends a message, specifying delivery mode, priority and time to live, performing part of the
@@ -632,7 +665,13 @@ class PulsarMessageProducer implements MessageProducer {
       int priority,
       long timeToLive,
       CompletionListener completionListener)
-      throws JMSException {}
+      throws JMSException {
+    validateMessageSend(defaultDestination, timeToLive);
+    PulsarMessage pulsarMessage = (PulsarMessage) message;
+    message.setJMSDeliveryMode(deliveryMode);
+    message.setJMSPriority(priority);
+    sendMessage(defaultDestination, message, completionListener);
+  }
 
   /**
    * Sends a message to a destination for an unidentified message producer, using the {@code
@@ -768,7 +807,13 @@ class PulsarMessageProducer implements MessageProducer {
    */
   @Override
   public void send(Destination destination, Message message, CompletionListener completionListener)
-      throws JMSException {}
+      throws JMSException {
+    validateMessageSend(destination, 0);
+    PulsarMessage pulsarMessage = (PulsarMessage) message;
+    message.setJMSDeliveryMode(deliveryMode);
+    message.setJMSPriority(priority);
+    sendMessage(destination, message, completionListener);
+  }
 
   /**
    * Sends a message to a destination for an unidentified message producer, specifying delivery
@@ -912,14 +957,35 @@ class PulsarMessageProducer implements MessageProducer {
       int priority,
       long timeToLive,
       CompletionListener completionListener)
-      throws JMSException {}
+      throws JMSException {
+    validateMessageSend(destination, 0);
+    PulsarMessage pulsarMessage = (PulsarMessage) message;
+    message.setJMSDeliveryMode(deliveryMode);
+    message.setJMSPriority(priority);
+    sendMessage(destination, message, completionListener);
+  }
 
-  private void sendMessage(Producer<byte[]> producer, Message message) throws JMSException {
+  private void sendMessage(Destination defaultDestination, Message message) throws JMSException {
+    Producer<byte[]> producer =
+        session.getFactory().getProducerForDestination((PulsarDestination) defaultDestination);
     PulsarMessage pulsarMessage = (PulsarMessage) message;
     if (session.transaction != null) {
       pulsarMessage.send(producer.newMessage(session.transaction));
     } else {
       pulsarMessage.send(producer.newMessage());
+    }
+  }
+
+  private void sendMessage(
+      Destination defaultDestination, Message message, CompletionListener completionListener)
+      throws JMSException {
+    Producer<byte[]> producer =
+        session.getFactory().getProducerForDestination((PulsarDestination) defaultDestination);
+    PulsarMessage pulsarMessage = (PulsarMessage) message;
+    if (session.transaction != null) {
+      pulsarMessage.sendAsync(producer.newMessage(session.transaction), completionListener);
+    } else {
+      pulsarMessage.sendAsync(producer.newMessage(), completionListener);
     }
   }
 }

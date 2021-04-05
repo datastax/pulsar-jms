@@ -15,28 +15,31 @@
  */
 package com.datastax.oss.pulsar.jms;
 
-import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import javax.jms.BytesMessage;
+import javax.jms.CompletionListener;
 import javax.jms.Connection;
 import javax.jms.Destination;
 import javax.jms.MapMessage;
 import javax.jms.Message;
+import javax.jms.MessageConsumer;
 import javax.jms.MessageProducer;
 import javax.jms.ObjectMessage;
 import javax.jms.Session;
 import javax.jms.StreamMessage;
 import javax.jms.TextMessage;
-
-import org.apache.zookeeper.OpResult;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -90,6 +93,55 @@ public class SimpleTest {
             mapMessage.setBoolean("p1", true);
             producer.send(mapMessage);
 
+            Message simpleAsync = session.createMessage();
+            CompletableFuture<Message> res = new CompletableFuture<>();
+            producer.send(
+                simpleAsync,
+                new CompletionListener() {
+                  @Override
+                  public void onCompletion(Message message) {
+                    res.complete(message);
+                  }
+
+                  @Override
+                  public void onException(Message message, Exception exception) {
+                    if (message != simpleAsync) {
+                      res.completeExceptionally(new IllegalArgumentException());
+                      return;
+                    }
+                    res.completeExceptionally(exception);
+                  }
+                });
+            assertTrue(res.get() == simpleAsync);
+            assertNotNull(simpleAsync.getJMSMessageID());
+            assertTrue(simpleAsync.getJMSTimestamp() > 0);
+            assertTrue(simpleAsync.getJMSDeliveryTime() > 0);
+          }
+        }
+      }
+    }
+  }
+
+  @Test
+  @Disabled
+  public void sendMessageReceiveFromQueue() throws Exception {
+
+    Map<String, Object> properties = new HashMap<>();
+    properties.put("webServiceUrl", cluster.getAddress());
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+      try (Connection connection = factory.createConnection()) {
+        try (Session session = connection.createSession(); ) {
+          Destination destination = session.createTopic("persistent://public/default/test");
+
+          try (MessageConsumer consumer = session.createConsumer(destination); ) {
+
+            try (MessageProducer producer = session.createProducer(destination); ) {
+              TextMessage textMsg = session.createTextMessage("foo");
+              producer.send(textMsg);
+            }
+
+            TextMessage msg = (TextMessage) consumer.receive();
+            assertEquals("foo", msg.getText());
           }
         }
       }

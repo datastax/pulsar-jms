@@ -19,6 +19,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import javax.jms.Connection;
 import javax.jms.ConnectionFactory;
 import javax.jms.JMSContext;
@@ -28,6 +29,7 @@ import javax.jms.JMSSecurityException;
 import javax.jms.JMSSecurityRuntimeException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.admin.PulsarAdmin;
+import org.apache.pulsar.client.api.Producer;
 import org.apache.pulsar.client.api.PulsarClient;
 import org.apache.pulsar.client.api.PulsarClientException;
 
@@ -39,6 +41,7 @@ public class PulsarConnectionFactory implements ConnectionFactory, AutoCloseable
   private final PulsarAdmin pulsarAdmin;
   private final Map<String, Object> producerConfiguration;
   private final Map<String, Object> consumerConfiguration;
+  private Map<PulsarDestination, Producer<byte[]>> producers = new ConcurrentHashMap<>();
 
   public PulsarConnectionFactory(Map<String, Object> properties) throws PulsarClientException {
     properties = new HashMap(properties);
@@ -409,6 +412,14 @@ public class PulsarConnectionFactory implements ConnectionFactory, AutoCloseable
 
   public void close() {
 
+    for (Producer<?> producer : producers.values()) {
+      try {
+        producer.close();
+      } catch (PulsarClientException error) {
+        // ignore
+      }
+    }
+
     this.pulsarAdmin.close();
 
     try {
@@ -418,11 +429,26 @@ public class PulsarConnectionFactory implements ConnectionFactory, AutoCloseable
     }
   }
 
-  Map<String, Object> getProducerConfiguration() {
-    return producerConfiguration;
-  }
-
-  Map<String, Object> getConsumerConfiguration() {
-    return consumerConfiguration;
+  Producer<byte[]> getProducerForDestination(PulsarDestination defaultDestination)
+      throws JMSException {
+    try {
+      return producers.computeIfAbsent(
+          defaultDestination,
+          d -> {
+            try {
+              return Utils.invoke(
+                  () ->
+                      pulsarClient
+                          .newProducer()
+                          .topic(d.topicName)
+                          .loadConf(producerConfiguration)
+                          .create());
+            } catch (JMSException err) {
+              throw new RuntimeException(err);
+            }
+          });
+    } catch (RuntimeException err) {
+      throw (JMSException) err.getCause();
+    }
   }
 }
