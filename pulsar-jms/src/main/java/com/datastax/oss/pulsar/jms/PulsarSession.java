@@ -19,6 +19,7 @@ import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 import javax.jms.BytesMessage;
 import javax.jms.Connection;
 import javax.jms.Destination;
@@ -165,7 +166,9 @@ public class PulsarSession implements Session {
    */
   @Override
   public ObjectMessage createObjectMessage(Serializable object) throws JMSException {
-    return new PulsarMessage.PulsarObjectMessage(object);
+    ObjectMessage res = new PulsarMessage.PulsarObjectMessage();
+    res.setObject(object);
+    return res;
   }
 
   /**
@@ -505,7 +508,7 @@ public class PulsarSession implements Session {
    */
   @Override
   public MessageConsumer createConsumer(Destination destination) throws JMSException {
-    throw new UnsupportedOperationException();
+    return new PulsarConsumer(UUID.randomUUID().toString(), (PulsarDestination) destination, this);
   }
 
   /**
@@ -531,7 +534,7 @@ public class PulsarSession implements Session {
   public MessageConsumer createConsumer(Destination destination, String messageSelector)
       throws JMSException {
     messageSelectorNotSupported(messageSelector);
-    throw new UnsupportedOperationException();
+    return createConsumer(destination);
   }
 
   private void messageSelectorNotSupported(String messageSelector) throws InvalidSelectorException {
@@ -573,7 +576,10 @@ public class PulsarSession implements Session {
   public MessageConsumer createConsumer(
       Destination destination, String messageSelector, boolean noLocal) throws JMSException {
     messageSelectorNotSupported(messageSelector);
-    throw new UnsupportedOperationException();
+    if (noLocal) {
+      throw new UnsupportedOperationException();
+    }
+    return createConsumer(destination);
   }
 
   /**

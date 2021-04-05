@@ -31,6 +31,7 @@ import javax.jms.BytesMessage;
 import javax.jms.CompletionListener;
 import javax.jms.DeliveryMode;
 import javax.jms.Destination;
+import javax.jms.IllegalStateException;
 import javax.jms.JMSException;
 import javax.jms.MapMessage;
 import javax.jms.Message;
@@ -43,6 +44,8 @@ import javax.jms.ObjectMessage;
 import javax.jms.Session;
 import javax.jms.StreamMessage;
 import javax.jms.TextMessage;
+
+import org.apache.pulsar.client.api.Consumer;
 import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.api.TypedMessageBuilder;
 
@@ -61,6 +64,9 @@ abstract class PulsarMessage implements Message {
   private volatile long jmsDeliveryTime;
   private int jmsPriority = Message.DEFAULT_PRIORITY;
   private final Map<String, String> properties = new HashMap<>();
+  private Consumer<byte[]> consumer;
+  private org.apache.pulsar.client.api.Message<byte[]> receivedPulsarMessage;
+
 
   /**
    * Gets the message ID.
@@ -922,7 +928,14 @@ abstract class PulsarMessage implements Message {
    */
   @Override
   public void acknowledge() throws JMSException {
-    throw new UnsupportedOperationException();
+    if (consumer == null) {
+      throw new IllegalStateException("not received by a consumer");
+    }
+    try {
+      consumer.acknowledge(receivedPulsarMessage);
+    } catch (Exception err) {
+      throw Utils.handleException(err);
+    }
   }
 
   protected final void checkWritable() throws MessageNotWriteableException {
@@ -1925,8 +1938,16 @@ abstract class PulsarMessage implements Message {
 
     private Serializable object;
 
-    public PulsarObjectMessage(Serializable object) {
-      this.object = object;
+    public PulsarObjectMessage(byte[] originalMessage) throws JMSException {
+      try {
+        ObjectInputStream input = new ObjectInputStream(new ByteArrayInputStream(originalMessage));
+        this.object = (Serializable) input.readUnshared();
+      } catch (Exception err) {
+        throw Utils.handleException(err);
+      }
+    }
+
+    public PulsarObjectMessage() {
     }
 
     @Override
@@ -2462,4 +2483,36 @@ abstract class PulsarMessage implements Message {
       return map.containsKey(name);
     }
   }
+  static Message decode(Consumer<byte[]> consumer, org.apache.pulsar.client.api.Message<byte[]> msg) throws JMSException {
+    if (msg == null) {
+      return null;
+    }
+      String type = msg.getProperty("JMS_PulsarMessageType");
+      if (type == null) {
+        type = "header";
+      }
+      byte[] value = msg.getValue();
+      switch (type) {
+        case "map":
+          return new PulsarMapMessage(value).applyMessage(msg, consumer);
+        case "object":
+          return new PulsarObjectMessage(value).applyMessage(msg, consumer);
+        case "stream":
+          return new PulsarStreamMessage(value).applyMessage(msg, consumer);
+        case "bytes":
+          return new PulsarBytesMessage(value).applyMessage(msg, consumer);
+        default:
+          return new SimpleMessage().applyMessage(msg, consumer);
+      }
+  }
+
+  protected Message applyMessage(org.apache.pulsar.client.api.Message<byte[]> msg, Consumer<byte[]> consumer) {
+    this.properties.putAll(msg.getProperties());
+    this.receivedPulsarMessage = msg;
+    this.consumer = consumer;
+    return this;
+  }
+
+
+
 }

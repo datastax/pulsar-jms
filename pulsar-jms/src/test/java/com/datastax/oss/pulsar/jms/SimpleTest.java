@@ -142,6 +142,7 @@ public class SimpleTest {
 
             TextMessage msg = (TextMessage) consumer.receive();
             assertEquals("foo", msg.getText());
+            msg.acknowledge();
           }
         }
       }

@@ -27,8 +27,13 @@ import javax.jms.JMSException;
 import javax.jms.JMSRuntimeException;
 import javax.jms.JMSSecurityException;
 import javax.jms.JMSSecurityRuntimeException;
+import javax.jms.Session;
+
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.admin.PulsarAdmin;
+import org.apache.pulsar.client.api.Consumer;
+import org.apache.pulsar.client.api.Message;
+import org.apache.pulsar.client.api.MessageListener;
 import org.apache.pulsar.client.api.Producer;
 import org.apache.pulsar.client.api.PulsarClient;
 import org.apache.pulsar.client.api.PulsarClientException;
@@ -41,7 +46,8 @@ public class PulsarConnectionFactory implements ConnectionFactory, AutoCloseable
   private final PulsarAdmin pulsarAdmin;
   private final Map<String, Object> producerConfiguration;
   private final Map<String, Object> consumerConfiguration;
-  private Map<PulsarDestination, Producer<byte[]>> producers = new ConcurrentHashMap<>();
+  private final Map<PulsarDestination, Producer<byte[]>> producers = new ConcurrentHashMap<>();
+  private final Map<PulsarDestination, Consumer<byte[]>> consumers = new ConcurrentHashMap<>();
 
   public PulsarConnectionFactory(Map<String, Object> properties) throws PulsarClientException {
     properties = new HashMap(properties);
@@ -429,8 +435,7 @@ public class PulsarConnectionFactory implements ConnectionFactory, AutoCloseable
     }
   }
 
-  Producer<byte[]> getProducerForDestination(PulsarDestination defaultDestination)
-      throws JMSException {
+  Producer<byte[]> getProducerForDestination(PulsarDestination defaultDestination) throws JMSException {
     try {
       return producers.computeIfAbsent(
           defaultDestination,
@@ -449,6 +454,61 @@ public class PulsarConnectionFactory implements ConnectionFactory, AutoCloseable
           });
     } catch (RuntimeException err) {
       throw (JMSException) err.getCause();
+    }
+  }
+
+  public Consumer<byte[]> getConsumerForDestination(PulsarDestination destination, String name, MessageListenerWrapper listener, int sessionMode) throws JMSException {
+    try {
+      if (listener != null) {
+        return consumers.computeIfAbsent(
+                destination,
+                d -> {
+                  try {
+                    return Utils.invoke(
+                            () ->
+                                    pulsarClient
+                                            .newConsumer()
+                                            .topic(d.topicName)
+                                            .loadConf(consumerConfiguration)
+                                            .subscriptionName(name)
+                                            .messageListener(new MessageListener<byte[]>() {
+                                              @Override
+                                              public void received(Consumer<byte[]> consumer, Message<byte[]> msg) {
+                                                try {
+                                                  listener.onMessage(PulsarMessage.decode(consumer, msg));
+                                                  if (sessionMode == Session.AUTO_ACKNOWLEDGE) {
+                                                    consumer.acknowledgeAsync(msg);
+                                                  }
+                                                } catch (JMSException err) {
+                                                  throw new RuntimeException(err);
+                                                }
+                                              }
+                                            })
+                                            .subscribe());
+                  } catch (JMSException err) {
+                    throw new RuntimeException(err);
+                  }
+                });
+      } else {
+        return consumers.computeIfAbsent(
+                destination,
+                d -> {
+                  try {
+                    return Utils.invoke(
+                            () ->
+                                    pulsarClient
+                                            .newConsumer()
+                                            .topic(d.topicName)
+                                            .loadConf(consumerConfiguration)
+                                            .subscriptionName(name)
+                                            .subscribe());
+                  } catch (JMSException err) {
+                    throw new RuntimeException(err);
+                  }
+                });
+      }
+    } catch (RuntimeException err) {
+        throw (JMSException) err.getCause();
     }
   }
 }
