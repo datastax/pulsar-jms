@@ -24,10 +24,12 @@ import javax.jms.MessageListener;
 import javax.jms.Session;
 import javax.jms.Topic;
 import javax.jms.TopicSubscriber;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.api.Consumer;
 import org.apache.pulsar.client.api.SubscriptionMode;
 import org.apache.pulsar.client.api.SubscriptionType;
 
+@Slf4j
 public class PulsarConsumer implements MessageConsumer, TopicSubscriber {
 
   private final String subscriptionName;
@@ -225,6 +227,19 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber {
     if (session.getAcknowledgeMode() == Session.AUTO_ACKNOWLEDGE
         || session.getAcknowledgeMode() == Session.DUPS_OK_ACKNOWLEDGE) {
       consumer.acknowledge(message);
+    }
+    if (session.getAcknowledgeMode() == Session.AUTO_ACKNOWLEDGE) {
+      consumer.acknowledge(message);
+    }
+    if (session.getAcknowledgeMode() == Session.DUPS_OK_ACKNOWLEDGE) {
+      consumer
+          .acknowledgeAsync(message)
+          .whenComplete(
+              (m, ex) -> {
+                if (ex != null) {
+                  log.error("Cannot acknowledge message {} {}", message, ex);
+                }
+              });
     }
     return result;
   }

@@ -38,6 +38,7 @@ import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.api.Producer;
 import org.apache.pulsar.client.api.PulsarClient;
 import org.apache.pulsar.client.api.PulsarClientException;
+import org.apache.pulsar.client.api.SubscriptionInitialPosition;
 import org.apache.pulsar.client.api.SubscriptionMode;
 import org.apache.pulsar.client.api.SubscriptionType;
 
@@ -494,6 +495,11 @@ public class PulsarConnectionFactory implements ConnectionFactory, AutoCloseable
     if (destination.isQueue() && subscriptionType != SubscriptionType.Shared) {
       throw new IllegalStateException("only Shared SubscriptionType for queues");
     }
+    SubscriptionInitialPosition initialPosition =
+        destination.isTopic()
+            ? SubscriptionInitialPosition.Latest
+            : SubscriptionInitialPosition.Earliest;
+
     log.info(
         "createConsumer {} {} {}",
         destination.topicName,
@@ -506,11 +512,12 @@ public class PulsarConnectionFactory implements ConnectionFactory, AutoCloseable
             () ->
                 pulsarClient
                     .newConsumer()
-                    .topic(destination.topicName)
                     .loadConf(consumerConfiguration)
+                    .subscriptionInitialPosition(initialPosition)
                     .subscriptionMode(subscriptionMode)
                     .subscriptionType(subscriptionType)
                     .subscriptionName(subscriptionName)
+                    .topic(destination.topicName)
                     .subscribe());
     consumers.add(newConsumer);
     return newConsumer;
