@@ -20,8 +20,12 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
+
+import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -30,6 +34,7 @@ import javax.jms.BytesMessage;
 import javax.jms.CompletionListener;
 import javax.jms.Connection;
 import javax.jms.Destination;
+import javax.jms.JMSContext;
 import javax.jms.MapMessage;
 import javax.jms.Message;
 import javax.jms.MessageConsumer;
@@ -120,6 +125,73 @@ public class SimpleTest {
           }
         }
       }
+    }
+  }
+
+
+  @Test
+  public void sendMessageTestJMSContext() throws Exception {
+
+    Map<String, Object> properties = new HashMap<>();
+    properties.put("webServiceUrl", cluster.getAddress());
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+        try (JMSContext context = factory.createContext() ) {
+          Destination destination =
+                  context.createTopic("persistent://public/default/test-" + UUID.randomUUID());
+
+            TextMessage textMsg = context.createTextMessage("foo");
+            context.createProducer().send(destination, textMsg);
+            context.createProducer().send(destination, "foo");
+
+            StreamMessage streamMessage = context.createStreamMessage();
+            streamMessage.writeBytes("foo".getBytes(StandardCharsets.UTF_8));
+            context.createProducer().send(destination, streamMessage);
+
+            BytesMessage bytesMessage = context.createBytesMessage();
+            bytesMessage.writeInt(234);
+          context.createProducer().send(destination, bytesMessage);
+          context.createProducer().send(destination, "foo".getBytes(StandardCharsets.UTF_8));
+
+            Message headerOnly = context.createMessage();
+            headerOnly.setBooleanProperty("myproperty", true);
+          context.createProducer().send(destination, headerOnly);
+          context.createProducer().send(destination, (Serializable) null);
+          context.createProducer().send(destination, (byte[]) null);
+          context.createProducer().send(destination, (Map<String, Object>) null);
+
+            ObjectMessage objectMessage = context.createObjectMessage("test");
+          context.createProducer().send(destination, objectMessage);
+          context.createProducer().send(destination, new java.util.ArrayList<String>());
+
+            MapMessage mapMessage = context.createMapMessage();
+            mapMessage.setBoolean("p1", true);
+          context.createProducer().send(destination, mapMessage);
+          context.createProducer().send(destination, Collections.singletonMap("foo", "bar"));
+
+          // CompletionListener
+            Message simpleAsync = context.createMessage();
+            CompletableFuture<Message> res = new CompletableFuture<>();
+          context.createProducer().setAsync(
+                  new CompletionListener() {
+                    @Override
+                    public void onCompletion(Message message) {
+                      res.complete(message);
+                    }
+
+                    @Override
+                    public void onException(Message message, Exception exception) {
+                      if (message != simpleAsync) {
+                        res.completeExceptionally(new IllegalArgumentException());
+                        return;
+                      }
+                      res.completeExceptionally(exception);
+                    }
+                  }).send(destination, simpleAsync);
+            assertTrue(res.get() == simpleAsync);
+            assertNotNull(simpleAsync.getJMSMessageID());
+            assertTrue(simpleAsync.getJMSTimestamp() > 0);
+            assertTrue(simpleAsync.getJMSDeliveryTime() > 0);
+          }
     }
   }
 

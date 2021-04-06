@@ -102,9 +102,10 @@ public class PulsarSession implements Session {
    *     error.
    */
   @Override
-  public BytesMessage createBytesMessage() {
+  public PulsarMessage.PulsarBytesMessage createBytesMessage() {
     return new PulsarMessage.PulsarBytesMessage();
   }
+
 
   /**
    * Creates a {@code MapMessage} object. A {@code MapMessage} object is used to send a
@@ -124,6 +125,10 @@ public class PulsarSession implements Session {
   @Override
   public MapMessage createMapMessage() {
     return new PulsarMessage.PulsarMapMessage();
+  }
+
+  public MapMessage createMapMessage(Map<String, Object> body) {
+    return new PulsarMessage.PulsarMapMessage(body);
   }
 
   /**

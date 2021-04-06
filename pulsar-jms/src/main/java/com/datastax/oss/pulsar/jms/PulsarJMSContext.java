@@ -46,7 +46,7 @@ import javax.jms.TransactionRolledBackRuntimeException;
 
 public class PulsarJMSContext implements JMSContext {
   private final PulsarConnection connection;
-  private final PulsarSession session;
+  final PulsarSession session;
   private boolean autoStart = true;
 
   public PulsarJMSContext(PulsarConnectionFactory factory, int sessionMode) {
@@ -131,7 +131,7 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public JMSProducer createProducer() {
-    return null;
+    return new PulsarJMSProducer(this);
   }
 
   /**

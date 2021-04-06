@@ -28,6 +28,10 @@ import javax.jms.InvalidSelectorException;
 import javax.jms.InvalidSelectorRuntimeException;
 import javax.jms.JMSException;
 import javax.jms.JMSRuntimeException;
+import javax.jms.MessageFormatException;
+import javax.jms.MessageFormatRuntimeException;
+import javax.jms.MessageNotWriteableException;
+import javax.jms.MessageNotWriteableRuntimeException;
 import javax.jms.TransactionRolledBackException;
 import javax.jms.TransactionRolledBackRuntimeException;
 import lombok.extern.slf4j.Slf4j;
@@ -183,6 +187,17 @@ final class Utils {
         throw new InvalidSelectorRuntimeException(
             jmsException.getMessage(), jmsException.getErrorCode(), jmsException.getCause());
       }
+      if (err instanceof MessageFormatException) {
+        MessageFormatException jmsException = (MessageFormatException) err;
+        throw new MessageFormatRuntimeException(
+                jmsException.getMessage(), jmsException.getErrorCode(), jmsException.getCause());
+      }
+      if (err instanceof MessageNotWriteableException) {
+        MessageNotWriteableException jmsException = (MessageNotWriteableException) err;
+        throw new MessageNotWriteableRuntimeException(
+                jmsException.getMessage(), jmsException.getErrorCode(), jmsException.getCause());
+      }
+
 
       JMSRuntimeException jms = new JMSRuntimeException("Error " + err);
       jms.initCause(err);

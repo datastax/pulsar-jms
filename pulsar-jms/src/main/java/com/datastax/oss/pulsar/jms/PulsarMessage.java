@@ -1031,6 +1031,20 @@ abstract class PulsarMessage implements Message {
       super(payload);
     }
 
+    /**
+     * Used by JMSProducer
+     * @param payload
+     * @return
+     * @throws JMSException
+     */
+    PulsarBytesMessage fill(byte[] payload) throws JMSException {
+      if (payload != null) {
+        this.writeBytes(payload);
+      }
+      return this;
+    }
+
+
     public PulsarBytesMessage() {}
 
     @Override
@@ -2023,6 +2037,13 @@ abstract class PulsarMessage implements Message {
 
     public PulsarMapMessage() {
       writable = true;
+    }
+
+    public PulsarMapMessage(Map<String, Object> body){
+      this();
+      if (body != null) {
+        map.putAll(body);
+      }
     }
 
     @Override

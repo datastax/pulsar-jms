@@ -187,7 +187,7 @@ public class PulsarConnectionFactory implements ConnectionFactory, AutoCloseable
    */
   @Override
   public JMSContext createContext() {
-    throw new UnsupportedOperationException();
+    return createContext(JMSContext.AUTO_ACKNOWLEDGE);
   }
 
   /**
@@ -243,7 +243,7 @@ public class PulsarConnectionFactory implements ConnectionFactory, AutoCloseable
    */
   @Override
   public JMSContext createContext(String userName, String password) {
-    throw new UnsupportedOperationException();
+    return createContext();
   }
 
   /**
@@ -328,7 +328,7 @@ public class PulsarConnectionFactory implements ConnectionFactory, AutoCloseable
    */
   @Override
   public JMSContext createContext(String userName, String password, int sessionMode) {
-    throw new UnsupportedOperationException();
+    return createContext(sessionMode);
   }
 
   /**
@@ -411,7 +411,7 @@ public class PulsarConnectionFactory implements ConnectionFactory, AutoCloseable
    */
   @Override
   public JMSContext createContext(int sessionMode) {
-    throw new UnsupportedOperationException();
+    return new PulsarJMSContext(this, sessionMode);
   }
 
   public void close() {
