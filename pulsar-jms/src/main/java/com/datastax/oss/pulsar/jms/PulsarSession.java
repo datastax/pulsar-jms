@@ -1241,7 +1241,7 @@ public class PulsarSession implements Session {
    */
   @Override
   public QueueBrowser createBrowser(Queue queue) throws JMSException {
-    throw new UnsupportedOperationException();
+    return createBrowser(queue, null);
   }
 
   /**
@@ -1261,7 +1261,7 @@ public class PulsarSession implements Session {
   @Override
   public QueueBrowser createBrowser(Queue queue, String messageSelector) throws JMSException {
     messageSelectorNotSupported(messageSelector);
-    throw new UnsupportedOperationException();
+    return new PulsarQueueBrowser(this, queue);
   }
 
   /**

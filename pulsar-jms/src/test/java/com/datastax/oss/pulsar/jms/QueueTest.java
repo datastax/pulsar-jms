@@ -15,19 +15,25 @@
  */
 package com.datastax.oss.pulsar.jms;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.UUID;
 import javax.jms.Connection;
 import javax.jms.MessageConsumer;
 import javax.jms.MessageProducer;
 import javax.jms.Queue;
+import javax.jms.QueueBrowser;
 import javax.jms.Session;
 import javax.jms.TextMessage;
 import lombok.extern.slf4j.Slf4j;
@@ -95,6 +101,56 @@ public class QueueTest {
             // no more messages
             assertNull(consumer1.receiveNoWait());
             assertNull(consumer2.receiveNoWait());
+
+
+            // scan from the beginning
+            try (QueueBrowser browser = session.createBrowser(destination)) {
+              Enumeration en = browser.getEnumeration();
+              int i = 0;
+              while (en.hasMoreElements()) {
+                TextMessage msg = (TextMessage) en.nextElement();
+                log.info("received {}", msg.getText());
+                assertEquals("foo-"+i, msg.getText());
+                i++;
+              }
+              assertEquals(10, i);
+
+              try {
+                en.nextElement();
+                fail("should throw NoSuchElementException");
+              } catch (NoSuchElementException expected) {
+              }
+
+            }
+
+            // scan without hasMoreElements
+            try (QueueBrowser browser = session.createBrowser(destination)) {
+              Enumeration en = browser.getEnumeration();
+              for (int i = 0; i < 10; i++) {
+                TextMessage msg = (TextMessage) en.nextElement();
+                assertEquals("foo-"+i, msg.getText());
+              }
+              assertFalse(en.hasMoreElements());
+              try {
+                en.nextElement();
+                fail("should throw NoSuchElementException");
+              } catch (NoSuchElementException expected) {
+              }
+
+            }
+
+            // browse empty queue
+            Queue destinationEmpty =
+                    session.createQueue("persistent://public/default/test-" + UUID.randomUUID());
+            try (QueueBrowser browser = session.createBrowser(destinationEmpty)) {
+              Enumeration en = browser.getEnumeration();
+              assertFalse(en.hasMoreElements());
+              try {
+                en.nextElement();
+                fail("should throw NoSuchElementException");
+              } catch (NoSuchElementException expected) {
+              }
+            }
           }
         }
       }

@@ -30,10 +30,13 @@ import javax.jms.JMSException;
 import javax.jms.JMSRuntimeException;
 import javax.jms.JMSSecurityException;
 import javax.jms.JMSSecurityRuntimeException;
+import javax.jms.QueueBrowser;
+
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.admin.PulsarAdmin;
 import org.apache.pulsar.client.admin.PulsarAdminException;
 import org.apache.pulsar.client.api.Consumer;
+import org.apache.pulsar.client.api.ConsumerBuilder;
 import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.api.Producer;
 import org.apache.pulsar.client.api.PulsarClient;
@@ -489,16 +492,25 @@ public class PulsarConnectionFactory implements ConnectionFactory, AutoCloseable
       throws JMSException {
     // for queues we have a single shared subscription
     String subscriptionName = destination.isQueue() ? QUEUE_SHARED_SUBCRIPTION_NAME : consumerName;
-    if (destination.isQueue() && subscriptionMode != SubscriptionMode.Durable) {
-      throw new IllegalStateException("only durable mode for queues");
-    }
-    if (destination.isQueue() && subscriptionType != SubscriptionType.Shared) {
-      throw new IllegalStateException("only Shared SubscriptionType for queues");
-    }
     SubscriptionInitialPosition initialPosition =
-        destination.isTopic()
-            ? SubscriptionInitialPosition.Latest
-            : SubscriptionInitialPosition.Earliest;
+            destination.isTopic()
+                    ? SubscriptionInitialPosition.Latest
+                    : SubscriptionInitialPosition.Earliest;
+    if (sessionMode != PulsarQueueBrowser.SESSION_MODE_MARKER) {
+      if (destination.isQueue() && subscriptionMode != SubscriptionMode.Durable) {
+        throw new IllegalStateException("only durable mode for queues");
+      }
+      if (destination.isQueue() && subscriptionType != SubscriptionType.Shared) {
+        throw new IllegalStateException("only Shared SubscriptionType for queues");
+      }
+    } else {
+      // for QueueBrowsers we create a non durable consumer that starts
+      // at the beginning of the queue
+      subscriptionName = consumerName;
+      subscriptionMode = SubscriptionMode.NonDurable;
+      subscriptionType = SubscriptionType.Exclusive;
+      initialPosition = SubscriptionInitialPosition.Earliest;
+    }
 
     log.info(
         "createConsumer {} {} {}",
@@ -507,20 +519,24 @@ public class PulsarConnectionFactory implements ConnectionFactory, AutoCloseable
         subscriptionMode,
         subscriptionType);
 
-    Consumer<byte[]> newConsumer =
-        Utils.invoke(
-            () ->
-                pulsarClient
-                    .newConsumer()
-                    .loadConf(consumerConfiguration)
-                    .subscriptionInitialPosition(initialPosition)
-                    .subscriptionMode(subscriptionMode)
-                    .subscriptionType(subscriptionType)
-                    .subscriptionName(subscriptionName)
-                    .topic(destination.topicName)
-                    .subscribe());
-    consumers.add(newConsumer);
-    return newConsumer;
+    try {
+      ConsumerBuilder<byte[]> builder = pulsarClient
+                      .newConsumer()
+                      .loadConf(consumerConfiguration)
+                      .subscriptionInitialPosition(initialPosition)
+                      .subscriptionMode(subscriptionMode)
+                      .subscriptionType(subscriptionType)
+                      .subscriptionName(subscriptionName)
+                      .topic(destination.topicName);
+      Consumer<byte[]> newConsumer =builder.subscribe();
+      consumers.add(newConsumer);
+      return newConsumer;
+    }catch (PulsarClientException err) {
+      JMSException error =  new JMSException("Error while creating consumer");
+      error.initCause(err);
+      error.setLinkedException(err);
+      throw error;
+    }
   }
 
   public void removeConsumer(Consumer<byte[]> consumer) {
