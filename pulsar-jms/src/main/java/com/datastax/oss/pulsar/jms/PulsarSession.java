@@ -1072,17 +1072,7 @@ public class PulsarSession implements Session {
   @Override
   public MessageConsumer createDurableConsumer(
       Topic topic, String name, String messageSelector, boolean noLocal) throws JMSException {
-    messageSelectorNotSupported(messageSelector);
-    if (noLocal) {
-      throw new InvalidSelectorException("noLocal mode is not supported by Pulsar");
-    }
-    return new PulsarConsumer(
-            name,
-            (PulsarDestination) topic,
-            this,
-            SubscriptionMode.Durable,
-            SubscriptionType.Shared)
-        .subscribe();
+    return createDurableSubscriber(topic, name, messageSelector, noLocal);
   }
 
   /**
@@ -1275,7 +1265,7 @@ public class PulsarSession implements Session {
    */
   @Override
   public TemporaryQueue createTemporaryQueue() throws JMSException {
-    throw new UnsupportedOperationException();
+    throw new JMSException("not available in Pulsar");
   }
 
   /**
@@ -1289,7 +1279,7 @@ public class PulsarSession implements Session {
    */
   @Override
   public TemporaryTopic createTemporaryTopic() throws JMSException {
-    throw new UnsupportedOperationException();
+    throw new JMSException("not available in Pulsar");
   }
 
   /**
@@ -1315,7 +1305,8 @@ public class PulsarSession implements Session {
   @Override
   public void unsubscribe(String name) throws JMSException {
     throw new JMSException(
-        "In Pulsar you cannot delete a subscription without setting a topic name");
+        "In Pulsar you cannot delete a subscription without setting a topic name, use pulsar-admin to" +
+                "delete a subscription");
   }
 
   interface BlockCLoseOperation<T> {

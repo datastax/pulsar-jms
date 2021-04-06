@@ -28,6 +28,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import javax.jms.Connection;
 import javax.jms.JMSException;
 import javax.jms.Message;
@@ -190,7 +191,9 @@ public class TopicTest {
                   session.createSharedDurableConsumer(destination, "subscription2");
               // sharing the same subscription
               MessageConsumer consumer2b =
-                  session.createSharedDurableConsumer(destination, "subscription2")) {
+                  session.createSharedDurableConsumer(destination, "subscription2");
+               MessageConsumer consumer3 =
+                       session.createSharedDurableConsumer(destination, "subscription3");) {
             try (MessageProducer producer = session.createProducer(destination); ) {
               for (int i = 0; i < 10; i++) {
                 producer.send(session.createTextMessage("foo-" + i));
@@ -203,6 +206,98 @@ public class TopicTest {
               log.info("consumer {} received {}", consumer1, msg.getText());
               assertEquals("foo-" + i, msg.getText());
             }
+
+            // consumer3, receive a few messages, then close the consumer
+            for (int i = 0; i < 5; i++) {
+              TextMessage msg = (TextMessage) consumer3.receive();
+              log.info("consumer {} received {}", consumer3, msg.getText());
+              assertEquals("foo-" + i, msg.getText());
+            }
+            consumer3.close();
+
+            // consumer again from subscription3
+            try (MessageConsumer consumer3b =
+                    session.createSharedDurableConsumer(destination, "subscription3");) {
+              for (int i = 5; i < 10; i++) {
+                TextMessage msg = (TextMessage) consumer3b.receive();
+                log.info("consumer {} received {}", consumer3b, msg.getText());
+                assertEquals("foo-" + i, msg.getText());
+              }
+            }
+
+
+            List<Message> received = new ArrayList<>();
+
+            while (received.size() < 10) {
+              TextMessage msg = (TextMessage) consumer2a.receive(100);
+              if (msg != null) {
+                log.info("consumer {} received {}", consumer2a, msg.getText());
+                received.add(msg);
+              }
+              msg = (TextMessage) consumer2b.receive(100);
+              if (msg != null) {
+                log.info("consumer {} received {}", consumer2b, msg.getText());
+                received.add(msg);
+              }
+            }
+
+            // no more messages
+            assertNull(consumer1.receiveNoWait());
+            assertNull(consumer2a.receiveNoWait());
+            assertNull(consumer2b.receiveNoWait());
+          }
+        }
+      }
+    }
+  }
+
+  @Test
+  public void testSharedNonDurableConsumer() throws Exception {
+
+    Map<String, Object> properties = new HashMap<>();
+    properties.put("webServiceUrl", cluster.getAddress());
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+      try (Connection connection = factory.createConnection()) {
+        try (Session session = connection.createSession(); ) {
+          Topic destination =
+                  session.createTopic("persistent://public/default/test-" + UUID.randomUUID());
+
+          try (MessageConsumer consumer1 =
+                       session.createSharedConsumer(destination, "subscription1");
+               MessageConsumer consumer2a =
+                       session.createSharedConsumer(destination, "subscription2");
+               // sharing the same subscription
+               MessageConsumer consumer2b =
+                       session.createSharedConsumer(destination, "subscription2");
+               MessageConsumer consumer3 =
+                       session.createSharedConsumer(destination, "subscription3");) {
+            try (MessageProducer producer = session.createProducer(destination); ) {
+              for (int i = 0; i < 10; i++) {
+                producer.send(session.createTextMessage("foo-" + i));
+              }
+            }
+
+            // consumer1 receives all messages, in order
+            for (int i = 0; i < 10; i++) {
+              TextMessage msg = (TextMessage) consumer1.receive();
+              log.info("consumer {} received {}", consumer1, msg.getText());
+              assertEquals("foo-" + i, msg.getText());
+            }
+
+            // consumer3, receive a few messages, then close the consumer
+            for (int i = 0; i < 5; i++) {
+              TextMessage msg = (TextMessage) consumer3.receive();
+              log.info("consumer {} received {}", consumer1, msg.getText());
+              assertEquals("foo-" + i, msg.getText());
+            }
+            consumer3.close();
+
+            // consumer again from subscription3, we lost the messages
+            try (MessageConsumer consumer3b =
+                         session.createSharedConsumer(destination, "subscription3");) {
+              assertNull(consumer3b.receive(1000));
+            }
+
 
             List<Message> received = new ArrayList<>();
 
