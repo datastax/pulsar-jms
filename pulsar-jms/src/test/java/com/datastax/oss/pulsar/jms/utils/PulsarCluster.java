@@ -45,6 +45,7 @@ public class PulsarCluster implements AutoCloseable {
     config.setTransactionCoordinatorEnabled(true);
     config.setBookkeeperMetadataServiceUri(bookKeeperCluster.getBookKeeperMetadataURI());
     config.setWebServicePort(Optional.of(PortManager.nextFreePort()));
+    config.setBookkeeperUseV2WireProtocol(false);
     service = new PulsarService(config);
   }
 

@@ -24,6 +24,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import javax.jms.BytesMessage;
 import javax.jms.CompletionListener;
@@ -69,7 +70,7 @@ public class SimpleTest {
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
         try (Session session = connection.createSession(); ) {
-          Destination destination = session.createTopic("persistent://public/default/test");
+          Destination destination = session.createTopic("persistent://public/default/test-"+UUID.randomUUID());
           try (MessageProducer producer = session.createProducer(destination); ) {
             TextMessage textMsg = session.createTextMessage("foo");
             producer.send(textMsg);
@@ -123,7 +124,6 @@ public class SimpleTest {
   }
 
   @Test
-  @Disabled
   public void sendMessageReceiveFromQueue() throws Exception {
 
     Map<String, Object> properties = new HashMap<>();
@@ -131,18 +131,63 @@ public class SimpleTest {
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
         try (Session session = connection.createSession(); ) {
-          Destination destination = session.createTopic("persistent://public/default/test");
+          Destination destination = session.createTopic("persistent://public/default/test-"+ UUID.randomUUID());
 
           try (MessageConsumer consumer = session.createConsumer(destination); ) {
 
             try (MessageProducer producer = session.createProducer(destination); ) {
               TextMessage textMsg = session.createTextMessage("foo");
               producer.send(textMsg);
+              ObjectMessage objectMsg = session.createObjectMessage("bar");
+              producer.send(objectMsg);
+              BytesMessage bytesMsg = session.createBytesMessage();
+              bytesMsg.writeInt(1234);
+              producer.send(bytesMsg);
+              StreamMessage streamMessage = session.createStreamMessage();
+              streamMessage.writeLong(1234);
+              producer.send(streamMessage);
+              MapMessage mapMessage = session.createMapMessage();
+              mapMessage.setBoolean("foo", true);
+              mapMessage.setString("bar", "test");
+              producer.send(mapMessage);
+              Message simpleMessage = session.createMessage();
+              simpleMessage.setByteProperty("a", (byte) 1);
+              simpleMessage.setLongProperty("b", 123232323233L);
+              simpleMessage.setIntProperty("c", 1232323);
+              simpleMessage.setStringProperty("d", "ttt");
+              simpleMessage.setBooleanProperty("e",true);
+              simpleMessage.setFloatProperty("f", 1.3f);
+              simpleMessage.setDoubleProperty("g", 1.9d);
+              simpleMessage.setShortProperty("h", (short) 89);
+              // we are serializing Object properties with "toString"
+              simpleMessage.setObjectProperty("i", "qqqq");
+              producer.send(simpleMessage);
             }
 
             TextMessage msg = (TextMessage) consumer.receive();
             assertEquals("foo", msg.getText());
-            msg.acknowledge();
+            ObjectMessage msg2 = (ObjectMessage) consumer.receive();
+            assertEquals("bar", msg2.getObject());
+            BytesMessage msg3 = (BytesMessage) consumer.receive();
+            assertEquals(1234, msg3.readInt());
+            StreamMessage msg4 = (StreamMessage) consumer.receive();
+            assertEquals(1234l, msg4.readLong());
+            MapMessage msg5 = (MapMessage) consumer.receive();
+            assertEquals(true, msg5.getBoolean("foo"));
+            assertEquals("test", msg5.getString("bar"));
+            Message msg6 = consumer.receive();
+
+            assertEquals((byte) 1, msg6.getByteProperty("a"));
+            assertEquals(123232323233L, msg6.getLongProperty("b"));
+            assertEquals(1232323, msg6.getIntProperty("c"));
+            assertEquals("ttt", msg6.getStringProperty("d"));
+            assertEquals(true, msg6.getBooleanProperty("e"));
+            assertEquals(1.3f, msg6.getFloatProperty("f"), 0);
+            assertEquals(1.9d, msg6.getDoubleProperty("g"),0 );
+            assertEquals(89, msg6.getShortProperty("h"));
+            // we are serializing Object properties as strings
+            assertEquals("qqqq", msg6.getObjectProperty("i"));
+
           }
         }
       }

@@ -16,6 +16,7 @@
 package com.datastax.oss.pulsar.jms;
 
 import org.apache.pulsar.client.api.Consumer;
+import org.apache.pulsar.client.api.MessageId;
 
 import javax.jms.IllegalStateException;
 import javax.jms.JMSException;
@@ -35,6 +36,15 @@ public class PulsarConsumer implements MessageConsumer {
         this.name = name;
         this.session = session;
         this.destination = destination;
+    }
+
+    public PulsarConsumer subscribe() throws JMSException {
+        try {
+            session.getFactory().getPulsarAdmin().topics().createSubscription(destination.topicName, name, MessageId.latest);
+        } catch (Exception err) {
+            throw Utils.handleException(err);
+        }
+        return this;
     }
 
     /**

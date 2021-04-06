@@ -508,7 +508,8 @@ public class PulsarSession implements Session {
    */
   @Override
   public MessageConsumer createConsumer(Destination destination) throws JMSException {
-    return new PulsarConsumer(UUID.randomUUID().toString(), (PulsarDestination) destination, this);
+    return new PulsarConsumer(UUID.randomUUID().toString(), (PulsarDestination) destination, this)
+            .subscribe();
   }
 
   /**

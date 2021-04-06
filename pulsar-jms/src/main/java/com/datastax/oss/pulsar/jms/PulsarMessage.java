@@ -2501,6 +2501,8 @@ abstract class PulsarMessage implements Message {
           return new PulsarStreamMessage(value).applyMessage(msg, consumer);
         case "bytes":
           return new PulsarBytesMessage(value).applyMessage(msg, consumer);
+        case "text":
+          return new PulsarTextMessage(new String(value, StandardCharsets.UTF_8)).applyMessage(msg, consumer);
         default:
           return new SimpleMessage().applyMessage(msg, consumer);
       }
