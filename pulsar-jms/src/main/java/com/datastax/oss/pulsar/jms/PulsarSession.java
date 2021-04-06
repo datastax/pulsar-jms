@@ -47,6 +47,8 @@ import javax.jms.Topic;
 import javax.jms.TopicSubscriber;
 import javax.jms.TransactionRolledBackException;
 import org.apache.pulsar.client.api.Producer;
+import org.apache.pulsar.client.api.SubscriptionMode;
+import org.apache.pulsar.client.api.SubscriptionType;
 import org.apache.pulsar.client.api.transaction.Transaction;
 
 public class PulsarSession implements Session {
@@ -508,8 +510,13 @@ public class PulsarSession implements Session {
    */
   @Override
   public MessageConsumer createConsumer(Destination destination) throws JMSException {
-    return new PulsarConsumer(UUID.randomUUID().toString(), (PulsarDestination) destination, this)
-            .subscribe();
+    return new PulsarConsumer(
+            UUID.randomUUID().toString(),
+            (PulsarDestination) destination,
+            this,
+            SubscriptionMode.NonDurable,
+            SubscriptionType.Shared)
+        .subscribe();
   }
 
   /**
@@ -578,7 +585,7 @@ public class PulsarSession implements Session {
       Destination destination, String messageSelector, boolean noLocal) throws JMSException {
     messageSelectorNotSupported(messageSelector);
     if (noLocal) {
-      throw new UnsupportedOperationException();
+      throw new InvalidSelectorException("noLocal mode is not supported by Pulsar");
     }
     return createConsumer(destination);
   }
@@ -625,7 +632,13 @@ public class PulsarSession implements Session {
   @Override
   public MessageConsumer createSharedConsumer(Topic topic, String sharedSubscriptionName)
       throws JMSException {
-    throw new UnsupportedOperationException();
+    return new PulsarConsumer(
+            sharedSubscriptionName,
+            (PulsarDestination) topic,
+            this,
+            SubscriptionMode.NonDurable,
+            SubscriptionType.Shared)
+        .subscribe();
   }
 
   /**
@@ -674,7 +687,13 @@ public class PulsarSession implements Session {
   public MessageConsumer createSharedConsumer(
       Topic topic, String sharedSubscriptionName, String messageSelector) throws JMSException {
     messageSelectorNotSupported(messageSelector);
-    throw new UnsupportedOperationException();
+    return new PulsarConsumer(
+            sharedSubscriptionName,
+            (PulsarDestination) topic,
+            this,
+            SubscriptionMode.NonDurable,
+            SubscriptionType.Shared)
+        .subscribe();
   }
 
   /**
@@ -792,7 +811,7 @@ public class PulsarSession implements Session {
    */
   @Override
   public TopicSubscriber createDurableSubscriber(Topic topic, String name) throws JMSException {
-    throw new UnsupportedOperationException();
+    return createDurableSubscriber(topic, name, null, false);
   }
 
   /**
@@ -875,7 +894,16 @@ public class PulsarSession implements Session {
   public TopicSubscriber createDurableSubscriber(
       Topic topic, String name, String messageSelector, boolean noLocal) throws JMSException {
     messageSelectorNotSupported(messageSelector);
-    throw new UnsupportedOperationException();
+    if (noLocal) {
+      throw new InvalidSelectorException("noLocal mode is not supported by Pulsar");
+    }
+    return new PulsarConsumer(
+            name,
+            (PulsarDestination) topic,
+            this,
+            SubscriptionMode.Durable,
+            SubscriptionType.Exclusive)
+        .subscribe();
   }
 
   /**
@@ -945,7 +973,7 @@ public class PulsarSession implements Session {
    */
   @Override
   public MessageConsumer createDurableConsumer(Topic topic, String name) throws JMSException {
-    throw new UnsupportedOperationException();
+    return createDurableConsumer(topic, name, null, false);
   }
 
   /**
@@ -1028,7 +1056,16 @@ public class PulsarSession implements Session {
   public MessageConsumer createDurableConsumer(
       Topic topic, String name, String messageSelector, boolean noLocal) throws JMSException {
     messageSelectorNotSupported(messageSelector);
-    throw new UnsupportedOperationException();
+    if (noLocal) {
+      throw new InvalidSelectorException("noLocal mode is not supported by Pulsar");
+    }
+    return new PulsarConsumer(
+            name,
+            (PulsarDestination) topic,
+            this,
+            SubscriptionMode.Durable,
+            SubscriptionType.Shared)
+        .subscribe();
   }
 
   /**
@@ -1095,7 +1132,7 @@ public class PulsarSession implements Session {
    */
   @Override
   public MessageConsumer createSharedDurableConsumer(Topic topic, String name) throws JMSException {
-    throw new UnsupportedOperationException();
+    return createSharedDurableConsumer(topic, name, null);
   }
 
   /**
@@ -1167,7 +1204,13 @@ public class PulsarSession implements Session {
   public MessageConsumer createSharedDurableConsumer(
       Topic topic, String name, String messageSelector) throws JMSException {
     messageSelectorNotSupported(messageSelector);
-    throw new UnsupportedOperationException();
+    return new PulsarConsumer(
+            name,
+            (PulsarDestination) topic,
+            this,
+            SubscriptionMode.Durable,
+            SubscriptionType.Shared)
+        .subscribe();
   }
 
   /**
@@ -1254,6 +1297,7 @@ public class PulsarSession implements Session {
    */
   @Override
   public void unsubscribe(String name) throws JMSException {
-    throw new UnsupportedOperationException();
+    throw new JMSException(
+        "In Pulsar you cannot delete a subscription without setting a topic name");
   }
 }

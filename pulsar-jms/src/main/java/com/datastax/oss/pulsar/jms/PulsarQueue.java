@@ -44,6 +44,6 @@ public final class PulsarQueue extends PulsarDestination implements Queue {
 
   @Override
   public String toString() {
-    return "Queue{"+topicName+"}";
+    return "Queue{" + topicName + "}";
   }
 }

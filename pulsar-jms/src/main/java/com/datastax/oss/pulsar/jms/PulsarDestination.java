@@ -27,5 +27,6 @@ public abstract class PulsarDestination implements Destination {
   }
 
   public abstract boolean isQueue();
+
   public abstract boolean isTopic();
 }

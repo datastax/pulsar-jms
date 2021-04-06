@@ -44,7 +44,6 @@ import javax.jms.ObjectMessage;
 import javax.jms.Session;
 import javax.jms.StreamMessage;
 import javax.jms.TextMessage;
-
 import org.apache.pulsar.client.api.Consumer;
 import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.api.TypedMessageBuilder;
@@ -66,7 +65,6 @@ abstract class PulsarMessage implements Message {
   private final Map<String, String> properties = new HashMap<>();
   private Consumer<byte[]> consumer;
   private org.apache.pulsar.client.api.Message<byte[]> receivedPulsarMessage;
-
 
   /**
    * Gets the message ID.
@@ -1947,8 +1945,7 @@ abstract class PulsarMessage implements Message {
       }
     }
 
-    public PulsarObjectMessage() {
-    }
+    public PulsarObjectMessage() {}
 
     @Override
     protected String messageType() {
@@ -2483,38 +2480,40 @@ abstract class PulsarMessage implements Message {
       return map.containsKey(name);
     }
   }
-  static Message decode(Consumer<byte[]> consumer, org.apache.pulsar.client.api.Message<byte[]> msg) throws JMSException {
+
+  static PulsarMessage decode(
+      Consumer<byte[]> consumer, org.apache.pulsar.client.api.Message<byte[]> msg)
+      throws JMSException {
     if (msg == null) {
       return null;
     }
-      String type = msg.getProperty("JMS_PulsarMessageType");
-      if (type == null) {
-        type = "header";
-      }
-      byte[] value = msg.getValue();
-      switch (type) {
-        case "map":
-          return new PulsarMapMessage(value).applyMessage(msg, consumer);
-        case "object":
-          return new PulsarObjectMessage(value).applyMessage(msg, consumer);
-        case "stream":
-          return new PulsarStreamMessage(value).applyMessage(msg, consumer);
-        case "bytes":
-          return new PulsarBytesMessage(value).applyMessage(msg, consumer);
-        case "text":
-          return new PulsarTextMessage(new String(value, StandardCharsets.UTF_8)).applyMessage(msg, consumer);
-        default:
-          return new SimpleMessage().applyMessage(msg, consumer);
-      }
+    String type = msg.getProperty("JMS_PulsarMessageType");
+    if (type == null) {
+      type = "header";
+    }
+    byte[] value = msg.getValue();
+    switch (type) {
+      case "map":
+        return new PulsarMapMessage(value).applyMessage(msg, consumer);
+      case "object":
+        return new PulsarObjectMessage(value).applyMessage(msg, consumer);
+      case "stream":
+        return new PulsarStreamMessage(value).applyMessage(msg, consumer);
+      case "bytes":
+        return new PulsarBytesMessage(value).applyMessage(msg, consumer);
+      case "text":
+        return new PulsarTextMessage(new String(value, StandardCharsets.UTF_8))
+            .applyMessage(msg, consumer);
+      default:
+        return new SimpleMessage().applyMessage(msg, consumer);
+    }
   }
 
-  protected Message applyMessage(org.apache.pulsar.client.api.Message<byte[]> msg, Consumer<byte[]> consumer) {
+  protected PulsarMessage applyMessage(
+      org.apache.pulsar.client.api.Message<byte[]> msg, Consumer<byte[]> consumer) {
     this.properties.putAll(msg.getProperties());
     this.receivedPulsarMessage = msg;
     this.consumer = consumer;
     return this;
   }
-
-
-
 }

@@ -44,6 +44,6 @@ public final class PulsarTopic extends PulsarDestination implements Topic {
 
   @Override
   public String toString() {
-    return "Topic{"+topicName+"}";
+    return "Topic{" + topicName + "}";
   }
 }

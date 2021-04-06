@@ -40,7 +40,6 @@ import javax.jms.StreamMessage;
 import javax.jms.TextMessage;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -70,7 +69,8 @@ public class SimpleTest {
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
         try (Session session = connection.createSession(); ) {
-          Destination destination = session.createTopic("persistent://public/default/test-"+UUID.randomUUID());
+          Destination destination =
+              session.createTopic("persistent://public/default/test-" + UUID.randomUUID());
           try (MessageProducer producer = session.createProducer(destination); ) {
             TextMessage textMsg = session.createTextMessage("foo");
             producer.send(textMsg);
@@ -131,7 +131,8 @@ public class SimpleTest {
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
         try (Session session = connection.createSession(); ) {
-          Destination destination = session.createTopic("persistent://public/default/test-"+ UUID.randomUUID());
+          Destination destination =
+              session.createTopic("persistent://public/default/test-" + UUID.randomUUID());
 
           try (MessageConsumer consumer = session.createConsumer(destination); ) {
 
@@ -155,7 +156,7 @@ public class SimpleTest {
               simpleMessage.setLongProperty("b", 123232323233L);
               simpleMessage.setIntProperty("c", 1232323);
               simpleMessage.setStringProperty("d", "ttt");
-              simpleMessage.setBooleanProperty("e",true);
+              simpleMessage.setBooleanProperty("e", true);
               simpleMessage.setFloatProperty("f", 1.3f);
               simpleMessage.setDoubleProperty("g", 1.9d);
               simpleMessage.setShortProperty("h", (short) 89);
@@ -183,11 +184,10 @@ public class SimpleTest {
             assertEquals("ttt", msg6.getStringProperty("d"));
             assertEquals(true, msg6.getBooleanProperty("e"));
             assertEquals(1.3f, msg6.getFloatProperty("f"), 0);
-            assertEquals(1.9d, msg6.getDoubleProperty("g"),0 );
+            assertEquals(1.9d, msg6.getDoubleProperty("g"), 0);
             assertEquals(89, msg6.getShortProperty("h"));
             // we are serializing Object properties as strings
             assertEquals("qqqq", msg6.getObjectProperty("i"));
-
           }
         }
       }

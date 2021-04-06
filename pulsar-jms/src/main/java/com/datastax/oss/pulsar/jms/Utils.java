@@ -80,4 +80,12 @@ final class Utils {
   }
 
   private static ThreadLocal<PulsarSession> currentSession = new ThreadLocal();
+
+  public static <T> T noException(RunnableWithException<T> run) {
+    try {
+      return run.run();
+    } catch (Exception err) {
+      throw new RuntimeException(err);
+    }
+  }
 }

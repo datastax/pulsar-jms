@@ -41,6 +41,7 @@ public class PulsarCluster implements AutoCloseable {
     config.setAllowAutoTopicCreation(true);
     config.setWebSocketServiceEnabled(false);
     config.setSystemTopicEnabled(true);
+    config.setBookkeeperNumberOfChannelsPerBookie(1);
     config.setBookkeeperExplicitLacIntervalInMills(500);
     config.setTransactionCoordinatorEnabled(true);
     config.setBookkeeperMetadataServiceUri(bookKeeperCluster.getBookKeeperMetadataURI());

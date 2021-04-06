@@ -17,25 +17,24 @@ package com.datastax.oss.pulsar.jms;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import javax.jms.Connection;
 import javax.jms.ConnectionFactory;
+import javax.jms.IllegalStateException;
 import javax.jms.JMSContext;
 import javax.jms.JMSException;
 import javax.jms.JMSRuntimeException;
 import javax.jms.JMSSecurityException;
 import javax.jms.JMSSecurityRuntimeException;
-import javax.jms.Session;
-
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.admin.PulsarAdmin;
 import org.apache.pulsar.client.admin.PulsarAdminException;
 import org.apache.pulsar.client.api.Consumer;
-import org.apache.pulsar.client.api.Message;
 import org.apache.pulsar.client.api.MessageId;
-import org.apache.pulsar.client.api.MessageListener;
 import org.apache.pulsar.client.api.Producer;
 import org.apache.pulsar.client.api.PulsarClient;
 import org.apache.pulsar.client.api.PulsarClientException;
@@ -51,7 +50,7 @@ public class PulsarConnectionFactory implements ConnectionFactory, AutoCloseable
   private final Map<String, Object> producerConfiguration;
   private final Map<String, Object> consumerConfiguration;
   private final Map<PulsarDestination, Producer<byte[]>> producers = new ConcurrentHashMap<>();
-  private final Map<String, Consumer<byte[]>> consumers = new ConcurrentHashMap<>();
+  private final List<Consumer<byte[]>> consumers = new CopyOnWriteArrayList<>();
 
   public PulsarConnectionFactory(Map<String, Object> properties) throws PulsarClientException {
     properties = new HashMap(properties);
@@ -439,7 +438,8 @@ public class PulsarConnectionFactory implements ConnectionFactory, AutoCloseable
     }
   }
 
-  Producer<byte[]> getProducerForDestination(PulsarDestination defaultDestination) throws JMSException {
+  Producer<byte[]> getProducerForDestination(PulsarDestination defaultDestination)
+      throws JMSException {
     try {
       return producers.computeIfAbsent(
           defaultDestination,
@@ -463,82 +463,60 @@ public class PulsarConnectionFactory implements ConnectionFactory, AutoCloseable
 
   private static final String QUEUE_SHARED_SUBCRIPTION_NAME = "jms-queue-emulator";
 
-  public void ensureSubscription(PulsarDestination destination, String consumerName) throws JMSException {
+  public void ensureSubscription(PulsarDestination destination, String consumerName)
+      throws JMSException {
     // for queues we have a single shared subscription
     String subscriptionName = destination.isQueue() ? QUEUE_SHARED_SUBCRIPTION_NAME : consumerName;
     log.info("Creating subscription {} for destination {}", subscriptionName, destination);
     try {
-      pulsarAdmin.topics().createSubscription(destination.topicName, subscriptionName, MessageId.latest);
+      pulsarAdmin
+          .topics()
+          .createSubscription(destination.topicName, subscriptionName, MessageId.latest);
     } catch (PulsarAdminException.ConflictException alreadyExists) {
       log.info("Subscription {} already exists, this is usually not a problem", subscriptionName);
-    }  catch (Exception err) {
+    } catch (Exception err) {
       throw Utils.handleException(err);
     }
   }
 
-  public Consumer<byte[]> getConsumerForDestination(PulsarDestination destination, String consumerName, MessageListenerWrapper listener, int sessionMode) throws JMSException {
+  public Consumer<byte[]> createConsumer(
+      PulsarDestination destination,
+      String consumerName,
+      int sessionMode,
+      SubscriptionMode subscriptionMode,
+      SubscriptionType subscriptionType)
+      throws JMSException {
     // for queues we have a single shared subscription
     String subscriptionName = destination.isQueue() ? QUEUE_SHARED_SUBCRIPTION_NAME : consumerName;
-
-    SubscriptionMode subscriptionMode = SubscriptionMode.Durable;
-    SubscriptionType subscriptionType = SubscriptionType.Shared;
-
-    String consumerId = destination.topicName+"##"+consumerName;
-    try {
-      if (listener != null) {
-        return consumers.computeIfAbsent(
-                consumerId,
-                d -> {
-                  try {
-                    return Utils.invoke(
-                            () ->
-                                    pulsarClient
-                                            .newConsumer()
-                                            .topic(destination.topicName)
-                                            .loadConf(consumerConfiguration)
-                                            .subscriptionMode(subscriptionMode)
-                                            .subscriptionType(subscriptionType)
-                                            .subscriptionName(subscriptionName)
-                                            .messageListener(new MessageListener<byte[]>() {
-                                              @Override
-                                              public void received(Consumer<byte[]> consumer, Message<byte[]> msg) {
-                                                try {
-                                                  listener.onMessage(PulsarMessage.decode(consumer, msg));
-                                                  if (sessionMode == Session.AUTO_ACKNOWLEDGE) {
-                                                    consumer.acknowledgeAsync(msg);
-                                                  }
-                                                } catch (JMSException err) {
-                                                  throw new RuntimeException(err);
-                                                }
-                                              }
-                                            })
-                                            .subscribe());
-                  } catch (JMSException err) {
-                    throw new RuntimeException(err);
-                  }
-                });
-      } else {
-        return consumers.computeIfAbsent(
-                consumerId,
-                d -> {
-                  try {
-                    return Utils.invoke(
-                            () ->
-                                    pulsarClient
-                                            .newConsumer()
-                                            .topic(destination.topicName)
-                                            .loadConf(consumerConfiguration)
-                                            .subscriptionMode(subscriptionMode)
-                                            .subscriptionType(subscriptionType)
-                                            .subscriptionName(subscriptionName)
-                                            .subscribe());
-                  } catch (JMSException err) {
-                    throw new RuntimeException(err);
-                  }
-                });
-      }
-    } catch (RuntimeException err) {
-        throw (JMSException) err.getCause();
+    if (destination.isQueue() && subscriptionMode != SubscriptionMode.Durable) {
+      throw new IllegalStateException("only durable mode for queues");
     }
+    if (destination.isQueue() && subscriptionType != SubscriptionType.Shared) {
+      throw new IllegalStateException("only Shared SubscriptionType for queues");
+    }
+    log.info(
+        "createConsumer {} {} {}",
+        destination.topicName,
+        consumerName,
+        subscriptionMode,
+        subscriptionType);
+
+    Consumer<byte[]> newConsumer =
+        Utils.invoke(
+            () ->
+                pulsarClient
+                    .newConsumer()
+                    .topic(destination.topicName)
+                    .loadConf(consumerConfiguration)
+                    .subscriptionMode(subscriptionMode)
+                    .subscriptionType(subscriptionType)
+                    .subscriptionName(subscriptionName)
+                    .subscribe());
+    consumers.add(newConsumer);
+    return newConsumer;
+  }
+
+  public void removeConsumer(Consumer<byte[]> consumer) {
+    consumers.remove(consumer);
   }
 }
