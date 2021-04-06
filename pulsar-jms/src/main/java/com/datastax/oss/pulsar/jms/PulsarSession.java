@@ -1336,7 +1336,7 @@ public class PulsarSession implements Session {
     try {
       return code.execute();
     } finally {
-      closeLock.writeLock().lock();
+      closeLock.readLock().unlock();
     }
   }
 }
