@@ -30,8 +30,6 @@ import javax.jms.JMSException;
 import javax.jms.JMSRuntimeException;
 import javax.jms.JMSSecurityException;
 import javax.jms.JMSSecurityRuntimeException;
-import javax.jms.QueueBrowser;
-
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.admin.PulsarAdmin;
 import org.apache.pulsar.client.admin.PulsarAdminException;
@@ -493,9 +491,9 @@ public class PulsarConnectionFactory implements ConnectionFactory, AutoCloseable
     // for queues we have a single shared subscription
     String subscriptionName = destination.isQueue() ? QUEUE_SHARED_SUBCRIPTION_NAME : consumerName;
     SubscriptionInitialPosition initialPosition =
-            destination.isTopic()
-                    ? SubscriptionInitialPosition.Latest
-                    : SubscriptionInitialPosition.Earliest;
+        destination.isTopic()
+            ? SubscriptionInitialPosition.Latest
+            : SubscriptionInitialPosition.Earliest;
     if (sessionMode != PulsarQueueBrowser.SESSION_MODE_MARKER) {
       if (destination.isQueue() && subscriptionMode != SubscriptionMode.Durable) {
         throw new IllegalStateException("only durable mode for queues");
@@ -520,19 +518,20 @@ public class PulsarConnectionFactory implements ConnectionFactory, AutoCloseable
         subscriptionType);
 
     try {
-      ConsumerBuilder<byte[]> builder = pulsarClient
-                      .newConsumer()
-                      .loadConf(consumerConfiguration)
-                      .subscriptionInitialPosition(initialPosition)
-                      .subscriptionMode(subscriptionMode)
-                      .subscriptionType(subscriptionType)
-                      .subscriptionName(subscriptionName)
-                      .topic(destination.topicName);
-      Consumer<byte[]> newConsumer =builder.subscribe();
+      ConsumerBuilder<byte[]> builder =
+          pulsarClient
+              .newConsumer()
+              .loadConf(consumerConfiguration)
+              .subscriptionInitialPosition(initialPosition)
+              .subscriptionMode(subscriptionMode)
+              .subscriptionType(subscriptionType)
+              .subscriptionName(subscriptionName)
+              .topic(destination.topicName);
+      Consumer<byte[]> newConsumer = builder.subscribe();
       consumers.add(newConsumer);
       return newConsumer;
-    }catch (PulsarClientException err) {
-      JMSException error =  new JMSException("Error while creating consumer");
+    } catch (PulsarClientException err) {
+      JMSException error = new JMSException("Error while creating consumer");
       error.initCause(err);
       error.setLinkedException(err);
       throw error;

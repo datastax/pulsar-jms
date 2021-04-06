@@ -102,7 +102,6 @@ public class QueueTest {
             assertNull(consumer1.receiveNoWait());
             assertNull(consumer2.receiveNoWait());
 
-
             // scan from the beginning
             try (QueueBrowser browser = session.createBrowser(destination)) {
               Enumeration en = browser.getEnumeration();
@@ -110,7 +109,7 @@ public class QueueTest {
               while (en.hasMoreElements()) {
                 TextMessage msg = (TextMessage) en.nextElement();
                 log.info("received {}", msg.getText());
-                assertEquals("foo-"+i, msg.getText());
+                assertEquals("foo-" + i, msg.getText());
                 i++;
               }
               assertEquals(10, i);
@@ -120,7 +119,6 @@ public class QueueTest {
                 fail("should throw NoSuchElementException");
               } catch (NoSuchElementException expected) {
               }
-
             }
 
             // scan without hasMoreElements
@@ -128,7 +126,7 @@ public class QueueTest {
               Enumeration en = browser.getEnumeration();
               for (int i = 0; i < 10; i++) {
                 TextMessage msg = (TextMessage) en.nextElement();
-                assertEquals("foo-"+i, msg.getText());
+                assertEquals("foo-" + i, msg.getText());
               }
               assertFalse(en.hasMoreElements());
               try {
@@ -136,12 +134,11 @@ public class QueueTest {
                 fail("should throw NoSuchElementException");
               } catch (NoSuchElementException expected) {
               }
-
             }
 
             // browse empty queue
             Queue destinationEmpty =
-                    session.createQueue("persistent://public/default/test-" + UUID.randomUUID());
+                session.createQueue("persistent://public/default/test-" + UUID.randomUUID());
             try (QueueBrowser browser = session.createBrowser(destinationEmpty)) {
               Enumeration en = browser.getEnumeration();
               assertFalse(en.hasMoreElements());
