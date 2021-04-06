@@ -31,4 +31,19 @@ public final class PulsarQueue extends PulsarDestination implements Queue {
   public String getQueueName() throws JMSException {
     return topicName;
   }
+
+  @Override
+  public boolean isQueue() {
+    return true;
+  }
+
+  @Override
+  public boolean isTopic() {
+    return false;
+  }
+
+  @Override
+  public String toString() {
+    return "Queue{"+topicName+"}";
+  }
 }

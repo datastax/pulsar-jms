@@ -31,12 +31,16 @@ import javax.jms.Session;
 
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.admin.PulsarAdmin;
+import org.apache.pulsar.client.admin.PulsarAdminException;
 import org.apache.pulsar.client.api.Consumer;
 import org.apache.pulsar.client.api.Message;
+import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.api.MessageListener;
 import org.apache.pulsar.client.api.Producer;
 import org.apache.pulsar.client.api.PulsarClient;
 import org.apache.pulsar.client.api.PulsarClientException;
+import org.apache.pulsar.client.api.SubscriptionMode;
+import org.apache.pulsar.client.api.SubscriptionType;
 
 @Slf4j
 public class PulsarConnectionFactory implements ConnectionFactory, AutoCloseable {
@@ -47,7 +51,7 @@ public class PulsarConnectionFactory implements ConnectionFactory, AutoCloseable
   private final Map<String, Object> producerConfiguration;
   private final Map<String, Object> consumerConfiguration;
   private final Map<PulsarDestination, Producer<byte[]>> producers = new ConcurrentHashMap<>();
-  private final Map<PulsarDestination, Consumer<byte[]>> consumers = new ConcurrentHashMap<>();
+  private final Map<String, Consumer<byte[]>> consumers = new ConcurrentHashMap<>();
 
   public PulsarConnectionFactory(Map<String, Object> properties) throws PulsarClientException {
     properties = new HashMap(properties);
@@ -457,20 +461,44 @@ public class PulsarConnectionFactory implements ConnectionFactory, AutoCloseable
     }
   }
 
-  public Consumer<byte[]> getConsumerForDestination(PulsarDestination destination, String name, MessageListenerWrapper listener, int sessionMode) throws JMSException {
+  private static final String QUEUE_SHARED_SUBCRIPTION_NAME = "jms-queue-emulator";
+
+  public void ensureSubscription(PulsarDestination destination, String consumerName) throws JMSException {
+    // for queues we have a single shared subscription
+    String subscriptionName = destination.isQueue() ? QUEUE_SHARED_SUBCRIPTION_NAME : consumerName;
+    log.info("Creating subscription {} for destination {}", subscriptionName, destination);
+    try {
+      pulsarAdmin.topics().createSubscription(destination.topicName, subscriptionName, MessageId.latest);
+    } catch (PulsarAdminException.ConflictException alreadyExists) {
+      log.info("Subscription {} already exists, this is usually not a problem", subscriptionName);
+    }  catch (Exception err) {
+      throw Utils.handleException(err);
+    }
+  }
+
+  public Consumer<byte[]> getConsumerForDestination(PulsarDestination destination, String consumerName, MessageListenerWrapper listener, int sessionMode) throws JMSException {
+    // for queues we have a single shared subscription
+    String subscriptionName = destination.isQueue() ? QUEUE_SHARED_SUBCRIPTION_NAME : consumerName;
+
+    SubscriptionMode subscriptionMode = SubscriptionMode.Durable;
+    SubscriptionType subscriptionType = SubscriptionType.Shared;
+
+    String consumerId = destination.topicName+"##"+consumerName;
     try {
       if (listener != null) {
         return consumers.computeIfAbsent(
-                destination,
+                consumerId,
                 d -> {
                   try {
                     return Utils.invoke(
                             () ->
                                     pulsarClient
                                             .newConsumer()
-                                            .topic(d.topicName)
+                                            .topic(destination.topicName)
                                             .loadConf(consumerConfiguration)
-                                            .subscriptionName(name)
+                                            .subscriptionMode(subscriptionMode)
+                                            .subscriptionType(subscriptionType)
+                                            .subscriptionName(subscriptionName)
                                             .messageListener(new MessageListener<byte[]>() {
                                               @Override
                                               public void received(Consumer<byte[]> consumer, Message<byte[]> msg) {
@@ -491,16 +519,18 @@ public class PulsarConnectionFactory implements ConnectionFactory, AutoCloseable
                 });
       } else {
         return consumers.computeIfAbsent(
-                destination,
+                consumerId,
                 d -> {
                   try {
                     return Utils.invoke(
                             () ->
                                     pulsarClient
                                             .newConsumer()
-                                            .topic(d.topicName)
+                                            .topic(destination.topicName)
                                             .loadConf(consumerConfiguration)
-                                            .subscriptionName(name)
+                                            .subscriptionMode(subscriptionMode)
+                                            .subscriptionType(subscriptionType)
+                                            .subscriptionName(subscriptionName)
                                             .subscribe());
                   } catch (JMSException err) {
                     throw new RuntimeException(err);

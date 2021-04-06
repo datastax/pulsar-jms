@@ -26,21 +26,23 @@ import javax.jms.MessageListener;
 import java.util.concurrent.TimeUnit;
 
 public class PulsarConsumer implements MessageConsumer {
-    private final String name;
+
+
+    private final String subscriptionName;
     private final PulsarSession session;
     private final PulsarDestination destination;
     private Consumer<byte[]> consumer;
     private MessageListenerWrapper messageListenerWrapper;
 
-    public PulsarConsumer(String name, PulsarDestination destination, PulsarSession session) {
-        this.name = name;
+    public PulsarConsumer(String subscriptionName, PulsarDestination destination, PulsarSession session) {
+        this.subscriptionName = subscriptionName;
         this.session = session;
         this.destination = destination;
     }
 
     public PulsarConsumer subscribe() throws JMSException {
         try {
-            session.getFactory().getPulsarAdmin().topics().createSubscription(destination.topicName, name, MessageId.latest);
+            session.getFactory().ensureSubscription(destination, subscriptionName);
         } catch (Exception err) {
             throw Utils.handleException(err);
         }
@@ -112,7 +114,7 @@ public class PulsarConsumer implements MessageConsumer {
             throw new IllegalStateException("You cannot set the listener twice");
         }
         this.messageListenerWrapper = new MessageListenerWrapper(listener, session);
-        consumer = session.getFactory().getConsumerForDestination(destination, name, messageListenerWrapper, session.getAcknowledgeMode());
+        consumer = session.getFactory().getConsumerForDestination(destination, subscriptionName, messageListenerWrapper, session.getAcknowledgeMode());
     }
 
     /**
@@ -134,7 +136,7 @@ public class PulsarConsumer implements MessageConsumer {
         }
 
         if (consumer == null) {
-            consumer = session.getFactory().getConsumerForDestination(destination, name, null, session.getAcknowledgeMode());
+            consumer = session.getFactory().getConsumerForDestination(destination, subscriptionName, null, session.getAcknowledgeMode());
         }
 
         try {
@@ -164,7 +166,7 @@ public class PulsarConsumer implements MessageConsumer {
         }
 
         if (consumer == null) {
-            consumer = session.getFactory().getConsumerForDestination(destination, name, null, session.getAcknowledgeMode());
+            consumer = session.getFactory().getConsumerForDestination(destination, subscriptionName, null, session.getAcknowledgeMode());
         }
         try {
             org.apache.pulsar.client.api.Message<byte[]> message = consumer.receive((int) timeout, TimeUnit.MILLISECONDS);
@@ -187,7 +189,7 @@ public class PulsarConsumer implements MessageConsumer {
         }
 
         if (consumer == null) {
-            consumer = session.getFactory().getConsumerForDestination(destination, name, null, session.getAcknowledgeMode());
+            consumer = session.getFactory().getConsumerForDestination(destination, subscriptionName, null, session.getAcknowledgeMode());
         }
         try {
             // there is no receiveNoWait in Pulsar, so we are setting a very small timeout
@@ -233,5 +235,10 @@ public class PulsarConsumer implements MessageConsumer {
                 throw Utils.handleException(err);
             }
         }
+    }
+
+    @Override
+    public String toString() {
+        return "PulsarConsumer{subscriptionName=" + subscriptionName+", destination=" + destination + '}';
     }
 }

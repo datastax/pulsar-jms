@@ -25,4 +25,7 @@ public abstract class PulsarDestination implements Destination {
   protected PulsarDestination(String topicName) {
     this.topicName = topicName;
   }
+
+  public abstract boolean isQueue();
+  public abstract boolean isTopic();
 }
