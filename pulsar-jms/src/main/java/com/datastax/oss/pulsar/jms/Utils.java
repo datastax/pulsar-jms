@@ -20,7 +20,9 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import javax.jms.IllegalStateException;
 import javax.jms.JMSException;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 final class Utils {
   private Utils() {}
 
@@ -66,7 +68,13 @@ final class Utils {
   public static void executeListener(PulsarSession session, Runnable code) {
     currentSession.set(session);
     try {
-      code.run();
+      session.executeInCloseLock(
+          () -> {
+            code.run();
+            return null;
+          });
+    } catch (JMSException err) {
+      log.error("Unexpected error in listener", err);
     } finally {
       currentSession.remove();
     }

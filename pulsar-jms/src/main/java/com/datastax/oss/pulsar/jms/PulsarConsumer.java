@@ -153,16 +153,18 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber {
     if (messageListenerWrapper != null) {
       throw new IllegalStateException("cannot receive if you have a messageListener");
     }
-
-    try {
-      org.apache.pulsar.client.api.Message<byte[]> message = consumer.receive();
-      if (message == null) {
-        return null;
-      }
-      return handleReceivedMessage(message);
-    } catch (Exception err) {
-      throw Utils.handleException(err);
-    }
+    return session.executeInCloseLock(
+        () -> {
+          try {
+            org.apache.pulsar.client.api.Message<byte[]> message = consumer.receive();
+            if (message == null) {
+              return null;
+            }
+            return handleReceivedMessage(message);
+          } catch (Exception err) {
+            throw Utils.handleException(err);
+          }
+        });
   }
 
   /**
@@ -183,16 +185,19 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber {
       throw new IllegalStateException("cannot receive if you have a messageListener");
     }
 
-    try {
-      org.apache.pulsar.client.api.Message<byte[]> message =
-          consumer.receive((int) timeout, TimeUnit.MILLISECONDS);
-      if (message == null) {
-        return null;
-      }
-      return handleReceivedMessage(message);
-    } catch (Exception err) {
-      throw Utils.handleException(err);
-    }
+    return session.executeInCloseLock(
+        () -> {
+          try {
+            org.apache.pulsar.client.api.Message<byte[]> message =
+                consumer.receive((int) timeout, TimeUnit.MILLISECONDS);
+            if (message == null) {
+              return null;
+            }
+            return handleReceivedMessage(message);
+          } catch (Exception err) {
+            throw Utils.handleException(err);
+          }
+        });
   }
 
   /**
@@ -207,18 +212,20 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber {
     if (messageListenerWrapper != null) {
       throw new IllegalStateException("cannot receive if you have a messageListener");
     }
-
-    try {
-      // there is no receiveNoWait in Pulsar, so we are setting a very small timeout
-      org.apache.pulsar.client.api.Message<byte[]> message =
-          consumer.receive(1, TimeUnit.MILLISECONDS);
-      if (message == null) {
-        return null;
-      }
-      return handleReceivedMessage(message);
-    } catch (Exception err) {
-      throw Utils.handleException(err);
-    }
+    return session.executeInCloseLock(
+        () -> {
+          try {
+            // there is no receiveNoWait in Pulsar, so we are setting a very small timeout
+            org.apache.pulsar.client.api.Message<byte[]> message =
+                consumer.receive(1, TimeUnit.MILLISECONDS);
+            if (message == null) {
+              return null;
+            }
+            return handleReceivedMessage(message);
+          } catch (Exception err) {
+            throw Utils.handleException(err);
+          }
+        });
   }
 
   private Message handleReceivedMessage(org.apache.pulsar.client.api.Message<byte[]> message)
@@ -269,14 +276,19 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber {
   @Override
   public void close() throws JMSException {
     Utils.checkNotOnListener(session);
-    if (consumer != null) {
-      try {
-        consumer.close();
-        session.getFactory().removeConsumer(consumer);
-      } catch (Exception err) {
-        throw Utils.handleException(err);
-      }
+    if (consumer == null) {
+      return;
     }
+    session.executeInCloseLock(
+        () -> {
+          try {
+            consumer.close();
+            session.getFactory().removeConsumer(consumer);
+            return null;
+          } catch (Exception err) {
+            throw Utils.handleException(err);
+          }
+        });
   }
 
   @Override

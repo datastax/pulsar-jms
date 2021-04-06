@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import javax.jms.BytesMessage;
 import javax.jms.Connection;
 import javax.jms.Destination;
@@ -58,6 +59,7 @@ public class PulsarSession implements Session {
   final Transaction transaction;
   private MessageListenerWrapper messageListenerWrapper;
   private final Map<PulsarDestination, Producer<byte[]>> producers = new HashMap<>();
+  private final ReentrantReadWriteLock closeLock = new ReentrantReadWriteLock();
 
   public PulsarSession(int sessionMode, PulsarConnection connection) throws JMSException {
     this.connection = connection;
@@ -283,11 +285,16 @@ public class PulsarSession implements Session {
    */
   @Override
   public void commit() throws JMSException {
-    Utils.checkNotOnListener(this);
-    if (transaction == null) {
-      throw new IllegalStateException("session is not transacted");
+    closeLock.readLock().lock();
+    try {
+      Utils.checkNotOnListener(this);
+      if (transaction == null) {
+        throw new IllegalStateException("session is not transacted");
+      }
+      Utils.get(transaction.commit());
+    } finally {
+      closeLock.readLock().unlock();
     }
-    Utils.get(transaction.commit());
   }
 
   /**
@@ -312,11 +319,16 @@ public class PulsarSession implements Session {
    */
   @Override
   public void rollback() throws JMSException {
-    Utils.checkNotOnListener(this);
-    if (transaction == null) {
-      throw new IllegalStateException("session is not transacted");
+    closeLock.readLock().lock();
+    try {
+      Utils.checkNotOnListener(this);
+      if (transaction == null) {
+        throw new IllegalStateException("session is not transacted");
+      }
+      Utils.get(transaction.abort());
+    } finally {
+      closeLock.readLock().unlock();
     }
-    Utils.get(transaction.abort());
   }
 
   /**
@@ -372,9 +384,14 @@ public class PulsarSession implements Session {
    */
   @Override
   public void close() throws JMSException {
-    Utils.checkNotOnListener(this);
-    if (transaction != null) {
-      Utils.get(transaction.abort());
+    closeLock.writeLock().lock();
+    try {
+      Utils.checkNotOnListener(this);
+      if (transaction != null) {
+        Utils.get(transaction.abort());
+      }
+    } finally {
+      closeLock.writeLock().unlock();
     }
   }
 
@@ -1299,5 +1316,27 @@ public class PulsarSession implements Session {
   public void unsubscribe(String name) throws JMSException {
     throw new JMSException(
         "In Pulsar you cannot delete a subscription without setting a topic name");
+  }
+
+  interface BlockCLoseOperation<T> {
+    T execute() throws JMSException;
+  }
+
+  /**
+   * This mechanisms allows the close() method to follow the specs and wait for any operation to
+   * complete before closing the session.
+   *
+   * @param code any code
+   * @param <T>
+   * @return the result of the execution of the code
+   * @throws JMSException
+   */
+  <T> T executeInCloseLock(BlockCLoseOperation<T> code) throws JMSException {
+    closeLock.readLock().lock();
+    try {
+      return code.execute();
+    } finally {
+      closeLock.writeLock().lock();
+    }
   }
 }
