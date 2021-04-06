@@ -1018,7 +1018,7 @@ abstract class PulsarMessage implements Message {
       super(payload);
     }
 
-    public PulsarStreamMessage() throws JMSException {}
+    public PulsarStreamMessage() {}
 
     @Override
     protected String messageType() {
@@ -1031,7 +1031,7 @@ abstract class PulsarMessage implements Message {
       super(payload);
     }
 
-    public PulsarBytesMessage() throws JMSException {}
+    public PulsarBytesMessage() {}
 
     @Override
     protected String messageType() {
@@ -1059,7 +1059,7 @@ abstract class PulsarMessage implements Message {
       }
     }
 
-    PulsarBufferedMessage() throws JMSException {
+    PulsarBufferedMessage() {
       try {
         this.dataInputStream = null;
         this.stream = new ByteArrayOutputStream();
@@ -1067,7 +1067,7 @@ abstract class PulsarMessage implements Message {
         this.originalMessage = null;
         this.writable = true;
       } catch (Exception err) {
-        throw Utils.handleException(err);
+        throw new RuntimeException(err);
       }
     }
 
@@ -2000,7 +2000,7 @@ abstract class PulsarMessage implements Message {
      * @throws MessageNotWriteableException if the message is in read-only mode.
      */
     @Override
-    public void setObject(Serializable object) throws JMSException {
+    public void setObject(Serializable object) {
       this.object = object;
     }
 
@@ -2012,7 +2012,7 @@ abstract class PulsarMessage implements Message {
      * @throws MessageFormatException if object deserialization fails.
      */
     @Override
-    public Serializable getObject() throws JMSException {
+    public Serializable getObject() {
       return object;
     }
   }

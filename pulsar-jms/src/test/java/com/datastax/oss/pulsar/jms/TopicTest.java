@@ -28,7 +28,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 import javax.jms.Connection;
 import javax.jms.JMSException;
 import javax.jms.Message;
@@ -192,8 +191,8 @@ public class TopicTest {
               // sharing the same subscription
               MessageConsumer consumer2b =
                   session.createSharedDurableConsumer(destination, "subscription2");
-               MessageConsumer consumer3 =
-                       session.createSharedDurableConsumer(destination, "subscription3");) {
+              MessageConsumer consumer3 =
+                  session.createSharedDurableConsumer(destination, "subscription3"); ) {
             try (MessageProducer producer = session.createProducer(destination); ) {
               for (int i = 0; i < 10; i++) {
                 producer.send(session.createTextMessage("foo-" + i));
@@ -217,14 +216,13 @@ public class TopicTest {
 
             // consumer again from subscription3
             try (MessageConsumer consumer3b =
-                    session.createSharedDurableConsumer(destination, "subscription3");) {
+                session.createSharedDurableConsumer(destination, "subscription3"); ) {
               for (int i = 5; i < 10; i++) {
                 TextMessage msg = (TextMessage) consumer3b.receive();
                 log.info("consumer {} received {}", consumer3b, msg.getText());
                 assertEquals("foo-" + i, msg.getText());
               }
             }
-
 
             List<Message> received = new ArrayList<>();
 
@@ -260,17 +258,17 @@ public class TopicTest {
       try (Connection connection = factory.createConnection()) {
         try (Session session = connection.createSession(); ) {
           Topic destination =
-                  session.createTopic("persistent://public/default/test-" + UUID.randomUUID());
+              session.createTopic("persistent://public/default/test-" + UUID.randomUUID());
 
           try (MessageConsumer consumer1 =
-                       session.createSharedConsumer(destination, "subscription1");
-               MessageConsumer consumer2a =
-                       session.createSharedConsumer(destination, "subscription2");
-               // sharing the same subscription
-               MessageConsumer consumer2b =
-                       session.createSharedConsumer(destination, "subscription2");
-               MessageConsumer consumer3 =
-                       session.createSharedConsumer(destination, "subscription3");) {
+                  session.createSharedConsumer(destination, "subscription1");
+              MessageConsumer consumer2a =
+                  session.createSharedConsumer(destination, "subscription2");
+              // sharing the same subscription
+              MessageConsumer consumer2b =
+                  session.createSharedConsumer(destination, "subscription2");
+              MessageConsumer consumer3 =
+                  session.createSharedConsumer(destination, "subscription3"); ) {
             try (MessageProducer producer = session.createProducer(destination); ) {
               for (int i = 0; i < 10; i++) {
                 producer.send(session.createTextMessage("foo-" + i));
@@ -294,10 +292,9 @@ public class TopicTest {
 
             // consumer again from subscription3, we lost the messages
             try (MessageConsumer consumer3b =
-                         session.createSharedConsumer(destination, "subscription3");) {
+                session.createSharedConsumer(destination, "subscription3"); ) {
               assertNull(consumer3b.receive(1000));
             }
-
 
             List<Message> received = new ArrayList<>();
 

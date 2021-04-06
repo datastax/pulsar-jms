@@ -248,6 +248,9 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber {
                 }
               });
     }
+    if (session.getAcknowledgeMode() == Session.CLIENT_ACKNOWLEDGE) {
+      session.registerUnacknowledgedMessage(result);
+    }
     return result;
   }
 

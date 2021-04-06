@@ -16,7 +16,9 @@
 package com.datastax.oss.pulsar.jms;
 
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -60,6 +62,8 @@ public class PulsarSession implements Session {
   private MessageListenerWrapper messageListenerWrapper;
   private final Map<PulsarDestination, Producer<byte[]>> producers = new HashMap<>();
   private final ReentrantReadWriteLock closeLock = new ReentrantReadWriteLock();
+  private final List<PulsarMessage> unackedMessages = new ArrayList<>();
+  private boolean trackUnacknowledgedMessages = false;
 
   public PulsarSession(int sessionMode, PulsarConnection connection) throws JMSException {
     this.connection = connection;
@@ -69,6 +73,14 @@ public class PulsarSession implements Session {
     } else {
       transaction = null;
     }
+  }
+
+  public boolean isTrackUnacknowledgedMessages() {
+    return trackUnacknowledgedMessages;
+  }
+
+  public void setTrackUnacknowledgedMessages(boolean trackUnacknowledgedMessages) {
+    this.trackUnacknowledgedMessages = trackUnacknowledgedMessages;
   }
 
   PulsarConnectionFactory getFactory() {
@@ -90,7 +102,7 @@ public class PulsarSession implements Session {
    *     error.
    */
   @Override
-  public BytesMessage createBytesMessage() throws JMSException {
+  public BytesMessage createBytesMessage() {
     return new PulsarMessage.PulsarBytesMessage();
   }
 
@@ -110,7 +122,7 @@ public class PulsarSession implements Session {
    *     error.
    */
   @Override
-  public MapMessage createMapMessage() throws JMSException {
+  public MapMessage createMapMessage() {
     return new PulsarMessage.PulsarMapMessage();
   }
 
@@ -130,7 +142,7 @@ public class PulsarSession implements Session {
    *     error.
    */
   @Override
-  public Message createMessage() throws JMSException {
+  public Message createMessage() {
     return new PulsarMessage.SimpleMessage();
   }
 
@@ -149,8 +161,8 @@ public class PulsarSession implements Session {
    *     error.
    */
   @Override
-  public ObjectMessage createObjectMessage() throws JMSException {
-    return new PulsarMessage.PulsarObjectMessage(null);
+  public ObjectMessage createObjectMessage() {
+    return new PulsarMessage.PulsarObjectMessage();
   }
 
   /**
@@ -169,8 +181,8 @@ public class PulsarSession implements Session {
    *     error.
    */
   @Override
-  public ObjectMessage createObjectMessage(Serializable object) throws JMSException {
-    ObjectMessage res = new PulsarMessage.PulsarObjectMessage();
+  public ObjectMessage createObjectMessage(Serializable object) {
+    PulsarMessage.PulsarObjectMessage res = new PulsarMessage.PulsarObjectMessage();
     res.setObject(object);
     return res;
   }
@@ -190,7 +202,7 @@ public class PulsarSession implements Session {
    *     error.
    */
   @Override
-  public StreamMessage createStreamMessage() throws JMSException {
+  public StreamMessage createStreamMessage() {
     return new PulsarMessage.PulsarStreamMessage();
   }
 
@@ -209,7 +221,7 @@ public class PulsarSession implements Session {
    *     error.
    */
   @Override
-  public TextMessage createTextMessage() throws JMSException {
+  public TextMessage createTextMessage() {
     return new PulsarMessage.PulsarTextMessage(null);
   }
 
@@ -229,7 +241,7 @@ public class PulsarSession implements Session {
    *     error.
    */
   @Override
-  public TextMessage createTextMessage(String text) throws JMSException {
+  public TextMessage createTextMessage(String text) {
     return new PulsarMessage.PulsarTextMessage(text);
   }
 
@@ -241,7 +253,7 @@ public class PulsarSession implements Session {
    *     internal error.
    */
   @Override
-  public boolean getTransacted() throws JMSException {
+  public boolean getTransacted() {
     return transaction != null;
   }
 
@@ -257,7 +269,7 @@ public class PulsarSession implements Session {
    * @since JMS 1.1
    */
   @Override
-  public int getAcknowledgeMode() throws JMSException {
+  public int getAcknowledgeMode() {
     return sessionMode;
   }
 
@@ -387,11 +399,13 @@ public class PulsarSession implements Session {
     closeLock.writeLock().lock();
     try {
       Utils.checkNotOnListener(this);
+      unackedMessages.clear();
       if (transaction != null) {
         Utils.get(transaction.abort());
       }
     } finally {
       closeLock.writeLock().unlock();
+      connection.unregisterSession(this);
     }
   }
 
@@ -733,7 +747,7 @@ public class PulsarSession implements Session {
    * @throws JMSException if a Queue object cannot be created due to some internal error
    */
   @Override
-  public Queue createQueue(String queueName) throws JMSException {
+  public Queue createQueue(String queueName) {
     return new PulsarQueue(queueName);
   }
 
@@ -757,7 +771,7 @@ public class PulsarSession implements Session {
    * @throws JMSException if a Topic object cannot be created due to some internal error
    */
   @Override
-  public Topic createTopic(String topicName) throws JMSException {
+  public Topic createTopic(String topicName) {
     return new PulsarTopic(topicName);
   }
 
@@ -1305,8 +1319,26 @@ public class PulsarSession implements Session {
   @Override
   public void unsubscribe(String name) throws JMSException {
     throw new JMSException(
-        "In Pulsar you cannot delete a subscription without setting a topic name, use pulsar-admin to" +
-                "delete a subscription");
+        "In Pulsar you cannot delete a subscription without setting a topic name, use pulsar-admin to"
+            + "delete a subscription");
+  }
+
+  /**
+   * Used by JMSContext.
+   *
+   * @throws JMSException
+   */
+  void acknowledgeAllMessages() throws JMSException {
+    for (PulsarMessage unackedMessage : unackedMessages) {
+      unackedMessage.acknowledge();
+    }
+    unackedMessages.clear();
+  }
+
+  public void registerUnacknowledgedMessage(PulsarMessage result) {
+    if (trackUnacknowledgedMessages) {
+      unackedMessages.add(result);
+    }
   }
 
   interface BlockCLoseOperation<T> {

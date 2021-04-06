@@ -22,9 +22,15 @@ import javax.jms.ConnectionFactory;
 import javax.jms.ConnectionMetaData;
 import javax.jms.Destination;
 import javax.jms.ExceptionListener;
+import javax.jms.IllegalStateRuntimeException;
+import javax.jms.InvalidClientIDRuntimeException;
+import javax.jms.InvalidDestinationRuntimeException;
+import javax.jms.InvalidSelectorRuntimeException;
 import javax.jms.JMSConsumer;
 import javax.jms.JMSContext;
+import javax.jms.JMSException;
 import javax.jms.JMSProducer;
+import javax.jms.JMSRuntimeException;
 import javax.jms.MapMessage;
 import javax.jms.Message;
 import javax.jms.ObjectMessage;
@@ -36,12 +42,35 @@ import javax.jms.TemporaryQueue;
 import javax.jms.TemporaryTopic;
 import javax.jms.TextMessage;
 import javax.jms.Topic;
+import javax.jms.TransactionRolledBackRuntimeException;
 
 public class PulsarJMSContext implements JMSContext {
-  private final PulsarConnectionFactory factor;
+  private final PulsarConnection connection;
+  private final PulsarSession session;
+  private boolean autoStart = true;
 
-  public PulsarJMSContext(PulsarConnectionFactory factor) {
-    this.factor = factor;
+  public PulsarJMSContext(PulsarConnectionFactory factory, int sessionMode) {
+    try {
+      this.connection = factory.createConnection();
+      this.session = connection.createSession(sessionMode);
+      this.session.setTrackUnacknowledgedMessages(true);
+    } catch (JMSException err) {
+      JMSRuntimeException jms = new JMSRuntimeException("error");
+      jms.initCause(err);
+      throw jms;
+    }
+  }
+
+  public PulsarJMSContext(final PulsarConnection connection, int sessionMode) {
+    try {
+      this.connection = connection;
+      this.session = connection.createSession(sessionMode);
+      this.session.setTrackUnacknowledgedMessages(true);
+    } catch (JMSException err) {
+      JMSRuntimeException jms = new JMSRuntimeException("error");
+      jms.initCause(err);
+      throw jms;
+    }
   }
 
   /**
@@ -91,7 +120,7 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public JMSContext createContext(int sessionMode) {
-    return null;
+    return new PulsarJMSContext(connection, sessionMode);
   }
 
   /**
@@ -118,7 +147,7 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public String getClientID() {
-    return null;
+    return Utils.noException(() -> connection.getClientID());
   }
 
   /**
@@ -172,7 +201,9 @@ public class PulsarJMSContext implements JMSContext {
    *     </ul>
    */
   @Override
-  public void setClientID(String clientID) {}
+  public void setClientID(String clientID) {
+    Utils.noException(() -> this.connection.setClientID(clientID));
+  }
 
   /**
    * Gets the connection metadata for the JMSContext's connection.
@@ -183,7 +214,7 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public ConnectionMetaData getMetaData() {
-    return null;
+    return this.connection.getMetaData();
   }
 
   /**
@@ -198,7 +229,7 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public ExceptionListener getExceptionListener() {
-    return null;
+    return connection.getExceptionListener();
   }
 
   /**
@@ -235,7 +266,9 @@ public class PulsarJMSContext implements JMSContext {
    *     </ul>
    */
   @Override
-  public void setExceptionListener(ExceptionListener listener) {}
+  public void setExceptionListener(ExceptionListener listener) {
+    Utils.runtimeException(() -> connection.setExceptionListener(listener));
+  }
 
   /**
    * Starts (or restarts) delivery of incoming messages by the JMSContext's connection. A call to
@@ -250,7 +283,9 @@ public class PulsarJMSContext implements JMSContext {
    * @see JMSContext#stop
    */
   @Override
-  public void start() {}
+  public void start() {
+    Utils.runtimeException(() -> connection.start());
+  }
 
   /**
    * Temporarily stops the delivery of incoming messages by the JMSContext's connection. Delivery
@@ -309,7 +344,9 @@ public class PulsarJMSContext implements JMSContext {
    * @see JMSContext#start
    */
   @Override
-  public void stop() {}
+  public void stop() {
+    Utils.runtimeException(() -> connection.stop());
+  }
 
   /**
    * Specifies whether the underlying connection used by this {@code JMSContext} will be started
@@ -327,7 +364,9 @@ public class PulsarJMSContext implements JMSContext {
    * @see JMSContext#getAutoStart
    */
   @Override
-  public void setAutoStart(boolean autoStart) {}
+  public void setAutoStart(boolean autoStart) {
+    this.autoStart = autoStart;
+  }
 
   /**
    * Returns whether the underlying connection used by this {@code JMSContext} will be started
@@ -339,7 +378,7 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public boolean getAutoStart() {
-    return false;
+    return autoStart;
   }
 
   /**
@@ -414,7 +453,9 @@ public class PulsarJMSContext implements JMSContext {
    *     connection can cause this exception to be thrown.
    */
   @Override
-  public void close() {}
+  public void close() {
+    Utils.runtimeException(() -> connection.close());
+  }
 
   /**
    * Creates a {@code BytesMessage} object. A {@code BytesMessage} object is used to send a message
@@ -426,7 +467,7 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public BytesMessage createBytesMessage() {
-    return null;
+    return session.createBytesMessage();
   }
 
   /**
@@ -446,7 +487,7 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public MapMessage createMapMessage() {
-    return null;
+    return session.createMapMessage();
   }
 
   /**
@@ -466,7 +507,7 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public Message createMessage() {
-    return null;
+    return session.createMessage();
   }
 
   /**
@@ -485,7 +526,7 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public ObjectMessage createObjectMessage() {
-    return null;
+    return session.createObjectMessage();
   }
 
   /**
@@ -505,7 +546,7 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public ObjectMessage createObjectMessage(Serializable object) {
-    return null;
+    return session.createObjectMessage();
   }
 
   /**
@@ -524,7 +565,7 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public StreamMessage createStreamMessage() {
-    return null;
+    return session.createStreamMessage();
   }
 
   /**
@@ -543,7 +584,7 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public TextMessage createTextMessage() {
-    return null;
+    return session.createTextMessage();
   }
 
   /**
@@ -563,7 +604,7 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public TextMessage createTextMessage(String text) {
-    return null;
+    return session.createTextMessage(text);
   }
 
   /**
@@ -575,7 +616,7 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public boolean getTransacted() {
-    return false;
+    return session.getTransacted();
   }
 
   /**
@@ -594,7 +635,7 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public int getSessionMode() {
-    return 0;
+    return session.getAcknowledgeMode();
   }
 
   /**
@@ -624,7 +665,9 @@ public class PulsarJMSContext implements JMSContext {
    *     internal error
    */
   @Override
-  public void commit() {}
+  public void commit() {
+    Utils.runtimeException(() -> session.commit());
+  }
 
   /**
    * Rolls back any messages done in this transaction and releases any locks currently held.
@@ -651,7 +694,9 @@ public class PulsarJMSContext implements JMSContext {
    *     internal error
    */
   @Override
-  public void rollback() {}
+  public void rollback() {
+    Utils.runtimeException(() -> session.rollback());
+  }
 
   /**
    * Stops message delivery in the JMSContext's session, and restarts message delivery with the
@@ -683,7 +728,9 @@ public class PulsarJMSContext implements JMSContext {
    *     to some internal error
    */
   @Override
-  public void recover() {}
+  public void recover() {
+    Utils.runtimeException(() -> session.recover());
+  }
 
   /**
    * Creates a {@code JMSConsumer} for the specified destination.
@@ -775,7 +822,7 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public Queue createQueue(String queueName) {
-    return null;
+    return session.createQueue(queueName);
   }
 
   /**
@@ -799,7 +846,7 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public Topic createTopic(String topicName) {
-    return null;
+    return session.createTopic(topicName);
   }
 
   /**
@@ -1191,7 +1238,7 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public QueueBrowser createBrowser(Queue queue) {
-    return null;
+    return Utils.runtimeException(() -> session.createBrowser(queue));
   }
 
   /**
@@ -1210,7 +1257,7 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public QueueBrowser createBrowser(Queue queue, String messageSelector) {
-    return null;
+    return Utils.runtimeException(() -> session.createBrowser(queue, messageSelector));
   }
 
   /**
@@ -1223,7 +1270,7 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public TemporaryQueue createTemporaryQueue() {
-    return null;
+    return Utils.runtimeException(() -> session.createTemporaryQueue());
   }
 
   /**
@@ -1236,7 +1283,7 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public TemporaryTopic createTemporaryTopic() {
-    return null;
+    return Utils.runtimeException(() -> session.createTemporaryTopic());
   }
 
   /**
@@ -1272,7 +1319,9 @@ public class PulsarJMSContext implements JMSContext {
    * @throws InvalidDestinationRuntimeException if an invalid subscription name is specified.
    */
   @Override
-  public void unsubscribe(String name) {}
+  public void unsubscribe(String name) {
+    Utils.runtimeException(() -> session.unsubscribe(name));
+  }
 
   /**
    * Acknowledges all messages consumed by the JMSContext's session.
@@ -1303,5 +1352,7 @@ public class PulsarJMSContext implements JMSContext {
    * @see Message#acknowledge
    */
   @Override
-  public void acknowledge() {}
+  public void acknowledge() {
+    Utils.runtimeException(() -> session.acknowledgeAllMessages());
+  }
 }

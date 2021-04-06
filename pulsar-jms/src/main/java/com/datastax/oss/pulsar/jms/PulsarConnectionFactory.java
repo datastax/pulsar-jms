@@ -19,7 +19,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import javax.jms.Connection;
@@ -46,7 +45,6 @@ import org.apache.pulsar.client.api.SubscriptionType;
 @Slf4j
 public class PulsarConnectionFactory implements ConnectionFactory, AutoCloseable {
 
-  private final String clientId;
   private final PulsarClient pulsarClient;
   private final PulsarAdmin pulsarAdmin;
   private final Map<String, Object> producerConfiguration;
@@ -72,7 +70,6 @@ public class PulsarConnectionFactory implements ConnectionFactory, AutoCloseable
     } else {
       this.consumerConfiguration = Collections.emptyMap();
     }
-    this.clientId = properties.getOrDefault("clientId", UUID.randomUUID().toString()).toString();
     String webServiceUrl = (String) properties.remove("webServiceUrl");
     if (webServiceUrl == null) {
       webServiceUrl = "http://localhost:8080";
@@ -116,7 +113,7 @@ public class PulsarConnectionFactory implements ConnectionFactory, AutoCloseable
    * @since JMS 1.1
    */
   @Override
-  public Connection createConnection() throws JMSException {
+  public PulsarConnection createConnection() throws JMSException {
     return new PulsarConnection(this);
   }
 
@@ -415,10 +412,6 @@ public class PulsarConnectionFactory implements ConnectionFactory, AutoCloseable
   @Override
   public JMSContext createContext(int sessionMode) {
     throw new UnsupportedOperationException();
-  }
-
-  public final String getClientID() {
-    return clientId;
   }
 
   public void close() {

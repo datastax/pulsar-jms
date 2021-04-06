@@ -15,11 +15,14 @@
  */
 package com.datastax.oss.pulsar.jms;
 
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import javax.jms.Connection;
 import javax.jms.ConnectionConsumer;
 import javax.jms.ConnectionMetaData;
 import javax.jms.Destination;
 import javax.jms.ExceptionListener;
+import javax.jms.IllegalStateException;
 import javax.jms.InvalidClientIDException;
 import javax.jms.InvalidDestinationException;
 import javax.jms.InvalidSelectorException;
@@ -32,6 +35,10 @@ public class PulsarConnection implements Connection {
 
   private final PulsarConnectionFactory factory;
   private volatile ExceptionListener exceptionListener;
+  private final List<PulsarSession> sessions = new CopyOnWriteArrayList<>();
+  private volatile boolean closed = false;
+  private String clientId;
+  private volatile boolean allowSetClientId = true;
 
   public PulsarConnection(PulsarConnectionFactory factory) {
     this.factory = factory;
@@ -130,8 +137,15 @@ public class PulsarConnection implements Connection {
    * @since JMS 1.1
    */
   @Override
-  public Session createSession(boolean transacted, int acknowledgeMode) throws JMSException {
-    return new PulsarSession(transacted ? Session.SESSION_TRANSACTED : acknowledgeMode, this);
+  public PulsarSession createSession(boolean transacted, int acknowledgeMode) throws JMSException {
+    if (closed) {
+      throw new JMSException("This connection is closed");
+    }
+    allowSetClientId = false;
+    PulsarSession session =
+        new PulsarSession(transacted ? Session.SESSION_TRANSACTED : acknowledgeMode, this);
+    sessions.add(session);
+    return session;
   }
 
   /**
@@ -214,8 +228,8 @@ public class PulsarConnection implements Connection {
    * @since JMS 2.0
    */
   @Override
-  public Session createSession(int sessionMode) throws JMSException {
-    return new PulsarSession(sessionMode, this);
+  public PulsarSession createSession(int sessionMode) throws JMSException {
+    return createSession(sessionMode == Session.SESSION_TRANSACTED, sessionMode);
   }
 
   /**
@@ -272,6 +286,7 @@ public class PulsarConnection implements Connection {
    */
   @Override
   public Session createSession() throws JMSException {
+    allowSetClientId = false;
     return createSession(Session.AUTO_ACKNOWLEDGE);
   }
 
@@ -288,7 +303,7 @@ public class PulsarConnection implements Connection {
    */
   @Override
   public String getClientID() throws JMSException {
-    return factory.getClientID();
+    return clientId;
   }
 
   /**
@@ -333,7 +348,13 @@ public class PulsarConnection implements Connection {
    */
   @Override
   public void setClientID(String clientID) throws JMSException {
-    throw new IllegalStateException();
+    if (!allowSetClientId) {
+      throw new IllegalStateException("Cannot set clientId after performing any other operation");
+    }
+    if (clientID == null || clientID.isEmpty()) {
+      throw new InvalidClientIDException("Invalid empty clientId");
+    }
+    this.clientId = clientID;
   }
 
   /**
@@ -345,7 +366,7 @@ public class PulsarConnection implements Connection {
    * @see ConnectionMetaData
    */
   @Override
-  public ConnectionMetaData getMetaData() throws JMSException {
+  public ConnectionMetaData getMetaData() {
     return PulsarConnectionMetadata.INSTANCE;
   }
 
@@ -360,7 +381,7 @@ public class PulsarConnection implements Connection {
    * @see Connection#setExceptionListener
    */
   @Override
-  public ExceptionListener getExceptionListener() throws JMSException {
+  public ExceptionListener getExceptionListener() {
     return exceptionListener;
   }
 
@@ -457,7 +478,7 @@ public class PulsarConnection implements Connection {
    */
   @Override
   public void stop() throws JMSException {
-    throw new UnsupportedOperationException();
+    throw new JMSException("not supported");
   }
 
   /**
@@ -525,7 +546,16 @@ public class PulsarConnection implements Connection {
    *     cause this exception to be thrown.
    */
   @Override
-  public void close() throws JMSException {}
+  public void close() throws JMSException {
+    if (closed) {
+      return;
+    }
+    closed = true;
+    for (PulsarSession session : sessions) {
+      session.close();
+    }
+    sessions.clear();
+  }
 
   /**
    * Creates a connection consumer for this connection (optional operation) on the specific
@@ -565,7 +595,7 @@ public class PulsarConnection implements Connection {
       ServerSessionPool sessionPool,
       int maxMessages)
       throws JMSException {
-    throw new UnsupportedOperationException();
+    throw new JMSException("not supported");
   }
 
   /**
@@ -609,7 +639,7 @@ public class PulsarConnection implements Connection {
       ServerSessionPool sessionPool,
       int maxMessages)
       throws JMSException {
-    throw new UnsupportedOperationException();
+    throw new JMSException("not supported");
   }
 
   /**
@@ -653,7 +683,7 @@ public class PulsarConnection implements Connection {
       ServerSessionPool sessionPool,
       int maxMessages)
       throws JMSException {
-    throw new UnsupportedOperationException();
+    throw new JMSException("not supported");
   }
 
   /**
@@ -697,6 +727,10 @@ public class PulsarConnection implements Connection {
       ServerSessionPool sessionPool,
       int maxMessages)
       throws JMSException {
-    throw new UnsupportedOperationException();
+    throw new JMSException("not supported");
+  }
+
+  public void unregisterSession(PulsarSession session) {
+    sessions.remove(session);
   }
 }

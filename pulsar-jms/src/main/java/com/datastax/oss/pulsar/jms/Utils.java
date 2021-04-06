@@ -19,7 +19,17 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import javax.jms.IllegalStateException;
+import javax.jms.IllegalStateRuntimeException;
+import javax.jms.InvalidClientIDException;
+import javax.jms.InvalidClientIDRuntimeException;
+import javax.jms.InvalidDestinationException;
+import javax.jms.InvalidDestinationRuntimeException;
+import javax.jms.InvalidSelectorException;
+import javax.jms.InvalidSelectorRuntimeException;
 import javax.jms.JMSException;
+import javax.jms.JMSRuntimeException;
+import javax.jms.TransactionRolledBackException;
+import javax.jms.TransactionRolledBackRuntimeException;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -53,13 +63,25 @@ final class Utils {
     }
   }
 
-  public interface RunnableWithException<T> {
+  public interface SupplierWithException<T> {
     T run() throws Exception;
   }
 
-  public static <T> T invoke(RunnableWithException<T> code) throws JMSException {
+  public interface RunnableWithException {
+    void run() throws Exception;
+  }
+
+  public static <T> T invoke(SupplierWithException<T> code) throws JMSException {
     try {
       return code.run();
+    } catch (Throwable err) {
+      throw handleException(err);
+    }
+  }
+
+  public static void invoke(RunnableWithException code) throws JMSException {
+    try {
+      code.run();
     } catch (Throwable err) {
       throw handleException(err);
     }
@@ -89,11 +111,82 @@ final class Utils {
 
   private static ThreadLocal<PulsarSession> currentSession = new ThreadLocal();
 
-  public static <T> T noException(RunnableWithException<T> run) {
+  public static void noException(RunnableWithException run) {
+    try {
+      run.run();
+    } catch (Exception err) {
+      if (err instanceof InterruptedException) {
+        Thread.currentThread().interrupt();
+      }
+      throw new RuntimeException(err);
+    }
+  }
+
+  public static <T> T noException(SupplierWithException<T> run) {
     try {
       return run.run();
     } catch (Exception err) {
+      if (err instanceof InterruptedException) {
+        Thread.currentThread().interrupt();
+      }
       throw new RuntimeException(err);
+    }
+  }
+
+  public static <T> T runtimeException(SupplierWithException<T> run) {
+    try {
+      return run.run();
+    } catch (Exception err) {
+      if (err instanceof InterruptedException) {
+        Thread.currentThread().interrupt();
+      }
+      if (err instanceof IllegalStateException) {
+        IllegalStateException jmsException = (IllegalStateException) err;
+        throw new IllegalStateRuntimeException(
+            jmsException.getMessage(), jmsException.getErrorCode(), jmsException.getCause());
+      }
+      JMSRuntimeException jms = new JMSRuntimeException("Error " + err);
+      jms.initCause(err);
+      throw jms;
+    }
+  }
+
+  public static void runtimeException(RunnableWithException run) {
+    try {
+      run.run();
+    } catch (Exception err) {
+      if (err instanceof InterruptedException) {
+        Thread.currentThread().interrupt();
+      }
+      if (err instanceof IllegalStateException) {
+        IllegalStateException jmsException = (IllegalStateException) err;
+        throw new IllegalStateRuntimeException(
+            jmsException.getMessage(), jmsException.getErrorCode(), jmsException.getCause());
+      }
+      if (err instanceof TransactionRolledBackException) {
+        TransactionRolledBackException jmsException = (TransactionRolledBackException) err;
+        throw new TransactionRolledBackRuntimeException(
+            jmsException.getMessage(), jmsException.getErrorCode(), jmsException.getCause());
+      }
+      if (err instanceof InvalidDestinationException) {
+        InvalidDestinationException jmsException = (InvalidDestinationException) err;
+        throw new InvalidDestinationRuntimeException(
+            jmsException.getMessage(), jmsException.getErrorCode(), jmsException.getCause());
+      }
+      if (err instanceof InvalidClientIDException) {
+        InvalidClientIDException jmsException = (InvalidClientIDException) err;
+        throw new InvalidClientIDRuntimeException(
+            jmsException.getMessage(), jmsException.getErrorCode(), jmsException.getCause());
+      }
+      if (err instanceof InvalidSelectorException) {
+        InvalidSelectorException jmsException = (InvalidSelectorException) err;
+        throw new InvalidSelectorRuntimeException(
+            jmsException.getMessage(), jmsException.getErrorCode(), jmsException.getCause());
+      }
+
+      JMSRuntimeException jms = new JMSRuntimeException("Error " + err);
+      jms.initCause(err);
+      throw jms;
     }
   }
 }
