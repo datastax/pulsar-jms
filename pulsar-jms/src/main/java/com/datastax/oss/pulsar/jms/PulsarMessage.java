@@ -26,6 +26,7 @@ import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -50,6 +51,7 @@ import javax.jms.TextMessage;
 import org.apache.pulsar.client.api.Consumer;
 import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.api.TypedMessageBuilder;
+import org.bouncycastle.util.encoders.Base64Encoder;
 
 abstract class PulsarMessage implements Message {
 
@@ -992,6 +994,9 @@ abstract class PulsarMessage implements Message {
     }
     if (jmsType != null) {
       producer.property("JMSType", jmsType);
+    }
+    if (correlationId != null) {
+      producer.property("JMSCorrelationID", Base64.getEncoder().encodeToString(correlationId));
     }
     if (jmsPriority != Message.DEFAULT_PRIORITY) {
       producer.property("JMSPriority", jmsPriority + "");
@@ -2688,6 +2693,9 @@ abstract class PulsarMessage implements Message {
       }
     }
     this.jmsType = msg.getProperty("JMSType");
+    if (msg.hasProperty("JMSCorrelationID")) {
+      this.correlationId = Base64.getDecoder().decode(msg.getProperty("JMSCorrelationID"));
+    }
     if (msg.hasProperty("JMSPriority")) {
       try {
         this.jmsPriority = Integer.parseInt(msg.getProperty("JMSPriority"));

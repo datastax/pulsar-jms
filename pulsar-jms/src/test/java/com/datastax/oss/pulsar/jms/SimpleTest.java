@@ -201,7 +201,7 @@ public class SimpleTest {
   }
 
   @Test
-  public void sendMessageReceiveFromQueue() throws Exception {
+  public void sendMessageReceive() throws Exception {
 
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
@@ -238,6 +238,10 @@ public class SimpleTest {
               simpleMessage.setFloatProperty("f", 1.3f);
               simpleMessage.setDoubleProperty("g", 1.9d);
               simpleMessage.setShortProperty("h", (short) 89);
+              simpleMessage.setJMSPriority(2);
+              simpleMessage.setJMSType("mytype");
+              simpleMessage.setJMSCorrelationID("correlationid");
+
               // we are serializing Object properties with "toString"
               simpleMessage.setObjectProperty("i", "qqqq");
               producer.send(simpleMessage);
@@ -264,6 +268,10 @@ public class SimpleTest {
             assertEquals(1.3f, msg6.getFloatProperty("f"), 0);
             assertEquals(1.9d, msg6.getDoubleProperty("g"), 0);
             assertEquals(89, msg6.getShortProperty("h"));
+            assertEquals(2, msg6.getJMSPriority());
+            assertEquals("mytype", msg6.getJMSType());
+            assertEquals("correlationid", msg6.getJMSCorrelationID());
+            assertArrayEquals("correlationid".getBytes(StandardCharsets.UTF_8), msg6.getJMSCorrelationIDAsBytes());
             // we are serializing Object properties as strings
             assertEquals("qqqq", msg6.getObjectProperty("i"));
           }
