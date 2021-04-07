@@ -667,6 +667,7 @@ public class PulsarSession implements Session {
   @Override
   public PulsarConsumer createSharedConsumer(Topic topic, String sharedSubscriptionName)
       throws JMSException {
+    sharedSubscriptionName = connection.prependClientId(sharedSubscriptionName, true);
     destinationBySubscription.put(sharedSubscriptionName, (PulsarDestination) topic);
     return new PulsarConsumer(
             sharedSubscriptionName,
@@ -722,6 +723,7 @@ public class PulsarSession implements Session {
   @Override
   public PulsarConsumer createSharedConsumer(
       Topic topic, String sharedSubscriptionName, String messageSelector) throws JMSException {
+    sharedSubscriptionName = connection.prependClientId(sharedSubscriptionName, true);
     messageSelectorNotSupported(messageSelector);
     destinationBySubscription.put(sharedSubscriptionName, (PulsarDestination) topic);
     return new PulsarConsumer(
@@ -934,6 +936,7 @@ public class PulsarSession implements Session {
     if (noLocal) {
       throw new InvalidSelectorException("noLocal mode is not supported by Pulsar");
     }
+    name = connection.prependClientId(name, true);
     destinationBySubscription.put(name, (PulsarDestination) topic);
     return new PulsarConsumer(
             name,
@@ -1232,6 +1235,7 @@ public class PulsarSession implements Session {
   public PulsarConsumer createSharedDurableConsumer(
       Topic topic, String name, String messageSelector) throws JMSException {
     messageSelectorNotSupported(messageSelector);
+    name = connection.prependClientId(name, true);
     destinationBySubscription.put(name, (PulsarDestination) topic);
     return new PulsarConsumer(
             name,

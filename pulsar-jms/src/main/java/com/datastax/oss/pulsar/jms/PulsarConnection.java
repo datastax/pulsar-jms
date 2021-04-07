@@ -354,6 +354,7 @@ public class PulsarConnection implements Connection {
     if (clientID == null || clientID.isEmpty()) {
       throw new InvalidClientIDException("Invalid empty clientId");
     }
+    factory.registerClientId(clientID);
     this.clientId = clientID;
   }
 
@@ -555,6 +556,7 @@ public class PulsarConnection implements Connection {
       session.close();
     }
     sessions.clear();
+    factory.unregisterClientId(clientId);
   }
 
   /**
@@ -732,5 +734,21 @@ public class PulsarConnection implements Connection {
 
   public void unregisterSession(PulsarSession session) {
     sessions.remove(session);
+  }
+
+  public String prependClientId(String subscriptionName, boolean allowUnset) throws JMSException {
+    if (clientId != null) {
+      return clientId+"_"+subscriptionName;
+    } else {
+      if (allowUnset) {
+        return subscriptionName;
+      } else {
+        throw new InvalidClientIDException("ClientID must be set");
+      }
+    }
+  }
+
+  public void setAllowSetClientId(boolean value) {
+    allowSetClientId = value;
   }
 }

@@ -19,11 +19,14 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.CopyOnWriteArrayList;
 import javax.jms.Connection;
 import javax.jms.ConnectionFactory;
 import javax.jms.IllegalStateException;
+import javax.jms.InvalidClientIDException;
 import javax.jms.JMSContext;
 import javax.jms.JMSException;
 import javax.jms.JMSRuntimeException;
@@ -51,6 +54,7 @@ public class PulsarConnectionFactory implements ConnectionFactory, AutoCloseable
   private final Map<String, Object> consumerConfiguration;
   private final Map<PulsarDestination, Producer<byte[]>> producers = new ConcurrentHashMap<>();
   private final List<Consumer<byte[]>> consumers = new CopyOnWriteArrayList<>();
+  private final Set<String> clientIdentifiers = new ConcurrentSkipListSet<>();
 
   public PulsarConnectionFactory(Map<String, Object> properties) throws PulsarClientException {
     properties = new HashMap(properties);
@@ -540,4 +544,16 @@ public class PulsarConnectionFactory implements ConnectionFactory, AutoCloseable
       throw Utils.handleException(err);
     }
   }
+
+  public void registerClientId(String clientID) throws InvalidClientIDException {
+    if (!clientIdentifiers.add(clientID)) {
+      throw new InvalidClientIDException("A connection with this client id '"+clientID+"'is already opened locally");
+    }
+  }
+  public void unregisterClientId(String clientId) {
+    if (clientId != null) {
+      clientIdentifiers.remove(clientId);
+    }
+  }
+
 }

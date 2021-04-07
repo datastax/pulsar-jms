@@ -54,6 +54,7 @@ public class PulsarJMSContext implements JMSContext {
       this.connection = factory.createConnection();
       this.session = connection.createSession(sessionMode);
       this.session.setTrackUnacknowledgedMessages(true);
+      this.connection.setAllowSetClientId(true);
     } catch (JMSException err) {
       JMSRuntimeException jms = new JMSRuntimeException("error");
       jms.initCause(err);
@@ -147,7 +148,7 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public String getClientID() {
-    return Utils.noException(() -> connection.getClientID());
+    return Utils.runtimeException(() -> connection.getClientID());
   }
 
   /**
@@ -202,7 +203,7 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public void setClientID(String clientID) {
-    Utils.noException(() -> this.connection.setClientID(clientID));
+    Utils.runtimeException(() -> this.connection.setClientID(clientID));
   }
 
   /**
