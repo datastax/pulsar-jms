@@ -166,7 +166,8 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber {
           } catch (Exception err) {
             throw Utils.handleException(err);
           }
-        }, 0);
+        },
+        0);
   }
 
   /**
@@ -199,7 +200,8 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber {
           } catch (Exception err) {
             throw Utils.handleException(err);
           }
-        }, (int) timeout);
+        },
+        (int) timeout);
   }
 
   /**

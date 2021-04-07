@@ -15,13 +15,20 @@
  */
 package com.datastax.oss.pulsar.jms;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+
 import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
-import lombok.extern.slf4j.Slf4j;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.Timeout;
-import org.junit.jupiter.api.io.TempDir;
+import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 import javax.jms.Connection;
 import javax.jms.Message;
 import javax.jms.MessageConsumer;
@@ -29,20 +36,12 @@ import javax.jms.MessageProducer;
 import javax.jms.Session;
 import javax.jms.TextMessage;
 import javax.jms.Topic;
-import java.nio.file.Path;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.stream.Stream;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import lombok.extern.slf4j.Slf4j;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.api.io.TempDir;
 
 @Slf4j
 public class ConnectionPausedTest {
@@ -90,8 +89,7 @@ public class ConnectionPausedTest {
               try {
 
                 executeLater.schedule(
-                        () -> Utils.noException(() -> connection.start())
-                        , 5, TimeUnit.SECONDS);
+                    () -> Utils.noException(() -> connection.start()), 5, TimeUnit.SECONDS);
 
                 // block until the connection is started
                 // the connection will be started in 5 seconds and the test won't be stuck
@@ -113,16 +111,12 @@ public class ConnectionPausedTest {
               } finally {
                 executeLater.shutdown();
               }
-
-
             }
-
           }
         }
       }
     }
   }
-
 
   @Test
   @Timeout(60)
@@ -135,52 +129,54 @@ public class ConnectionPausedTest {
         connection.start();
         try (Session session = connection.createSession(); ) {
           Topic destination =
-                  session.createTopic("persistent://public/default/test-" + UUID.randomUUID());
+              session.createTopic("persistent://public/default/test-" + UUID.randomUUID());
           TextMessage textMsg = session.createTextMessage("foo");
           try (MessageProducer producer = session.createProducer(destination); ) {
 
             CompletableFuture<Message> consumerResult = new CompletableFuture<>();
-              Thread consumerThread = new Thread(() -> {
-                try (Session consumerSession = connection.createSession();
-                     MessageConsumer consumer =
-                             consumerSession.createSharedDurableConsumer(destination, "sub1")) {
-                  // no message in the topic, so this consumer will hang
-                  beforeReceive.countDown();
-                  consumerResult.complete(consumer.receive());
-                } catch (Throwable err) {
-                  consumerResult.completeExceptionally(err);
-                }}, "consumer-test-thread");
+            Thread consumerThread =
+                new Thread(
+                    () -> {
+                      try (Session consumerSession = connection.createSession();
+                          MessageConsumer consumer =
+                              consumerSession.createSharedDurableConsumer(destination, "sub1")) {
+                        // no message in the topic, so this consumer will hang
+                        beforeReceive.countDown();
+                        consumerResult.complete(consumer.receive());
+                      } catch (Throwable err) {
+                        consumerResult.completeExceptionally(err);
+                      }
+                    },
+                    "consumer-test-thread");
 
-              consumerThread.start();
+            consumerThread.start();
 
-              // wait for the consumer to block on "receive"
-              beforeReceive.await();
-              // wait to enter "receive" method and blocks
-              Thread.sleep(1000);
+            // wait for the consumer to block on "receive"
+            beforeReceive.await();
+            // wait to enter "receive" method and blocks
+            Thread.sleep(1000);
 
-              log.info("Consumer thread status {}", consumerThread);
-              Stream.of(consumerThread.getStackTrace()).forEach(t-> System.err.println(t));
-              assertEquals(Thread.State.WAITING, consumerThread.getState());
+            log.info("Consumer thread status {}", consumerThread);
+            Stream.of(consumerThread.getStackTrace()).forEach(t -> System.err.println(t));
+            assertEquals(Thread.State.WAITING, consumerThread.getState());
 
-              ScheduledExecutorService executeLater = Executors.newSingleThreadScheduledExecutor();
-              try {
+            ScheduledExecutorService executeLater = Executors.newSingleThreadScheduledExecutor();
+            try {
 
-                executeLater.schedule(
-                        () -> Utils.noException(() -> producer.send(textMsg))
-                        , 5, TimeUnit.SECONDS);
+              executeLater.schedule(
+                  () -> Utils.noException(() -> producer.send(textMsg)), 5, TimeUnit.SECONDS);
 
-                // as we have one consumer that is blocked Connection#stop must block
-                connection.stop();
+              // as we have one consumer that is blocked Connection#stop must block
+              connection.stop();
 
-                // ensure that the consumer received the message
-                assertEquals("foo", consumerResult.get().getBody(String.class));
+              // ensure that the consumer received the message
+              assertEquals("foo", consumerResult.get().getBody(String.class));
 
-              } finally {
-                executeLater.shutdown();
-              }
-
+            } finally {
+              executeLater.shutdown();
             }
           }
+        }
       }
     }
   }

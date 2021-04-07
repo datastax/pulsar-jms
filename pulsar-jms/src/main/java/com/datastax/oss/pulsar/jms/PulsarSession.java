@@ -1369,13 +1369,15 @@ public class PulsarSession implements Session {
    * @return the result of the execution of the code
    * @throws JMSException
    */
-  <T> T executeOperationIfConnectionStarted(BlockCLoseOperation<T> operation, int timeoutMillis) throws JMSException {
+  <T> T executeOperationIfConnectionStarted(BlockCLoseOperation<T> operation, int timeoutMillis)
+      throws JMSException {
     // if the connection is "paused" we are not executing the operation
     // and we return null
     // executeInConnectionPausedLock also prevents any ongoing "stop()" operation
     // to complete if we entered the execution of the given operation
 
-    return connection.executeInConnectionPausedLock(() -> executeCriticalOperation(operation), timeoutMillis);
+    return connection.executeInConnectionPausedLock(
+        () -> executeCriticalOperation(operation), timeoutMillis);
   }
 
   <T> T executeCriticalOperation(BlockCLoseOperation<T> operation) throws JMSException {

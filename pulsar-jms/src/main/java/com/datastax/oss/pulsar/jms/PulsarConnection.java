@@ -781,13 +781,12 @@ public class PulsarConnection implements Connection {
 
     boolean executedInTime = true;
     connectionPausedLock.readLock().lock();
-    try{
+    try {
       if (paused) {
         connectionPausedLock.readLock().unlock();
         connectionPausedLock.writeLock().lock();
-        try{
-          while(paused)
-          {
+        try {
+          while (paused) {
             if (timeoutMillis > 0) {
               executedInTime = pausedCondition.await(timeoutMillis, TimeUnit.MILLISECONDS);
               if (!executedInTime) {
@@ -796,7 +795,6 @@ public class PulsarConnection implements Connection {
             } else {
               pausedCondition.await();
             }
-
           }
           connectionPausedLock.readLock().lock();
         } finally {
@@ -807,12 +805,10 @@ public class PulsarConnection implements Connection {
         return null;
       }
       return run.run();
-    }
-    catch (Throwable err) {
+    } catch (Throwable err) {
       throw Utils.handleException(err);
-    } finally
-    {
-      connectionPausedLock.readLock().unlock(); //let writers in
+    } finally {
+      connectionPausedLock.readLock().unlock(); // let writers in
     }
   }
 
