@@ -71,7 +71,6 @@ public final class BookKeeperCluster implements AutoCloseable {
             zkServer.getConnectString(),
             getTimeout(),
             (WatchedEvent event) -> {
-              LOG.log(Level.INFO, "ZK EVENT {0}", event);
               if (event.getState() == KeeperState.SyncConnected) {
                 latch.countDown();
               }
