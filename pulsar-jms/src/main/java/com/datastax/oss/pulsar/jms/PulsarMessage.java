@@ -51,7 +51,6 @@ import javax.jms.TextMessage;
 import org.apache.pulsar.client.api.Consumer;
 import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.api.TypedMessageBuilder;
-import org.bouncycastle.util.encoders.Base64Encoder;
 
 abstract class PulsarMessage implements Message {
 
@@ -2703,6 +2702,9 @@ abstract class PulsarMessage implements Message {
         // cannot decode priority, not a big deal as it is not supported in Pulsar
       }
     }
+    this.jmsDeliveryTime = msg.getEventTime();
+    this.properties.put("JMSXDeliveryCount", msg.getRedeliveryCount() + "");
+    this.jmsRedelivered = msg.getRedeliveryCount() > 0;
     this.receivedPulsarMessage = msg;
     this.consumer = consumer;
     return this;

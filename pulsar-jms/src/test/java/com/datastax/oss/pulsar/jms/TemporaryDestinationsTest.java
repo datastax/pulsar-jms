@@ -15,13 +15,17 @@
  */
 package com.datastax.oss.pulsar.jms;
 
-import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
-import lombok.extern.slf4j.Slf4j;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
+import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.function.Function;
 import javax.jms.Connection;
 import javax.jms.Destination;
 import javax.jms.Message;
@@ -29,17 +33,11 @@ import javax.jms.MessageConsumer;
 import javax.jms.MessageProducer;
 import javax.jms.Queue;
 import javax.jms.Session;
-import java.nio.file.Path;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-import java.util.function.Function;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
+import lombok.extern.slf4j.Slf4j;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 @Slf4j
 public class TemporaryDestinationsTest {
@@ -64,12 +62,14 @@ public class TemporaryDestinationsTest {
   public void useTemporaryQueueTest() throws Exception {
     useTemporaryDestinationTest(session -> Utils.noException(() -> session.createTemporaryQueue()));
   }
+
   @Test
   public void useTemporaryTopicTest() throws Exception {
-      useTemporaryDestinationTest(session -> Utils.noException(() -> session.createTemporaryTopic()));
+    useTemporaryDestinationTest(session -> Utils.noException(() -> session.createTemporaryTopic()));
   }
 
-  private void useTemporaryDestinationTest(Function<Session, Destination> temporaryDestinationMaker) throws Exception {
+  private void useTemporaryDestinationTest(Function<Session, Destination> temporaryDestinationMaker)
+      throws Exception {
 
     String temporaryDestinationName;
     Map<String, Object> properties = new HashMap<>();
@@ -78,8 +78,8 @@ public class TemporaryDestinationsTest {
       try (Connection connection = factory.createConnection()) {
         connection.start();
         try (Session session = connection.createSession(); ) {
-          String name ="persistent://public/default/test-" + UUID.randomUUID();
-          Queue serverAddress =  session.createQueue(name);
+          String name = "persistent://public/default/test-" + UUID.randomUUID();
+          Queue serverAddress = session.createQueue(name);
 
           cluster.getService().getAdminClient().topics().createPartitionedTopic(name, 4);
 
@@ -89,22 +89,24 @@ public class TemporaryDestinationsTest {
             temporaryDestinationName = ((PulsarDestination) clientAddress).topicName;
 
             // verify topic exists
-            assertTrue(cluster.getService().getAdminClient()
-                    .topics().getList("public/default").contains(temporaryDestinationName));
+            assertTrue(
+                cluster
+                    .getService()
+                    .getAdminClient()
+                    .topics()
+                    .getList("public/default")
+                    .contains(temporaryDestinationName));
 
             // subscribe on the temporary queue
             try (MessageConsumer consumerClient = session.createConsumer(clientAddress); ) {
-
 
               // send a request
               Message request = session.createTextMessage("request");
               request.setJMSReplyTo(clientAddress);
               producerClient.send(request);
 
-
               // on the server, receive the request
-              try (MessageConsumer serverSideConsumer =
-                           session.createConsumer(serverAddress)) {
+              try (MessageConsumer serverSideConsumer = session.createConsumer(serverAddress)) {
                 Message message = serverSideConsumer.receive();
                 assertEquals("request", message.getBody(String.class));
 
@@ -112,7 +114,8 @@ public class TemporaryDestinationsTest {
                 assertEquals(jmsReplyTo, clientAddress);
 
                 Message response = session.createTextMessage("response");
-                try (MessageProducer serverSideTemporaryProducer = session.createProducer(clientAddress); ) {
+                try (MessageProducer serverSideTemporaryProducer =
+                    session.createProducer(clientAddress); ) {
                   serverSideTemporaryProducer.send(response);
                 }
               }
@@ -121,20 +124,15 @@ public class TemporaryDestinationsTest {
               Message theResponse = consumerClient.receive();
               assertEquals("response", theResponse.getBody(String.class));
             }
-
           }
         }
       }
     }
 
-    List<String> topics = cluster.getService().getAdminClient().topics()
-            .getList("public/default");
+    List<String> topics = cluster.getService().getAdminClient().topics().getList("public/default");
     log.info("Topics {}", topics);
 
     // verify topic does not exist anymore, as it is deleted on Connection close()
     assertFalse(topics.contains(temporaryDestinationName));
-
   }
-
-
 }

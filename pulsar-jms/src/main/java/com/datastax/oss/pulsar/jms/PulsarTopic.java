@@ -17,7 +17,6 @@ package com.datastax.oss.pulsar.jms;
 
 import javax.jms.JMSException;
 import javax.jms.Topic;
-import lombok.EqualsAndHashCode;
 
 /** Represents a JMS Topic destination. In Pulsar there is no difference between Queue and Topic. */
 public final class PulsarTopic extends PulsarDestination implements Topic {

@@ -33,12 +33,13 @@ class PulsarMessageProducer implements MessageProducer {
   private PulsarDestination defaultDestination;
 
   public PulsarMessageProducer(PulsarSession session, Destination defaultDestination)
-          throws InvalidDestinationException {
+      throws InvalidDestinationException {
     this.session = session;
     try {
       this.defaultDestination = (PulsarDestination) defaultDestination;
     } catch (ClassCastException err) {
-      throw new InvalidDestinationException("Invalid destination type " + defaultDestination.getClass());
+      throw new InvalidDestinationException(
+          "Invalid destination type " + defaultDestination.getClass());
     }
   }
 

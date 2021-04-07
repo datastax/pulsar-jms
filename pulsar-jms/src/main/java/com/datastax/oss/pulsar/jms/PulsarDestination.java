@@ -15,10 +15,8 @@
  */
 package com.datastax.oss.pulsar.jms;
 
-import javax.jms.Destination;
-import lombok.EqualsAndHashCode;
-
 import java.util.Objects;
+import javax.jms.Destination;
 
 public abstract class PulsarDestination implements Destination {
   protected final String topicName;
@@ -32,13 +30,13 @@ public abstract class PulsarDestination implements Destination {
   public abstract boolean isTopic();
 
   public final boolean equals(Object other) {
-    if (! (other instanceof PulsarDestination)) {
+    if (!(other instanceof PulsarDestination)) {
       return false;
     }
     PulsarDestination o = (PulsarDestination) other;
     return Objects.equals(o.topicName, this.topicName)
-            && Objects.equals(o.isQueue(), this.isQueue())
-            && Objects.equals(o.isTopic(), this.isTopic());
+        && Objects.equals(o.isQueue(), this.isQueue())
+        && Objects.equals(o.isTopic(), this.isTopic());
   }
 
   public final int hashCode() {

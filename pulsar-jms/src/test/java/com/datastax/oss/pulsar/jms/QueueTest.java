@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.UUID;
 import javax.jms.Connection;
+import javax.jms.Message;
 import javax.jms.MessageConsumer;
 import javax.jms.MessageProducer;
 import javax.jms.Queue;
@@ -149,6 +150,42 @@ public class QueueTest {
               } catch (NoSuchElementException expected) {
               }
             }
+          }
+        }
+      }
+    }
+  }
+
+  @Test
+  public void sendJMSRedeliveryCountTest() throws Exception {
+
+    Map<String, Object> properties = new HashMap<>();
+    properties.put("webServiceUrl", cluster.getAddress());
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+      try (Connection connection = factory.createConnection()) {
+        connection.start();
+        try (Session session = connection.createSession(Session.CLIENT_ACKNOWLEDGE); ) {
+          Queue destination =
+              session.createQueue("persistent://public/default/test-" + UUID.randomUUID());
+
+          try (MessageProducer producer = session.createProducer(destination); ) {
+            producer.send(session.createTextMessage("foo"));
+          }
+
+          try (MessageConsumer consumer1 = session.createConsumer(destination); ) {
+            Message message = consumer1.receive();
+            assertEquals(0, message.getIntProperty("JMSRedeliveryCount"));
+            assertFalse(message.getJMSRedelivered());
+          }
+          // close consumer, message not acked, so it must be redelivered
+
+          try (MessageConsumer consumer1 = session.createConsumer(destination); ) {
+            Message message = consumer1.receive();
+            assertEquals("foo", message.getBody(String.class));
+
+            // Unfortunately Pulsar does not set properly the redelivery count
+            // assertEquals(1, message.getIntProperty("JMSRedeliveryCount"));
+            // assertTrue(message.getJMSRedelivered());
           }
         }
       }

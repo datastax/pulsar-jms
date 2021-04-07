@@ -271,7 +271,9 @@ public class SimpleTest {
             assertEquals(2, msg6.getJMSPriority());
             assertEquals("mytype", msg6.getJMSType());
             assertEquals("correlationid", msg6.getJMSCorrelationID());
-            assertArrayEquals("correlationid".getBytes(StandardCharsets.UTF_8), msg6.getJMSCorrelationIDAsBytes());
+            assertArrayEquals(
+                "correlationid".getBytes(StandardCharsets.UTF_8),
+                msg6.getJMSCorrelationIDAsBytes());
             // we are serializing Object properties as strings
             assertEquals("qqqq", msg6.getObjectProperty("i"));
           }
