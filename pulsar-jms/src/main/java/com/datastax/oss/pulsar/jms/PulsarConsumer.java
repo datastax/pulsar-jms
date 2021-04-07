@@ -220,14 +220,11 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber {
   private Message handleReceivedMessage(org.apache.pulsar.client.api.Message<byte[]> message)
       throws JMSException, org.apache.pulsar.client.api.PulsarClientException {
     PulsarMessage result = PulsarMessage.decode(consumer, message);
-    if (session.getAcknowledgeMode() == Session.AUTO_ACKNOWLEDGE
-        || session.getAcknowledgeMode() == Session.DUPS_OK_ACKNOWLEDGE) {
+    if (session.getTransacted()) {
+      Utils.get(consumer.acknowledgeAsync(message.getMessageId(), session.transaction));
+    } else if (session.getAcknowledgeMode() == Session.AUTO_ACKNOWLEDGE) {
       consumer.acknowledge(message);
-    }
-    if (session.getAcknowledgeMode() == Session.AUTO_ACKNOWLEDGE) {
-      consumer.acknowledge(message);
-    }
-    if (session.getAcknowledgeMode() == Session.DUPS_OK_ACKNOWLEDGE) {
+    } else if (session.getAcknowledgeMode() == Session.DUPS_OK_ACKNOWLEDGE) {
       consumer
           .acknowledgeAsync(message)
           .whenComplete(
@@ -236,8 +233,7 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber {
                   log.error("Cannot acknowledge message {} {}", message, ex);
                 }
               });
-    }
-    if (session.getAcknowledgeMode() == Session.CLIENT_ACKNOWLEDGE) {
+    } else if (session.getAcknowledgeMode() == Session.CLIENT_ACKNOWLEDGE) {
       session.registerUnacknowledgedMessage(result);
     }
     return result;

@@ -61,7 +61,7 @@ final class Utils {
     try {
       return future.get();
     } catch (ExecutionException err) {
-      throw handleException(err);
+      throw handleException(err.getCause());
     } catch (InterruptedException err) {
       throw handleException(err);
     }

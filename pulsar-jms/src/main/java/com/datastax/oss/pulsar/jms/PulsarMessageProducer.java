@@ -969,7 +969,10 @@ class PulsarMessageProducer implements MessageProducer {
 
   private void sendMessage(Destination defaultDestination, Message message) throws JMSException {
     Producer<byte[]> producer =
-        session.getFactory().getProducerForDestination((PulsarDestination) defaultDestination);
+        session
+            .getFactory()
+            .getProducerForDestination(
+                (PulsarDestination) defaultDestination, session.getTransacted());
     PulsarMessage pulsarMessage = (PulsarMessage) message;
     TypedMessageBuilder<byte[]> typedMessageBuilder = producer.newMessage();
     if (session.transaction != null) {
@@ -987,7 +990,10 @@ class PulsarMessageProducer implements MessageProducer {
       Destination defaultDestination, Message message, CompletionListener completionListener)
       throws JMSException {
     Producer<byte[]> producer =
-        session.getFactory().getProducerForDestination((PulsarDestination) defaultDestination);
+        session
+            .getFactory()
+            .getProducerForDestination(
+                (PulsarDestination) defaultDestination, session.getTransacted());
     PulsarMessage pulsarMessage = (PulsarMessage) message;
     if (session.transaction != null) {
       pulsarMessage.sendAsync(producer.newMessage(session.transaction), completionListener);

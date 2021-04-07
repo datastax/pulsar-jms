@@ -23,6 +23,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
 import javax.jms.Connection;
 import javax.jms.ConnectionFactory;
 import javax.jms.IllegalStateException;
@@ -39,6 +40,7 @@ import org.apache.pulsar.client.api.Consumer;
 import org.apache.pulsar.client.api.ConsumerBuilder;
 import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.api.Producer;
+import org.apache.pulsar.client.api.ProducerBuilder;
 import org.apache.pulsar.client.api.PulsarClient;
 import org.apache.pulsar.client.api.PulsarClientException;
 import org.apache.pulsar.client.api.SubscriptionInitialPosition;
@@ -56,53 +58,66 @@ public class PulsarConnectionFactory implements ConnectionFactory, AutoCloseable
   private final List<Consumer<byte[]>> consumers = new CopyOnWriteArrayList<>();
   private final Set<String> clientIdentifiers = new ConcurrentSkipListSet<>();
   private final String systemNamespace;
+  private final boolean enableTransaction;
 
-  public PulsarConnectionFactory(Map<String, Object> properties) throws PulsarClientException {
-    properties = new HashMap(properties);
-
-    Map<String, Object> producerConfiguration =
-        (Map<String, Object>) properties.remove("producerConfig");
-    if (producerConfiguration != null) {
-      this.producerConfiguration = new HashMap(producerConfiguration);
-    } else {
-      this.producerConfiguration = Collections.emptyMap();
-    }
-
-    Map<String, Object> consumerConfigurationM =
-        (Map<String, Object>) properties.remove("consumerConfig");
-    if (consumerConfigurationM != null) {
-      this.consumerConfiguration = new HashMap(consumerConfigurationM);
-    } else {
-      this.consumerConfiguration = Collections.emptyMap();
-    }
-
-    String systemNamespace = (String) properties.remove("jms.system.namespace");
-    if (systemNamespace == null) {
-      systemNamespace = "public/default";
-    }
-    this.systemNamespace = systemNamespace;
-
-    String webServiceUrl = (String) properties.remove("webServiceUrl");
-    if (webServiceUrl == null) {
-      webServiceUrl = "http://localhost:8080";
-    }
-
-    PulsarClient pulsarClient = null;
-    PulsarAdmin pulsarAdmin = null;
+  public PulsarConnectionFactory(Map<String, Object> properties) throws JMSException {
     try {
-      pulsarAdmin = PulsarAdmin.builder().serviceHttpUrl(webServiceUrl).build();
-      pulsarClient = PulsarClient.builder().serviceUrl(webServiceUrl).loadConf(properties).build();
-    } catch (PulsarClientException err) {
-      if (pulsarAdmin != null) {
-        pulsarAdmin.close();
+      properties = new HashMap(properties);
+
+      Map<String, Object> producerConfiguration =
+          (Map<String, Object>) properties.remove("producerConfig");
+      if (producerConfiguration != null) {
+        this.producerConfiguration = new HashMap(producerConfiguration);
+      } else {
+        this.producerConfiguration = Collections.emptyMap();
       }
-      if (pulsarClient != null) {
-        pulsarClient.close();
+
+      Map<String, Object> consumerConfigurationM =
+          (Map<String, Object>) properties.remove("consumerConfig");
+      if (consumerConfigurationM != null) {
+        this.consumerConfiguration = new HashMap(consumerConfigurationM);
+      } else {
+        this.consumerConfiguration = Collections.emptyMap();
       }
-      throw err;
+
+      String systemNamespace = (String) properties.remove("jms.system.namespace");
+      if (systemNamespace == null) {
+        systemNamespace = "public/default";
+      }
+      this.systemNamespace = systemNamespace;
+
+      this.enableTransaction =
+          Boolean.parseBoolean(properties.getOrDefault("enableTransaction", "false").toString());
+
+      String webServiceUrl = (String) properties.remove("webServiceUrl");
+      if (webServiceUrl == null) {
+        webServiceUrl = "http://localhost:8080";
+      }
+
+      PulsarClient pulsarClient = null;
+      PulsarAdmin pulsarAdmin = null;
+      try {
+        pulsarAdmin = PulsarAdmin.builder().serviceHttpUrl(webServiceUrl).build();
+        pulsarClient =
+            PulsarClient.builder().serviceUrl(webServiceUrl).loadConf(properties).build();
+      } catch (PulsarClientException err) {
+        if (pulsarAdmin != null) {
+          pulsarAdmin.close();
+        }
+        if (pulsarClient != null) {
+          pulsarClient.close();
+        }
+        throw err;
+      }
+      this.pulsarClient = pulsarClient;
+      this.pulsarAdmin = pulsarAdmin;
+    } catch (Throwable t) {
+      throw Utils.handleException(t);
     }
-    this.pulsarClient = pulsarClient;
-    this.pulsarAdmin = pulsarAdmin;
+  }
+
+  public boolean isEnableTransaction() {
+    return enableTransaction;
   }
 
   public PulsarClient getPulsarClient() {
@@ -449,20 +464,26 @@ public class PulsarConnectionFactory implements ConnectionFactory, AutoCloseable
     }
   }
 
-  Producer<byte[]> getProducerForDestination(PulsarDestination defaultDestination)
-      throws JMSException {
+  Producer<byte[]> getProducerForDestination(
+      PulsarDestination defaultDestination, boolean transactions) throws JMSException {
     try {
       return producers.computeIfAbsent(
           defaultDestination,
           d -> {
             try {
               return Utils.invoke(
-                  () ->
-                      pulsarClient
-                          .newProducer()
-                          .topic(d.topicName)
-                          .loadConf(producerConfiguration)
-                          .create());
+                  () -> {
+                    ProducerBuilder<byte[]> producerBuilder =
+                        pulsarClient
+                            .newProducer()
+                            .topic(d.topicName)
+                            .loadConf(producerConfiguration);
+                    if (transactions) {
+                      // this is a limitation of Pulsar transaction support
+                      producerBuilder.sendTimeout(0, TimeUnit.MILLISECONDS);
+                    }
+                    return producerBuilder.create();
+                  });
             } catch (JMSException err) {
               throw new RuntimeException(err);
             }

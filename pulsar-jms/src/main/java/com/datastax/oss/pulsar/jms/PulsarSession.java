@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import javax.jms.Connection;
 import javax.jms.Destination;
@@ -48,28 +49,60 @@ import javax.jms.TextMessage;
 import javax.jms.Topic;
 import javax.jms.TopicSubscriber;
 import javax.jms.TransactionRolledBackException;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.api.Producer;
 import org.apache.pulsar.client.api.SubscriptionMode;
 import org.apache.pulsar.client.api.SubscriptionType;
 import org.apache.pulsar.client.api.transaction.Transaction;
+import org.apache.pulsar.client.api.transaction.TransactionCoordinatorClientException;
 
+@Slf4j
 public class PulsarSession implements Session {
 
   private final PulsarConnection connection;
   private final int sessionMode;
   final Transaction transaction;
+  private boolean transactionDone;
   private MessageListenerWrapper messageListenerWrapper;
   private final Map<PulsarDestination, Producer<byte[]>> producers = new HashMap<>();
   private final ReentrantReadWriteLock closeLock = new ReentrantReadWriteLock();
   private final List<PulsarMessage> unackedMessages = new ArrayList<>();
   private final Map<String, PulsarDestination> destinationBySubscription = new HashMap<>();
   private boolean trackUnacknowledgedMessages = false;
+  private boolean closed;
 
   public PulsarSession(int sessionMode, PulsarConnection connection) throws JMSException {
     this.connection = connection;
     this.sessionMode = sessionMode;
     if (sessionMode == SESSION_TRANSACTED) {
-      transaction = Utils.get(connection.getFactory().getPulsarClient().newTransaction().build());
+      if (!connection.getFactory().isEnableTransaction()) {
+        throw new JMSException(
+            "Please enable transactions on PulsarConnectionFactory with enableTransaction=true");
+      }
+      Transaction transaction = null;
+      int createTransactionTrials = 10;
+      while (createTransactionTrials-- > 0) {
+        try {
+          try {
+            transaction = connection.getFactory().getPulsarClient().newTransaction().build().get();
+            break;
+          } catch (ExecutionException err) {
+            if (err.getCause()
+                instanceof TransactionCoordinatorClientException.CoordinatorNotFoundException) {
+              log.info("Transaction service not available {}", err.getCause().getMessage());
+              Thread.sleep(1000);
+            } else {
+              throw Utils.handleException(err.getCause());
+            }
+          }
+        } catch (InterruptedException err) {
+          throw Utils.handleException(err);
+        }
+      }
+      if (transaction == null) {
+        throw new JMSException("Cannot create a Transaction in time");
+      }
+      this.transaction = transaction;
     } else {
       transaction = null;
     }
@@ -307,6 +340,7 @@ public class PulsarSession implements Session {
       if (transaction == null) {
         throw new IllegalStateException("session is not transacted");
       }
+      transactionDone = true;
       Utils.get(transaction.commit());
     } finally {
       closeLock.readLock().unlock();
@@ -341,6 +375,7 @@ public class PulsarSession implements Session {
       if (transaction == null) {
         throw new IllegalStateException("session is not transacted");
       }
+      transactionDone = true;
       Utils.get(transaction.abort());
     } finally {
       closeLock.readLock().unlock();
@@ -401,11 +436,16 @@ public class PulsarSession implements Session {
   @Override
   public void close() throws JMSException {
     closeLock.writeLock().lock();
+    if (closed) {
+      return;
+    }
+    closed = true;
     try {
       Utils.checkNotOnListener(this);
       unackedMessages.clear();
-      if (transaction != null) {
+      if (transaction != null && !transactionDone) {
         Utils.get(transaction.abort());
+        transactionDone = true;
       }
     } finally {
       closeLock.writeLock().unlock();

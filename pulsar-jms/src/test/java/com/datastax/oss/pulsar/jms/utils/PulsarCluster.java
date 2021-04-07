@@ -73,6 +73,19 @@ public class PulsarCluster implements AutoCloseable {
             "public",
             new TenantInfo(Collections.singleton("admin"), Collections.singleton("localhost")));
     service.getAdminClient().namespaces().createNamespace("public/default");
+
+    service
+        .getAdminClient()
+        .tenants()
+        .createTenant(
+            "pulsar",
+            new TenantInfo(Collections.singleton("admin"), Collections.singleton("localhost")));
+    service.getAdminClient().namespaces().createNamespace("pulsar/system");
+
+    service
+        .getAdminClient()
+        .topics()
+        .createPartitionedTopic("persistent://pulsar/system/transaction_coordinator_assign", 1);
   }
 
   public void close() throws Exception {
