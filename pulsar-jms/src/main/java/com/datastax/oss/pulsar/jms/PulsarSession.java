@@ -1362,17 +1362,32 @@ public class PulsarSession implements Session {
 
   /**
    * This mechanisms allows the close() method to follow the specs and wait for any operation to
-   * complete before closing the session.
+   * complete before closing the session. Also it implements the Connection#stop behaviour
    *
-   * @param code any code
+   * @param operation any code
    * @param <T>
    * @return the result of the execution of the code
    * @throws JMSException
    */
-  <T> T executeInCloseLock(BlockCLoseOperation<T> code) throws JMSException {
+  <T> T executeOperationIfConnectionStarted(BlockCLoseOperation<T> operation, int timeoutMillis) throws JMSException {
+    // if the connection is "paused" we are not executing the operation
+    // and we return null
+    // executeInConnectionPausedLock also prevents any ongoing "stop()" operation
+    // to complete if we entered the execution of the given operation
+
+    return connection.executeInConnectionPausedLock(() -> executeCriticalOperation(operation), timeoutMillis);
+  }
+
+  <T> T executeCriticalOperation(BlockCLoseOperation<T> operation) throws JMSException {
+    // if the connection is "paused" we are not executing the operation
+    // and we return null
+    // executeInConnectionPausedLock also prevents any ongoing "stop()" operation
+    // to complete if we entered the execution of the given operation
+
+    // the execution of the operation will block any ongoing "close()" operation
     closeLock.readLock().lock();
     try {
-      return code.execute();
+      return operation.execute();
     } finally {
       closeLock.readLock().unlock();
     }

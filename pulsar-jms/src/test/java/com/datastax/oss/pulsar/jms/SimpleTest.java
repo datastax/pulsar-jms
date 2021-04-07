@@ -207,6 +207,7 @@ public class SimpleTest {
     properties.put("webServiceUrl", cluster.getAddress());
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
+        connection.start();
         try (Session session = connection.createSession(); ) {
           Destination destination =
               session.createTopic("persistent://public/default/test-" + UUID.randomUUID());

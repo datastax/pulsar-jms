@@ -155,7 +155,7 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber {
     if (messageListenerWrapper != null) {
       throw new IllegalStateException("cannot receive if you have a messageListener");
     }
-    return session.executeInCloseLock(
+    return session.executeOperationIfConnectionStarted(
         () -> {
           try {
             org.apache.pulsar.client.api.Message<byte[]> message = consumer.receive();
@@ -166,7 +166,7 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber {
           } catch (Exception err) {
             throw Utils.handleException(err);
           }
-        });
+        }, 0);
   }
 
   /**
@@ -187,7 +187,7 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber {
       throw new IllegalStateException("cannot receive if you have a messageListener");
     }
 
-    return session.executeInCloseLock(
+    return session.executeOperationIfConnectionStarted(
         () -> {
           try {
             org.apache.pulsar.client.api.Message<byte[]> message =
@@ -199,7 +199,7 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber {
           } catch (Exception err) {
             throw Utils.handleException(err);
           }
-        });
+        }, (int) timeout);
   }
 
   /**
@@ -211,23 +211,8 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber {
    */
   @Override
   public Message receiveNoWait() throws JMSException {
-    if (messageListenerWrapper != null) {
-      throw new IllegalStateException("cannot receive if you have a messageListener");
-    }
-    return session.executeInCloseLock(
-        () -> {
-          try {
-            // there is no receiveNoWait in Pulsar, so we are setting a very small timeout
-            org.apache.pulsar.client.api.Message<byte[]> message =
-                consumer.receive(1, TimeUnit.MILLISECONDS);
-            if (message == null) {
-              return null;
-            }
-            return handleReceivedMessage(message);
-          } catch (Exception err) {
-            throw Utils.handleException(err);
-          }
-        });
+    // there is no receiveNoWait in Pulsar, so we are setting a very small timeout
+    return receive(1);
   }
 
   private Message handleReceivedMessage(org.apache.pulsar.client.api.Message<byte[]> message)
@@ -284,7 +269,7 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber {
     if (consumer == null) {
       return;
     }
-    session.executeInCloseLock(
+    session.executeCriticalOperation(
         () -> {
           try {
             consumer.close();

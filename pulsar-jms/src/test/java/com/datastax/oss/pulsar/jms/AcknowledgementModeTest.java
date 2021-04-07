@@ -59,6 +59,7 @@ public class AcknowledgementModeTest {
     properties.put("webServiceUrl", cluster.getAddress());
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
+        connection.start();
         try (Session session = connection.createSession(Session.AUTO_ACKNOWLEDGE); ) {
           Queue destination =
               session.createQueue("persistent://public/default/test-" + UUID.randomUUID());
@@ -87,6 +88,7 @@ public class AcknowledgementModeTest {
     properties.put("webServiceUrl", cluster.getAddress());
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
+        connection.start();
         try (Session session = connection.createSession(Session.DUPS_OK_ACKNOWLEDGE); ) {
           Queue destination =
               session.createQueue("persistent://public/default/test-" + UUID.randomUUID());
@@ -117,6 +119,7 @@ public class AcknowledgementModeTest {
     properties.put("webServiceUrl", cluster.getAddress());
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
+        connection.start();
         try (Session session = connection.createSession(Session.CLIENT_ACKNOWLEDGE); ) {
           Queue destination =
               session.createQueue("persistent://public/default/test-" + UUID.randomUUID());

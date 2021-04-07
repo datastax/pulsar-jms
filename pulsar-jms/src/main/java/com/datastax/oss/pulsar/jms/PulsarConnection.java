@@ -17,6 +17,9 @@ package com.datastax.oss.pulsar.jms;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import javax.jms.Connection;
 import javax.jms.ConnectionConsumer;
 import javax.jms.ConnectionMetaData;
@@ -39,6 +42,9 @@ public class PulsarConnection implements Connection {
   private volatile boolean closed = false;
   private String clientId;
   private volatile boolean allowSetClientId = true;
+  private final ReentrantReadWriteLock connectionPausedLock = new ReentrantReadWriteLock();
+  private final Condition pausedCondition = connectionPausedLock.writeLock().newCondition();;
+  private volatile boolean paused = true;
 
   public PulsarConnection(PulsarConnectionFactory factory) {
     this.factory = factory;
@@ -428,7 +434,17 @@ public class PulsarConnection implements Connection {
    * @see Connection#stop
    */
   @Override
-  public void start() throws JMSException {}
+  public void start() throws JMSException {
+    connectionPausedLock.writeLock().lock();
+    try {
+      paused = false;
+      pausedCondition.signalAll();
+    } catch (Throwable err) {
+      throw Utils.handleException(err);
+    } finally {
+      connectionPausedLock.writeLock().unlock();
+    }
+  }
 
   /**
    * Temporarily stops a connection's delivery of incoming messages. Delivery can be restarted using
@@ -479,7 +495,15 @@ public class PulsarConnection implements Connection {
    */
   @Override
   public void stop() throws JMSException {
-    throw new JMSException("not supported");
+    connectionPausedLock.writeLock().lock();
+    try {
+      paused = true;
+      pausedCondition.signalAll();
+    } catch (Throwable err) {
+      throw Utils.handleException(err);
+    } finally {
+      connectionPausedLock.writeLock().unlock();
+    }
   }
 
   /**
@@ -750,5 +774,54 @@ public class PulsarConnection implements Connection {
 
   public void setAllowSetClientId(boolean value) {
     allowSetClientId = value;
+  }
+
+  public <T> T executeInConnectionPausedLock(Utils.SupplierWithException<T> run, int timeoutMillis)
+      throws JMSException {
+
+    boolean executedInTime = true;
+    connectionPausedLock.readLock().lock();
+    try{
+      if (paused) {
+        connectionPausedLock.readLock().unlock();
+        connectionPausedLock.writeLock().lock();
+        try{
+          while(paused)
+          {
+            if (timeoutMillis > 0) {
+              executedInTime = pausedCondition.await(timeoutMillis, TimeUnit.MILLISECONDS);
+              if (!executedInTime) {
+                break;
+              }
+            } else {
+              pausedCondition.await();
+            }
+
+          }
+          connectionPausedLock.readLock().lock();
+        } finally {
+          connectionPausedLock.writeLock().unlock();
+        }
+      }
+      if (!executedInTime) {
+        return null;
+      }
+      return run.run();
+    }
+    catch (Throwable err) {
+      throw Utils.handleException(err);
+    } finally
+    {
+      connectionPausedLock.readLock().unlock(); //let writers in
+    }
+  }
+
+  public boolean isStarted() {
+    connectionPausedLock.readLock().lock();
+    try {
+      return !paused;
+    } finally {
+      connectionPausedLock.readLock().unlock();
+    }
   }
 }

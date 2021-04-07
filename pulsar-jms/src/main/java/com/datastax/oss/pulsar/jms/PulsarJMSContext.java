@@ -747,6 +747,7 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public JMSConsumer createConsumer(Destination destination) {
+    autoStartIfNeeded();
     return Utils.runtimeException(() -> session.createConsumer(destination).asJMSConsumer());
   }
 
@@ -768,6 +769,7 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public JMSConsumer createConsumer(Destination destination, String messageSelector) {
+    autoStartIfNeeded();
     return Utils.runtimeException(
         () -> session.createConsumer(destination, messageSelector).asJMSConsumer());
   }
@@ -800,6 +802,7 @@ public class PulsarJMSContext implements JMSContext {
   @Override
   public JMSConsumer createConsumer(
       Destination destination, String messageSelector, boolean noLocal) {
+    autoStartIfNeeded();
     return Utils.runtimeException(
         () -> session.createConsumer(destination, messageSelector, noLocal).asJMSConsumer());
   }
@@ -915,6 +918,7 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public JMSConsumer createDurableConsumer(Topic topic, String name) {
+    autoStartIfNeeded();
     return createDurableConsumer(topic, name, null, false);
   }
 
@@ -997,6 +1001,7 @@ public class PulsarJMSContext implements JMSContext {
   @Override
   public JMSConsumer createDurableConsumer(
       Topic topic, String name, String messageSelector, boolean noLocal) {
+    autoStartIfNeeded();
     return Utils.runtimeException(
         () -> session.createDurableConsumer(topic, name, messageSelector, noLocal).asJMSConsumer());
   }
@@ -1138,6 +1143,7 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public JMSConsumer createSharedDurableConsumer(Topic topic, String name, String messageSelector) {
+    autoStartIfNeeded();
     return Utils.runtimeException(
         () -> session.createSharedDurableConsumer(topic, name, messageSelector).asJMSConsumer());
   }
@@ -1229,6 +1235,7 @@ public class PulsarJMSContext implements JMSContext {
   @Override
   public JMSConsumer createSharedConsumer(
       Topic topic, String sharedSubscriptionName, String messageSelector) {
+    autoStartIfNeeded();
     return Utils.runtimeException(
         () ->
             session
@@ -1363,5 +1370,11 @@ public class PulsarJMSContext implements JMSContext {
   @Override
   public void acknowledge() {
     Utils.runtimeException(() -> session.acknowledgeAllMessages());
+  }
+
+  private void autoStartIfNeeded() {
+    if (autoStart && !connection.isStarted()) {
+      Utils.runtimeException(() -> connection.start());
+    }
   }
 }

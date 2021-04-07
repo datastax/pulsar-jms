@@ -94,7 +94,7 @@ final class Utils {
   public static void executeListener(PulsarSession session, Runnable code) {
     currentSession.set(session);
     try {
-      session.executeInCloseLock(
+      session.executeCriticalOperation(
           () -> {
             code.run();
             return null;
