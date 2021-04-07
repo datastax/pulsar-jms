@@ -961,18 +961,7 @@ abstract class PulsarMessage implements Message {
   final void sendAsync(TypedMessageBuilder<byte[]> producer, CompletionListener completionListener)
       throws JMSException {
     prepareForSend(producer);
-    producer.properties(properties);
-    // useful for deserialization
-    producer.property("JMS_PulsarMessageType", messageType());
-    if (jmsReplyTo != null) {
-      producer.property("JSMReplyTo", ((PulsarDestination) jmsReplyTo).topicName);
-    }
-    if (jmsType != null) {
-      producer.property("JMSType", jmsType);
-    }
-    if (jmsPriority != Message.DEFAULT_PRIORITY) {
-      producer.property("JMSPriority", jmsPriority + "");
-    }
+    fillSystemProperties(producer);
 
     this.jmsTimestamp = System.currentTimeMillis();
     producer
@@ -991,13 +980,15 @@ abstract class PulsarMessage implements Message {
             });
   }
 
-  final void send(TypedMessageBuilder<byte[]> producer) throws JMSException {
-    prepareForSend(producer);
+  private void fillSystemProperties(TypedMessageBuilder<byte[]> producer) {
     producer.properties(properties);
     // useful for deserialization
     producer.property("JMS_PulsarMessageType", messageType());
     if (jmsReplyTo != null) {
-      producer.property("JSMReplyTo", ((PulsarDestination) jmsReplyTo).topicName);
+      producer.property("JMSReplyTo", ((PulsarDestination) jmsReplyTo).topicName);
+      if (((PulsarDestination) jmsReplyTo).isTopic()) {
+        producer.property("JMSReplyToType", "topic");
+      }
     }
     if (jmsType != null) {
       producer.property("JMSType", jmsType);
@@ -1005,6 +996,11 @@ abstract class PulsarMessage implements Message {
     if (jmsPriority != Message.DEFAULT_PRIORITY) {
       producer.property("JMSPriority", jmsPriority + "");
     }
+  }
+
+  final void send(TypedMessageBuilder<byte[]> producer) throws JMSException {
+    prepareForSend(producer);
+    fillSystemProperties(producer);
 
     this.jmsTimestamp = System.currentTimeMillis();
     MessageId messageIdFromServer = Utils.invoke(() -> producer.send());
@@ -2680,6 +2676,25 @@ abstract class PulsarMessage implements Message {
   protected PulsarMessage applyMessage(
       org.apache.pulsar.client.api.Message<byte[]> msg, Consumer<byte[]> consumer) {
     this.properties.putAll(msg.getProperties());
+    String jmsReplyTo = msg.getProperty("JMSReplyTo");
+    if (jmsReplyTo != null) {
+      String jmsReplyToType = msg.getProperty("JMSReplyToType") + "";
+      switch (jmsReplyToType) {
+        case "topic":
+          this.jmsReplyTo = new PulsarTopic(jmsReplyTo);
+          break;
+        default:
+          this.jmsReplyTo = new PulsarQueue(jmsReplyTo);
+      }
+    }
+    this.jmsType = msg.getProperty("JMSType");
+    if (msg.hasProperty("JMSPriority")) {
+      try {
+        this.jmsPriority = Integer.parseInt(msg.getProperty("JMSPriority"));
+      } catch (NumberFormatException err) {
+        // cannot decode priority, not a big deal as it is not supported in Pulsar
+      }
+    }
     this.receivedPulsarMessage = msg;
     this.consumer = consumer;
     return this;

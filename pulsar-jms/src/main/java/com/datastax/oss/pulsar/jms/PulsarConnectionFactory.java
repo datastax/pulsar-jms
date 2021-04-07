@@ -55,6 +55,7 @@ public class PulsarConnectionFactory implements ConnectionFactory, AutoCloseable
   private final Map<PulsarDestination, Producer<byte[]>> producers = new ConcurrentHashMap<>();
   private final List<Consumer<byte[]>> consumers = new CopyOnWriteArrayList<>();
   private final Set<String> clientIdentifiers = new ConcurrentSkipListSet<>();
+  private final String systemNamespace;
 
   public PulsarConnectionFactory(Map<String, Object> properties) throws PulsarClientException {
     properties = new HashMap(properties);
@@ -74,6 +75,13 @@ public class PulsarConnectionFactory implements ConnectionFactory, AutoCloseable
     } else {
       this.consumerConfiguration = Collections.emptyMap();
     }
+
+    String systemNamespace = (String) properties.remove("jms.system.namespace");
+    if (systemNamespace == null) {
+      systemNamespace = "public/default";
+    }
+    this.systemNamespace = systemNamespace;
+
     String webServiceUrl = (String) properties.remove("webServiceUrl");
     if (webServiceUrl == null) {
       webServiceUrl = "http://localhost:8080";
@@ -103,6 +111,10 @@ public class PulsarConnectionFactory implements ConnectionFactory, AutoCloseable
 
   public PulsarAdmin getPulsarAdmin() {
     return pulsarAdmin;
+  }
+
+  public String getSystemNamespace() {
+    return systemNamespace;
   }
 
   /**

@@ -1291,7 +1291,7 @@ public class PulsarSession implements Session {
    */
   @Override
   public TemporaryQueue createTemporaryQueue() throws JMSException {
-    throw new JMSException("not available in Pulsar");
+    return connection.createTemporaryQueue();
   }
 
   /**
@@ -1305,7 +1305,7 @@ public class PulsarSession implements Session {
    */
   @Override
   public TemporaryTopic createTemporaryTopic() throws JMSException {
-    throw new JMSException("not available in Pulsar");
+    return connection.createTemporaryTopic();
   }
 
   /**

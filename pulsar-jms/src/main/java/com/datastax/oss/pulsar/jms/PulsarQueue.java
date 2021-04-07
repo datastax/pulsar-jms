@@ -20,7 +20,6 @@ import javax.jms.Queue;
 import lombok.EqualsAndHashCode;
 
 /** Represents a JMS Queue destination. In Pulsar there is no difference between Queue and Topic. */
-@EqualsAndHashCode(callSuper = true)
 public final class PulsarQueue extends PulsarDestination implements Queue {
 
   public PulsarQueue(String topicName) {

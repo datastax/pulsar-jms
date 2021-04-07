@@ -15,7 +15,11 @@
  */
 package com.datastax.oss.pulsar.jms;
 
+import lombok.extern.slf4j.Slf4j;
+
+import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
@@ -32,13 +36,17 @@ import javax.jms.InvalidSelectorException;
 import javax.jms.JMSException;
 import javax.jms.ServerSessionPool;
 import javax.jms.Session;
+import javax.jms.TemporaryQueue;
+import javax.jms.TemporaryTopic;
 import javax.jms.Topic;
 
+@Slf4j
 public class PulsarConnection implements Connection {
 
   private final PulsarConnectionFactory factory;
   private volatile ExceptionListener exceptionListener;
   private final List<PulsarSession> sessions = new CopyOnWriteArrayList<>();
+  private final List<PulsarTemporaryDestination> temporaryDestinations = new CopyOnWriteArrayList<>();
   private volatile boolean closed = false;
   private String clientId;
   private volatile boolean allowSetClientId = true;
@@ -580,6 +588,14 @@ public class PulsarConnection implements Connection {
       session.close();
     }
     sessions.clear();
+    for (PulsarTemporaryDestination temporaryDestination : new ArrayList<>(temporaryDestinations)) {
+      try {
+        temporaryDestination.delete();
+      } catch (JMSException err) {
+        log.error("Cannot delete temporary destination {}", temporaryDestination.topicName, err);
+      }
+    }
+    temporaryDestinations.clear();
     factory.unregisterClientId(clientId);
   }
 
@@ -818,6 +834,107 @@ public class PulsarConnection implements Connection {
       return !paused;
     } finally {
       connectionPausedLock.readLock().unlock();
+    }
+  }
+
+  public TemporaryQueue createTemporaryQueue() throws JMSException {
+    String name = "persistent://"
+            + factory.getSystemNamespace()
+            + "/jms-temp-queue-"
+            + UUID.randomUUID();
+    try {
+      factory.getPulsarAdmin().topics().createNonPartitionedTopic(name);
+    } catch (Exception err) {
+      throw Utils.handleException(err);
+    }
+    PulsarTemporaryQueue res =  new PulsarTemporaryQueue(name);
+    temporaryDestinations.add(res);
+    return res;
+  }
+
+  public TemporaryTopic createTemporaryTopic() throws JMSException {
+    String name = "persistent://"
+            + factory.getSystemNamespace()
+            + "/jms-temp-topic-"
+            + UUID.randomUUID();
+    try {
+      factory.getPulsarAdmin().topics().createNonPartitionedTopic(name);
+    } catch (Exception err) {
+      throw Utils.handleException(err);
+    }
+    PulsarTemporaryTopic res =  new PulsarTemporaryTopic(name);
+    temporaryDestinations.add(res);
+    return res;
+  }
+
+  private abstract class PulsarTemporaryDestination extends PulsarDestination  {
+
+    public PulsarTemporaryDestination(String topicName) {
+      super(topicName);
+    }
+
+    public final void delete() throws JMSException {
+      try {
+        log.info("Deleting {}", this);
+        factory.getPulsarAdmin().topics().delete(topicName, true, true);
+      } catch (Exception err) {
+        throw Utils.handleException(err);
+      } finally {
+        temporaryDestinations.remove(this);
+      }
+    }
+  }
+  private class PulsarTemporaryQueue extends PulsarTemporaryDestination implements TemporaryQueue {
+
+    public PulsarTemporaryQueue(String topicName) {
+      super(topicName);
+    }
+
+    @Override
+    public boolean isQueue() {
+      return true;
+    }
+
+    @Override
+    public boolean isTopic() {
+      return false;
+    }
+
+    @Override
+    public String getQueueName() throws JMSException {
+      return topicName;
+    }
+
+    @Override
+    public String toString() {
+      return "TemporaryQueue{" + topicName + "}";
+    }
+  }
+
+  private class PulsarTemporaryTopic extends PulsarTemporaryDestination implements TemporaryTopic {
+
+    public PulsarTemporaryTopic(String topicName) {
+      super(topicName);
+    }
+
+    @Override
+    public boolean isQueue() {
+      return false;
+    }
+
+    @Override
+    public boolean isTopic() {
+      return true;
+    }
+
+    @Override
+    public String getTopicName() throws JMSException {
+      return topicName;
+    }
+
+    @Override
+    public String toString() {
+      return "TemporaryTopic{" + topicName + "}";
     }
   }
 }
