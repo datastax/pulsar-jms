@@ -2097,7 +2097,8 @@ abstract class PulsarMessage implements Message {
         this.object = null;
       } else {
         try {
-          ObjectInputStream input = new ObjectInputStream(new ByteArrayInputStream(originalMessage));
+          ObjectInputStream input =
+              new ObjectInputStream(new ByteArrayInputStream(originalMessage));
           this.object = (Serializable) input.readUnshared();
         } catch (Exception err) {
           throw Utils.handleException(err);

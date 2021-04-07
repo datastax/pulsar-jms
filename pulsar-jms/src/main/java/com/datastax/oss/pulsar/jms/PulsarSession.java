@@ -1333,10 +1333,9 @@ public class PulsarSession implements Session {
     PulsarDestination destination = destinationBySubscription.get(name);
     if (destination == null) {
       throw new JMSException(
-              "Please open and close the subscription withing this session before unsubscribing, because in Pulsar you need to known the Destination for the subscription");
+          "Please open and close the subscription withing this session before unsubscribing, because in Pulsar you need to known the Destination for the subscription");
     }
     getFactory().deleteSubscription(destination, name);
-
   }
 
   /**

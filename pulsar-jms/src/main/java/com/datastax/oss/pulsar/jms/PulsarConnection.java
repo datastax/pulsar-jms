@@ -738,7 +738,7 @@ public class PulsarConnection implements Connection {
 
   public String prependClientId(String subscriptionName, boolean allowUnset) throws JMSException {
     if (clientId != null) {
-      return clientId+"_"+subscriptionName;
+      return clientId + "_" + subscriptionName;
     } else {
       if (allowUnset) {
         return subscriptionName;

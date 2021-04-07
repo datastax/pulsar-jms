@@ -15,16 +15,15 @@
  */
 package com.datastax.oss.pulsar.jms;
 
-import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.fail;
+
+import java.util.HashMap;
+import java.util.Map;
 import javax.jms.Connection;
 import javax.jms.InvalidClientIDException;
 import javax.jms.InvalidClientIDRuntimeException;
 import javax.jms.JMSContext;
-
-import java.util.HashMap;
-import java.util.Map;
-
-import static org.junit.jupiter.api.Assertions.fail;
+import org.junit.jupiter.api.Test;
 
 public class ClientIDTest {
 
@@ -37,8 +36,8 @@ public class ClientIDTest {
       try (Connection connection = factory.createConnection()) {
         connection.setClientID("a");
         try (Connection connection2 = factory.createConnection()) {
-            connection2.setClientID("a");
-            fail("cannot set a clientId twice");
+          connection2.setClientID("a");
+          fail("cannot set a clientId twice");
         } catch (InvalidClientIDException ok) {
         }
       }
@@ -57,8 +56,6 @@ public class ClientIDTest {
       try (JMSContext connection2 = factory.createContext()) {
         connection2.setClientID("a");
       }
-
     }
   }
-
 }

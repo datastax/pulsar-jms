@@ -15,6 +15,7 @@
  */
 package com.datastax.oss.pulsar.jms;
 
+import java.util.concurrent.TimeUnit;
 import javax.jms.CompletionListener;
 import javax.jms.DeliveryMode;
 import javax.jms.Destination;
@@ -25,6 +26,7 @@ import javax.jms.MessageFormatException;
 import javax.jms.MessageProducer;
 import javax.jms.Session;
 import org.apache.pulsar.client.api.Producer;
+import org.apache.pulsar.client.api.TypedMessageBuilder;
 
 class PulsarMessageProducer implements MessageProducer {
   private final PulsarSession session;
@@ -969,11 +971,16 @@ class PulsarMessageProducer implements MessageProducer {
     Producer<byte[]> producer =
         session.getFactory().getProducerForDestination((PulsarDestination) defaultDestination);
     PulsarMessage pulsarMessage = (PulsarMessage) message;
+    TypedMessageBuilder<byte[]> typedMessageBuilder = producer.newMessage();
     if (session.transaction != null) {
-      pulsarMessage.send(producer.newMessage(session.transaction));
+      typedMessageBuilder = producer.newMessage(session.transaction);
     } else {
-      pulsarMessage.send(producer.newMessage());
+      typedMessageBuilder = producer.newMessage();
     }
+    if (defaultDeliveryDelay > 0) {
+      typedMessageBuilder.deliverAfter(defaultDeliveryDelay, TimeUnit.MILLISECONDS);
+    }
+    pulsarMessage.send(typedMessageBuilder);
   }
 
   private void sendMessage(

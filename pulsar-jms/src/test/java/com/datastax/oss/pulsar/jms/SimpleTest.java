@@ -18,6 +18,7 @@ package com.datastax.oss.pulsar.jms;
 import static org.junit.Assert.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
@@ -41,6 +42,7 @@ import javax.jms.Message;
 import javax.jms.MessageConsumer;
 import javax.jms.MessageProducer;
 import javax.jms.ObjectMessage;
+import javax.jms.Queue;
 import javax.jms.Session;
 import javax.jms.StreamMessage;
 import javax.jms.TextMessage;
@@ -314,6 +316,30 @@ public class SimpleTest {
           assertEquals(89, msg6.getShortProperty("h"));
           // we are serializing Object properties as strings
           assertEquals("qqqq", msg6.getObjectProperty("i"));
+        }
+      }
+    }
+  }
+
+  @Test
+  public void sendMessageTestWithDeliveryDelayJMSContext() throws Exception {
+
+    Map<String, Object> properties = new HashMap<>();
+    properties.put("webServiceUrl", cluster.getAddress());
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+      try (JMSContext context = factory.createContext()) {
+        Queue destination =
+            context.createQueue("persistent://public/default/test-" + UUID.randomUUID());
+        try (JMSConsumer consumer = context.createConsumer(destination)) {
+
+          context.createProducer().setDeliveryDelay(8000).send(destination, "foo");
+
+          // message is not immediately available
+          assertNull(consumer.receive(2000));
+
+          Thread.sleep(7000);
+
+          assertEquals("foo", consumer.receiveBody(String.class));
         }
       }
     }

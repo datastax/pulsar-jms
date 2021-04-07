@@ -547,13 +547,14 @@ public class PulsarConnectionFactory implements ConnectionFactory, AutoCloseable
 
   public void registerClientId(String clientID) throws InvalidClientIDException {
     if (!clientIdentifiers.add(clientID)) {
-      throw new InvalidClientIDException("A connection with this client id '"+clientID+"'is already opened locally");
+      throw new InvalidClientIDException(
+          "A connection with this client id '" + clientID + "'is already opened locally");
     }
   }
+
   public void unregisterClientId(String clientId) {
     if (clientId != null) {
       clientIdentifiers.remove(clientId);
     }
   }
-
 }
