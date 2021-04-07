@@ -62,6 +62,7 @@ public class PulsarSession implements Session {
   private final Map<PulsarDestination, Producer<byte[]>> producers = new HashMap<>();
   private final ReentrantReadWriteLock closeLock = new ReentrantReadWriteLock();
   private final List<PulsarMessage> unackedMessages = new ArrayList<>();
+  private final Map<String, PulsarDestination> destinationBySubscription = new HashMap<>();
   private boolean trackUnacknowledgedMessages = false;
 
   public PulsarSession(int sessionMode, PulsarConnection connection) throws JMSException {
@@ -666,6 +667,7 @@ public class PulsarSession implements Session {
   @Override
   public PulsarConsumer createSharedConsumer(Topic topic, String sharedSubscriptionName)
       throws JMSException {
+    destinationBySubscription.put(sharedSubscriptionName, (PulsarDestination) topic);
     return new PulsarConsumer(
             sharedSubscriptionName,
             (PulsarDestination) topic,
@@ -721,6 +723,7 @@ public class PulsarSession implements Session {
   public PulsarConsumer createSharedConsumer(
       Topic topic, String sharedSubscriptionName, String messageSelector) throws JMSException {
     messageSelectorNotSupported(messageSelector);
+    destinationBySubscription.put(sharedSubscriptionName, (PulsarDestination) topic);
     return new PulsarConsumer(
             sharedSubscriptionName,
             (PulsarDestination) topic,
@@ -931,6 +934,7 @@ public class PulsarSession implements Session {
     if (noLocal) {
       throw new InvalidSelectorException("noLocal mode is not supported by Pulsar");
     }
+    destinationBySubscription.put(name, (PulsarDestination) topic);
     return new PulsarConsumer(
             name,
             (PulsarDestination) topic,
@@ -1228,6 +1232,7 @@ public class PulsarSession implements Session {
   public PulsarConsumer createSharedDurableConsumer(
       Topic topic, String name, String messageSelector) throws JMSException {
     messageSelectorNotSupported(messageSelector);
+    destinationBySubscription.put(name, (PulsarDestination) topic);
     return new PulsarConsumer(
             name,
             (PulsarDestination) topic,
@@ -1321,9 +1326,13 @@ public class PulsarSession implements Session {
    */
   @Override
   public void unsubscribe(String name) throws JMSException {
-    throw new JMSException(
-        "In Pulsar you cannot delete a subscription without setting a topic name, use pulsar-admin to"
-            + "delete a subscription");
+    PulsarDestination destination = destinationBySubscription.get(name);
+    if (destination == null) {
+      throw new JMSException(
+              "Please open and close the subscription withing this session before unsubscribing, because in Pulsar you need to known the Destination for the subscription");
+    }
+    getFactory().deleteSubscription(destination, name);
+
   }
 
   /**

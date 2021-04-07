@@ -524,14 +524,20 @@ public class PulsarConnectionFactory implements ConnectionFactory, AutoCloseable
       consumers.add(newConsumer);
       return newConsumer;
     } catch (PulsarClientException err) {
-      JMSException error = new JMSException("Error while creating consumer");
-      error.initCause(err);
-      error.setLinkedException(err);
-      throw error;
+      throw Utils.handleException(err);
     }
   }
 
   public void removeConsumer(Consumer<byte[]> consumer) {
     consumers.remove(consumer);
+  }
+
+  public void deleteSubscription(PulsarDestination destination, String name) throws JMSException {
+    try {
+      log.info("deleteSubscription topic {} name {}", destination.topicName, name);
+      pulsarAdmin.topics().deleteSubscription(destination.topicName, name, true);
+    } catch (Exception err) {
+      throw Utils.handleException(err);
+    }
   }
 }
