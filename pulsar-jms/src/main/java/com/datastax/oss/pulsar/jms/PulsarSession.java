@@ -95,7 +95,7 @@ public class PulsarSession implements Session {
               throw Utils.handleException(err.getCause());
             }
           }
-        } catch (InterruptedException err) {
+        } catch (Exception err) {
           throw Utils.handleException(err);
         }
       }

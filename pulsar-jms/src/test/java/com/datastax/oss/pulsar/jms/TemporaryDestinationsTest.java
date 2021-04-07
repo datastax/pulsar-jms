@@ -81,7 +81,7 @@ public class TemporaryDestinationsTest {
           String name = "persistent://public/default/test-" + UUID.randomUUID();
           Queue serverAddress = session.createQueue(name);
 
-          cluster.getService().getAdminClient().topics().createPartitionedTopic(name, 4);
+          cluster.getService().getAdminClient().topics().createNonPartitionedTopic(name);
 
           try (MessageProducer producerClient = session.createProducer(serverAddress); ) {
 
