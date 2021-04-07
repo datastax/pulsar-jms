@@ -746,7 +746,7 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public JMSConsumer createConsumer(Destination destination) {
-    return null;
+    return Utils.runtimeException(() -> session.createConsumer(destination).asJMSConsumer());
   }
 
   /**
@@ -767,7 +767,8 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public JMSConsumer createConsumer(Destination destination, String messageSelector) {
-    return null;
+    return Utils.runtimeException(
+        () -> session.createConsumer(destination, messageSelector).asJMSConsumer());
   }
 
   /**
@@ -798,7 +799,8 @@ public class PulsarJMSContext implements JMSContext {
   @Override
   public JMSConsumer createConsumer(
       Destination destination, String messageSelector, boolean noLocal) {
-    return null;
+    return Utils.runtimeException(
+        () -> session.createConsumer(destination, messageSelector, noLocal).asJMSConsumer());
   }
 
   /**
@@ -912,7 +914,7 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public JMSConsumer createDurableConsumer(Topic topic, String name) {
-    return null;
+    return createDurableConsumer(topic, name, null, false);
   }
 
   /**
@@ -994,7 +996,8 @@ public class PulsarJMSContext implements JMSContext {
   @Override
   public JMSConsumer createDurableConsumer(
       Topic topic, String name, String messageSelector, boolean noLocal) {
-    return null;
+    return Utils.runtimeException(
+        () -> session.createDurableConsumer(topic, name, messageSelector, noLocal).asJMSConsumer());
   }
 
   /**
@@ -1064,7 +1067,7 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public JMSConsumer createSharedDurableConsumer(Topic topic, String name) {
-    return null;
+    return createSharedDurableConsumer(topic, name, null);
   }
 
   /**
@@ -1134,7 +1137,8 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public JMSConsumer createSharedDurableConsumer(Topic topic, String name, String messageSelector) {
-    return null;
+    return Utils.runtimeException(
+        () -> session.createSharedDurableConsumer(topic, name, messageSelector).asJMSConsumer());
   }
 
   /**
@@ -1177,7 +1181,7 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public JMSConsumer createSharedConsumer(Topic topic, String sharedSubscriptionName) {
-    return null;
+    return createSharedConsumer(topic, sharedSubscriptionName, null);
   }
 
   /**
@@ -1224,7 +1228,11 @@ public class PulsarJMSContext implements JMSContext {
   @Override
   public JMSConsumer createSharedConsumer(
       Topic topic, String sharedSubscriptionName, String messageSelector) {
-    return null;
+    return Utils.runtimeException(
+        () ->
+            session
+                .createSharedConsumer(topic, sharedSubscriptionName, messageSelector)
+                .asJMSConsumer());
   }
 
   /**

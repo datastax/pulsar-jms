@@ -190,14 +190,13 @@ final class Utils {
       if (err instanceof MessageFormatException) {
         MessageFormatException jmsException = (MessageFormatException) err;
         throw new MessageFormatRuntimeException(
-                jmsException.getMessage(), jmsException.getErrorCode(), jmsException.getCause());
+            jmsException.getMessage(), jmsException.getErrorCode(), jmsException.getCause());
       }
       if (err instanceof MessageNotWriteableException) {
         MessageNotWriteableException jmsException = (MessageNotWriteableException) err;
         throw new MessageNotWriteableRuntimeException(
-                jmsException.getMessage(), jmsException.getErrorCode(), jmsException.getCause());
+            jmsException.getMessage(), jmsException.getErrorCode(), jmsException.getCause());
       }
-
 
       JMSRuntimeException jms = new JMSRuntimeException("Error " + err);
       jms.initCause(err);

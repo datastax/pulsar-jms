@@ -20,77 +20,107 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import java.nio.charset.StandardCharsets;
+import javax.jms.BytesMessage;
+import javax.jms.JMSException;
 import javax.jms.MessageEOFException;
+import javax.jms.StreamMessage;
 import org.junit.jupiter.api.Test;
 
 public class PulsarBufferedMessageTest {
 
   @Test
-  public void testBufferedMessage() throws Exception {
+  public void testPulsarBytesMessage() throws Exception {
     PulsarMessage.PulsarBufferedMessage streamMessage = new PulsarMessage.PulsarBytesMessage();
-    streamMessage.writeBoolean(true);
-    streamMessage.writeChar('a');
-    streamMessage.writeInt(123);
-    streamMessage.writeLong(1244l);
-    streamMessage.writeShort((short) 213);
-    streamMessage.writeByte((byte) 1);
-    streamMessage.writeBytes("foo".getBytes(StandardCharsets.UTF_8));
-    streamMessage.writeDouble(1.2d);
-    streamMessage.writeFloat(1.5f);
-    streamMessage.writeBytes("foo".getBytes(StandardCharsets.UTF_8), 2, 1);
+    testMessage(streamMessage);
+  }
 
-    streamMessage.writeUTF("bar");
-    streamMessage.writeByte((byte) 32);
-    streamMessage.writeShort((short) 33333);
+  @Test
+  public void testPulsarStreamMessage() throws Exception {
+    PulsarMessage.PulsarBufferedMessage streamMessage = new PulsarMessage.PulsarStreamMessage();
+    testMessage(streamMessage);
+  }
 
-    streamMessage.writeObject("test");
+  private void testMessage(PulsarMessage.PulsarBufferedMessage msg) throws JMSException {
+    msg.writeBoolean(true);
+    msg.writeChar('a');
+    msg.writeInt(123);
+    msg.writeLong(1244l);
+    msg.writeShort((short) 213);
+    msg.writeByte((byte) 1);
+    msg.writeBytes("foo".getBytes(StandardCharsets.UTF_8));
+    msg.writeDouble(1.2d);
+    msg.writeFloat(1.5f);
+    msg.writeBytes("foo".getBytes(StandardCharsets.UTF_8), 2, 1);
+
+    msg.writeUTF("bar");
+    msg.writeByte((byte) 32);
+    msg.writeShort((short) 33333);
+
+    msg.writeObject("test");
 
     // switch to read only mode
-    streamMessage.reset();
-
-    assertEquals(55, streamMessage.getBodyLength());
-    assertEquals(true, streamMessage.readBoolean());
-    assertEquals('a', streamMessage.readChar());
-    assertEquals(123, streamMessage.readInt());
-    assertEquals(1244l, streamMessage.readLong());
-    assertEquals((short) 213, streamMessage.readShort());
-    assertEquals((byte) 1, streamMessage.readByte());
+    msg.reset();
+    if (msg instanceof BytesMessage) {
+      assertEquals(48, msg.getBodyLength());
+    } else {
+      assertEquals(70, msg.getBodyLength());
+    }
+    assertEquals(true, msg.readBoolean());
+    assertEquals('a', msg.readChar());
+    assertEquals(123, msg.readInt());
+    assertEquals(1244l, msg.readLong());
+    assertEquals((short) 213, msg.readShort());
+    assertEquals((byte) 1, msg.readByte());
     byte[] buffer = new byte[3];
-    assertEquals(3, streamMessage.readBytes(buffer));
+    if (msg instanceof BytesMessage) {
+      assertEquals(3, ((BytesMessage) msg).readBytes(buffer));
+    } else {
+      assertEquals(3, ((StreamMessage) msg).readBytes(buffer));
+    }
     assertArrayEquals("foo".getBytes(StandardCharsets.UTF_8), buffer);
-    assertEquals(1.2d, streamMessage.readDouble(), 0);
-    assertEquals(1.5f, streamMessage.readFloat(), 0);
+    assertEquals(1.2d, msg.readDouble(), 0);
+    assertEquals(1.5f, msg.readFloat(), 0);
 
     buffer = new byte[1];
-    assertEquals(1, streamMessage.readBytes(buffer));
+    if (msg instanceof BytesMessage) {
+      assertEquals(1, ((BytesMessage) msg).readBytes(buffer));
+    } else {
+      assertEquals(1, ((StreamMessage) msg).readBytes(buffer));
+    }
     assertArrayEquals("o".getBytes(StandardCharsets.UTF_8), buffer);
 
-    assertEquals("bar", streamMessage.readUTF());
-    assertEquals(32, streamMessage.readUnsignedByte());
-    assertEquals(33333, streamMessage.readUnsignedShort());
+    assertEquals("bar", msg.readUTF());
+    assertEquals(32, msg.readUnsignedByte());
+    assertEquals(33333, msg.readUnsignedShort());
 
-    assertEquals("test", streamMessage.readObject());
-
-    // additional EOF cases
-    assertEquals(-1, streamMessage.readBytes(null));
-    assertEquals(-1, streamMessage.readBytes(buffer));
+    if (msg instanceof BytesMessage) {
+      assertEquals("test", msg.readString());
+      // additional EOF cases
+      assertEquals(-1, ((BytesMessage) msg).readBytes(null));
+      assertEquals(-1, ((BytesMessage) msg).readBytes(buffer));
+    } else {
+      assertEquals("test", ((StreamMessage) msg).readObject());
+      // additional EOF cases
+      assertEquals(-1, ((StreamMessage) msg).readBytes(null));
+      assertEquals(-1, ((StreamMessage) msg).readBytes(buffer));
+    }
 
     try {
-      streamMessage.readBoolean();
+      msg.readBoolean();
       fail();
     } catch (MessageEOFException expected) {
     }
 
     // switch to write mode again and reset
-    streamMessage.clearBody();
-    streamMessage.writeUTF("test");
+    msg.clearBody();
+    msg.writeUTF("test");
 
     // switch to readmode
-    streamMessage.reset();
-    assertEquals("test", streamMessage.readUTF());
+    msg.reset();
+    assertEquals("test", msg.readUTF());
 
     try {
-      streamMessage.readString();
+      msg.readString();
       fail();
     } catch (MessageEOFException expected) {
     }

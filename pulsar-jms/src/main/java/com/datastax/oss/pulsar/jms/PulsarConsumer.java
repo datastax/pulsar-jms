@@ -17,7 +17,9 @@ package com.datastax.oss.pulsar.jms;
 
 import java.util.concurrent.TimeUnit;
 import javax.jms.IllegalStateException;
+import javax.jms.JMSConsumer;
 import javax.jms.JMSException;
+import javax.jms.JMSRuntimeException;
 import javax.jms.Message;
 import javax.jms.MessageConsumer;
 import javax.jms.MessageListener;
@@ -76,7 +78,7 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber {
    *     error.
    */
   @Override
-  public String getMessageSelector() throws JMSException {
+  public String getMessageSelector() {
     return null;
   }
 
@@ -98,7 +100,7 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber {
    * @see MessageConsumer#setMessageListener(MessageListener)
    */
   @Override
-  public MessageListener getMessageListener() throws JMSException {
+  public MessageListener getMessageListener() {
     return messageListenerWrapper.getListener();
   }
 
@@ -329,5 +331,71 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber {
   @Override
   public boolean getNoLocal() throws JMSException {
     return false;
+  }
+
+  public JMSConsumer asJMSConsumer() {
+    return new JMSConsumer() {
+      @Override
+      public String getMessageSelector() {
+        return PulsarConsumer.this.getMessageSelector();
+      }
+
+      @Override
+      public MessageListener getMessageListener() throws JMSRuntimeException {
+        return PulsarConsumer.this.getMessageListener();
+      }
+
+      @Override
+      public void setMessageListener(MessageListener listener) throws JMSRuntimeException {
+        Utils.runtimeException(() -> PulsarConsumer.this.setMessageListener(listener));
+      }
+
+      @Override
+      public Message receive() {
+        return Utils.runtimeException(() -> PulsarConsumer.this.receive());
+      }
+
+      @Override
+      public Message receive(long timeout) {
+        return Utils.runtimeException(() -> PulsarConsumer.this.receive(timeout));
+      }
+
+      @Override
+      public Message receiveNoWait() {
+        return Utils.runtimeException(() -> PulsarConsumer.this.receiveNoWait());
+      }
+
+      @Override
+      public void close() {
+        Utils.runtimeException(() -> PulsarConsumer.this.close());
+      }
+
+      @Override
+      public <T> T receiveBody(Class<T> c) {
+        return Utils.runtimeException(
+            () -> {
+              Message msg = receive();
+              return msg == null ? null : msg.getBody(c);
+            });
+      }
+
+      @Override
+      public <T> T receiveBody(Class<T> c, long timeout) {
+        return Utils.runtimeException(
+            () -> {
+              Message msg = receive(timeout);
+              return msg == null ? null : msg.getBody(c);
+            });
+      }
+
+      @Override
+      public <T> T receiveBodyNoWait(Class<T> c) {
+        return Utils.runtimeException(
+            () -> {
+              Message msg = receiveNoWait();
+              return msg == null ? null : msg.getBody(c);
+            });
+      }
+    };
   }
 }

@@ -23,7 +23,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import javax.jms.BytesMessage;
 import javax.jms.Connection;
 import javax.jms.Destination;
 import javax.jms.IllegalStateException;
@@ -105,7 +104,6 @@ public class PulsarSession implements Session {
   public PulsarMessage.PulsarBytesMessage createBytesMessage() {
     return new PulsarMessage.PulsarBytesMessage();
   }
-
 
   /**
    * Creates a {@code MapMessage} object. A {@code MapMessage} object is used to send a
@@ -545,14 +543,8 @@ public class PulsarSession implements Session {
    * @since JMS 1.1
    */
   @Override
-  public MessageConsumer createConsumer(Destination destination) throws JMSException {
-    return new PulsarConsumer(
-            UUID.randomUUID().toString(),
-            (PulsarDestination) destination,
-            this,
-            SubscriptionMode.NonDurable,
-            SubscriptionType.Shared)
-        .subscribe();
+  public PulsarConsumer createConsumer(Destination destination) throws JMSException {
+    return createConsumer(destination, null);
   }
 
   /**
@@ -575,10 +567,10 @@ public class PulsarSession implements Session {
    * @since JMS 1.1
    */
   @Override
-  public MessageConsumer createConsumer(Destination destination, String messageSelector)
+  public PulsarConsumer createConsumer(Destination destination, String messageSelector)
       throws JMSException {
     messageSelectorNotSupported(messageSelector);
-    return createConsumer(destination);
+    return createConsumer(destination, messageSelector, false);
   }
 
   private void messageSelectorNotSupported(String messageSelector) throws InvalidSelectorException {
@@ -617,13 +609,19 @@ public class PulsarSession implements Session {
    * @since JMS 1.1
    */
   @Override
-  public MessageConsumer createConsumer(
+  public PulsarConsumer createConsumer(
       Destination destination, String messageSelector, boolean noLocal) throws JMSException {
     messageSelectorNotSupported(messageSelector);
     if (noLocal) {
       throw new InvalidSelectorException("noLocal mode is not supported by Pulsar");
     }
-    return createConsumer(destination);
+    return new PulsarConsumer(
+            UUID.randomUUID().toString(),
+            (PulsarDestination) destination,
+            this,
+            SubscriptionMode.NonDurable,
+            SubscriptionType.Shared)
+        .subscribe();
   }
 
   /**
@@ -666,7 +664,7 @@ public class PulsarSession implements Session {
    * @since JMS 2.0
    */
   @Override
-  public MessageConsumer createSharedConsumer(Topic topic, String sharedSubscriptionName)
+  public PulsarConsumer createSharedConsumer(Topic topic, String sharedSubscriptionName)
       throws JMSException {
     return new PulsarConsumer(
             sharedSubscriptionName,
@@ -720,7 +718,7 @@ public class PulsarSession implements Session {
    * @since JMS 2.0
    */
   @Override
-  public MessageConsumer createSharedConsumer(
+  public PulsarConsumer createSharedConsumer(
       Topic topic, String sharedSubscriptionName, String messageSelector) throws JMSException {
     messageSelectorNotSupported(messageSelector);
     return new PulsarConsumer(
@@ -927,7 +925,7 @@ public class PulsarSession implements Session {
    * @since JMS 1.1
    */
   @Override
-  public TopicSubscriber createDurableSubscriber(
+  public PulsarConsumer createDurableSubscriber(
       Topic topic, String name, String messageSelector, boolean noLocal) throws JMSException {
     messageSelectorNotSupported(messageSelector);
     if (noLocal) {
@@ -1008,7 +1006,7 @@ public class PulsarSession implements Session {
    * @since JMS 2.0
    */
   @Override
-  public MessageConsumer createDurableConsumer(Topic topic, String name) throws JMSException {
+  public PulsarConsumer createDurableConsumer(Topic topic, String name) throws JMSException {
     return createDurableConsumer(topic, name, null, false);
   }
 
@@ -1089,7 +1087,7 @@ public class PulsarSession implements Session {
    * @since JMS 2.0
    */
   @Override
-  public MessageConsumer createDurableConsumer(
+  public PulsarConsumer createDurableConsumer(
       Topic topic, String name, String messageSelector, boolean noLocal) throws JMSException {
     return createDurableSubscriber(topic, name, messageSelector, noLocal);
   }
@@ -1227,7 +1225,7 @@ public class PulsarSession implements Session {
    * @since JMS 2.0
    */
   @Override
-  public MessageConsumer createSharedDurableConsumer(
+  public PulsarConsumer createSharedDurableConsumer(
       Topic topic, String name, String messageSelector) throws JMSException {
     messageSelectorNotSupported(messageSelector);
     return new PulsarConsumer(

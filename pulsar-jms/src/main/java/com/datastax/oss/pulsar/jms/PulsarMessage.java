@@ -17,7 +17,10 @@ package com.datastax.oss.pulsar.jms;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.EOFException;
+import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
@@ -1013,7 +1016,11 @@ abstract class PulsarMessage implements Message {
 
   abstract void prepareForSend(TypedMessageBuilder<byte[]> producer) throws JMSException;
 
-  static final class PulsarStreamMessage extends PulsarBufferedMessage {
+  static final class PulsarStreamMessage extends PulsarBufferedMessage implements StreamMessage {
+
+    // support for readBytes
+    private int remainingByteArrayLen = 0;
+
     public PulsarStreamMessage(byte[] payload) throws JMSException {
       super(payload);
     }
@@ -1024,15 +1031,176 @@ abstract class PulsarMessage implements Message {
     protected String messageType() {
       return "stream";
     }
+
+    @Override
+    public void reset() throws JMSException {
+      super.reset();
+      remainingByteArrayLen = 0;
+    }
+
+    @Override
+    public void clearBody() throws JMSException {
+      super.clearBody();
+      remainingByteArrayLen = 0;
+    }
+
+    @Override
+    public <T> T getBody(Class<T> c) throws JMSException {
+      throw new MessageFormatException("getBody not available on StreamMessage");
+    }
+
+    @Override
+    protected void writeDataType(byte dataType) throws IOException {
+      dataOutputStream.writeByte(dataType);
+    }
+
+    @Override
+    protected void writeArrayLen(int len) throws IOException {
+      dataOutputStream.writeInt(len);
+    }
+
+    @Override
+    protected int readArrayLen() throws IOException {
+      return dataInputStream.readInt();
+    }
+
+    @Override
+    protected byte readDataType() throws IOException {
+      return dataInputStream.readByte();
+    }
+
+    /**
+     * Reads a byte array field from the stream message into the specified {@code byte[]} object
+     * (the read buffer).
+     *
+     * <p>To read the field value, {@code readBytes} should be successively called until it returns
+     * a value less than the length of the read buffer. The value of the bytes in the buffer
+     * following the last byte read is undefined.
+     *
+     * <p>If {@code readBytes} returns a value equal to the length of the buffer, a subsequent
+     * {@code readBytes} call must be made. If there are no more bytes to be read, this call returns
+     * -1.
+     *
+     * <p>If the byte array field value is null, {@code readBytes} returns -1.
+     *
+     * <p>If the byte array field value is empty, {@code readBytes} returns 0.
+     *
+     * <p>Once the first {@code readBytes} call on a {@code byte[]} field value has been made, the
+     * full value of the field must be read before it is valid to read the next field. An attempt to
+     * read the next field before that has been done will throw a {@code MessageFormatException}.
+     *
+     * <p>To read the byte field value into a new {@code byte[]} object, use the {@code readObject}
+     * method.
+     *
+     * @param value the buffer into which the data is read
+     * @return the total number of bytes read into the buffer, or -1 if there is no more data
+     *     because the end of the byte field has been reached
+     * @throws JMSException if the JMS provider fails to read the message due to some internal
+     *     error.
+     * @throws MessageEOFException if unexpected end of message stream has been reached.
+     * @throws MessageFormatException if this type conversion is invalid.
+     * @throws MessageNotReadableException if the message is in write-only mode.
+     * @see #readObject()
+     */
+    public int readBytes(byte[] value) throws JMSException {
+      checkReadable();
+      try {
+        if (remainingByteArrayLen > 0) {
+          if (value == null) {
+            return -1;
+          }
+          int read = dataInputStream.read(value, 0, value.length);
+          remainingByteArrayLen = remainingByteArrayLen - read;
+          return read;
+        } else {
+          readDataType();
+          remainingByteArrayLen = readArrayLen();
+          if (value == null) {
+            return -1;
+          }
+          int read = dataInputStream.read(value, 0, value.length);
+          remainingByteArrayLen = remainingByteArrayLen - read;
+          return read;
+        }
+      } catch (EOFException err) {
+        return -1;
+      } catch (Exception err) {
+        throw handleException(err);
+      }
+    }
+
+    /**
+     * Reads an object from the stream message.
+     *
+     * <p>This method can be used to return, in objectified format, an object in the Java
+     * programming language ("Java object") that has been written to the stream with the equivalent
+     * {@code writeObject} method call, or its equivalent primitive <code>write<I>type</I></code>
+     * method.
+     *
+     * <p>Note that byte values are returned as {@code byte[]}, not {@code Byte[]}.
+     *
+     * <p>An attempt to call {@code readObject} to read a byte field value into a new {@code byte[]}
+     * object before the full value of the byte field has been read will throw a {@code
+     * MessageFormatException}.
+     *
+     * @return a Java object from the stream message, in objectified format (for example, if the
+     *     object was written as an {@code int}, an {@code Integer} is returned)
+     * @throws JMSException if the JMS provider fails to read the message due to some internal
+     *     error.
+     * @throws MessageEOFException if unexpected end of message stream has been reached.
+     * @throws MessageFormatException if this type conversion is invalid.
+     * @throws MessageNotReadableException if the message is in write-only mode.
+     * @see #readBytes(byte[] value)
+     */
+    @Override
+    public Object readObject() throws JMSException {
+      checkReadable();
+      if (remainingByteArrayLen > 0) {
+        throw new MessageFormatException("You must complete the readBytes operation");
+      }
+      try {
+        byte dataType = readDataType();
+        switch (dataType) {
+          case TYPE_BOOLEAN:
+            return dataInputStream.readBoolean();
+          case TYPE_DOUBLE:
+            return dataInputStream.readDouble();
+          case TYPE_FLOAT:
+            return dataInputStream.readFloat();
+          case TYPE_INT:
+            return dataInputStream.readInt();
+          case TYPE_LONG:
+            return dataInputStream.readLong();
+          case TYPE_SHORT:
+            return dataInputStream.readShort();
+          case TYPE_STRING:
+            return dataInputStream.readUTF();
+          case TYPE_BYTE:
+            return dataInputStream.readByte();
+          case TYPE_CHAR:
+            return dataInputStream.readChar();
+          case TYPE_BYTES:
+            int len = readArrayLen();
+            byte[] buffer = new byte[len];
+            dataInputStream.read(buffer);
+            return buffer;
+          default:
+            throw new MessageFormatException("Wrong data type: " + dataType);
+        }
+      } catch (Exception err) {
+        throw handleException(err);
+      }
+    }
   }
 
-  static final class PulsarBytesMessage extends PulsarBufferedMessage {
+  static final class PulsarBytesMessage extends PulsarBufferedMessage implements BytesMessage {
     public PulsarBytesMessage(byte[] payload) throws JMSException {
       super(payload);
     }
 
     /**
      * Used by JMSProducer
+     *
      * @param payload
      * @return
      * @throws JMSException
@@ -1044,26 +1212,107 @@ abstract class PulsarMessage implements Message {
       return this;
     }
 
-
     public PulsarBytesMessage() {}
 
     @Override
     protected String messageType() {
       return "bytes";
     }
+
+    @Override
+    public <T> T getBody(Class<T> c) throws JMSException {
+      if (c != byte[].class) {
+        throw new MessageFormatException("only class byte[]");
+      }
+      reset();
+      try {
+        if (originalMessage != null) {
+          return (T) originalMessage;
+        }
+        return (T) stream.toByteArray();
+      } finally {
+        reset();
+      }
+    }
+
+    @Override
+    protected void writeDataType(byte dataType) {}
+
+    @Override
+    protected void writeArrayLen(int len) {}
+
+    @Override
+    protected int readArrayLen() throws IOException {
+      return 0;
+    }
+
+    /**
+     * Reads a byte array from the bytes message stream.
+     *
+     * <p>If the length of array {@code value} is less than the number of bytes remaining to be read
+     * from the stream, the array should be filled. A subsequent call reads the next increment, and
+     * so on.
+     *
+     * <p>If the number of bytes remaining in the stream is less than the length of array {@code
+     * value}, the bytes should be read into the array. The return value of the total number of
+     * bytes read will be less than the length of the array, indicating that there are no more bytes
+     * left to be read from the stream. The next read of the stream returns -1.
+     *
+     * @param value the buffer into which the data is read
+     * @return the total number of bytes read into the buffer, or -1 if there is no more data
+     *     because the end of the stream has been reached
+     * @throws JMSException if the JMS provider fails to read the message due to some internal
+     *     error.
+     * @throws MessageNotReadableException if the message is in write-only mode.
+     */
+    @Override
+    public int readBytes(byte[] value) throws JMSException {
+      checkReadable();
+      if (value == null) {
+        return -1;
+      }
+      try {
+        return dataInputStream.read(value);
+      } catch (Exception err) {
+        throw handleException(err);
+      }
+    }
+
+    @Override
+    protected byte readDataType() {
+      return 0;
+    }
   }
 
-  abstract static class PulsarBufferedMessage extends PulsarMessage
-      implements BytesMessage, StreamMessage {
+  abstract static class PulsarBufferedMessage extends PulsarMessage {
 
-    private ByteArrayOutputStream stream;
-    private byte[] originalMessage;
-    private ObjectInputStream dataInputStream;
-    private ObjectOutputStream dataOutputStream;
+    protected ByteArrayOutputStream stream;
+    protected byte[] originalMessage;
+    protected DataInputStream dataInputStream;
+    protected DataOutputStream dataOutputStream;
+
+    protected static final byte TYPE_BOOLEAN = 1;
+    protected static final byte TYPE_STRING = 2;
+    protected static final byte TYPE_INT = 3;
+    protected static final byte TYPE_SHORT = 4;
+    protected static final byte TYPE_LONG = 5;
+    protected static final byte TYPE_FLOAT = 6;
+    protected static final byte TYPE_DOUBLE = 7;
+    protected static final byte TYPE_BYTE = 8;
+    protected static final byte TYPE_CHAR = 9;
+    protected static final byte TYPE_BYTES = 10;
+
+    protected abstract void writeDataType(byte dataType) throws IOException;
+
+    protected abstract void writeArrayLen(int len) throws IOException;
+
+    protected abstract byte readDataType() throws IOException;
+
+    protected abstract int readArrayLen() throws IOException;
 
     PulsarBufferedMessage(byte[] payload) throws JMSException {
       try {
-        this.dataInputStream = new ObjectInputStream(new ByteArrayInputStream(payload));
+        this.dataInputStream = new DataInputStream(new ByteArrayInputStream(payload));
         this.originalMessage = payload;
         this.stream = null;
         this.dataOutputStream = null;
@@ -1077,7 +1326,7 @@ abstract class PulsarMessage implements Message {
       try {
         this.dataInputStream = null;
         this.stream = new ByteArrayOutputStream();
-        this.dataOutputStream = new ObjectOutputStream(stream);
+        this.dataOutputStream = new DataOutputStream(stream);
         this.originalMessage = null;
         this.writable = true;
       } catch (Exception err) {
@@ -1118,53 +1367,6 @@ abstract class PulsarMessage implements Message {
       return byte[].class == c;
     }
 
-    /**
-     * Returns the message body as an object of the specified type. This method may be called on any
-     * type of message except for <tt>StreamMessage</tt>. The message body must be capable of being
-     * assigned to the specified type. This means that the specified class or interface must be
-     * either the same as, or a superclass or superinterface of, the class of the message body. If
-     * the message has no body then any type may be specified and null is returned.
-     *
-     * <p>
-     *
-     * @param c The type to which the message body will be assigned. <br>
-     *     If the message is a {@code TextMessage} then this parameter must be set to {@code
-     *     String.class} or another type to which a {@code String} is assignable. <br>
-     *     If the message is a {@code ObjectMessage} then parameter must must be set to {@code
-     *     java.io.Serializable.class} or another type to which the body is assignable. <br>
-     *     If the message is a {@code MapMessage} then this parameter must be set to {@code
-     *     java.util.Map.class} (or {@code java.lang.Object.class}). <br>
-     *     If the message is a {@code BytesMessage} then this parameter must be set to {@code
-     *     byte[].class} (or {@code java.lang.Object.class}). This method will reset the {@code
-     *     BytesMessage} before and after use.<br>
-     *     If the message is a {@code TextMessage}, {@code ObjectMessage}, {@code MapMessage} or
-     *     {@code BytesMessage} and the message has no body, then the above does not apply and this
-     *     parameter may be set to any type; the returned value will always be null.<br>
-     *     If the message is a {@code Message} (but not one of its subtypes) then this parameter may
-     *     be set to any type; the returned value will always be null.
-     * @return the message body
-     * @throws MessageFormatException
-     *     <ul>
-     *       <li>if the message is a {@code StreamMessage}
-     *       <li>if the message body cannot be assigned to the specified type
-     *       <li>if the message is an {@code ObjectMessage} and object deserialization fails.
-     *     </ul>
-     *
-     * @throws JMSException if the JMS provider fails to get the message body due to some internal
-     *     error.
-     * @since JMS 2.0
-     */
-    @Override
-    public <T> T getBody(Class<T> c) throws JMSException {
-      if (c != byte[].class) {
-        throw new MessageFormatException("only class byte[]");
-      }
-      if (originalMessage != null) {
-        return (T) originalMessage;
-      }
-      return (T) stream.toByteArray();
-    }
-
     @Override
     void prepareForSend(TypedMessageBuilder<byte[]> producer) throws JMSException {
       try {
@@ -1192,17 +1394,17 @@ abstract class PulsarMessage implements Message {
      * @throws MessageFormatException if this type conversion is invalid.
      * @throws MessageNotReadableException if the message is in write-only mode.
      */
-    @Override
     public boolean readBoolean() throws JMSException {
       checkReadable();
       try {
+        readDataType();
         return dataInputStream.readBoolean();
       } catch (Exception err) {
-        return handleException(err);
+        throw handleException(err);
       }
     }
 
-    private static <T> T handleException(Throwable t) throws JMSException {
+    protected static JMSException handleException(Throwable t) throws JMSException {
       if (t instanceof EOFException) {
         throw new MessageEOFException(t + "");
       }
@@ -1219,13 +1421,13 @@ abstract class PulsarMessage implements Message {
      * @throws MessageFormatException if this type conversion is invalid.
      * @throws MessageNotReadableException if the message is in write-only mode.
      */
-    @Override
     public byte readByte() throws JMSException {
       checkReadable();
       try {
+        readDataType();
         return dataInputStream.readByte();
       } catch (Exception err) {
-        return handleException(err);
+        throw handleException(err);
       }
     }
 
@@ -1239,13 +1441,13 @@ abstract class PulsarMessage implements Message {
      * @throws MessageFormatException if this type conversion is invalid.
      * @throws MessageNotReadableException if the message is in write-only mode.
      */
-    @Override
     public short readShort() throws JMSException {
       checkReadable();
       try {
+        readDataType();
         return dataInputStream.readShort();
       } catch (Exception err) {
-        return handleException(err);
+        throw handleException(err);
       }
     }
 
@@ -1259,13 +1461,13 @@ abstract class PulsarMessage implements Message {
      * @throws MessageFormatException if this type conversion is invalid
      * @throws MessageNotReadableException if the message is in write-only mode.
      */
-    @Override
     public char readChar() throws JMSException {
       checkReadable();
       try {
+        readDataType();
         return dataInputStream.readChar();
       } catch (Exception err) {
-        return handleException(err);
+        throw handleException(err);
       }
     }
 
@@ -1279,13 +1481,13 @@ abstract class PulsarMessage implements Message {
      * @throws MessageFormatException if this type conversion is invalid.
      * @throws MessageNotReadableException if the message is in write-only mode.
      */
-    @Override
     public int readInt() throws JMSException {
       checkReadable();
       try {
+        readDataType();
         return dataInputStream.readInt();
       } catch (Exception err) {
-        return handleException(err);
+        throw handleException(err);
       }
     }
 
@@ -1299,13 +1501,13 @@ abstract class PulsarMessage implements Message {
      * @throws MessageFormatException if this type conversion is invalid.
      * @throws MessageNotReadableException if the message is in write-only mode.
      */
-    @Override
     public long readLong() throws JMSException {
       checkReadable();
       try {
+        readDataType();
         return dataInputStream.readLong();
       } catch (Exception err) {
-        return handleException(err);
+        throw handleException(err);
       }
     }
 
@@ -1319,13 +1521,13 @@ abstract class PulsarMessage implements Message {
      * @throws MessageFormatException if this type conversion is invalid.
      * @throws MessageNotReadableException if the message is in write-only mode.
      */
-    @Override
     public float readFloat() throws JMSException {
       checkReadable();
       try {
+        readDataType();
         return dataInputStream.readFloat();
       } catch (Exception err) {
-        return handleException(err);
+        throw handleException(err);
       }
     }
 
@@ -1339,13 +1541,13 @@ abstract class PulsarMessage implements Message {
      * @throws MessageFormatException if this type conversion is invalid.
      * @throws MessageNotReadableException if the message is in write-only mode.
      */
-    @Override
     public double readDouble() throws JMSException {
       checkReadable();
       try {
+        readDataType();
         return dataInputStream.readDouble();
       } catch (Exception err) {
-        return handleException(err);
+        throw handleException(err);
       }
     }
 
@@ -1359,92 +1561,13 @@ abstract class PulsarMessage implements Message {
      * @throws MessageFormatException if this type conversion is invalid.
      * @throws MessageNotReadableException if the message is in write-only mode.
      */
-    @Override
     public String readString() throws JMSException {
       checkReadable();
       try {
+        readDataType();
         return dataInputStream.readUTF();
       } catch (Exception err) {
-        return handleException(err);
-      }
-    }
-
-    /**
-     * Reads a byte array field from the stream message into the specified {@code byte[]} object
-     * (the read buffer).
-     *
-     * <p>To read the field value, {@code readBytes} should be successively called until it returns
-     * a value less than the length of the read buffer. The value of the bytes in the buffer
-     * following the last byte read is undefined.
-     *
-     * <p>If {@code readBytes} returns a value equal to the length of the buffer, a subsequent
-     * {@code readBytes} call must be made. If there are no more bytes to be read, this call returns
-     * -1.
-     *
-     * <p>If the byte array field value is null, {@code readBytes} returns -1.
-     *
-     * <p>If the byte array field value is empty, {@code readBytes} returns 0.
-     *
-     * <p>Once the first {@code readBytes} call on a {@code byte[]} field value has been made, the
-     * full value of the field must be read before it is valid to read the next field. An attempt to
-     * read the next field before that has been done will throw a {@code MessageFormatException}.
-     *
-     * <p>To read the byte field value into a new {@code byte[]} object, use the {@code readObject}
-     * method.
-     *
-     * @param value the buffer into which the data is read
-     * @return the total number of bytes read into the buffer, or -1 if there is no more data
-     *     because the end of the byte field has been reached
-     * @throws JMSException if the JMS provider fails to read the message due to some internal
-     *     error.
-     * @throws MessageEOFException if unexpected end of message stream has been reached.
-     * @throws MessageFormatException if this type conversion is invalid.
-     * @throws MessageNotReadableException if the message is in write-only mode.
-     * @see #readObject()
-     */
-    @Override
-    public int readBytes(byte[] value) throws JMSException {
-      checkReadable();
-      if (value == null) {
-        return -1;
-      }
-      try {
-        return dataInputStream.read(value);
-      } catch (Exception err) {
-        return handleException(err);
-      }
-    }
-
-    /**
-     * Reads an object from the stream message.
-     *
-     * <p>This method can be used to return, in objectified format, an object in the Java
-     * programming language ("Java object") that has been written to the stream with the equivalent
-     * {@code writeObject} method call, or its equivalent primitive <code>write<I>type</I></code>
-     * method.
-     *
-     * <p>Note that byte values are returned as {@code byte[]}, not {@code Byte[]}.
-     *
-     * <p>An attempt to call {@code readObject} to read a byte field value into a new {@code byte[]}
-     * object before the full value of the byte field has been read will throw a {@code
-     * MessageFormatException}.
-     *
-     * @return a Java object from the stream message, in objectified format (for example, if the
-     *     object was written as an {@code int}, an {@code Integer} is returned)
-     * @throws JMSException if the JMS provider fails to read the message due to some internal
-     *     error.
-     * @throws MessageEOFException if unexpected end of message stream has been reached.
-     * @throws MessageFormatException if this type conversion is invalid.
-     * @throws MessageNotReadableException if the message is in write-only mode.
-     * @see #readBytes(byte[] value)
-     */
-    @Override
-    public Object readObject() throws JMSException {
-      checkReadable();
-      try {
-        return dataInputStream.readUnshared();
-      } catch (Exception err) {
-        return handleException(err);
+        throw handleException(err);
       }
     }
 
@@ -1457,13 +1580,13 @@ abstract class PulsarMessage implements Message {
      *     error.
      * @throws MessageNotWriteableException if the message is in read-only mode.
      */
-    @Override
     public void writeBoolean(boolean value) throws JMSException {
       checkWritable();
       try {
+        writeDataType(TYPE_BOOLEAN);
         dataOutputStream.writeBoolean(value);
       } catch (Exception err) {
-        handleException(err);
+        throw handleException(err);
       }
     }
 
@@ -1475,13 +1598,13 @@ abstract class PulsarMessage implements Message {
      *     error.
      * @throws MessageNotWriteableException if the message is in read-only mode.
      */
-    @Override
     public void writeByte(byte value) throws JMSException {
       checkWritable();
       try {
+        writeDataType(TYPE_BYTE);
         dataOutputStream.writeByte(value);
       } catch (Exception err) {
-        handleException(err);
+        throw handleException(err);
       }
     }
 
@@ -1493,13 +1616,13 @@ abstract class PulsarMessage implements Message {
      *     error.
      * @throws MessageNotWriteableException if the message is in read-only mode.
      */
-    @Override
     public void writeShort(short value) throws JMSException {
       checkWritable();
       try {
+        writeDataType(TYPE_SHORT);
         dataOutputStream.writeShort(value);
       } catch (Exception err) {
-        handleException(err);
+        throw handleException(err);
       }
     }
 
@@ -1511,13 +1634,13 @@ abstract class PulsarMessage implements Message {
      *     error.
      * @throws MessageNotWriteableException if the message is in read-only mode.
      */
-    @Override
     public void writeChar(char value) throws JMSException {
       checkWritable();
       try {
+        writeDataType(TYPE_CHAR);
         dataOutputStream.writeChar(value);
       } catch (Exception err) {
-        handleException(err);
+        throw handleException(err);
       }
     }
 
@@ -1529,13 +1652,13 @@ abstract class PulsarMessage implements Message {
      *     error.
      * @throws MessageNotWriteableException if the message is in read-only mode.
      */
-    @Override
     public void writeInt(int value) throws JMSException {
       checkWritable();
       try {
+        writeDataType(TYPE_INT);
         dataOutputStream.writeInt(value);
       } catch (Exception err) {
-        handleException(err);
+        throw handleException(err);
       }
     }
 
@@ -1547,13 +1670,13 @@ abstract class PulsarMessage implements Message {
      *     error.
      * @throws MessageNotWriteableException if the message is in read-only mode.
      */
-    @Override
     public void writeLong(long value) throws JMSException {
       checkWritable();
       try {
+        writeDataType(TYPE_LONG);
         dataOutputStream.writeLong(value);
       } catch (Exception err) {
-        handleException(err);
+        throw handleException(err);
       }
     }
 
@@ -1565,13 +1688,13 @@ abstract class PulsarMessage implements Message {
      *     error.
      * @throws MessageNotWriteableException if the message is in read-only mode.
      */
-    @Override
     public void writeFloat(float value) throws JMSException {
       checkWritable();
       try {
+        writeDataType(TYPE_LONG);
         dataOutputStream.writeFloat(value);
       } catch (Exception err) {
-        handleException(err);
+        throw handleException(err);
       }
     }
 
@@ -1583,13 +1706,13 @@ abstract class PulsarMessage implements Message {
      *     error.
      * @throws MessageNotWriteableException if the message is in read-only mode.
      */
-    @Override
     public void writeDouble(double value) throws JMSException {
       checkWritable();
       try {
+        writeDataType(TYPE_DOUBLE);
         dataOutputStream.writeDouble(value);
       } catch (Exception err) {
-        handleException(err);
+        throw handleException(err);
       }
     }
 
@@ -1601,13 +1724,13 @@ abstract class PulsarMessage implements Message {
      *     error.
      * @throws MessageNotWriteableException if the message is in read-only mode.
      */
-    @Override
     public void writeString(String value) throws JMSException {
       checkWritable();
       try {
+        writeDataType(TYPE_STRING);
         dataOutputStream.writeUTF(value);
       } catch (Exception err) {
-        handleException(err);
+        throw handleException(err);
       }
     }
 
@@ -1623,13 +1746,14 @@ abstract class PulsarMessage implements Message {
      *     error.
      * @throws MessageNotWriteableException if the message is in read-only mode.
      */
-    @Override
     public void writeBytes(byte[] value) throws JMSException {
       checkWritable();
       try {
+        writeDataType(TYPE_BYTES);
+        writeArrayLen(value.length);
         dataOutputStream.write(value);
       } catch (Exception err) {
-        handleException(err);
+        throw handleException(err);
       }
     }
 
@@ -1647,13 +1771,14 @@ abstract class PulsarMessage implements Message {
      *     error.
      * @throws MessageNotWriteableException if the message is in read-only mode.
      */
-    @Override
     public void writeBytes(byte[] value, int offset, int length) throws JMSException {
       checkWritable();
       try {
+        writeDataType(TYPE_BYTES);
+        writeArrayLen(length);
         dataOutputStream.write(value, offset, length);
       } catch (Exception err) {
-        handleException(err);
+        throw handleException(err);
       }
     }
 
@@ -1669,13 +1794,35 @@ abstract class PulsarMessage implements Message {
      * @throws MessageFormatException if the object is invalid.
      * @throws MessageNotWriteableException if the message is in read-only mode.
      */
-    @Override
     public void writeObject(Object value) throws JMSException {
       checkWritable();
+      if (value == null) {
+        throw new MessageFormatException("null not allowed here");
+      }
       try {
-        dataOutputStream.writeUnshared(value);
+        if (value instanceof Integer) {
+          writeInt((Integer) value);
+        } else if (value instanceof String) {
+          writeUTF((String) value);
+        } else if (value instanceof Short) {
+          writeShort((Short) value);
+        } else if (value instanceof Long) {
+          writeLong((Long) value);
+        } else if (value instanceof Double) {
+          writeDouble((Double) value);
+        } else if (value instanceof Float) {
+          writeFloat((Float) value);
+        } else if (value instanceof Byte) {
+          writeByte((Byte) value);
+        } else if (value instanceof Character) {
+          writeChar((Character) value);
+        } else if (value instanceof byte[]) {
+          writeBytes((byte[]) value);
+        } else {
+          throw new MessageFormatException("Unsupported type " + value.getClass());
+        }
       } catch (Exception err) {
-        handleException(err);
+        throw handleException(err);
       }
     }
 
@@ -1695,17 +1842,17 @@ abstract class PulsarMessage implements Message {
       try {
         if (stream != null) {
           this.dataInputStream =
-              new ObjectInputStream(new ByteArrayInputStream(stream.toByteArray()));
+              new DataInputStream(new ByteArrayInputStream(stream.toByteArray()));
           this.stream = null;
           this.dataOutputStream = null;
         } else {
           this.stream = new ByteArrayOutputStream();
-          this.dataOutputStream = new ObjectOutputStream(stream);
+          this.dataOutputStream = new DataOutputStream(stream);
           this.originalMessage = null;
           this.dataInputStream = null;
         }
       } catch (Exception err) {
-        handleException(err);
+        throw handleException(err);
       }
     }
 
@@ -1716,21 +1863,20 @@ abstract class PulsarMessage implements Message {
      *     error.
      * @throws MessageFormatException if the message has an invalid format.
      */
-    @Override
     public void reset() throws JMSException {
       this.writable = false;
       try {
         if (stream != null) {
           this.dataOutputStream.flush();
           this.originalMessage = stream.toByteArray();
-          this.dataInputStream = new ObjectInputStream(new ByteArrayInputStream(originalMessage));
+          this.dataInputStream = new DataInputStream(new ByteArrayInputStream(originalMessage));
           this.stream = null;
           this.dataOutputStream = null;
         } else {
-          this.dataInputStream = new ObjectInputStream(new ByteArrayInputStream(originalMessage));
+          this.dataInputStream = new DataInputStream(new ByteArrayInputStream(originalMessage));
         }
       } catch (Exception err) {
-        handleException(err);
+        throw handleException(err);
       }
     }
     /**
@@ -1744,7 +1890,6 @@ abstract class PulsarMessage implements Message {
      * @throws MessageNotReadableException if the message is in write-only mode.
      * @since JMS 1.1
      */
-    @Override
     public long getBodyLength() throws JMSException {
       checkReadable();
       return originalMessage.length;
@@ -1759,13 +1904,13 @@ abstract class PulsarMessage implements Message {
      * @throws MessageEOFException if unexpected end of bytes stream has been reached.
      * @throws MessageNotReadableException if the message is in write-only mode.
      */
-    @Override
     public int readUnsignedByte() throws JMSException {
       checkReadable();
       try {
+        readDataType();
         return dataInputStream.readUnsignedByte();
       } catch (Exception err) {
-        return handleException(err);
+        throw handleException(err);
       }
     }
 
@@ -1779,13 +1924,13 @@ abstract class PulsarMessage implements Message {
      * @throws MessageEOFException if unexpected end of bytes stream has been reached.
      * @throws MessageNotReadableException if the message is in write-only mode.
      */
-    @Override
     public int readUnsignedShort() throws JMSException {
       checkReadable();
       try {
+        readDataType();
         return dataInputStream.readUnsignedShort();
       } catch (Exception err) {
-        return handleException(err);
+        throw handleException(err);
       }
     }
 
@@ -1803,7 +1948,6 @@ abstract class PulsarMessage implements Message {
      * @throws MessageEOFException if unexpected end of bytes stream has been reached.
      * @throws MessageNotReadableException if the message is in write-only mode.
      */
-    @Override
     public String readUTF() throws JMSException {
       return readString();
     }
@@ -1832,7 +1976,6 @@ abstract class PulsarMessage implements Message {
      *     error.
      * @throws MessageNotReadableException if the message is in write-only mode.
      */
-    @Override
     public int readBytes(byte[] value, int length) throws JMSException {
       checkReadable();
       if (value == null) {
@@ -1841,7 +1984,7 @@ abstract class PulsarMessage implements Message {
       try {
         return dataInputStream.read(value, 0, length);
       } catch (Exception err) {
-        return handleException(err);
+        throw handleException(err);
       }
     }
 
@@ -1858,7 +2001,6 @@ abstract class PulsarMessage implements Message {
      *     error.
      * @throws MessageNotWriteableException if the message is in read-only mode.
      */
-    @Override
     public void writeUTF(String value) throws JMSException {
       writeString(value);
     }
@@ -1951,11 +2093,15 @@ abstract class PulsarMessage implements Message {
     private Serializable object;
 
     public PulsarObjectMessage(byte[] originalMessage) throws JMSException {
-      try {
-        ObjectInputStream input = new ObjectInputStream(new ByteArrayInputStream(originalMessage));
-        this.object = (Serializable) input.readUnshared();
-      } catch (Exception err) {
-        throw Utils.handleException(err);
+      if (originalMessage == null) {
+        this.object = null;
+      } else {
+        try {
+          ObjectInputStream input = new ObjectInputStream(new ByteArrayInputStream(originalMessage));
+          this.object = (Serializable) input.readUnshared();
+        } catch (Exception err) {
+          throw Utils.handleException(err);
+        }
       }
     }
 
@@ -2039,7 +2185,7 @@ abstract class PulsarMessage implements Message {
       writable = true;
     }
 
-    public PulsarMapMessage(Map<String, Object> body){
+    public PulsarMapMessage(Map<String, Object> body) {
       this();
       if (body != null) {
         map.putAll(body);
