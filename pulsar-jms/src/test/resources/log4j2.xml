@@ -27,7 +27,7 @@
       <AppenderRef ref="Console"/>
     </Root>
     <logger name="org.apache.bookkeeper" level="error" additivity="false"/>
-    <logger name="org.apache.pulsar" level="error" additivity="false"/>
+    <logger name="org.apache.pulsar" level="info" additivity="false"/>
     <logger name="org.apache.zookeeper" level="error" additivity="false"/>
     <logger name="org.apache.curator" level="error" additivity="false"/>
     <logger name="org.eclipse.jetty" level="error" additivity="false"/>

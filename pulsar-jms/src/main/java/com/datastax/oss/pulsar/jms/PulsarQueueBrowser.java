@@ -19,6 +19,7 @@ import java.util.Collections;
 import java.util.Enumeration;
 import java.util.NoSuchElementException;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import javax.jms.JMSException;
 import javax.jms.JMSRuntimeException;
 import javax.jms.Queue;
@@ -118,11 +119,12 @@ final class PulsarQueueBrowser implements QueueBrowser {
       private void next() {
         try {
           if (!finished && nextMessage == null) {
-            final Message<byte[]> message = consumer.receive();
+            // TODO: this is not good, we cannot set a timeout
+            final Message<byte[]> message = consumer.receive(1000, TimeUnit.MILLISECONDS);
             if (message != null) {
               log.info("browser received {} last {}", message.getMessageId(), last);
               consumer.acknowledgeAsync(message);
-              nextMessage = PulsarMessage.decode(consumer, message);
+              nextMessage = PulsarMessage.decode(null, message);
 
               if (message.getMessageId().compareTo(last) >= 0) {
                 finished = true;

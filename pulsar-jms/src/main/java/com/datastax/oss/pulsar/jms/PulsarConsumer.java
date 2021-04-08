@@ -31,6 +31,7 @@ import javax.jms.Topic;
 import javax.jms.TopicSubscriber;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.api.Consumer;
+import org.apache.pulsar.client.api.PulsarClientException;
 import org.apache.pulsar.client.api.SubscriptionMode;
 import org.apache.pulsar.client.api.SubscriptionType;
 
@@ -115,7 +116,7 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
     return messageListenerWrapper != null ? messageListenerWrapper.getListener() : null;
   }
 
-  private void checkNotClosed() throws JMSException {
+  void checkNotClosed() throws JMSException {
     session.checkNotClosed();
     if (closed) {
       throw new IllegalStateException("This consumer is closed");
@@ -240,7 +241,7 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
 
   private Message handleReceivedMessage(org.apache.pulsar.client.api.Message<byte[]> message)
       throws JMSException, org.apache.pulsar.client.api.PulsarClientException {
-    PulsarMessage result = PulsarMessage.decode(consumer, message);
+    PulsarMessage result = PulsarMessage.decode(this, message);
     if (session.getTransacted()) {
       Utils.get(consumer.acknowledgeAsync(message.getMessageId(), session.transaction));
     } else if (session.getAcknowledgeMode() == Session.AUTO_ACKNOWLEDGE) {
@@ -285,8 +286,11 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
   @Override
   public void close() throws JMSException {
     Utils.checkNotOnListener(session);
+    if (closed) {
+      return;
+    }
     closed = true;
-    if (consumer == null || closed) {
+    if (consumer == null) {
       return;
     }
     session.executeCriticalOperation(
@@ -412,5 +416,10 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
             });
       }
     };
+  }
+
+  void acknowledge(org.apache.pulsar.client.api.Message<byte[]> receivedPulsarMessage)
+      throws PulsarClientException {
+    consumer.acknowledge(receivedPulsarMessage);
   }
 }

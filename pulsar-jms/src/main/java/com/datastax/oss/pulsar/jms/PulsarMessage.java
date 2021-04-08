@@ -48,7 +48,6 @@ import javax.jms.ObjectMessage;
 import javax.jms.Session;
 import javax.jms.StreamMessage;
 import javax.jms.TextMessage;
-import org.apache.pulsar.client.api.Consumer;
 import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.api.TypedMessageBuilder;
 
@@ -67,7 +66,7 @@ abstract class PulsarMessage implements Message {
   private volatile long jmsDeliveryTime;
   private int jmsPriority = Message.DEFAULT_PRIORITY;
   private final Map<String, String> properties = new HashMap<>();
-  private Consumer<byte[]> consumer;
+  private PulsarConsumer consumer;
   private org.apache.pulsar.client.api.Message<byte[]> receivedPulsarMessage;
 
   /**
@@ -986,6 +985,7 @@ abstract class PulsarMessage implements Message {
     if (consumer == null) {
       throw new IllegalStateException("not received by a consumer");
     }
+    consumer.checkNotClosed();
     try {
       consumer.acknowledge(receivedPulsarMessage);
     } catch (Exception err) {
@@ -2706,7 +2706,7 @@ abstract class PulsarMessage implements Message {
   }
 
   static PulsarMessage decode(
-      Consumer<byte[]> consumer, org.apache.pulsar.client.api.Message<byte[]> msg)
+      PulsarConsumer consumer, org.apache.pulsar.client.api.Message<byte[]> msg)
       throws JMSException {
     if (msg == null) {
       return null;
@@ -2734,7 +2734,7 @@ abstract class PulsarMessage implements Message {
   }
 
   protected PulsarMessage applyMessage(
-      org.apache.pulsar.client.api.Message<byte[]> msg, Consumer<byte[]> consumer) {
+      org.apache.pulsar.client.api.Message<byte[]> msg, PulsarConsumer consumer) {
     this.properties.putAll(msg.getProperties());
     String jmsReplyTo = msg.getProperty("JMSReplyTo");
     if (jmsReplyTo != null) {

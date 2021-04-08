@@ -93,7 +93,7 @@ public class PulsarConnectionFactory
 
       // default is false
       this.forceDeleteTemporaryDestinations =
-          Boolean.parseBoolean(properties.remove("jms.forceDeleteTemporaryDestinations") + "");
+          Boolean.parseBoolean(properties.remove("forceDeleteTemporaryDestinations") + "");
 
       this.enableTransaction =
           Boolean.parseBoolean(properties.getOrDefault("enableTransaction", "false").toString());
@@ -549,7 +549,8 @@ public class PulsarConnectionFactory
       }
     } else {
       // for QueueBrowsers we create a non durable consumer that starts
-      // at the beginning of the queue
+      // at the beginning of the queue (TODO: this is wrong, we must pick the last unconsumed
+      // message id)
       subscriptionName = consumerName;
       subscriptionMode = SubscriptionMode.NonDurable;
       subscriptionType = SubscriptionType.Exclusive;
