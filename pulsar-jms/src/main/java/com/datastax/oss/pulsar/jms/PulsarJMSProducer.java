@@ -29,6 +29,7 @@ import javax.jms.JMSException;
 import javax.jms.JMSProducer;
 import javax.jms.JMSRuntimeException;
 import javax.jms.Message;
+import javax.jms.MessageFormatException;
 import javax.jms.MessageFormatRuntimeException;
 import javax.jms.MessageNotWriteableRuntimeException;
 import javax.jms.MessageProducer;
@@ -176,6 +177,10 @@ public class PulsarJMSProducer implements JMSProducer {
     message.setJMSCorrelationIDAsBytes(correlationID);
     message.setJMSType(jmsType);
     message.setJMSReplyTo(jmsReplyTo);
+
+    if (priority < 0 || priority > 10) {
+      throw new MessageFormatException("Invalid priority " + priority);
+    }
 
     if (completionListener != null) {
       producer.send(message, completionListener);

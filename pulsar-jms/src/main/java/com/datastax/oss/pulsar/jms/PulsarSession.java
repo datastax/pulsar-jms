@@ -39,6 +39,9 @@ import javax.jms.MessageProducer;
 import javax.jms.ObjectMessage;
 import javax.jms.Queue;
 import javax.jms.QueueBrowser;
+import javax.jms.QueueReceiver;
+import javax.jms.QueueSender;
+import javax.jms.QueueSession;
 import javax.jms.ServerSession;
 import javax.jms.ServerSessionPool;
 import javax.jms.Session;
@@ -47,6 +50,8 @@ import javax.jms.TemporaryQueue;
 import javax.jms.TemporaryTopic;
 import javax.jms.TextMessage;
 import javax.jms.Topic;
+import javax.jms.TopicPublisher;
+import javax.jms.TopicSession;
 import javax.jms.TopicSubscriber;
 import javax.jms.TransactionRolledBackException;
 import lombok.extern.slf4j.Slf4j;
@@ -57,7 +62,7 @@ import org.apache.pulsar.client.api.transaction.Transaction;
 import org.apache.pulsar.client.api.transaction.TransactionCoordinatorClientException;
 
 @Slf4j
-public class PulsarSession implements Session {
+public class PulsarSession implements Session, QueueSession, TopicSession {
 
   private final PulsarConnection connection;
   private final int sessionMode;
@@ -1433,5 +1438,35 @@ public class PulsarSession implements Session {
     } finally {
       closeLock.readLock().unlock();
     }
+  }
+
+  @Override
+  public QueueReceiver createReceiver(Queue queue) throws JMSException {
+    return createConsumer(queue);
+  }
+
+  @Override
+  public QueueReceiver createReceiver(Queue queue, String s) throws JMSException {
+    return null;
+  }
+
+  @Override
+  public QueueSender createSender(Queue queue) throws JMSException {
+    return null;
+  }
+
+  @Override
+  public TopicSubscriber createSubscriber(Topic topic) throws JMSException {
+    return null;
+  }
+
+  @Override
+  public TopicSubscriber createSubscriber(Topic topic, String s, boolean b) throws JMSException {
+    return null;
+  }
+
+  @Override
+  public TopicPublisher createPublisher(Topic topic) throws JMSException {
+    return null;
   }
 }

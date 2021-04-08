@@ -32,15 +32,20 @@ import javax.jms.InvalidClientIDException;
 import javax.jms.InvalidDestinationException;
 import javax.jms.InvalidSelectorException;
 import javax.jms.JMSException;
+import javax.jms.Queue;
+import javax.jms.QueueConnection;
+import javax.jms.QueueSession;
 import javax.jms.ServerSessionPool;
 import javax.jms.Session;
 import javax.jms.TemporaryQueue;
 import javax.jms.TemporaryTopic;
 import javax.jms.Topic;
+import javax.jms.TopicConnection;
+import javax.jms.TopicSession;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class PulsarConnection implements Connection {
+public class PulsarConnection implements Connection, QueueConnection, TopicConnection {
 
   private final PulsarConnectionFactory factory;
   private volatile ExceptionListener exceptionListener;
@@ -861,6 +866,28 @@ public class PulsarConnection implements Connection {
     PulsarTemporaryTopic res = new PulsarTemporaryTopic(name);
     temporaryDestinations.add(res);
     return res;
+  }
+
+  @Override
+  public QueueSession createQueueSession(boolean b, int i) throws JMSException {
+    return createSession(b, i);
+  }
+
+  @Override
+  public ConnectionConsumer createConnectionConsumer(
+      Queue queue, String s, ServerSessionPool serverSessionPool, int i) throws JMSException {
+    return createConnectionConsumer(queue, s, serverSessionPool, i);
+  }
+
+  @Override
+  public TopicSession createTopicSession(boolean b, int i) throws JMSException {
+    return createSession(b, i);
+  }
+
+  @Override
+  public ConnectionConsumer createConnectionConsumer(
+      Topic topic, String s, ServerSessionPool serverSessionPool, int i) throws JMSException {
+    return createConnectionConsumer(topic, s, serverSessionPool, i);
   }
 
   private abstract class PulsarTemporaryDestination extends PulsarDestination {

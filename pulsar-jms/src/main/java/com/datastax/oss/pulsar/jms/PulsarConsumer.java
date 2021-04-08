@@ -23,6 +23,8 @@ import javax.jms.JMSRuntimeException;
 import javax.jms.Message;
 import javax.jms.MessageConsumer;
 import javax.jms.MessageListener;
+import javax.jms.Queue;
+import javax.jms.QueueReceiver;
 import javax.jms.Session;
 import javax.jms.Topic;
 import javax.jms.TopicSubscriber;
@@ -32,7 +34,7 @@ import org.apache.pulsar.client.api.SubscriptionMode;
 import org.apache.pulsar.client.api.SubscriptionType;
 
 @Slf4j
-public class PulsarConsumer implements MessageConsumer, TopicSubscriber {
+public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueReceiver {
 
   private final String subscriptionName;
   private final PulsarSession session;
@@ -301,6 +303,14 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber {
       return (Topic) destination;
     }
     throw new JMSException("This consumer has been created on a Queue");
+  }
+
+  @Override
+  public Queue getQueue() throws JMSException {
+    if (destination.isQueue()) {
+      return (Queue) destination;
+    }
+    throw new JMSException("This consumer has been created on a Topic");
   }
 
   /**

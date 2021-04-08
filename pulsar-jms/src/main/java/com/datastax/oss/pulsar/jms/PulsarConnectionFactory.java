@@ -24,7 +24,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
-import javax.jms.Connection;
 import javax.jms.ConnectionFactory;
 import javax.jms.IllegalStateException;
 import javax.jms.InvalidClientIDException;
@@ -33,6 +32,10 @@ import javax.jms.JMSException;
 import javax.jms.JMSRuntimeException;
 import javax.jms.JMSSecurityException;
 import javax.jms.JMSSecurityRuntimeException;
+import javax.jms.QueueConnection;
+import javax.jms.QueueConnectionFactory;
+import javax.jms.TopicConnection;
+import javax.jms.TopicConnectionFactory;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.admin.PulsarAdmin;
 import org.apache.pulsar.client.admin.PulsarAdminException;
@@ -48,7 +51,8 @@ import org.apache.pulsar.client.api.SubscriptionMode;
 import org.apache.pulsar.client.api.SubscriptionType;
 
 @Slf4j
-public class PulsarConnectionFactory implements ConnectionFactory, AutoCloseable {
+public class PulsarConnectionFactory
+    implements ConnectionFactory, QueueConnectionFactory, TopicConnectionFactory, AutoCloseable {
 
   private final PulsarClient pulsarClient;
   private final PulsarAdmin pulsarAdmin;
@@ -163,7 +167,7 @@ public class PulsarConnectionFactory implements ConnectionFactory, AutoCloseable
    * @since JMS 1.1
    */
   @Override
-  public Connection createConnection(String userName, String password) throws JMSException {
+  public PulsarConnection createConnection(String userName, String password) throws JMSException {
     return new PulsarConnection(this);
   }
 
@@ -589,5 +593,25 @@ public class PulsarConnectionFactory implements ConnectionFactory, AutoCloseable
     if (clientId != null) {
       clientIdentifiers.remove(clientId);
     }
+  }
+
+  @Override
+  public QueueConnection createQueueConnection() throws JMSException {
+    return createConnection();
+  }
+
+  @Override
+  public QueueConnection createQueueConnection(String s, String s1) throws JMSException {
+    return createConnection(s, s1);
+  }
+
+  @Override
+  public TopicConnection createTopicConnection() throws JMSException {
+    return createConnection();
+  }
+
+  @Override
+  public TopicConnection createTopicConnection(String s, String s1) throws JMSException {
+    return createTopicConnection(s, s1);
   }
 }
