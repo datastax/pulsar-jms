@@ -338,6 +338,9 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    */
   @Override
   public void commit() throws JMSException {
+    if (transactionDone) {
+      throw new TransactionRolledBackException("Transaction already committed or rolledback");
+    }
     closeLock.readLock().lock();
     try {
       Utils.checkNotOnListener(this);
@@ -440,11 +443,11 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   @Override
   public void close() throws JMSException {
     closeLock.writeLock().lock();
-    if (closed) {
-      return;
-    }
-    closed = true;
     try {
+      if (closed) {
+        return;
+      }
+      closed = true;
       Utils.checkNotOnListener(this);
       unackedMessages.clear();
       if (transaction != null && !transactionDone) {
@@ -1378,7 +1381,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   public void unsubscribe(String name) throws JMSException {
     PulsarDestination destination = destinationBySubscription.get(name);
     if (destination == null) {
-      throw new JMSException(
+      throw new InvalidDestinationException(
           "Please open and close the subscription withing this session before unsubscribing, because in Pulsar you need to known the Destination for the subscription");
     }
     getFactory().deleteSubscription(destination, name);

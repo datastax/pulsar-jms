@@ -775,6 +775,11 @@ abstract class PulsarMessage implements Message {
   public void setBooleanProperty(String name, boolean value) throws JMSException {
     checkWritableProperty(name);
     properties.put(name, Boolean.toString(value));
+    properties.put(propertyType(name), "boolean");
+  }
+
+  private static String propertyType(String name) {
+    return name+"_jsmtype";
   }
 
   /**
@@ -790,6 +795,7 @@ abstract class PulsarMessage implements Message {
   public void setByteProperty(String name, byte value) throws JMSException {
     checkWritableProperty(name);
     properties.put(name, Byte.toString(value));
+    properties.put(propertyType(name), "byte");
   }
 
   /**
@@ -805,6 +811,7 @@ abstract class PulsarMessage implements Message {
   public void setShortProperty(String name, short value) throws JMSException {
     checkWritableProperty(name);
     properties.put(name, Short.toString(value));
+    properties.put(propertyType(name), "short");
   }
 
   /**
@@ -820,6 +827,7 @@ abstract class PulsarMessage implements Message {
   public void setIntProperty(String name, int value) throws JMSException {
     checkWritableProperty(name);
     properties.put(name, Integer.toString(value));
+    properties.put(propertyType(name), "int");
   }
 
   /**
@@ -835,6 +843,7 @@ abstract class PulsarMessage implements Message {
   public void setLongProperty(String name, long value) throws JMSException {
     checkWritableProperty(name);
     properties.put(name, Long.toString(value));
+    properties.put(propertyType(name), "long");
   }
 
   /**
@@ -850,6 +859,7 @@ abstract class PulsarMessage implements Message {
   public void setFloatProperty(String name, float value) throws JMSException {
     checkWritableProperty(name);
     properties.put(name, Float.toString(value));
+    properties.put(propertyType(name), "float");
   }
 
   /**
@@ -865,6 +875,7 @@ abstract class PulsarMessage implements Message {
   public void setDoubleProperty(String name, double value) throws JMSException {
     checkWritableProperty(name);
     properties.put(name, Double.toString(value));
+    properties.put(propertyType(name), "double");
   }
 
   /**
@@ -880,6 +891,7 @@ abstract class PulsarMessage implements Message {
   public void setStringProperty(String name, String value) throws JMSException {
     checkWritableProperty(name);
     properties.put(name, value);
+    // not type, not needed
   }
 
   /**
@@ -899,8 +911,23 @@ abstract class PulsarMessage implements Message {
   public void setObjectProperty(String name, Object value) throws JMSException {
     checkWritableProperty(name);
     if (value != null) {
-      properties.put(name, value.toString());
+      if (value instanceof String) {
+        setStringProperty(name, (String) value);
+      } else if (value instanceof Boolean) {
+        setBooleanProperty(name, (Boolean) value);
+      } else if (value instanceof Integer) {
+        setIntProperty(name, (Integer) value);
+      } else if (value instanceof Long) {
+        setLongProperty(name, (Long) value);
+      } else if (value instanceof Float) {
+        setFloatProperty(name, (Float) value);
+      } else if (value instanceof Short) {
+        setShortProperty(name, (Short) value);
+      } else {
+        throw new MessageFormatException("Invalid property type " + value.getClass());
+      }
     } else {
+      properties.put(propertyType(name), "null");
       properties.put(name, null);
     }
   }

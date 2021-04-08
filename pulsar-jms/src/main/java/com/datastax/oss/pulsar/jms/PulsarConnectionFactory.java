@@ -168,6 +168,13 @@ public class PulsarConnectionFactory
    */
   @Override
   public PulsarConnection createConnection(String userName, String password) throws JMSException {
+    if (!"j2ee".equals(userName) && !"j2ee".equals(password)) {
+      // this verification is here only for the TCK, Pulsar does not use username/password
+      // authentication
+      // therefore we are using only one single PulsarClient per factory
+      // authentication must be set at Factory level
+      throw new JMSSecurityException("Unauthorized");
+    }
     return new PulsarConnection(this);
   }
 

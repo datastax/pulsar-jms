@@ -326,6 +326,7 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
    */
   @Override
   public String getClientID() throws JMSException {
+    checkNotClosed();
     return clientId;
   }
 
@@ -371,6 +372,7 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
    */
   @Override
   public void setClientID(String clientID) throws JMSException {
+    checkNotClosed();
     if (!allowSetClientId) {
       throw new IllegalStateException("Cannot set clientId after performing any other operation");
     }
@@ -390,7 +392,8 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
    * @see ConnectionMetaData
    */
   @Override
-  public ConnectionMetaData getMetaData() {
+  public ConnectionMetaData getMetaData() throws JMSException {
+    checkNotClosed();
     return PulsarConnectionMetadata.INSTANCE;
   }
 
@@ -405,7 +408,8 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
    * @see Connection#setExceptionListener
    */
   @Override
-  public ExceptionListener getExceptionListener() {
+  public ExceptionListener getExceptionListener() throws JMSException {
+    checkNotClosed();
     return exceptionListener;
   }
 
@@ -439,6 +443,7 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
    */
   @Override
   public void setExceptionListener(ExceptionListener listener) throws JMSException {
+    checkNotClosed();
     this.exceptionListener = listener;
   }
 
@@ -452,6 +457,7 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
    */
   @Override
   public void start() throws JMSException {
+    checkNotClosed();
     connectionPausedLock.writeLock().lock();
     try {
       paused = false;
@@ -512,6 +518,7 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
    */
   @Override
   public void stop() throws JMSException {
+    checkNotClosed();
     connectionPausedLock.writeLock().lock();
     try {
       paused = true;

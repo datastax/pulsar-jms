@@ -17,6 +17,7 @@ package com.datastax.oss.pulsar.jms;
 
 import java.util.concurrent.TimeUnit;
 import javax.jms.IllegalStateException;
+import javax.jms.InvalidDestinationException;
 import javax.jms.JMSConsumer;
 import javax.jms.JMSException;
 import javax.jms.JMSRuntimeException;
@@ -53,6 +54,9 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
       SubscriptionType subscriptionType)
       throws JMSException {
     session.checkNotClosed();
+    if (destination == null) {
+      throw new InvalidDestinationException("Invalid destination");
+    }
     this.subscriptionName = subscriptionName;
     this.session = session;
     this.destination = destination;
@@ -167,6 +171,7 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
    */
   @Override
   public Message receive() throws JMSException {
+    checkNotClosed();
     if (messageListenerWrapper != null) {
       throw new IllegalStateException("cannot receive if you have a messageListener");
     }
@@ -199,6 +204,7 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
    */
   @Override
   public Message receive(long timeout) throws JMSException {
+    checkNotClosed();
     if (messageListenerWrapper != null) {
       throw new IllegalStateException("cannot receive if you have a messageListener");
     }

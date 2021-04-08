@@ -215,7 +215,7 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public ConnectionMetaData getMetaData() {
-    return this.connection.getMetaData();
+    return Utils.runtimeException(() -> this.connection.getMetaData());
   }
 
   /**
@@ -230,7 +230,7 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public ExceptionListener getExceptionListener() {
-    return connection.getExceptionListener();
+    return Utils.runtimeException(() -> connection.getExceptionListener());
   }
 
   /**
