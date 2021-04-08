@@ -411,11 +411,11 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
     }
   }
 
-  private void validateMessageSend(Destination destination, long timeToLive, int deliveryMode) throws JMSException {
+  private void validateMessageSend(Destination destination, long timeToLive, int deliveryMode)
+      throws JMSException {
     session.checkNotClosed();
-    if (deliveryMode != DeliveryMode.PERSISTENT
-            && deliveryMode != DeliveryMode.NON_PERSISTENT) {
-      throw new JMSException("Invalid deliveryMode "+deliveryMode);
+    if (deliveryMode != DeliveryMode.PERSISTENT && deliveryMode != DeliveryMode.NON_PERSISTENT) {
+      throw new JMSException("Invalid deliveryMode " + deliveryMode);
     }
     if (destination == null) {
       throw new UnsupportedOperationException("destination is null");

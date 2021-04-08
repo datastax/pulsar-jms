@@ -17,3 +17,11 @@
 #
 # $Id$
 #
+
+# Message selectors not supported
+com/sun/ts/tests/jms/core20/jmsconsumertests/Client.java#queueGetMessageSelectorTest_from_standalone
+com/sun/ts/tests/jms/core20/jmsconsumertests/Client.java#topicGetMessageSelectorTest_from_standalone
+com/sun/ts/tests/jms/core20/jmscontextqueuetests/Client.java#invalidSelectorRuntimeExceptionTests_from_standalone
+com/sun/ts/tests/jms/core20/jmscontexttopictests/Client.java#durableConsumerChangeSelectorTest2_from_standalone
+com/sun/ts/tests/jms/core20/jmscontexttopictests/Client.java#durableConsumerChangeSelectorTest_from_standalone
+com/sun/ts/tests/jms/core20/jmscontexttopictests/Client.java#invalidSelectorRuntimeExceptionTests_from_standalone

@@ -244,8 +244,7 @@ public class SimpleTest {
               simpleMessage.setJMSType("mytype");
               simpleMessage.setJMSCorrelationID("correlationid");
 
-              // we are serializing Object properties with "toString"
-              simpleMessage.setObjectProperty("i", "qqqq");
+              simpleMessage.setObjectProperty("i", 1.3d);
               producer.send(simpleMessage);
 
               Message simpleMessage2 = session.createMessage();
@@ -284,7 +283,7 @@ public class SimpleTest {
                 "correlationid".getBytes(StandardCharsets.UTF_8),
                 msg6.getJMSCorrelationIDAsBytes());
             // we are serializing Object properties as strings
-            assertEquals("qqqq", msg6.getObjectProperty("i"));
+            assertEquals(1.3d, msg6.getObjectProperty("i"));
 
             Message msg7 = consumer.receive();
 

@@ -63,6 +63,7 @@ public class PulsarConnectionFactory
   private final Set<String> clientIdentifiers = new ConcurrentSkipListSet<>();
   private final String systemNamespace;
   private final boolean enableTransaction;
+  private final boolean forceDeleteTemporaryDestinations;
 
   public PulsarConnectionFactory(Map<String, Object> properties) throws JMSException {
     try {
@@ -89,6 +90,10 @@ public class PulsarConnectionFactory
         systemNamespace = "public/default";
       }
       this.systemNamespace = systemNamespace;
+
+      // default is false
+      this.forceDeleteTemporaryDestinations =
+          Boolean.parseBoolean(properties.remove("jms.forceDeleteTemporaryDestinations") + "");
 
       this.enableTransaction =
           Boolean.parseBoolean(properties.getOrDefault("enableTransaction", "false").toString());
@@ -620,5 +625,9 @@ public class PulsarConnectionFactory
   @Override
   public TopicConnection createTopicConnection(String s, String s1) throws JMSException {
     return createConnection(s, s1);
+  }
+
+  public boolean isForceDeleteTemporaryDestinations() {
+    return forceDeleteTemporaryDestinations;
   }
 }

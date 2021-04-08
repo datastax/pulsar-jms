@@ -910,7 +910,10 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
     public final void delete() throws JMSException {
       try {
         log.info("Deleting {}", this);
-        factory.getPulsarAdmin().topics().delete(topicName, true, true);
+        factory
+            .getPulsarAdmin()
+            .topics()
+            .delete(topicName, factory.isForceDeleteTemporaryDestinations(), true);
       } catch (Exception err) {
         throw Utils.handleException(err);
       } finally {

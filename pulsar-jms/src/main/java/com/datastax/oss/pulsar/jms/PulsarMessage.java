@@ -744,7 +744,31 @@ abstract class PulsarMessage implements Message {
    */
   @Override
   public Object getObjectProperty(String name) throws JMSException {
-    return Utils.invoke(() -> properties.getOrDefault(name, null));
+    return Utils.invoke(
+        () -> {
+          Object value = properties.getOrDefault(name, null);
+          if (value == null) {
+            return null;
+          }
+          String type = properties.getOrDefault(propertyType(name), "string");
+          switch (type) {
+            case "string":
+              return getStringProperty(name);
+            case "boolean":
+              return getBooleanProperty(name);
+            case "float":
+              return getFloatProperty(name);
+            case "double":
+              return getDoubleProperty(name);
+            case "int":
+              return getIntProperty(name);
+            case "short":
+              return getShortProperty(name);
+            default:
+              // string
+              return value;
+          }
+        });
   }
 
   /**
@@ -779,7 +803,7 @@ abstract class PulsarMessage implements Message {
   }
 
   private static String propertyType(String name) {
-    return name+"_jsmtype";
+    return name + "_jsmtype";
   }
 
   /**
@@ -923,6 +947,8 @@ abstract class PulsarMessage implements Message {
         setFloatProperty(name, (Float) value);
       } else if (value instanceof Short) {
         setShortProperty(name, (Short) value);
+      } else if (value instanceof Double) {
+        setDoubleProperty(name, (Double) value);
       } else {
         throw new MessageFormatException("Invalid property type " + value.getClass());
       }

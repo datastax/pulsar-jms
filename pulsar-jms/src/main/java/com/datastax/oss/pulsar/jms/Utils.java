@@ -47,6 +47,10 @@ final class Utils {
     if (cause instanceof InterruptedException) {
       Thread.currentThread().interrupt();
     }
+    if (cause instanceof ClassCastException) {
+      return (JMSException)
+          new MessageFormatException("Invalid cast " + cause.getMessage()).initCause(cause);
+    }
     JMSException err = new JMSException(cause + "");
     err.initCause(cause);
     if (cause instanceof Exception) {
