@@ -39,6 +39,7 @@ final class PulsarQueueBrowser implements QueueBrowser {
   private final Consumer<byte[]> consumer;
 
   public PulsarQueueBrowser(PulsarSession session, Queue queue) throws JMSException {
+    session.checkNotClosed();
     this.session = session;
     this.queue = queue;
     this.consumer =

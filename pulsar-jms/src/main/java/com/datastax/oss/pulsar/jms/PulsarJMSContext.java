@@ -828,7 +828,7 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public Queue createQueue(String queueName) {
-    return session.createQueue(queueName);
+    return Utils.runtimeException(() -> session.createQueue(queueName));
   }
 
   /**
@@ -852,7 +852,7 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public Topic createTopic(String topicName) {
-    return session.createTopic(topicName);
+    return Utils.runtimeException(() -> session.createTopic(topicName));
   }
 
   /**

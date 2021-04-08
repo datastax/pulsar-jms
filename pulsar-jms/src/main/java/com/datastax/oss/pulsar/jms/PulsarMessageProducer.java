@@ -24,16 +24,21 @@ import javax.jms.JMSException;
 import javax.jms.Message;
 import javax.jms.MessageFormatException;
 import javax.jms.MessageProducer;
+import javax.jms.Queue;
+import javax.jms.QueueSender;
 import javax.jms.Session;
+import javax.jms.Topic;
+import javax.jms.TopicPublisher;
 import org.apache.pulsar.client.api.Producer;
 import org.apache.pulsar.client.api.TypedMessageBuilder;
 
-class PulsarMessageProducer implements MessageProducer {
+class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSender {
   private final PulsarSession session;
   private PulsarDestination defaultDestination;
 
   public PulsarMessageProducer(PulsarSession session, Destination defaultDestination)
-      throws InvalidDestinationException {
+      throws JMSException {
+    session.checkNotClosed();
     this.session = session;
     try {
       this.defaultDestination = (PulsarDestination) defaultDestination;
@@ -68,6 +73,7 @@ class PulsarMessageProducer implements MessageProducer {
    */
   @Override
   public void setDisableMessageID(boolean value) throws JMSException {
+    session.checkNotClosed();
     this.disableMessageId = value;
   }
 
@@ -80,6 +86,7 @@ class PulsarMessageProducer implements MessageProducer {
    */
   @Override
   public boolean getDisableMessageID() throws JMSException {
+    session.checkNotClosed();
     return disableMessageId;
   }
 
@@ -101,6 +108,7 @@ class PulsarMessageProducer implements MessageProducer {
    */
   @Override
   public void setDisableMessageTimestamp(boolean value) throws JMSException {
+    session.checkNotClosed();
     this.disableMessageTimestamp = value;
   }
 
@@ -113,6 +121,7 @@ class PulsarMessageProducer implements MessageProducer {
    */
   @Override
   public boolean getDisableMessageTimestamp() throws JMSException {
+    session.checkNotClosed();
     return disableMessageTimestamp;
   }
 
@@ -132,6 +141,7 @@ class PulsarMessageProducer implements MessageProducer {
    */
   @Override
   public void setDeliveryMode(int deliveryMode) throws JMSException {
+    session.checkNotClosed();
     this.deliveryMode = deliveryMode;
   }
 
@@ -145,6 +155,7 @@ class PulsarMessageProducer implements MessageProducer {
    */
   @Override
   public int getDeliveryMode() throws JMSException {
+    session.checkNotClosed();
     return deliveryMode;
   }
 
@@ -163,6 +174,7 @@ class PulsarMessageProducer implements MessageProducer {
    */
   @Override
   public void setPriority(int defaultPriority) throws JMSException {
+    session.checkNotClosed();
     this.priority = priority;
   }
 
@@ -175,6 +187,7 @@ class PulsarMessageProducer implements MessageProducer {
    */
   @Override
   public int getPriority() throws JMSException {
+    session.checkNotClosed();
     return priority;
   }
 
@@ -192,6 +205,7 @@ class PulsarMessageProducer implements MessageProducer {
    */
   @Override
   public void setTimeToLive(long timeToLive) throws JMSException {
+    session.checkNotClosed();
     this.defaultTimeToLive = timeToLive;
   }
 
@@ -206,6 +220,7 @@ class PulsarMessageProducer implements MessageProducer {
    */
   @Override
   public long getTimeToLive() throws JMSException {
+    session.checkNotClosed();
     return defaultTimeToLive;
   }
 
@@ -227,6 +242,7 @@ class PulsarMessageProducer implements MessageProducer {
    */
   @Override
   public void setDeliveryDelay(long deliveryDelay) throws JMSException {
+    session.checkNotClosed();
     this.defaultDeliveryDelay = deliveryDelay;
   }
 
@@ -242,6 +258,7 @@ class PulsarMessageProducer implements MessageProducer {
    */
   @Override
   public long getDeliveryDelay() throws JMSException {
+    session.checkNotClosed();
     return defaultDeliveryDelay;
   }
 
@@ -255,6 +272,7 @@ class PulsarMessageProducer implements MessageProducer {
    */
   @Override
   public Destination getDestination() throws JMSException {
+    session.checkNotClosed();
     return defaultDestination;
   }
 
@@ -386,6 +404,7 @@ class PulsarMessageProducer implements MessageProducer {
   }
 
   private void validateMessageSend(Destination destination, long timeToLive) throws JMSException {
+    session.checkNotClosed();
     if (destination == null) {
       throw new UnsupportedOperationException("destination is null");
     }
@@ -1000,5 +1019,51 @@ class PulsarMessageProducer implements MessageProducer {
     } else {
       pulsarMessage.sendAsync(producer.newMessage(), completionListener);
     }
+  }
+
+  @Override
+  public Queue getQueue() throws JMSException {
+    if (defaultDestination.isQueue()) {
+      return (Queue) defaultDestination;
+    }
+    throw new JMSException("Created on a topic");
+  }
+
+  @Override
+  public void send(Queue queue, Message message) throws JMSException {
+    this.send((Destination) queue, message);
+  }
+
+  @Override
+  public void send(Queue queue, Message message, int i, int i1, long l) throws JMSException {
+    this.send((Destination) queue, message, i, i1, l);
+  }
+
+  @Override
+  public Topic getTopic() throws JMSException {
+    if (defaultDestination.isTopic()) {
+      return (Topic) defaultDestination;
+    }
+    throw new JMSException("Created on a queue");
+  }
+
+  @Override
+  public void publish(Message message) throws JMSException {
+    send(message);
+  }
+
+  @Override
+  public void publish(Message message, int i, int i1, long l) throws JMSException {
+    send(message, i, i1, l);
+  }
+
+  @Override
+  public void publish(Topic topic, Message message) throws JMSException {
+    send((Destination) topic, message);
+  }
+
+  @Override
+  public void publish(Topic topic, Message message, int i, int i1, long l) throws JMSException {
+    send((Destination) topic, message, i, i1, l);
   }
 }

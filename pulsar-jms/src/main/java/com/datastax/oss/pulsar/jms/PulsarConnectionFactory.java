@@ -612,6 +612,6 @@ public class PulsarConnectionFactory
 
   @Override
   public TopicConnection createTopicConnection(String s, String s1) throws JMSException {
-    return createTopicConnection(s, s1);
+    return createConnection(s, s1);
   }
 }

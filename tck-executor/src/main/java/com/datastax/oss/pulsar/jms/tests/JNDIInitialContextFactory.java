@@ -67,7 +67,7 @@ public class JNDIInitialContextFactory implements InitialContextFactory {
         return new PulsarConnectionFactory(
             new HashMap<String, Object>() {
               {
-                put("enableTransaction", "false");
+                put("enableTransaction", "true");
               }
             });
       case "MY_QUEUE":

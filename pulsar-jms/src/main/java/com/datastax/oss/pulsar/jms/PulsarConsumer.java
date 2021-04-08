@@ -43,13 +43,16 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
   private MessageListenerWrapper messageListenerWrapper;
   private final SubscriptionMode subscriptionMode;
   private final SubscriptionType subscriptionType;
+  private boolean closed;
 
   public PulsarConsumer(
       String subscriptionName,
       PulsarDestination destination,
       PulsarSession session,
       SubscriptionMode subscriptionMode,
-      SubscriptionType subscriptionType) {
+      SubscriptionType subscriptionType)
+      throws JMSException {
+    session.checkNotClosed();
     this.subscriptionName = subscriptionName;
     this.session = session;
     this.destination = destination;
@@ -80,7 +83,8 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
    *     error.
    */
   @Override
-  public String getMessageSelector() {
+  public String getMessageSelector() throws JMSException {
+    checkNotClosed();
     return null;
   }
 
@@ -102,8 +106,16 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
    * @see MessageConsumer#setMessageListener(MessageListener)
    */
   @Override
-  public MessageListener getMessageListener() {
-    return messageListenerWrapper.getListener();
+  public MessageListener getMessageListener() throws JMSException {
+    checkNotClosed();
+    return messageListenerWrapper != null ? messageListenerWrapper.getListener() : null;
+  }
+
+  private void checkNotClosed() throws JMSException {
+    session.checkNotClosed();
+    if (closed) {
+      throw new IllegalStateException("This consumer is closed");
+    }
   }
 
   /**
@@ -131,6 +143,7 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
    */
   @Override
   public void setMessageListener(MessageListener listener) throws JMSException {
+    checkNotClosed();
     if (messageListenerWrapper != null) {
       throw new IllegalStateException("You cannot set the listener twice");
     }
@@ -266,7 +279,8 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
   @Override
   public void close() throws JMSException {
     Utils.checkNotOnListener(session);
-    if (consumer == null) {
+    closed = true;
+    if (consumer == null || closed) {
       return;
     }
     session.executeCriticalOperation(
@@ -299,6 +313,7 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
    */
   @Override
   public Topic getTopic() throws JMSException {
+    checkNotClosed();
     if (destination.isTopic()) {
       return (Topic) destination;
     }
@@ -307,6 +322,7 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
 
   @Override
   public Queue getQueue() throws JMSException {
+    checkNotClosed();
     if (destination.isQueue()) {
       return (Queue) destination;
     }
@@ -330,12 +346,12 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
     return new JMSConsumer() {
       @Override
       public String getMessageSelector() {
-        return PulsarConsumer.this.getMessageSelector();
+        return Utils.runtimeException(() -> PulsarConsumer.this.getMessageSelector());
       }
 
       @Override
       public MessageListener getMessageListener() throws JMSRuntimeException {
-        return PulsarConsumer.this.getMessageListener();
+        return Utils.runtimeException(() -> PulsarConsumer.this.getMessageListener());
       }
 
       @Override

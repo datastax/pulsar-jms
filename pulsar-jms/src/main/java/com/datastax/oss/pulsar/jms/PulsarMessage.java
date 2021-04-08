@@ -997,6 +997,9 @@ abstract class PulsarMessage implements Message {
     if (correlationId != null) {
       producer.property("JMSCorrelationID", Base64.getEncoder().encodeToString(correlationId));
     }
+    if (deliveryMode != DeliveryMode.PERSISTENT) {
+      producer.property("JMSDeliveryMode", deliveryMode + "");
+    }
     if (jmsPriority != Message.DEFAULT_PRIORITY) {
       producer.property("JMSPriority", jmsPriority + "");
     }
@@ -2700,6 +2703,13 @@ abstract class PulsarMessage implements Message {
         this.jmsPriority = Integer.parseInt(msg.getProperty("JMSPriority"));
       } catch (NumberFormatException err) {
         // cannot decode priority, not a big deal as it is not supported in Pulsar
+      }
+    }
+    if (msg.hasProperty("JMSDeliveryMode")) {
+      try {
+        this.deliveryMode = Integer.parseInt(msg.getProperty("JMSDeliveryMode"));
+      } catch (NumberFormatException err) {
+        // cannot decode deliveryMode, not a big deal as it is not supported in Pulsar
       }
     }
     this.jmsDeliveryTime = msg.getEventTime();

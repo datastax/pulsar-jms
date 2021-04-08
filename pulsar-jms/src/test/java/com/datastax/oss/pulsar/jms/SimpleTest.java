@@ -33,6 +33,7 @@ import java.util.concurrent.CompletableFuture;
 import javax.jms.BytesMessage;
 import javax.jms.CompletionListener;
 import javax.jms.Connection;
+import javax.jms.DeliveryMode;
 import javax.jms.Destination;
 import javax.jms.JMSConsumer;
 import javax.jms.JMSContext;
@@ -239,12 +240,19 @@ public class SimpleTest {
               simpleMessage.setDoubleProperty("g", 1.9d);
               simpleMessage.setShortProperty("h", (short) 89);
               simpleMessage.setJMSPriority(2);
+              simpleMessage.setJMSDeliveryMode(DeliveryMode.NON_PERSISTENT);
               simpleMessage.setJMSType("mytype");
               simpleMessage.setJMSCorrelationID("correlationid");
 
               // we are serializing Object properties with "toString"
               simpleMessage.setObjectProperty("i", "qqqq");
               producer.send(simpleMessage);
+
+              Message simpleMessage2 = session.createMessage();
+              simpleMessage2.setJMSPriority(3);
+              simpleMessage2.setJMSDeliveryMode(DeliveryMode.PERSISTENT);
+              simpleMessage2.setJMSCorrelationIDAsBytes(new byte[] {1, 2, 3});
+              producer.send(simpleMessage2);
             }
 
             TextMessage msg = (TextMessage) consumer.receive();
@@ -270,12 +278,18 @@ public class SimpleTest {
             assertEquals(89, msg6.getShortProperty("h"));
             assertEquals(2, msg6.getJMSPriority());
             assertEquals("mytype", msg6.getJMSType());
+            assertEquals(DeliveryMode.NON_PERSISTENT, msg6.getJMSDeliveryMode());
             assertEquals("correlationid", msg6.getJMSCorrelationID());
             assertArrayEquals(
                 "correlationid".getBytes(StandardCharsets.UTF_8),
                 msg6.getJMSCorrelationIDAsBytes());
             // we are serializing Object properties as strings
             assertEquals("qqqq", msg6.getObjectProperty("i"));
+
+            Message msg7 = consumer.receive();
+
+            assertEquals(DeliveryMode.PERSISTENT, msg7.getJMSDeliveryMode());
+            assertArrayEquals(new byte[] {1, 2, 3}, msg7.getJMSCorrelationIDAsBytes());
           }
         }
       }

@@ -35,7 +35,6 @@ import javax.jms.MapMessage;
 import javax.jms.Message;
 import javax.jms.MessageConsumer;
 import javax.jms.MessageListener;
-import javax.jms.MessageProducer;
 import javax.jms.ObjectMessage;
 import javax.jms.Queue;
 import javax.jms.QueueBrowser;
@@ -481,10 +480,10 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    */
   @Override
   public void recover() throws JMSException {
+    checkNotClosed();
     if (transaction != null) {
       throw new IllegalStateException("cannot call this method inside a transacted session");
     }
-    throw new UnsupportedOperationException();
   }
 
   /**
@@ -573,7 +572,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    * @since JMS 1.1
    */
   @Override
-  public MessageProducer createProducer(Destination destination) throws JMSException {
+  public PulsarMessageProducer createProducer(Destination destination) throws JMSException {
     return new PulsarMessageProducer(this, destination);
   }
 
@@ -800,7 +799,8 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    * @throws JMSException if a Queue object cannot be created due to some internal error
    */
   @Override
-  public Queue createQueue(String queueName) {
+  public Queue createQueue(String queueName) throws JMSException {
+    checkNotClosed();
     return new PulsarQueue(queueName);
   }
 
@@ -824,7 +824,8 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    * @throws JMSException if a Topic object cannot be created due to some internal error
    */
   @Override
-  public Topic createTopic(String topicName) {
+  public Topic createTopic(String topicName) throws JMSException {
+    checkNotClosed();
     return new PulsarTopic(topicName);
   }
 
@@ -1420,12 +1421,13 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     // and we return null
     // executeInConnectionPausedLock also prevents any ongoing "stop()" operation
     // to complete if we entered the execution of the given operation
-
+    checkNotClosed();
     return connection.executeInConnectionPausedLock(
         () -> executeCriticalOperation(operation), timeoutMillis);
   }
 
   <T> T executeCriticalOperation(BlockCLoseOperation<T> operation) throws JMSException {
+    checkNotClosed();
     // if the connection is "paused" we are not executing the operation
     // and we return null
     // executeInConnectionPausedLock also prevents any ongoing "stop()" operation
@@ -1447,26 +1449,32 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
 
   @Override
   public QueueReceiver createReceiver(Queue queue, String s) throws JMSException {
-    return null;
+    return createConsumer(queue, s);
   }
 
   @Override
   public QueueSender createSender(Queue queue) throws JMSException {
-    return null;
+    return createProducer(queue);
   }
 
   @Override
   public TopicSubscriber createSubscriber(Topic topic) throws JMSException {
-    return null;
+    return createConsumer(topic);
   }
 
   @Override
   public TopicSubscriber createSubscriber(Topic topic, String s, boolean b) throws JMSException {
-    return null;
+    return createConsumer(topic, s, b);
   }
 
   @Override
   public TopicPublisher createPublisher(Topic topic) throws JMSException {
-    return null;
+    return createProducer(topic);
+  }
+
+  public void checkNotClosed() throws JMSException {
+    if (closed) {
+      throw new IllegalStateException("Session is closed");
+    }
   }
 }

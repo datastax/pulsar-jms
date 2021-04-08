@@ -157,14 +157,18 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
    */
   @Override
   public PulsarSession createSession(boolean transacted, int acknowledgeMode) throws JMSException {
-    if (closed) {
-      throw new JMSException("This connection is closed");
-    }
+    checkNotClosed();
     allowSetClientId = false;
     PulsarSession session =
         new PulsarSession(transacted ? Session.SESSION_TRANSACTED : acknowledgeMode, this);
     sessions.add(session);
     return session;
+  }
+
+  private void checkNotClosed() throws JMSException {
+    if (closed) {
+      throw new IllegalStateException("This connection is closed");
+    }
   }
 
   /**
