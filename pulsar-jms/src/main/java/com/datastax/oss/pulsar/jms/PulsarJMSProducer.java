@@ -42,7 +42,7 @@ public class PulsarJMSProducer implements JMSProducer {
   private int priority = Message.DEFAULT_PRIORITY;
   private long deliveryDelay = Message.DEFAULT_DELIVERY_DELAY;
   private long timeToLive = Message.DEFAULT_TIME_TO_LIVE;
-  private final Map<String, String> properties = new HashMap<>();
+  private final Map<String, Object> properties = new HashMap<>();
   private CompletionListener completionListener;
   private byte[] correlationID;
   private String jmsType;
@@ -170,8 +170,8 @@ public class PulsarJMSProducer implements JMSProducer {
     producer.setPriority(priority);
     producer.setDeliveryDelay(deliveryDelay);
     producer.setTimeToLive(timeToLive);
-    for (Map.Entry<String, String> prop : properties.entrySet()) {
-      message.setStringProperty(prop.getKey(), prop.getValue());
+    for (Map.Entry<String, Object> prop : properties.entrySet()) {
+      message.setObjectProperty(prop.getKey(), prop.getValue());
     }
     message.setJMSPriority(priority);
     message.setJMSCorrelationIDAsBytes(correlationID);
@@ -574,7 +574,7 @@ public class PulsarJMSProducer implements JMSProducer {
    */
   @Override
   public JMSProducer setProperty(String name, boolean value) {
-    this.properties.put(name, Boolean.toString(value));
+    setPropertyInternal(name, value);
     return this;
   }
 
@@ -595,7 +595,7 @@ public class PulsarJMSProducer implements JMSProducer {
    */
   @Override
   public JMSProducer setProperty(String name, byte value) {
-    this.properties.put(name, Byte.toString(value));
+    setPropertyInternal(name, value);
     return this;
   }
 
@@ -616,7 +616,7 @@ public class PulsarJMSProducer implements JMSProducer {
    */
   @Override
   public JMSProducer setProperty(String name, short value) {
-    this.properties.put(name, Short.toString(value));
+    setPropertyInternal(name, value);
     return this;
   }
 
@@ -637,7 +637,7 @@ public class PulsarJMSProducer implements JMSProducer {
    */
   @Override
   public JMSProducer setProperty(String name, int value) {
-    this.properties.put(name, Integer.toString(value));
+    setPropertyInternal(name, value);
     return this;
   }
 
@@ -658,8 +658,15 @@ public class PulsarJMSProducer implements JMSProducer {
    */
   @Override
   public JMSProducer setProperty(String name, long value) {
-    this.properties.put(name, Long.toString(value));
+    setPropertyInternal(name, value);
     return this;
+  }
+
+  private void setPropertyInternal(String name, Object value) {
+    if (name == null || name.isEmpty()) {
+      throw new IllegalArgumentException("Invalid empty property name");
+    }
+    this.properties.put(name, value);
   }
 
   /**
@@ -679,7 +686,7 @@ public class PulsarJMSProducer implements JMSProducer {
    */
   @Override
   public JMSProducer setProperty(String name, float value) {
-    this.properties.put(name, Float.toString(value));
+    setPropertyInternal(name, value);
     return this;
   }
 
@@ -700,7 +707,7 @@ public class PulsarJMSProducer implements JMSProducer {
    */
   @Override
   public JMSProducer setProperty(String name, double value) {
-    this.properties.put(name, Double.toString(value));
+    setPropertyInternal(name, value);
     return this;
   }
 
@@ -721,7 +728,7 @@ public class PulsarJMSProducer implements JMSProducer {
    */
   @Override
   public JMSProducer setProperty(String name, String value) {
-    this.properties.put(name, value);
+    setPropertyInternal(name, value);
     return this;
   }
 
@@ -746,7 +753,7 @@ public class PulsarJMSProducer implements JMSProducer {
    */
   @Override
   public JMSProducer setProperty(String name, Object value) {
-    this.properties.put(name, value != null ? value.toString() : null);
+    setPropertyInternal(name, value);
     return this;
   }
 
@@ -791,7 +798,7 @@ public class PulsarJMSProducer implements JMSProducer {
   @Override
   public boolean getBooleanProperty(String name) {
     return Utils.runtimeException(
-        () -> Boolean.parseBoolean(properties.getOrDefault(name, "false")));
+        () -> Boolean.parseBoolean(properties.getOrDefault(name, "false").toString()));
   }
 
   /**
@@ -807,7 +814,8 @@ public class PulsarJMSProducer implements JMSProducer {
    */
   @Override
   public byte getByteProperty(String name) {
-    return Utils.runtimeException(() -> Byte.parseByte(properties.getOrDefault(name, "0")));
+    return Utils.runtimeException(
+        () -> Byte.parseByte(properties.getOrDefault(name, "0").toString()));
   }
 
   /**
@@ -823,7 +831,8 @@ public class PulsarJMSProducer implements JMSProducer {
    */
   @Override
   public short getShortProperty(String name) {
-    return Utils.runtimeException(() -> Short.parseShort(properties.getOrDefault(name, "0")));
+    return Utils.runtimeException(
+        () -> Short.parseShort(properties.getOrDefault(name, "0").toString()));
   }
 
   /**
@@ -839,7 +848,8 @@ public class PulsarJMSProducer implements JMSProducer {
    */
   @Override
   public int getIntProperty(String name) {
-    return Utils.runtimeException(() -> Integer.parseInt(properties.getOrDefault(name, "0")));
+    return Utils.runtimeException(
+        () -> Integer.parseInt(properties.getOrDefault(name, "0").toString()));
   }
 
   /**
@@ -855,7 +865,8 @@ public class PulsarJMSProducer implements JMSProducer {
    */
   @Override
   public long getLongProperty(String name) {
-    return Utils.runtimeException(() -> Long.parseLong(properties.getOrDefault(name, "0")));
+    return Utils.runtimeException(
+        () -> Long.parseLong(properties.getOrDefault(name, "0").toString()));
   }
 
   /**
@@ -871,7 +882,8 @@ public class PulsarJMSProducer implements JMSProducer {
    */
   @Override
   public float getFloatProperty(String name) {
-    return Utils.runtimeException(() -> Float.parseFloat(properties.getOrDefault(name, "0")));
+    return Utils.runtimeException(
+        () -> Float.parseFloat(properties.getOrDefault(name, "0").toString()));
   }
 
   /**
@@ -887,7 +899,8 @@ public class PulsarJMSProducer implements JMSProducer {
    */
   @Override
   public double getDoubleProperty(String name) {
-    return Utils.runtimeException(() -> Double.parseDouble(properties.getOrDefault(name, "0")));
+    return Utils.runtimeException(
+        () -> Double.parseDouble(properties.getOrDefault(name, "0").toString()));
   }
 
   /**
@@ -904,7 +917,7 @@ public class PulsarJMSProducer implements JMSProducer {
    */
   @Override
   public String getStringProperty(String name) {
-    return Utils.runtimeException(() -> properties.getOrDefault(name, ""));
+    return Utils.runtimeException(() -> properties.getOrDefault(name, "").toString());
   }
 
   /**

@@ -42,7 +42,7 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
   private final PulsarSession session;
   private final PulsarDestination destination;
   private Consumer<byte[]> consumer;
-  private MessageListenerWrapper messageListenerWrapper;
+  private MessageListener listener;
   private final SubscriptionMode subscriptionMode;
   private final SubscriptionType subscriptionType;
   private boolean closed;
@@ -66,6 +66,7 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
   }
 
   public PulsarConsumer subscribe() throws JMSException {
+    session.registerConsumer(this);
     consumer =
         session
             .getFactory()
@@ -113,7 +114,7 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
   @Override
   public MessageListener getMessageListener() throws JMSException {
     checkNotClosed();
-    return messageListenerWrapper != null ? messageListenerWrapper.getListener() : null;
+    return listener;
   }
 
   void checkNotClosed() throws JMSException {
@@ -149,11 +150,8 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
   @Override
   public void setMessageListener(MessageListener listener) throws JMSException {
     checkNotClosed();
-    if (messageListenerWrapper != null) {
-      throw new IllegalStateException("You cannot set the listener twice");
-    }
-    this.messageListenerWrapper = new MessageListenerWrapper(listener, session);
-    throw new JMSException("not implemented yet");
+    this.listener = listener;
+    session.ensureListenerThread();
   }
 
   /**
@@ -173,7 +171,7 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
   @Override
   public Message receive() throws JMSException {
     checkNotClosed();
-    if (messageListenerWrapper != null) {
+    if (listener != null) {
       throw new IllegalStateException("cannot receive if you have a messageListener");
     }
     return session.executeOperationIfConnectionStarted(
@@ -206,7 +204,7 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
   @Override
   public Message receive(long timeout) throws JMSException {
     checkNotClosed();
-    if (messageListenerWrapper != null) {
+    if (listener != null) {
       throw new IllegalStateException("cannot receive if you have a messageListener");
     }
 
@@ -239,7 +237,7 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
     return receive(1);
   }
 
-  private Message handleReceivedMessage(org.apache.pulsar.client.api.Message<byte[]> message)
+  private PulsarMessage handleReceivedMessage(org.apache.pulsar.client.api.Message<byte[]> message)
       throws JMSException, org.apache.pulsar.client.api.PulsarClientException {
     PulsarMessage result = PulsarMessage.decode(this, message);
     if (session.getTransacted()) {
@@ -297,7 +295,7 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
         () -> {
           try {
             consumer.close();
-            session.getFactory().removeConsumer(consumer);
+            session.removeConsumer(consumer);
             return null;
           } catch (Exception err) {
             throw Utils.handleException(err);
@@ -421,5 +419,47 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
   void acknowledge(org.apache.pulsar.client.api.Message<byte[]> receivedPulsarMessage)
       throws PulsarClientException {
     consumer.acknowledge(receivedPulsarMessage);
+  }
+
+  void runListener(int timeout) {
+    if (closed || listener == null) {
+      return;
+    }
+    if (listener != null) {
+      // activate checks about methods that cannot be called inside a listener
+      // and block any concurrent "close()" operations
+      Utils.executeListenerInSessionContext(
+          session,
+          () -> {
+            try {
+              org.apache.pulsar.client.api.Message<byte[]> message =
+                  consumer.receive(timeout, TimeUnit.MILLISECONDS);
+              if (message == null) {
+                return;
+              }
+              PulsarMessage pulsarMessage = handleReceivedMessage(message);
+              if (message != null) {
+                listener.onMessage(pulsarMessage);
+              }
+            } catch (JMSException | PulsarClientException err) {
+              log.error("Error while receiving message con consumer {}", this, err);
+              session.onError(err);
+            }
+          });
+    }
+  }
+
+  public void closeInternal() throws JMSException {
+    if (closed) {
+      return;
+    }
+    closed = true;
+    try {
+      if (consumer != null) {
+        consumer.close();
+      }
+    } catch (Exception err) {
+      throw Utils.handleException(err);
+    }
   }
 }

@@ -948,6 +948,8 @@ abstract class PulsarMessage implements Message {
         setShortProperty(name, (Short) value);
       } else if (value instanceof Double) {
         setDoubleProperty(name, (Double) value);
+      } else if (value instanceof Byte) {
+        setByteProperty(name, (Byte) value);
       } else {
         throw new MessageFormatException("Invalid property type " + value.getClass());
       }
@@ -2147,6 +2149,10 @@ abstract class PulsarMessage implements Message {
   static final class PulsarObjectMessage extends PulsarMessage implements ObjectMessage {
 
     private Serializable object;
+
+    public PulsarObjectMessage(Serializable object) throws JMSException {
+      this.object = object;
+    }
 
     public PulsarObjectMessage(byte[] originalMessage) throws JMSException {
       if (originalMessage == null) {

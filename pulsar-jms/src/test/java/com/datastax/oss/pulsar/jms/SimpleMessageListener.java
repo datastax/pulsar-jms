@@ -15,27 +15,16 @@
  */
 package com.datastax.oss.pulsar.jms;
 
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import javax.jms.Message;
 import javax.jms.MessageListener;
 
-public class MessageListenerWrapper {
-  private final MessageListener listener;
-  private final PulsarSession session;
+public class SimpleMessageListener implements MessageListener {
+  final List<Message> receivedMessages = new CopyOnWriteArrayList<>();
 
-  public MessageListenerWrapper(MessageListener listener, PulsarSession session) {
-    this.listener = listener;
-    this.session = session;
-  }
-
+  @Override
   public void onMessage(Message message) {
-    Utils.executeListener(
-        session,
-        () -> {
-          listener.onMessage(message);
-        });
-  }
-
-  MessageListener getListener() {
-    return listener;
+    receivedMessages.add(message);
   }
 }

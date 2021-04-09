@@ -28,8 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.bookkeeper.bookie.Bookie;
 import org.apache.bookkeeper.bookie.BookieException;
 import org.apache.bookkeeper.bookie.Cookie;
@@ -53,9 +52,8 @@ import org.apache.zookeeper.Watcher.Event.KeeperState;
 import org.apache.zookeeper.ZooDefs;
 import org.apache.zookeeper.ZooKeeper;
 
+@Slf4j
 public final class BookKeeperCluster implements AutoCloseable {
-
-  private static final Logger LOG = Logger.getLogger(BookKeeperCluster.class.getName());
 
   TestingServer zkServer;
   List<BookieServer> bookies = new ArrayList<>();
@@ -77,8 +75,7 @@ public final class BookKeeperCluster implements AutoCloseable {
             });
     try {
       if (!latch.await(getTimeout(), TimeUnit.MILLISECONDS)) {
-        LOG.log(
-            Level.INFO,
+        log.info(
             "ZK client did not connect withing {0} seconds, maybe the server did not start up",
             getTimeout());
       }
@@ -86,7 +83,7 @@ public final class BookKeeperCluster implements AutoCloseable {
       zk.close(1000);
     }
     this.path = path;
-    LOG.info("Started ZK cluster at " + getZooKeeperAddress());
+    log.info("Started ZK cluster at " + getZooKeeperAddress());
   }
 
   public String startBookie() throws Exception {

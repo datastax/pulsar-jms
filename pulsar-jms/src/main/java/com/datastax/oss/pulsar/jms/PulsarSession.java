@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import javax.jms.Connection;
@@ -54,6 +55,7 @@ import javax.jms.TopicSession;
 import javax.jms.TopicSubscriber;
 import javax.jms.TransactionRolledBackException;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.pulsar.client.api.Consumer;
 import org.apache.pulsar.client.api.Producer;
 import org.apache.pulsar.client.api.SubscriptionMode;
 import org.apache.pulsar.client.api.SubscriptionType;
@@ -67,13 +69,16 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   private final int sessionMode;
   final Transaction transaction;
   private boolean transactionDone;
-  private MessageListenerWrapper messageListenerWrapper;
+  private MessageListener messageListener;
   private final Map<PulsarDestination, Producer<byte[]>> producers = new HashMap<>();
   private final ReentrantReadWriteLock closeLock = new ReentrantReadWriteLock();
   private final List<PulsarMessage> unackedMessages = new ArrayList<>();
   private final Map<String, PulsarDestination> destinationBySubscription = new HashMap<>();
   private boolean trackUnacknowledgedMessages = false;
-  private boolean closed;
+  private volatile boolean closed;
+  private volatile ListenerThread listenerThread;
+  // this collection is accessed by the Listener thread
+  private final List<PulsarConsumer> consumers = new CopyOnWriteArrayList<>();
 
   public PulsarSession(int sessionMode, PulsarConnection connection) throws JMSException {
     this.connection = connection;
@@ -442,21 +447,34 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    */
   @Override
   public void close() throws JMSException {
+    Utils.checkNotOnListener(this);
     closeLock.writeLock().lock();
     try {
       if (closed) {
         return;
       }
       closed = true;
-      Utils.checkNotOnListener(this);
       unackedMessages.clear();
       if (transaction != null && !transactionDone) {
         Utils.get(transaction.abort());
         transactionDone = true;
       }
+      for (PulsarConsumer consumer : consumers) {
+        consumer.closeInternal();
+      }
     } finally {
       closeLock.writeLock().unlock();
       connection.unregisterSession(this);
+    }
+    // wait for the thread to complete
+    if (listenerThread != null) {
+      try {
+        listenerThread.join();
+      } catch (InterruptedException err) {
+        // ignore
+      } finally {
+        listenerThread = null;
+      }
     }
   }
 
@@ -510,7 +528,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    */
   @Override
   public MessageListener getMessageListener() throws JMSException {
-    return messageListenerWrapper != null ? messageListenerWrapper.getListener() : null;
+    return messageListener;
   }
 
   /**
@@ -540,7 +558,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   @Override
   public void setMessageListener(MessageListener listener) throws JMSException {
     Objects.requireNonNull(listener);
-    this.messageListenerWrapper = new MessageListenerWrapper(listener, this);
+    this.messageListener = listener;
   }
 
   /**
@@ -556,7 +574,32 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    */
   @Override
   public void run() {
-    throw new JMSRuntimeException("not supported");
+    if (consumers.isEmpty() || !connection.isStarted()) {
+      try {
+        Thread.sleep(100);
+      } catch (InterruptedException err) {
+        // early exit
+      }
+      return;
+    }
+    // we can run this in a tight loop
+    // because as far as there consumers we are going to
+    // block on some Consumer#receive call
+    for (PulsarConsumer consumer : consumers) {
+      try {
+        connection.executeInConnectionPausedLock(
+            () -> {
+              consumer.runListener(100);
+              return null;
+            },
+            0);
+      } catch (Exception err) {
+        log.error("Error in Session Thread {}", this, err);
+      }
+      if (!connection.isStarted()) {
+        return;
+      }
+    }
   }
 
   /**
@@ -1405,6 +1448,19 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     }
   }
 
+  public void removeConsumer(Consumer<byte[]> consumer) {
+    consumers.remove(consumer);
+    getFactory().removeConsumer(consumer);
+  }
+
+  public void onError(Throwable err) {
+    log.error("Internal error ", err);
+  }
+
+  public void registerConsumer(PulsarConsumer consumer) {
+    consumers.add(consumer);
+  }
+
   interface BlockCLoseOperation<T> {
     T execute() throws JMSException;
   }
@@ -1478,6 +1534,27 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   public void checkNotClosed() throws JMSException {
     if (closed) {
       throw new IllegalStateException("Session is closed");
+    }
+  }
+
+  private class ListenerThread extends Thread {
+    private ListenerThread() {
+      super("jms-session-thread");
+      setDaemon(true);
+    }
+
+    @Override
+    public void run() {
+      while (!closed) {
+        PulsarSession.this.run();
+      }
+    }
+  }
+
+  void ensureListenerThread() {
+    if (listenerThread == null) {
+      listenerThread = new ListenerThread();
+      listenerThread.start();
     }
   }
 }

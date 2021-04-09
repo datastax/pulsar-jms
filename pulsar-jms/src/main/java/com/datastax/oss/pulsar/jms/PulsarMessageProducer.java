@@ -15,18 +15,27 @@
  */
 package com.datastax.oss.pulsar.jms;
 
+import java.io.Serializable;
+import java.util.Enumeration;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import javax.jms.BytesMessage;
 import javax.jms.CompletionListener;
 import javax.jms.DeliveryMode;
 import javax.jms.Destination;
 import javax.jms.InvalidDestinationException;
 import javax.jms.JMSException;
+import javax.jms.MapMessage;
 import javax.jms.Message;
+import javax.jms.MessageEOFException;
 import javax.jms.MessageFormatException;
 import javax.jms.MessageProducer;
+import javax.jms.ObjectMessage;
 import javax.jms.Queue;
 import javax.jms.QueueSender;
 import javax.jms.Session;
+import javax.jms.StreamMessage;
+import javax.jms.TextMessage;
 import javax.jms.Topic;
 import javax.jms.TopicPublisher;
 import org.apache.pulsar.client.api.Producer;
@@ -556,7 +565,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
   public void send(Message message, CompletionListener completionListener) throws JMSException {
     validateCompletionListener(completionListener);
     validateMessageSend(defaultDestination, 0, deliveryMode);
-    PulsarMessage pulsarMessage = (PulsarMessage) message;
+    PulsarMessage pulsarMessage = convertToPulsarMessage(message);
     message.setJMSDeliveryMode(deliveryMode);
     message.setJMSPriority(priority);
     sendMessage(defaultDestination, message, completionListener);
@@ -702,10 +711,55 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
       throws JMSException {
     validateCompletionListener(completionListener);
     validateMessageSend(defaultDestination, timeToLive, deliveryMode);
-    PulsarMessage pulsarMessage = (PulsarMessage) message;
+    PulsarMessage pulsarMessage = convertToPulsarMessage(message);
     message.setJMSDeliveryMode(deliveryMode);
     message.setJMSPriority(priority);
     sendMessage(defaultDestination, message, completionListener);
+  }
+
+  private static PulsarMessage convertToPulsarMessage(Message message) throws JMSException {
+    if (message == null) {
+      throw new IllegalArgumentException("Cannot send a null message");
+    }
+    if (message instanceof PulsarMessage) {
+      return (PulsarMessage) message;
+    }
+    PulsarMessage res;
+    if (message instanceof TextMessage) {
+      res = new PulsarMessage.PulsarTextMessage(message.getBody(String.class));
+    } else if (message instanceof BytesMessage) {
+      res = new PulsarMessage.PulsarBytesMessage(message.getBody(byte[].class));
+    } else if (message instanceof MapMessage) {
+      res = new PulsarMessage.PulsarMapMessage(message.getBody(Map.class));
+    } else if (message instanceof ObjectMessage) {
+      res = new PulsarMessage.PulsarObjectMessage(message.getBody(Serializable.class));
+    } else if (message instanceof StreamMessage) {
+      StreamMessage sm = (StreamMessage) message;
+      PulsarMessage.PulsarStreamMessage dest = new PulsarMessage.PulsarStreamMessage();
+      while (true) {
+        try {
+          Object object = sm.readObject();
+          dest.writeObject(object);
+        } catch (MessageEOFException end) {
+          break;
+        }
+      }
+      res = dest;
+    } else {
+      res = new PulsarMessage.SimpleMessage();
+    }
+    for (Enumeration en = message.getPropertyNames(); en.hasMoreElements(); ) {
+      String name = (String) en.nextElement();
+      res.setObjectProperty(name, message.getObjectProperty(name));
+    }
+    res.setJMSCorrelationIDAsBytes(message.getJMSCorrelationIDAsBytes());
+    res.setJMSDeliveryMode(message.getJMSDeliveryMode());
+    res.setJMSMessageID(message.getJMSMessageID());
+    res.setJMSPriority(message.getJMSPriority());
+    res.setJMSDeliveryTime(message.getJMSDeliveryTime());
+    res.setJMSExpiration(message.getJMSExpiration());
+    res.setJMSTimestamp(message.getJMSTimestamp());
+    return res;
   }
 
   /**
