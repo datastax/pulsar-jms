@@ -173,6 +173,12 @@ public class PulsarConnectionFactory
    */
   @Override
   public PulsarConnection createConnection(String userName, String password) throws JMSException {
+    validateDummyUserNamePassword(userName, password);
+    return new PulsarConnection(this);
+  }
+
+  private static void validateDummyUserNamePassword(String userName, String password)
+      throws JMSSecurityException {
     if (!"j2ee".equals(userName) && !"j2ee".equals(password)) {
       // this verification is here only for the TCK, Pulsar does not use username/password
       // authentication
@@ -180,7 +186,6 @@ public class PulsarConnectionFactory
       // authentication must be set at Factory level
       throw new JMSSecurityException("Unauthorized");
     }
-    return new PulsarConnection(this);
   }
 
   /**
@@ -290,7 +295,7 @@ public class PulsarConnectionFactory
    */
   @Override
   public JMSContext createContext(String userName, String password) {
-    return createContext();
+    return createContext(userName, password, JMSContext.AUTO_ACKNOWLEDGE);
   }
 
   /**
@@ -375,6 +380,7 @@ public class PulsarConnectionFactory
    */
   @Override
   public JMSContext createContext(String userName, String password, int sessionMode) {
+    Utils.runtimeException(() -> validateDummyUserNamePassword(userName, password));
     return createContext(sessionMode);
   }
 
@@ -568,7 +574,10 @@ public class PulsarConnectionFactory
       ConsumerBuilder<byte[]> builder =
           pulsarClient
               .newConsumer()
+              // these properties can be overridden by the configuration
+              .negativeAckRedeliveryDelay(1, TimeUnit.SECONDS)
               .loadConf(consumerConfiguration)
+              // these properties cannot be overwritten by the configuration
               .subscriptionInitialPosition(initialPosition)
               .subscriptionMode(subscriptionMode)
               .subscriptionType(subscriptionType)

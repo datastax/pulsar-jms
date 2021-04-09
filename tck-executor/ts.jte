@@ -199,7 +199,7 @@ porting.ts.jmsObjects.class.1=com.sun.ts.lib.implementation.sun.jms.SunRIJMSObje
 ###############################################################
 #These properties are needed for the JMS tests.
 ###############################################################
-jms_timeout=10000
+jms_timeout=5000
 user=j2ee
 password=j2ee
 

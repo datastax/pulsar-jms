@@ -379,6 +379,10 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
     if (clientID == null || clientID.isEmpty()) {
       throw new InvalidClientIDException("Invalid empty clientId");
     }
+    if (this.clientId != null) {
+      throw new InvalidClientIDException("cannot set again the clientId");
+    }
+    allowSetClientId = false;
     factory.registerClientId(clientID);
     this.clientId = clientID;
   }
@@ -457,6 +461,7 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
    */
   @Override
   public void start() throws JMSException {
+    checkNotInSessionListener();
     checkNotClosed();
     connectionPausedLock.writeLock().lock();
     try {
@@ -518,6 +523,7 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
    */
   @Override
   public void stop() throws JMSException {
+    checkNotInSessionListener();
     checkNotClosed();
     connectionPausedLock.writeLock().lock();
     try {
@@ -527,6 +533,12 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
       throw Utils.handleException(err);
     } finally {
       connectionPausedLock.writeLock().unlock();
+    }
+  }
+
+  private void checkNotInSessionListener() throws JMSException {
+    for (PulsarSession session : sessions) {
+      Utils.checkNotOnListener(session);
     }
   }
 
@@ -596,6 +608,7 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
    */
   @Override
   public void close() throws JMSException {
+    checkNotInSessionListener();
     if (closed) {
       return;
     }

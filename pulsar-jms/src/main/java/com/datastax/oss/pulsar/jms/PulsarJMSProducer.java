@@ -24,6 +24,7 @@ import java.util.Set;
 import javax.jms.CompletionListener;
 import javax.jms.DeliveryMode;
 import javax.jms.Destination;
+import javax.jms.InvalidDestinationException;
 import javax.jms.InvalidDestinationRuntimeException;
 import javax.jms.JMSException;
 import javax.jms.JMSProducer;
@@ -32,7 +33,6 @@ import javax.jms.Message;
 import javax.jms.MessageFormatException;
 import javax.jms.MessageFormatRuntimeException;
 import javax.jms.MessageNotWriteableRuntimeException;
-import javax.jms.MessageProducer;
 
 public class PulsarJMSProducer implements JMSProducer {
   private final PulsarJMSContext parent;
@@ -162,7 +162,25 @@ public class PulsarJMSProducer implements JMSProducer {
   }
 
   private void getProducerAndSend(Destination destination, Message message) throws JMSException {
-    MessageProducer producer = parent.session.createProducer(destination);
+    if (message == null) {
+      if (completionListener != null) {
+        completionListener.onException(
+            message, new MessageFormatRuntimeException("message is null"));
+        return;
+      } else {
+        throw new MessageFormatException("message is null");
+      }
+    }
+    if (destination == null) {
+      if (completionListener != null) {
+        completionListener.onException(
+            message, new InvalidDestinationRuntimeException("message is null"));
+        return;
+      } else {
+        throw new InvalidDestinationException("message is null");
+      }
+    }
+    PulsarMessageProducer producer = parent.session.createProducer(null);
     producer.setDisableMessageID(disableMessageId);
 
     producer.setDisableMessageTimestamp(disableMessageTimestamp);
@@ -178,14 +196,10 @@ public class PulsarJMSProducer implements JMSProducer {
     message.setJMSType(jmsType);
     message.setJMSReplyTo(jmsReplyTo);
 
-    if (priority < 0 || priority > 10) {
-      throw new MessageFormatException("Invalid priority " + priority);
-    }
-
     if (completionListener != null) {
-      producer.send(message, completionListener);
+      producer.send(destination, message, deliveryMode, priority, timeToLive, completionListener);
     } else {
-      producer.send(message);
+      producer.send(destination, message, deliveryMode, priority, timeToLive);
     }
   }
 

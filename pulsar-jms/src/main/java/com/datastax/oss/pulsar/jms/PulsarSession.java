@@ -67,8 +67,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
 
   private final PulsarConnection connection;
   private final int sessionMode;
-  final Transaction transaction;
-  private boolean transactionDone;
+  Transaction transaction;
   private MessageListener messageListener;
   private final Map<PulsarDestination, Producer<byte[]>> producers = new HashMap<>();
   private final ReentrantReadWriteLock closeLock = new ReentrantReadWriteLock();
@@ -83,37 +82,58 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   public PulsarSession(int sessionMode, PulsarConnection connection) throws JMSException {
     this.connection = connection;
     this.sessionMode = sessionMode;
+    validateSessionMode(sessionMode);
     if (sessionMode == SESSION_TRANSACTED) {
       if (!connection.getFactory().isEnableTransaction()) {
         throw new JMSException(
             "Please enable transactions on PulsarConnectionFactory with enableTransaction=true");
       }
-      Transaction transaction = null;
-      int createTransactionTrials = 10;
-      while (createTransactionTrials-- > 0) {
+    }
+  }
+
+  Transaction getTransaction() throws JMSException {
+    if (transaction == null && sessionMode == SESSION_TRANSACTED) {
+      this.transaction = startTransaction(connection);
+    }
+    return this.transaction;
+  }
+
+  private Transaction startTransaction(PulsarConnection connection) throws JMSException {
+    Transaction transaction = null;
+    int createTransactionTrials = 10;
+    while (createTransactionTrials-- > 0) {
+      try {
         try {
-          try {
-            transaction = connection.getFactory().getPulsarClient().newTransaction().build().get();
-            break;
-          } catch (ExecutionException err) {
-            if (err.getCause()
-                instanceof TransactionCoordinatorClientException.CoordinatorNotFoundException) {
-              log.info("Transaction service not available {}", err.getCause().getMessage());
-              Thread.sleep(1000);
-            } else {
-              throw Utils.handleException(err.getCause());
-            }
+          transaction = connection.getFactory().getPulsarClient().newTransaction().build().get();
+          break;
+        } catch (ExecutionException err) {
+          if (err.getCause()
+              instanceof TransactionCoordinatorClientException.CoordinatorNotFoundException) {
+            log.info("Transaction service not available {}", err.getCause().getMessage());
+            Thread.sleep(1000);
+          } else {
+            throw Utils.handleException(err.getCause());
           }
-        } catch (Exception err) {
-          throw Utils.handleException(err);
         }
+      } catch (Exception err) {
+        throw Utils.handleException(err);
       }
-      if (transaction == null) {
-        throw new JMSException("Cannot create a Transaction in time");
-      }
-      this.transaction = transaction;
-    } else {
-      transaction = null;
+    }
+    if (transaction == null) {
+      throw new JMSException("Cannot create a Transaction in time");
+    }
+    return transaction;
+  }
+
+  private static void validateSessionMode(int sessionMode) throws JMSException {
+    switch (sessionMode) {
+      case Session.SESSION_TRANSACTED:
+      case Session.AUTO_ACKNOWLEDGE:
+      case Session.CLIENT_ACKNOWLEDGE:
+      case Session.DUPS_OK_ACKNOWLEDGE:
+        break;
+      default:
+        throw new JMSException("Invalid sessionMode " + sessionMode);
     }
   }
 
@@ -300,7 +320,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    */
   @Override
   public boolean getTransacted() {
-    return transaction != null;
+    return sessionMode == SESSION_TRANSACTED;
   }
 
   /**
@@ -343,17 +363,16 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    */
   @Override
   public void commit() throws JMSException {
-    if (transactionDone) {
-      throw new TransactionRolledBackException("Transaction already committed or rolledback");
+    Utils.checkNotOnListener(this);
+    if (!getTransacted()) {
+      throw new IllegalStateException("session is not transacted");
     }
     closeLock.readLock().lock();
     try {
-      Utils.checkNotOnListener(this);
-      if (transaction == null) {
-        throw new IllegalStateException("session is not transacted");
+      if (transaction != null) {
+        Utils.get(transaction.commit());
+        transaction = null;
       }
-      transactionDone = true;
-      Utils.get(transaction.commit());
     } finally {
       closeLock.readLock().unlock();
     }
@@ -384,11 +403,13 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     closeLock.readLock().lock();
     try {
       Utils.checkNotOnListener(this);
-      if (transaction == null) {
+      if (!getTransacted()) {
         throw new IllegalStateException("session is not transacted");
       }
-      transactionDone = true;
-      Utils.get(transaction.abort());
+      if (transaction != null) {
+        Utils.get(transaction.abort());
+      }
+      transaction = null;
     } finally {
       closeLock.readLock().unlock();
     }
@@ -455,9 +476,9 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
       }
       closed = true;
       unackedMessages.clear();
-      if (transaction != null && !transactionDone) {
+      if (getTransacted() && transaction != null) {
         Utils.get(transaction.abort());
-        transactionDone = true;
+        transaction = null;
       }
       for (PulsarConsumer consumer : consumers) {
         consumer.closeInternal();
@@ -502,9 +523,13 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   @Override
   public void recover() throws JMSException {
     checkNotClosed();
-    if (transaction != null) {
+    if (getTransacted()) {
       throw new IllegalStateException("cannot call this method inside a transacted session");
     }
+    for (PulsarMessage msg : unackedMessages) {
+      msg.negativeAck();
+    }
+    unackedMessages.clear();
   }
 
   /**
@@ -593,7 +618,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
               return null;
             },
             0);
-      } catch (Exception err) {
+      } catch (Throwable err) {
         log.error("Error in Session Thread {}", this, err);
       }
       if (!connection.isStarted()) {
@@ -619,6 +644,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    */
   @Override
   public PulsarMessageProducer createProducer(Destination destination) throws JMSException {
+    connection.setAllowSetClientId(false);
     return new PulsarMessageProducer(this, destination);
   }
 
@@ -1459,6 +1485,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
 
   public void registerConsumer(PulsarConsumer consumer) {
     consumers.add(consumer);
+    connection.setAllowSetClientId(false);
   }
 
   interface BlockCLoseOperation<T> {
@@ -1495,6 +1522,8 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     // the execution of the operation will block any ongoing "close()" operation
     closeLock.readLock().lock();
     try {
+      // check again inside the lock
+      checkNotClosed();
       return operation.execute();
     } finally {
       closeLock.readLock().unlock();

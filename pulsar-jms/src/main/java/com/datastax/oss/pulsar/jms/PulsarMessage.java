@@ -763,6 +763,10 @@ abstract class PulsarMessage implements Message {
               return getIntProperty(name);
             case "short":
               return getShortProperty(name);
+            case "byte":
+              return getByteProperty(name);
+            case "long":
+              return getLongProperty(name);
             default:
               // string
               return value;
@@ -995,6 +999,18 @@ abstract class PulsarMessage implements Message {
     }
   }
 
+  public void negativeAck() throws JMSException {
+    if (consumer == null) {
+      throw new IllegalStateException("not received by a consumer");
+    }
+    consumer.checkNotClosed();
+    try {
+      consumer.negativeAck(receivedPulsarMessage);
+    } catch (Exception err) {
+      throw Utils.handleException(err);
+    }
+  }
+
   protected final void checkWritable() throws MessageNotWriteableException {
     if (!writable) throw new MessageNotWriteableException("not writable");
   }
@@ -1014,7 +1030,10 @@ abstract class PulsarMessage implements Message {
 
   protected abstract String messageType();
 
-  final void sendAsync(TypedMessageBuilder<byte[]> producer, CompletionListener completionListener)
+  final void sendAsync(
+      TypedMessageBuilder<byte[]> producer,
+      CompletionListener completionListener,
+      PulsarSession session)
       throws JMSException {
     prepareForSend(producer);
     fillSystemProperties(producer);
@@ -1024,15 +1043,19 @@ abstract class PulsarMessage implements Message {
         .sendAsync()
         .whenComplete(
             (messageIdFromServer, error) -> {
-              if (error != null) {
-                completionListener.onException(this, Utils.handleException(error));
-              } else {
-                this.messageId = "ID:" + Arrays.toString(messageIdFromServer.toByteArray());
-                this.jmsDeliveryTime = System.currentTimeMillis();
-                // we do not know in the producer about the actual time-to-live
-                this.jmsExpiration = 0;
-                completionListener.onCompletion(this);
-              }
+              Utils.executeListenerInSessionContext(
+                  session,
+                  () -> {
+                    if (error != null) {
+                      completionListener.onException(this, Utils.handleException(error));
+                    } else {
+                      this.messageId = "ID:" + Arrays.toString(messageIdFromServer.toByteArray());
+                      this.jmsDeliveryTime = System.currentTimeMillis();
+                      // we do not know in the producer about the actual time-to-live
+                      this.jmsExpiration = 0;
+                      completionListener.onCompletion(this);
+                    }
+                  });
             });
   }
 
@@ -2177,7 +2200,7 @@ abstract class PulsarMessage implements Message {
 
     @Override
     public boolean isBodyAssignableTo(Class c) throws JMSException {
-      return c.isAssignableFrom(Serializable.class);
+      return c.isAssignableFrom(Serializable.class) || (object != null && c.isInstance(object));
     }
 
     @Override
@@ -2237,6 +2260,11 @@ abstract class PulsarMessage implements Message {
     @Override
     public Serializable getObject() {
       return object;
+    }
+
+    @Override
+    public String toString() {
+      return "PulsarObjectMessage{" + "object=" + object + '}';
     }
   }
 

@@ -28,6 +28,8 @@ import javax.jms.InvalidSelectorException;
 import javax.jms.InvalidSelectorRuntimeException;
 import javax.jms.JMSException;
 import javax.jms.JMSRuntimeException;
+import javax.jms.JMSSecurityException;
+import javax.jms.JMSSecurityRuntimeException;
 import javax.jms.MessageFormatException;
 import javax.jms.MessageFormatRuntimeException;
 import javax.jms.MessageNotWriteableException;
@@ -43,6 +45,9 @@ final class Utils {
   public static JMSException handleException(Throwable cause) {
     while (cause instanceof CompletionException) {
       cause = cause.getCause();
+    }
+    if (cause instanceof JMSException) {
+      return (JMSException) cause;
     }
     if (cause instanceof InterruptedException) {
       Thread.currentThread().interrupt();
@@ -200,7 +205,17 @@ final class Utils {
       throw new MessageNotWriteableRuntimeException(
           jmsException.getMessage(), jmsException.getErrorCode(), jmsException.getCause());
     }
-    JMSRuntimeException jms = new JMSRuntimeException("Error " + err);
+    if (err instanceof JMSSecurityException) {
+      JMSSecurityException jmsException = (JMSSecurityException) err;
+      throw new JMSSecurityRuntimeException(
+          jmsException.getMessage(), jmsException.getErrorCode(), jmsException.getCause());
+    }
+    if (err instanceof JMSException) {
+      JMSException jmsException = (JMSException) err;
+      throw new JMSRuntimeException(
+          jmsException.getMessage(), jmsException.getErrorCode(), jmsException.getCause());
+    }
+    JMSRuntimeException jms = new JMSRuntimeException("Generic error " + err.getMessage());
     jms.initCause(err);
     throw jms;
   }

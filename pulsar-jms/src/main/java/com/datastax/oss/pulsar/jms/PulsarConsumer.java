@@ -23,6 +23,7 @@ import javax.jms.JMSException;
 import javax.jms.JMSRuntimeException;
 import javax.jms.Message;
 import javax.jms.MessageConsumer;
+import javax.jms.MessageFormatException;
 import javax.jms.MessageListener;
 import javax.jms.Queue;
 import javax.jms.QueueReceiver;
@@ -45,7 +46,7 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
   private MessageListener listener;
   private final SubscriptionMode subscriptionMode;
   private final SubscriptionType subscriptionType;
-  private boolean closed;
+  private volatile boolean closed;
 
   public PulsarConsumer(
       String subscriptionName,
@@ -170,6 +171,10 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
    */
   @Override
   public Message receive() throws JMSException {
+    return receiveAndValidateType(null);
+  }
+
+  private Message receiveAndValidateType(Class expectedType) throws JMSException {
     checkNotClosed();
     if (listener != null) {
       throw new IllegalStateException("cannot receive if you have a messageListener");
@@ -181,7 +186,7 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
             if (message == null) {
               return null;
             }
-            return handleReceivedMessage(message);
+            return handleReceivedMessage(message, expectedType);
           } catch (Exception err) {
             throw Utils.handleException(err);
           }
@@ -203,6 +208,11 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
    */
   @Override
   public Message receive(long timeout) throws JMSException {
+    return receiveWithTimeoutAndValidateType(timeout, null);
+  }
+
+  private Message receiveWithTimeoutAndValidateType(long timeout, Class expectedType)
+      throws JMSException {
     checkNotClosed();
     if (listener != null) {
       throw new IllegalStateException("cannot receive if you have a messageListener");
@@ -216,7 +226,7 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
             if (message == null) {
               return null;
             }
-            return handleReceivedMessage(message);
+            return handleReceivedMessage(message, expectedType);
           } catch (Exception err) {
             throw Utils.handleException(err);
           }
@@ -237,11 +247,24 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
     return receive(1);
   }
 
-  private PulsarMessage handleReceivedMessage(org.apache.pulsar.client.api.Message<byte[]> message)
+  private PulsarMessage handleReceivedMessage(
+      org.apache.pulsar.client.api.Message<byte[]> message, Class expectedType)
       throws JMSException, org.apache.pulsar.client.api.PulsarClientException {
     PulsarMessage result = PulsarMessage.decode(this, message);
+    if (expectedType != null && !result.isBodyAssignableTo(expectedType)) {
+      log.info(
+          "negativeAcknowledge for message {} cannot be converted to {}", message, expectedType);
+      consumer.negativeAcknowledge(message);
+      throw new MessageFormatException(
+          "The message ("
+              + result.messageType()
+              + ","
+              + result
+              + ",) cannot be converted to a "
+              + expectedType);
+    }
     if (session.getTransacted()) {
-      Utils.get(consumer.acknowledgeAsync(message.getMessageId(), session.transaction));
+      Utils.get(consumer.acknowledgeAsync(message.getMessageId(), session.getTransaction()));
     } else if (session.getAcknowledgeMode() == Session.AUTO_ACKNOWLEDGE) {
       consumer.acknowledge(message);
     } else if (session.getAcknowledgeMode() == Session.DUPS_OK_ACKNOWLEDGE) {
@@ -391,7 +414,7 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
       public <T> T receiveBody(Class<T> c) {
         return Utils.runtimeException(
             () -> {
-              Message msg = receive();
+              Message msg = PulsarConsumer.this.receiveAndValidateType(c);
               return msg == null ? null : msg.getBody(c);
             });
       }
@@ -400,7 +423,7 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
       public <T> T receiveBody(Class<T> c, long timeout) {
         return Utils.runtimeException(
             () -> {
-              Message msg = receive(timeout);
+              Message msg = PulsarConsumer.this.receiveWithTimeoutAndValidateType(timeout, c);
               return msg == null ? null : msg.getBody(c);
             });
       }
@@ -409,7 +432,7 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
       public <T> T receiveBodyNoWait(Class<T> c) {
         return Utils.runtimeException(
             () -> {
-              Message msg = receiveNoWait();
+              Message msg = PulsarConsumer.this.receiveWithTimeoutAndValidateType(1, c);
               return msg == null ? null : msg.getBody(c);
             });
       }
@@ -431,13 +454,16 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
       Utils.executeListenerInSessionContext(
           session,
           () -> {
+            if (closed) {
+              return;
+            }
             try {
               org.apache.pulsar.client.api.Message<byte[]> message =
                   consumer.receive(timeout, TimeUnit.MILLISECONDS);
               if (message == null) {
                 return;
               }
-              PulsarMessage pulsarMessage = handleReceivedMessage(message);
+              PulsarMessage pulsarMessage = handleReceivedMessage(message, null);
               if (message != null) {
                 listener.onMessage(pulsarMessage);
               }
@@ -460,6 +486,12 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
       }
     } catch (Exception err) {
       throw Utils.handleException(err);
+    }
+  }
+
+  public void negativeAck(org.apache.pulsar.client.api.Message<byte[]> message) {
+    if (consumer != null) {
+      consumer.negativeAcknowledge(message);
     }
   }
 }

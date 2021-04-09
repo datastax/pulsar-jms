@@ -17,6 +17,7 @@ package com.datastax.oss.pulsar.jms;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
 import java.nio.file.Path;
@@ -24,8 +25,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import javax.jms.Connection;
+import javax.jms.JMSConsumer;
+import javax.jms.JMSContext;
 import javax.jms.Message;
 import javax.jms.MessageConsumer;
+import javax.jms.MessageFormatRuntimeException;
 import javax.jms.MessageProducer;
 import javax.jms.Queue;
 import javax.jms.Session;
@@ -148,6 +152,32 @@ public class AcknowledgementModeTest {
           try (MessageConsumer consumer = session.createConsumer(destination); ) {
             assertNull(consumer.receive(100));
           }
+        }
+      }
+    }
+  }
+
+  @Test
+  public void testAutoNackWrongType() throws Exception {
+    Map<String, Object> properties = new HashMap<>();
+    properties.put("webServiceUrl", cluster.getAddress());
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+      try (JMSContext session = factory.createContext()) {
+        Queue destination =
+            session.createQueue("persistent://public/default/test-" + UUID.randomUUID());
+
+        session.createProducer().send(destination, "foo");
+
+        try (JMSConsumer consumer = session.createConsumer(destination); ) {
+
+          try {
+            // automatically returned to the queue, wrong type
+            consumer.receiveBody(Boolean.class);
+            fail();
+          } catch (MessageFormatRuntimeException ok) {
+          }
+
+          assertEquals("foo", consumer.receiveBody(String.class));
         }
       }
     }

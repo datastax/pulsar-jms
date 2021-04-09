@@ -48,6 +48,7 @@ public class PulsarJMSContext implements JMSContext {
   private final PulsarConnection connection;
   final PulsarSession session;
   private boolean autoStart = true;
+  private boolean owningConnection;
 
   public PulsarJMSContext(PulsarConnectionFactory factory, int sessionMode) {
     try {
@@ -55,6 +56,7 @@ public class PulsarJMSContext implements JMSContext {
       this.session = connection.createSession(sessionMode);
       this.session.setTrackUnacknowledgedMessages(true);
       this.connection.setAllowSetClientId(true);
+      this.owningConnection = true;
     } catch (JMSException err) {
       JMSRuntimeException jms = new JMSRuntimeException("error");
       jms.initCause(err);
@@ -64,6 +66,7 @@ public class PulsarJMSContext implements JMSContext {
 
   public PulsarJMSContext(final PulsarConnection connection, int sessionMode) {
     try {
+      this.owningConnection = false;
       this.connection = connection;
       this.session = connection.createSession(sessionMode);
       this.session.setTrackUnacknowledgedMessages(true);
@@ -346,7 +349,11 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public void stop() {
-    Utils.runtimeException(() -> connection.stop());
+    Utils.runtimeException(
+        () -> {
+          Utils.checkNotOnListener(session);
+          connection.stop();
+        });
   }
 
   /**
@@ -455,7 +462,16 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public void close() {
-    Utils.runtimeException(() -> connection.close());
+    Utils.runtimeException(
+        () -> {
+          try {
+            session.close();
+          } finally {
+            if (owningConnection) {
+              connection.close();
+            }
+          }
+        });
   }
 
   /**
@@ -547,7 +563,7 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public ObjectMessage createObjectMessage(Serializable object) {
-    return session.createObjectMessage();
+    return session.createObjectMessage(object);
   }
 
   /**

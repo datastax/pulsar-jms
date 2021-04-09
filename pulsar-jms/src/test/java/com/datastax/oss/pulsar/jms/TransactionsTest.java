@@ -26,18 +26,22 @@ import java.util.Map;
 import java.util.UUID;
 import javax.jms.Connection;
 import javax.jms.Destination;
+import javax.jms.JMSConsumer;
+import javax.jms.JMSContext;
 import javax.jms.Message;
 import javax.jms.MessageConsumer;
 import javax.jms.MessageProducer;
 import javax.jms.Session;
 import javax.jms.TextMessage;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-@Disabled("these tests hang if you run them with the other tests")
+@Slf4j
+@Disabled
 public class TransactionsTest {
 
   @TempDir public static Path tempDir;
@@ -76,6 +80,7 @@ public class TransactionsTest {
               try (MessageProducer producer = transaction.createProducer(destination); ) {
                 TextMessage textMsg = transaction.createTextMessage("foo");
                 producer.send(textMsg);
+                producer.send(textMsg);
               }
 
               // message is not "visible" as transaction is not committed
@@ -84,6 +89,7 @@ public class TransactionsTest {
               transaction.commit();
 
               // message is now visible to consumers
+              assertNotNull(consumer.receive());
               assertNotNull(consumer.receive());
             }
           }
@@ -238,6 +244,54 @@ public class TransactionsTest {
             }
           }
         }
+      }
+    }
+  }
+
+  @Test
+  public void sendMessageJMSContextTest() throws Exception {
+
+    Map<String, Object> properties = new HashMap<>();
+    properties.put("webServiceUrl", cluster.getAddress());
+    properties.put("enableTransaction", "true");
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+      try (JMSContext context = factory.createContext(JMSContext.SESSION_TRANSACTED)) {
+        Destination destination =
+            context.createQueue("persistent://public/default/test-" + UUID.randomUUID());
+        int numMessages = 10;
+        int sendMsgCounter = 0;
+        for (int i = 0; i < numMessages; i++) {
+          context.createProducer().send(destination, "foo-" + sendMsgCounter);
+          sendMsgCounter++;
+        }
+        JMSConsumer consumer = context.createConsumer(destination);
+
+        // Call rollback() to rollback the sent messages
+        context.rollback();
+
+        assertNull((TextMessage) consumer.receive(1000));
+
+        for (int i = 0; i < numMessages; i++) {
+          context.createProducer().send(destination, "foo" + sendMsgCounter);
+          sendMsgCounter++;
+        }
+
+        // Call commit() to commit the sent messages
+        context.commit();
+
+        int receiveCount = 10;
+        for (int i = 0; i < numMessages; i++) {
+          Message received = consumer.receive(1000);
+          assertNotNull(received);
+          assertEquals("foo" + receiveCount, received.getBody(String.class));
+          receiveCount++;
+        }
+
+        // no more messages
+        assertNull((TextMessage) consumer.receive(1000));
+
+        // acknowledge
+        context.commit();
       }
     }
   }

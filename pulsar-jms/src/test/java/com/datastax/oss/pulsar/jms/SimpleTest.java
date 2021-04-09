@@ -306,14 +306,18 @@ public class SimpleTest {
             context.createTopic("persistent://public/default/test-" + UUID.randomUUID());
 
         try (JMSConsumer consumer = context.createConsumer(destination); ) {
-          context.createProducer().send(destination, "foo");
-          context.createProducer().send(destination, (Serializable) "bar");
+          JMSProducer producer = context.createProducer();
+          producer.send(destination, "foo");
+          producer.send(destination, (Serializable) "bar");
+          // this is an example from the TCK
+          ObjectMessage baz = context.createObjectMessage(new StringBuffer("baz"));
+          producer.send(destination, baz);
 
-          context.createProducer().send(destination, new byte[] {1, 2, 3});
+          producer.send(destination, new byte[] {1, 2, 3});
 
-          context.createProducer().send(destination, Collections.singletonMap("a", "b"));
+          producer.send(destination, Collections.singletonMap("a", "b"));
 
-          JMSProducer simpleMessage = context.createProducer();
+          JMSProducer simpleMessage = producer;
           simpleMessage.setProperty("a", (byte) 1);
           simpleMessage.setProperty("b", 123232323233L);
           simpleMessage.setProperty("c", 1232323);
@@ -326,7 +330,11 @@ public class SimpleTest {
           simpleMessage.send(destination, (Serializable) null);
 
           assertEquals("foo", consumer.receiveBody(String.class));
-          assertEquals("bar", consumer.receiveBody(String.class));
+          assertEquals("bar", consumer.receiveBody(Serializable.class));
+          // this is an example from the TCK
+          assertEquals(
+              new StringBuffer("baz").toString(),
+              consumer.receiveBody(StringBuffer.class, 1000).toString());
           assertArrayEquals(new byte[] {1, 2, 3}, consumer.receiveBody(byte[].class));
           assertEquals(Collections.singletonMap("a", "b"), consumer.receiveBody(Map.class));
           Message msg6 = consumer.receive();
@@ -340,6 +348,51 @@ public class SimpleTest {
           assertEquals(89, msg6.getShortProperty("h"));
           // we are serializing Object properties as strings
           assertEquals("qqqq", msg6.getObjectProperty("i"));
+        }
+      }
+    }
+  }
+
+  @Test
+  public void sendMessageReceiveJMSContext2ìMultipleTimes() throws Exception {
+
+    Map<String, Object> properties = new HashMap<>();
+    properties.put("webServiceUrl", cluster.getAddress());
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+      try (JMSContext context = factory.createContext()) {
+        Destination destination =
+            context.createQueue("persistent://public/default/test-" + UUID.randomUUID());
+
+        try (JMSConsumer consumer = context.createConsumer(destination); ) {
+          JMSProducer producer = context.createProducer();
+
+          String message = "Where are you!";
+
+          TextMessage expTextMessage = context.createTextMessage(message);
+          expTextMessage.setStringProperty("COM_SUN_JMS_TESTNAME", "queueReceiveTests");
+          producer.send(destination, expTextMessage);
+          TextMessage actTextMessage = (TextMessage) consumer.receive();
+          assertNotNull(actTextMessage);
+          ;
+          assertEquals(actTextMessage.getText(), expTextMessage.getText());
+
+          // send and receive TextMessage again
+          producer.send(destination, expTextMessage);
+          actTextMessage = (TextMessage) consumer.receive(1000);
+          assertNotNull(actTextMessage);
+          assertEquals(actTextMessage.getText(), expTextMessage.getText());
+
+          // send and receive TextMessage again
+          producer.send(destination, expTextMessage);
+          actTextMessage = (TextMessage) consumer.receiveNoWait();
+          if (actTextMessage == null) {
+            actTextMessage = (TextMessage) consumer.receive();
+          }
+          assertNotNull(actTextMessage);
+          assertEquals(actTextMessage.getText(), expTextMessage.getText());
+
+          actTextMessage = (TextMessage) consumer.receiveNoWait();
+          assertNull(actTextMessage);
         }
       }
     }
@@ -365,6 +418,20 @@ public class SimpleTest {
 
           assertEquals("foo", consumer.receiveBody(String.class));
         }
+      }
+    }
+  }
+
+  @Test
+  public void createSubContextTest() throws Exception {
+
+    Map<String, Object> properties = new HashMap<>();
+    properties.put("webServiceUrl", cluster.getAddress());
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+      try (JMSContext context = factory.createContext()) {
+        context.createContext(JMSContext.AUTO_ACKNOWLEDGE).close();
+        context.createContext(JMSContext.CLIENT_ACKNOWLEDGE).close();
+        context.createContext(JMSContext.DUPS_OK_ACKNOWLEDGE).close();
       }
     }
   }

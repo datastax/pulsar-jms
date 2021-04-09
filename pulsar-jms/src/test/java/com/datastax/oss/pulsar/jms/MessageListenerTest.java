@@ -20,6 +20,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.junit.Assert.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
 import java.nio.file.Path;
@@ -28,16 +29,20 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import javax.jms.CompletionListener;
 import javax.jms.Connection;
 import javax.jms.IllegalStateException;
+import javax.jms.IllegalStateRuntimeException;
 import javax.jms.JMSConsumer;
 import javax.jms.JMSContext;
+import javax.jms.JMSProducer;
 import javax.jms.Message;
 import javax.jms.MessageConsumer;
 import javax.jms.MessageListener;
 import javax.jms.MessageProducer;
 import javax.jms.Queue;
 import javax.jms.Session;
+import javax.jms.TextMessage;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -97,7 +102,7 @@ public class MessageListenerTest {
   }
 
   @Test
-  public void listenerForbiddenCloseSessionMethod() throws Exception {
+  public void listenerForbiddenMethods() throws Exception {
 
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
@@ -116,6 +121,33 @@ public class MessageListenerTest {
                   public void onMessage(Message message) {
                     try {
                       session.close();
+                      res.complete(message);
+                    } catch (Throwable t) {
+                      res.completeExceptionally(t);
+                    }
+                  }
+                };
+            consumer1.setMessageListener(listener);
+
+            try (MessageProducer producer = session.createProducer(destination); ) {
+              producer.send(session.createTextMessage("foo"));
+            }
+
+            try {
+              res.get();
+            } catch (ExecutionException err) {
+              assertThat(err.getCause(), instanceOf(IllegalStateException.class));
+            }
+          }
+
+          try (MessageConsumer consumer1 = session.createConsumer(destination); ) {
+            CompletableFuture<Message> res = new CompletableFuture<>();
+            MessageListener listener =
+                new MessageListener() {
+                  @Override
+                  public void onMessage(Message message) {
+                    try {
+                      connection.stop();
                       res.complete(message);
                     } catch (Throwable t) {
                       res.completeExceptionally(t);
@@ -211,6 +243,185 @@ public class MessageListenerTest {
           }
         }
       }
+    }
+  }
+
+  @Test
+  public void testJMSContextWithListenerBadMethods() throws Exception {
+
+    Map<String, Object> properties = new HashMap<>();
+    properties.put("webServiceUrl", cluster.getAddress());
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+
+      try (JMSContext context2 = factory.createContext()) {
+        Queue destination =
+            context2.createQueue("persistent://public/default/test-" + UUID.randomUUID());
+
+        try (JMSContext context = factory.createContext()) {
+
+          try (JMSConsumer consumer1 = context.createConsumer(destination); ) {
+            CompletableFuture<Message> res = new CompletableFuture<>();
+            MessageListener listener =
+                new MessageListener() {
+                  @Override
+                  public void onMessage(Message message) {
+                    try {
+                      context.close();
+                      res.complete(message);
+                    } catch (Throwable t) {
+                      res.completeExceptionally(t);
+                    }
+                  }
+                };
+            consumer1.setMessageListener(listener);
+
+            context2.createProducer().send(destination, "foo");
+
+            // context.close is not allowed in the listener
+            try {
+              res.get();
+            } catch (ExecutionException err) {
+              assertThat(err.getCause(), instanceOf(IllegalStateRuntimeException.class));
+            }
+          }
+
+          try (JMSConsumer consumer2 = context2.createConsumer(destination); ) {
+            CompletableFuture<Message> res = new CompletableFuture<>();
+            MessageListener listener =
+                new MessageListener() {
+                  @Override
+                  public void onMessage(Message message) {
+                    try {
+                      context.stop();
+                      res.complete(message);
+                    } catch (Throwable t) {
+                      res.completeExceptionally(t);
+                    }
+                  }
+                };
+            consumer2.setMessageListener(listener);
+            context2.createProducer().send(destination, "foo");
+
+            // context.stop is not allowed
+            try {
+              res.get();
+            } catch (ExecutionException err) {
+              assertThat(err.getCause(), instanceOf(IllegalStateRuntimeException.class));
+            }
+          }
+        }
+      }
+    }
+  }
+
+  @Test
+  public void testJMSContextAsyncCompletionListenerBadMethods() throws Exception {
+
+    Map<String, Object> properties = new HashMap<>();
+    properties.put("webServiceUrl", cluster.getAddress());
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+
+      try (JMSContext context2 = factory.createContext()) {
+        Queue destination =
+            context2.createQueue("persistent://public/default/test-" + UUID.randomUUID());
+
+        try (JMSContext context = factory.createContext()) {
+
+          CompletableFuture<Message> resSendAndClose = new CompletableFuture<>();
+          context2
+              .createProducer()
+              .setAsync(
+                  new CompletionListener() {
+                    @Override
+                    public void onCompletion(Message message) {
+                      try {
+                        context.close();
+                        resSendAndClose.complete(message);
+                      } catch (Throwable t) {
+                        resSendAndClose.completeExceptionally(t);
+                      }
+                    }
+
+                    @Override
+                    public void onException(Message message, Exception e) {
+                      onCompletion(message);
+                    }
+                  })
+              .send(destination, "foo");
+
+          // context.close is not allowed in the listener
+          try {
+            resSendAndClose.get();
+          } catch (ExecutionException err) {
+            assertThat(err.getCause(), instanceOf(IllegalStateRuntimeException.class));
+          }
+
+          CompletableFuture<Message> resSendAndStop = new CompletableFuture<>();
+          context2
+              .createProducer()
+              .setAsync(
+                  new CompletionListener() {
+                    @Override
+                    public void onCompletion(Message message) {
+                      try {
+                        context.stop();
+                        resSendAndStop.complete(message);
+                      } catch (Throwable t) {
+                        resSendAndStop.completeExceptionally(t);
+                      }
+                    }
+
+                    @Override
+                    public void onException(Message message, Exception e) {
+                      onCompletion(message);
+                    }
+                  })
+              .send(destination, "foo");
+
+          // context.stop is not allowed in the listener
+          try {
+            resSendAndStop.get();
+          } catch (ExecutionException err) {
+            assertThat(err.getCause(), instanceOf(IllegalStateRuntimeException.class));
+          }
+        }
+      }
+    }
+  }
+
+  @Test
+  public void queueSendRecvMessageListenerTest() throws Exception {
+
+    Map<String, Object> properties = new HashMap<>();
+    properties.put("webServiceUrl", cluster.getAddress());
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+
+      Queue destination = new PulsarQueue("persistent://public/default/test-" + UUID.randomUUID());
+
+      JMSContext context = factory.createContext(JMSContext.AUTO_ACKNOWLEDGE);
+      JMSContext contextToSendMsg = factory.createContext(JMSContext.AUTO_ACKNOWLEDGE);
+      JMSContext contextToCreateMsg = factory.createContext(JMSContext.AUTO_ACKNOWLEDGE);
+
+      JMSProducer producer = contextToSendMsg.createProducer();
+
+      JMSConsumer consumer = context.createConsumer(destination);
+
+      // Creates a new consumer on the specified destination that
+      // will deliver messages to the specified MessageListener.
+      SimpleMessageListener listener = new SimpleMessageListener();
+      consumer.setMessageListener(listener);
+
+      // send and receive TextMessage
+      TextMessage expTextMessage = contextToCreateMsg.createTextMessage("foo");
+      expTextMessage.setStringProperty("COM_SUN_JMS_TESTNAME", "queueSendRecvMessageListenerTest");
+      producer.send(destination, expTextMessage);
+
+      await().until(listener.receivedMessages::size, equalTo(1));
+
+      TextMessage actTextMessage = (TextMessage) listener.receivedMessages.get(0);
+      assertEquals(actTextMessage.getText(), expTextMessage.getText());
+
+      assertNotNull(consumer.getMessageListener());
     }
   }
 }
