@@ -43,6 +43,7 @@ import javax.jms.Topic;
 import javax.jms.TopicConnection;
 import javax.jms.TopicSession;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.pulsar.common.policies.data.TopicStats;
 
 @Slf4j
 public class PulsarConnection implements Connection, QueueConnection, TopicConnection {
@@ -53,7 +54,7 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
   private final List<PulsarTemporaryDestination> temporaryDestinations =
       new CopyOnWriteArrayList<>();
   private volatile boolean closed = false;
-  private String clientId;
+  String clientId;
   private volatile boolean allowSetClientId = true;
   private final ReentrantReadWriteLock connectionPausedLock = new ReentrantReadWriteLock();
   private final Condition pausedCondition = connectionPausedLock.writeLock().newCondition();;
@@ -625,7 +626,7 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
       }
     }
     temporaryDestinations.clear();
-    factory.unregisterClientId(clientId);
+    factory.unregisterConnection(this);
   }
 
   /**
@@ -923,6 +924,16 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
     public final void delete() throws JMSException {
       try {
         log.info("Deleting {}", this);
+
+        TopicStats stats = factory.getPulsarAdmin().topics().getStats(topicName);
+        log.info("Stats {}", stats);
+
+        int numConsumers =
+            stats.subscriptions.values().stream().mapToInt(s -> s.consumers.size()).sum();
+        if (numConsumers > 0) {
+          throw new JMSException("Cannot delete a temporary destination with active consumers");
+        }
+
         factory
             .getPulsarAdmin()
             .topics()

@@ -31,7 +31,9 @@ import javax.jms.Session;
 import javax.jms.Topic;
 import javax.jms.TopicSubscriber;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.pulsar.client.admin.PulsarAdminException;
 import org.apache.pulsar.client.api.Consumer;
+import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.api.PulsarClientException;
 import org.apache.pulsar.client.api.SubscriptionMode;
 import org.apache.pulsar.client.api.SubscriptionType;
@@ -68,16 +70,47 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
 
   public PulsarConsumer subscribe() throws JMSException {
     session.registerConsumer(this);
-    consumer =
+    if (destination.isQueue()) {
+      try {
         session
             .getFactory()
-            .createConsumer(
-                destination,
-                subscriptionName,
-                session.getAcknowledgeMode(),
-                subscriptionMode,
-                subscriptionType);
+            .getPulsarAdmin()
+            .topics()
+            .createSubscription(
+                destination.topicName,
+                PulsarConnectionFactory.QUEUE_SHARED_SUBCRIPTION_NAME,
+                MessageId.earliest);
+      } catch (PulsarAdminException.ConflictException exists) {
+        log.debug(
+            "Subscription {} already exists for {}",
+            PulsarConnectionFactory.QUEUE_SHARED_SUBCRIPTION_NAME,
+            destination.topicName);
+      } catch (PulsarAdminException err) {
+        throw Utils.handleException(err);
+      }
+      // to not create eagerly the Consumer for Queues
+    } else {
+      getConsumer();
+    }
     return this;
+  }
+
+  private Consumer<byte[]> getConsumer() throws JMSException {
+    if (closed) {
+      throw new IllegalStateException("Consumer is closed");
+    }
+    if (consumer == null) {
+      consumer =
+          session
+              .getFactory()
+              .createConsumer(
+                  destination,
+                  subscriptionName,
+                  session.getAcknowledgeMode(),
+                  subscriptionMode,
+                  subscriptionType);
+    }
+    return consumer;
   }
 
   /**
@@ -182,11 +215,13 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
     return session.executeOperationIfConnectionStarted(
         () -> {
           try {
+            Consumer<byte[]> consumer = getConsumer();
             org.apache.pulsar.client.api.Message<byte[]> message = consumer.receive();
             if (message == null) {
               return null;
             }
-            return handleReceivedMessage(message, expectedType);
+            Message res = handleReceivedMessage(message, expectedType);
+            return res;
           } catch (Exception err) {
             throw Utils.handleException(err);
           }
@@ -221,12 +256,14 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
     return session.executeOperationIfConnectionStarted(
         () -> {
           try {
+            Consumer<byte[]> consumer = getConsumer();
             org.apache.pulsar.client.api.Message<byte[]> message =
                 consumer.receive((int) timeout, TimeUnit.MILLISECONDS);
             if (message == null) {
               return null;
             }
-            return handleReceivedMessage(message, expectedType);
+            Message res = handleReceivedMessage(message, expectedType);
+            return res;
           } catch (Exception err) {
             throw Utils.handleException(err);
           }
@@ -251,9 +288,12 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
       org.apache.pulsar.client.api.Message<byte[]> message, Class expectedType)
       throws JMSException, org.apache.pulsar.client.api.PulsarClientException {
     PulsarMessage result = PulsarMessage.decode(this, message);
+    Consumer<byte[]> consumer = getConsumer();
     if (expectedType != null && !result.isBodyAssignableTo(expectedType)) {
       log.info(
-          "negativeAcknowledge for message {} cannot be converted to {}", message, expectedType);
+          "negativeAcknowledge for message {} that cannot be converted to {}",
+          message,
+          expectedType);
       consumer.negativeAcknowledge(message);
       throw new MessageFormatException(
           "The message ("
@@ -440,8 +480,13 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
   }
 
   void acknowledge(org.apache.pulsar.client.api.Message<byte[]> receivedPulsarMessage)
-      throws PulsarClientException {
-    consumer.acknowledge(receivedPulsarMessage);
+      throws JMSException {
+    Consumer<byte[]> consumer = getConsumer();
+    try {
+      consumer.acknowledge(receivedPulsarMessage);
+    } catch (PulsarClientException err) {
+      throw Utils.handleException(err);
+    }
   }
 
   void runListener(int timeout) {
@@ -458,6 +503,7 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
               return;
             }
             try {
+              Consumer<byte[]> consumer = getConsumer();
               org.apache.pulsar.client.api.Message<byte[]> message =
                   consumer.receive(timeout, TimeUnit.MILLISECONDS);
               if (message == null) {
@@ -467,6 +513,8 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
               if (message != null) {
                 listener.onMessage(pulsarMessage);
               }
+            } catch (PulsarClientException.AlreadyClosedException closed) {
+              log.error("Error while receiving message con Closed consumer {}", this);
             } catch (JMSException | PulsarClientException err) {
               log.error("Error while receiving message con consumer {}", this, err);
               session.onError(err);
@@ -483,6 +531,7 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
     try {
       if (consumer != null) {
         consumer.close();
+        consumer = null;
       }
     } catch (Exception err) {
       throw Utils.handleException(err);

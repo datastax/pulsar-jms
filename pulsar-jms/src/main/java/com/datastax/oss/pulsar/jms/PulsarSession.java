@@ -1462,6 +1462,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    * @throws JMSException
    */
   void acknowledgeAllMessages() throws JMSException {
+    checkNotClosed();
     for (PulsarMessage unackedMessage : unackedMessages) {
       unackedMessage.acknowledge();
     }

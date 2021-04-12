@@ -32,7 +32,7 @@
     <logger name="org.apache.curator" level="error" additivity="false"/>
     <logger name="org.eclipse.jetty" level="error" additivity="false"/>
     <logger name="org.glassfish.jersey" level="error" additivity="false"/>
-    <logger name="com.datastax.oss.pulsar.jms.utils" level="error" additivity="false"/>
+    <logger name="com.datastax.oss.pulsar.jms.utils" level="info" additivity="false"/>
     <logger name="io.netty" level="error" additivity="false"/>
   </Loggers>
 </Configuration>

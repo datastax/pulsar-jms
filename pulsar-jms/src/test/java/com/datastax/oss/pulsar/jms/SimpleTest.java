@@ -20,13 +20,18 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
+import java.io.EOFException;
 import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -432,6 +437,97 @@ public class SimpleTest {
         context.createContext(JMSContext.AUTO_ACKNOWLEDGE).close();
         context.createContext(JMSContext.CLIENT_ACKNOWLEDGE).close();
         context.createContext(JMSContext.DUPS_OK_ACKNOWLEDGE).close();
+      }
+    }
+  }
+
+  @Test
+  public void tckTest() throws Exception {
+
+    Map<String, Object> properties = new HashMap<>();
+    properties.put("webServiceUrl", cluster.getAddress());
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+      try (JMSContext context = factory.createContext(JMSContext.AUTO_ACKNOWLEDGE)) {
+        Destination destination =
+            context.createQueue("persistent://public/default/test-" + UUID.randomUUID());
+
+        String message = "Where are you!";
+        StringBuffer expSbuffer = new StringBuffer("This is it!");
+
+        // set up JmsTool for COMMON_Q setup
+        Queue queue = (Queue) destination;
+
+        // Create JMSProducer from JMSContext
+        JMSProducer producer = context.createProducer();
+
+        // Create JMSConsumer from JMSContext
+        JMSConsumer consumer = context.createConsumer(destination);
+
+        // Send and receive TextMessage
+        TextMessage expTextMessage = context.createTextMessage(message);
+        expTextMessage.setStringProperty("COM_SUN_JMS_TESTNAME", "queueReceiveBodyTests");
+        producer.send(destination, expTextMessage);
+        String actMessage = consumer.receiveBody(String.class);
+        assertNotNull(actMessage);
+        assertEquals(message, actMessage);
+
+        // Send and receive ObjectMessage
+        ObjectMessage expObjectMessage = context.createObjectMessage(expSbuffer);
+        expObjectMessage.setStringProperty("COM_SUN_JMS_TESTNAME", "queueReceiveBodyTests");
+        producer.send(destination, expObjectMessage);
+        StringBuffer actSbuffer = consumer.receiveBody(StringBuffer.class, 5000);
+        assertNotNull(actSbuffer);
+        assertEquals(actSbuffer.toString(), expSbuffer.toString());
+
+        // Send and receive BytesMessage
+        BytesMessage bMsg = context.createBytesMessage();
+        bMsg.setStringProperty("COM_SUN_JMS_TESTNAME", "queueReceiveBodyTests");
+        bMsg.writeByte((byte) 1);
+        bMsg.writeInt((int) 22);
+        producer.send(destination, bMsg);
+        byte[] bytes = consumer.receiveBody(byte[].class, 5000);
+        assertNotNull(bytes);
+
+        DataInputStream di = new DataInputStream(new ByteArrayInputStream(bytes));
+        assertEquals(di.readByte(), (byte) 1);
+        assertEquals(di.readInt(), 22);
+        try {
+          byte b = di.readByte();
+          fail();
+        } catch (EOFException e) {
+          // expected
+        }
+
+        // Send and receive MapMessage
+        MapMessage mMsg = context.createMapMessage();
+        mMsg.setStringProperty("COM_SUN_JMS_TESTNAME", "queueReceiveBodyTests");
+        mMsg.setBoolean("booleanvalue", true);
+        mMsg.setInt("intvalue", (int) 10);
+        producer.send(destination, mMsg);
+        Map map = consumer.receiveBodyNoWait(Map.class);
+        if (map == null) {
+          for (int i = 0; i < 5; i++) {
+            Thread.sleep(1000);
+            map = consumer.receiveBodyNoWait(Map.class);
+            if (map != null) break;
+          }
+        }
+        assertNotNull(map);
+
+        assertEquals(map.size(), 2);
+
+        Iterator<String> it = map.keySet().iterator();
+        String name = null;
+        while (it.hasNext()) {
+          name = (String) it.next();
+          if (name.equals("booleanvalue")) {
+            assertEquals((boolean) map.get(name), true);
+          } else if (name.equals("intvalue")) {
+            assertEquals((int) map.get(name), 10);
+          } else {
+            fail("Unexpected name of [" + name + "] in MapMessage");
+          }
+        }
       }
     }
   }

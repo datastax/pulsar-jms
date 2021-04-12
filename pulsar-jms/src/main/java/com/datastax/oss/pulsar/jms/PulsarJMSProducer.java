@@ -177,7 +177,7 @@ public class PulsarJMSProducer implements JMSProducer {
             message, new InvalidDestinationRuntimeException("message is null"));
         return;
       } else {
-        throw new InvalidDestinationException("message is null");
+        throw new InvalidDestinationException("destination is null");
       }
     }
     PulsarMessageProducer producer = parent.session.createProducer(null);

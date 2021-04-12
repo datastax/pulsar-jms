@@ -48,9 +48,11 @@ import javax.jms.ObjectMessage;
 import javax.jms.Session;
 import javax.jms.StreamMessage;
 import javax.jms.TextMessage;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.api.TypedMessageBuilder;
 
+@Slf4j
 abstract class PulsarMessage implements Message {
 
   private volatile String messageId;
@@ -65,7 +67,7 @@ abstract class PulsarMessage implements Message {
   private volatile long jmsExpiration;
   private volatile long jmsDeliveryTime;
   private int jmsPriority = Message.DEFAULT_PRIORITY;
-  private final Map<String, String> properties = new HashMap<>();
+  protected final Map<String, String> properties = new HashMap<>();
   private PulsarConsumer consumer;
   private org.apache.pulsar.client.api.Message<byte[]> receivedPulsarMessage;
 
@@ -1093,6 +1095,7 @@ abstract class PulsarMessage implements Message {
     this.jmsDeliveryTime = System.currentTimeMillis();
     // we do not know in the producer about the actual time-to-live
     this.jmsExpiration = 0;
+    log.info("sendMessage {}, Pulsar ID {}", this, messageId);
   }
 
   abstract void prepareForSend(TypedMessageBuilder<byte[]> producer) throws JMSException;
@@ -2141,6 +2144,11 @@ abstract class PulsarMessage implements Message {
     public String getText() throws JMSException {
       return text;
     }
+
+    @Override
+    public String toString() {
+      return "PulsarTextMessage{" + text + "," + properties + "}";
+    }
   }
 
   static final class SimpleMessage extends PulsarMessage {
@@ -2264,7 +2272,11 @@ abstract class PulsarMessage implements Message {
 
     @Override
     public String toString() {
-      return "PulsarObjectMessage{" + "object=" + object + '}';
+      if (object == null) {
+        return "PulsarObjectMessage{null," + properties + "}";
+      } else {
+        return "PulsarObjectMessage{" + object + "," + object.getClass() + "," + properties + "}";
+      }
     }
   }
 

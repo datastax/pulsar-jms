@@ -36,9 +36,11 @@ import javax.jms.StreamMessage;
 import javax.jms.TextMessage;
 import javax.jms.Topic;
 import javax.jms.TopicPublisher;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.api.Producer;
 import org.apache.pulsar.client.api.TypedMessageBuilder;
 
+@Slf4j
 class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSender {
   private final PulsarSession session;
   private PulsarDestination defaultDestination;
@@ -1111,6 +1113,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
     if (message == null) {
       throw new MessageFormatException("null message");
     }
+    log.debug("sendMessage {} {}", defaultDestination, message);
     Producer<byte[]> producer =
         session
             .getFactory()
@@ -1135,6 +1138,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
     if (message == null) {
       throw new MessageFormatException("null message");
     }
+    log.info("sendMessage Async{} {}", defaultDestination, message);
     Producer<byte[]> producer =
         session
             .getFactory()

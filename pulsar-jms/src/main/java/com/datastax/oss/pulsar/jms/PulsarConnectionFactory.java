@@ -15,8 +15,10 @@
  */
 package com.datastax.oss.pulsar.jms;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -58,7 +60,8 @@ public class PulsarConnectionFactory
   private final PulsarAdmin pulsarAdmin;
   private final Map<String, Object> producerConfiguration;
   private final Map<String, Object> consumerConfiguration;
-  private final Map<PulsarDestination, Producer<byte[]>> producers = new ConcurrentHashMap<>();
+  private final Map<String, Producer<byte[]>> producers = new ConcurrentHashMap<>();
+  private final Set<PulsarConnection> connections = Collections.synchronizedSet(new HashSet<>());
   private final List<Consumer<byte[]>> consumers = new CopyOnWriteArrayList<>();
   private final Set<String> clientIdentifiers = new ConcurrentSkipListSet<>();
   private final String systemNamespace;
@@ -154,7 +157,9 @@ public class PulsarConnectionFactory
    */
   @Override
   public PulsarConnection createConnection() throws JMSException {
-    return new PulsarConnection(this);
+    PulsarConnection res = new PulsarConnection(this);
+    connections.add(res);
+    return res;
   }
 
   /**
@@ -174,7 +179,7 @@ public class PulsarConnectionFactory
   @Override
   public PulsarConnection createConnection(String userName, String password) throws JMSException {
     validateDummyUserNamePassword(userName, password);
-    return new PulsarConnection(this);
+    return createConnection();
   }
 
   private static void validateDummyUserNamePassword(String userName, String password)
@@ -468,12 +473,23 @@ public class PulsarConnectionFactory
   }
 
   public void close() {
+    // close all connections and wait for ongoing operations
+    // to complete
+    for (PulsarConnection con : new ArrayList<>(connections)) {
+      try {
+        con.close();
+      } catch (Exception ignore) {
+        // ignore
+        Utils.handleException(ignore);
+      }
+    }
 
     for (Producer<?> producer : producers.values()) {
       try {
         producer.close();
-      } catch (PulsarClientException error) {
+      } catch (PulsarClientException ignore) {
         // ignore
+        Utils.handleException(ignore);
       }
     }
 
@@ -490,7 +506,7 @@ public class PulsarConnectionFactory
       PulsarDestination defaultDestination, boolean transactions) throws JMSException {
     try {
       return producers.computeIfAbsent(
-          defaultDestination,
+          defaultDestination.topicName + "-" + transactions,
           d -> {
             try {
               return Utils.invoke(
@@ -498,7 +514,7 @@ public class PulsarConnectionFactory
                     ProducerBuilder<byte[]> producerBuilder =
                         pulsarClient
                             .newProducer()
-                            .topic(d.topicName)
+                            .topic(defaultDestination.topicName)
                             .loadConf(producerConfiguration);
                     if (transactions) {
                       // this is a limitation of Pulsar transaction support
@@ -515,7 +531,7 @@ public class PulsarConnectionFactory
     }
   }
 
-  private static final String QUEUE_SHARED_SUBCRIPTION_NAME = "jms-queue-emulator";
+  static final String QUEUE_SHARED_SUBCRIPTION_NAME = "jms-queue-emulator";
 
   public void ensureSubscription(PulsarDestination destination, String consumerName)
       throws JMSException {
@@ -611,10 +627,11 @@ public class PulsarConnectionFactory
     }
   }
 
-  public void unregisterClientId(String clientId) {
-    if (clientId != null) {
-      clientIdentifiers.remove(clientId);
+  public void unregisterConnection(PulsarConnection connection) {
+    if (connection.clientId != null) {
+      clientIdentifiers.remove(connection.clientId);
     }
+    connections.remove(connection);
   }
 
   @Override

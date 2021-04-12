@@ -108,6 +108,8 @@ final class Utils {
             code.run();
             return null;
           });
+    } catch (IllegalStateException err) {
+      log.debug("Ignore error in listener", err);
     } catch (JMSException err) {
       log.error("Unexpected error in listener", err);
     } finally {

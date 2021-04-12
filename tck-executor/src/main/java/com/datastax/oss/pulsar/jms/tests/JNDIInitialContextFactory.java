@@ -24,6 +24,7 @@ import java.lang.reflect.Proxy;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Hashtable;
+import java.util.Map;
 import javax.naming.Context;
 import javax.naming.NamingException;
 import javax.naming.spi.InitialContextFactory;
@@ -57,6 +58,21 @@ public class JNDIInitialContextFactory implements InitialContextFactory {
     }
   }
 
+  private static PulsarConnectionFactory buildConnectionFactory() throws Exception {
+    Map<String, Object> configuration = new HashMap<>();
+    configuration.put("enableTransaction", true);
+    configuration.put("forceDeleteTemporaryDestinations", true);
+
+    Map<String, Object> producerConfig = new HashMap<>();
+    producerConfig.put("batchingEnabled", false);
+
+    Map<String, Object> consumerConfig = new HashMap<>();
+    consumerConfig.put("receiverQueueSize", 1);
+    configuration.put("consumerConfig", consumerConfig);
+    configuration.put("producerConfig", producerConfig);
+    return new PulsarConnectionFactory(configuration);
+  }
+
   public Object lookup(String name) throws Exception {
     System.out.println("lookup " + name);
     switch (name) {
@@ -64,12 +80,7 @@ public class JNDIInitialContextFactory implements InitialContextFactory {
       case "MyTopicConnectionFactory":
       case "MyConnectionFactory":
       case "DURABLE_SUB_CONNECTION_FACTORY":
-        return new PulsarConnectionFactory(
-            new HashMap<String, Object>() {
-              {
-                put("enableTransaction", "true");
-              }
-            });
+        return buildConnectionFactory();
       case "MY_QUEUE":
       case "MY_QUEUE2":
       case "testQ0":
