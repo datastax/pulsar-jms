@@ -813,7 +813,7 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
       if (allowUnset) {
         return subscriptionName;
       } else {
-        throw new InvalidClientIDException("ClientID must be set");
+        throw new IllegalStateException("ClientID must be set");
       }
     }
   }

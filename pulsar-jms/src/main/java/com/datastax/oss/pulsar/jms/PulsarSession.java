@@ -188,7 +188,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     return new PulsarMessage.PulsarMapMessage();
   }
 
-  public MapMessage createMapMessage(Map<String, Object> body) {
+  public MapMessage createMapMessage(Map<String, Object> body) throws JMSException {
     return new PulsarMessage.PulsarMapMessage(body);
   }
 
@@ -288,7 +288,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    */
   @Override
   public TextMessage createTextMessage() {
-    return new PulsarMessage.PulsarTextMessage(null);
+    return new PulsarMessage.PulsarTextMessage((String) null);
   }
 
   /**
@@ -692,7 +692,8 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
 
   private void messageSelectorNotSupported(String messageSelector) throws InvalidSelectorException {
     if (messageSelector != null && !messageSelector.isEmpty()) {
-      throw new InvalidSelectorException("Message selectors are not supported on Pulsar");
+      throw new InvalidSelectorException(
+          "Message selectors are not supported on Pulsar (requesting '" + messageSelector + "')");
     }
   }
 
@@ -784,7 +785,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   public PulsarConsumer createSharedConsumer(Topic topic, String sharedSubscriptionName)
       throws JMSException {
     sharedSubscriptionName = connection.prependClientId(sharedSubscriptionName, true);
-    destinationBySubscription.put(sharedSubscriptionName, (PulsarDestination) topic);
+    registerSubscriptionName(topic, sharedSubscriptionName);
     return new PulsarConsumer(
             sharedSubscriptionName,
             (PulsarDestination) topic,
@@ -841,7 +842,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
       Topic topic, String sharedSubscriptionName, String messageSelector) throws JMSException {
     sharedSubscriptionName = connection.prependClientId(sharedSubscriptionName, true);
     messageSelectorNotSupported(messageSelector);
-    destinationBySubscription.put(sharedSubscriptionName, (PulsarDestination) topic);
+    registerSubscriptionName(topic, sharedSubscriptionName);
     return new PulsarConsumer(
             sharedSubscriptionName,
             (PulsarDestination) topic,
@@ -1050,12 +1051,19 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   @Override
   public PulsarConsumer createDurableSubscriber(
       Topic topic, String name, String messageSelector, boolean noLocal) throws JMSException {
+    return createDurableSubscriber(topic, name, messageSelector, noLocal, false);
+  }
+
+  private PulsarConsumer createDurableSubscriber(
+      Topic topic, String name, String messageSelector, boolean noLocal, boolean allowUnsetClientId)
+      throws JMSException {
     messageSelectorNotSupported(messageSelector);
     if (noLocal) {
       throw new InvalidSelectorException("noLocal mode is not supported by Pulsar");
     }
-    name = connection.prependClientId(name, true);
-    destinationBySubscription.put(name, (PulsarDestination) topic);
+    name = connection.prependClientId(name, allowUnsetClientId);
+    registerSubscriptionName(topic, name);
+
     return new PulsarConsumer(
             name,
             (PulsarDestination) topic,
@@ -1063,6 +1071,16 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
             SubscriptionMode.Durable,
             SubscriptionType.Exclusive)
         .subscribe();
+  }
+
+  private void registerSubscriptionName(Topic topic, String name) throws JMSException {
+    PulsarDestination alreadyExists =
+        destinationBySubscription.put(name, (PulsarDestination) topic);
+    if (alreadyExists != null && !alreadyExists.equals(topic)) {
+      // we cannot perform a cluster wide check
+      throw new JMSException(
+          "a subscription with name " + name + " is already registered on this session");
+    }
   }
 
   /**
@@ -1214,7 +1232,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   @Override
   public PulsarConsumer createDurableConsumer(
       Topic topic, String name, String messageSelector, boolean noLocal) throws JMSException {
-    return createDurableSubscriber(topic, name, messageSelector, noLocal);
+    return createDurableSubscriber(topic, name, messageSelector, noLocal, true);
   }
 
   /**
@@ -1354,7 +1372,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
       Topic topic, String name, String messageSelector) throws JMSException {
     messageSelectorNotSupported(messageSelector);
     name = connection.prependClientId(name, true);
-    destinationBySubscription.put(name, (PulsarDestination) topic);
+    registerSubscriptionName(topic, name);
     return new PulsarConsumer(
             name,
             (PulsarDestination) topic,
@@ -1448,11 +1466,15 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    */
   @Override
   public void unsubscribe(String name) throws JMSException {
+    name = connection.prependClientId(name, true);
     PulsarDestination destination = destinationBySubscription.get(name);
     if (destination == null) {
-      throw new InvalidDestinationException(
-          "Please open and close the subscription withing this session before unsubscribing, because in Pulsar you need to known the Destination for the subscription");
+      log.error(
+          "Cannot unsubscribe {}, please open and close the subscription within this session before unsubscribing, because in Pulsar you need to known the Destination for the subscription. Known subscription names {}",
+          name,
+          destinationBySubscription);
     }
+
     getFactory().deleteSubscription(destination, name);
   }
 

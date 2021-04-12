@@ -15,6 +15,8 @@
  */
 package com.datastax.oss.pulsar.jms;
 
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Enumeration;
 import javax.jms.ConnectionMetaData;
@@ -23,6 +25,8 @@ import org.apache.pulsar.PulsarVersion;
 
 class PulsarConnectionMetadata implements ConnectionMetaData {
 
+  private static final Collection<String> SUPPORTED_PROPERTIES =
+      Arrays.asList("JMSXGroupID", "JMSXGroupSeq", "JMSXDeliveryCount");
   static final PulsarConnectionMetadata INSTANCE = new PulsarConnectionMetadata();
   /**
    * Gets the JMS API version.
@@ -117,6 +121,6 @@ class PulsarConnectionMetadata implements ConnectionMetaData {
    */
   @Override
   public Enumeration getJMSXPropertyNames() throws JMSException {
-    return Collections.emptyEnumeration();
+    return Collections.enumeration(SUPPORTED_PROPERTIES);
   }
 }

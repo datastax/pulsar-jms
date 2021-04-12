@@ -296,6 +296,13 @@ public class PulsarJMSProducer implements JMSProducer {
    */
   @Override
   public JMSProducer setDeliveryMode(int deliveryMode) {
+    switch (deliveryMode) {
+      case DeliveryMode.NON_PERSISTENT:
+      case DeliveryMode.PERSISTENT:
+        break;
+      default:
+        throw new JMSRuntimeException("Invalid deliveryMode " + deliveryMode);
+    }
     this.deliveryMode = deliveryMode;
     return this;
   }
@@ -329,6 +336,9 @@ public class PulsarJMSProducer implements JMSProducer {
    */
   @Override
   public JMSProducer setPriority(int priority) {
+    if (priority < 0 || priority > 10) {
+      throw new JMSRuntimeException("Invalid priority " + priority);
+    }
     this.priority = priority;
     return this;
   }
@@ -680,6 +690,7 @@ public class PulsarJMSProducer implements JMSProducer {
     if (name == null || name.isEmpty()) {
       throw new IllegalArgumentException("Invalid empty property name");
     }
+    Utils.runtimeException(() -> PulsarMessage.validateWritableObject(value));
     this.properties.put(name, value);
   }
 
@@ -811,8 +822,13 @@ public class PulsarJMSProducer implements JMSProducer {
    */
   @Override
   public boolean getBooleanProperty(String name) {
-    return Utils.runtimeException(
-        () -> Boolean.parseBoolean(properties.getOrDefault(name, "false").toString()));
+    switch (properties.getOrDefault(name, "false").toString()) {
+      case "true":
+        return true;
+      case "false":
+        return false;
+    }
+    throw new MessageFormatRuntimeException("Invalid value for boolean");
   }
 
   /**
@@ -828,8 +844,18 @@ public class PulsarJMSProducer implements JMSProducer {
    */
   @Override
   public byte getByteProperty(String name) {
-    return Utils.runtimeException(
-        () -> Byte.parseByte(properties.getOrDefault(name, "0").toString()));
+    if (!properties.containsKey(name)) {
+      throw new NumberFormatException();
+    }
+    final Object currentValue = properties.getOrDefault(name, "0");
+    if (currentValue instanceof Number) {
+      if (!(currentValue instanceof Byte)) {
+        throw new MessageFormatRuntimeException("unsupported conversion");
+      } else {
+        return ((Number) currentValue).byteValue();
+      }
+    }
+    return Utils.runtimeException(() -> Byte.parseByte(currentValue.toString()));
   }
 
   /**
@@ -845,8 +871,18 @@ public class PulsarJMSProducer implements JMSProducer {
    */
   @Override
   public short getShortProperty(String name) {
-    return Utils.runtimeException(
-        () -> Short.parseShort(properties.getOrDefault(name, "0").toString()));
+    if (!properties.containsKey(name)) {
+      throw new NumberFormatException();
+    }
+    final Object currentValue = properties.getOrDefault(name, "0");
+    if (currentValue instanceof Number) {
+      if (!(currentValue instanceof Short) && !(currentValue instanceof Byte)) {
+        throw new MessageFormatRuntimeException("unsupported conversion");
+      } else {
+        return ((Number) currentValue).shortValue();
+      }
+    }
+    return Utils.runtimeException(() -> Short.parseShort(currentValue.toString()));
   }
 
   /**
@@ -862,8 +898,20 @@ public class PulsarJMSProducer implements JMSProducer {
    */
   @Override
   public int getIntProperty(String name) {
-    return Utils.runtimeException(
-        () -> Integer.parseInt(properties.getOrDefault(name, "0").toString()));
+    if (!properties.containsKey(name)) {
+      throw new NumberFormatException();
+    }
+    final Object currentValue = properties.getOrDefault(name, "0");
+    if (currentValue instanceof Number) {
+      if (!(currentValue instanceof Short)
+          && !(currentValue instanceof Integer)
+          && !(currentValue instanceof Byte)) {
+        throw new MessageFormatRuntimeException("unsupported conversion");
+      } else {
+        return ((Number) currentValue).intValue();
+      }
+    }
+    return Utils.runtimeException(() -> Integer.parseInt(currentValue.toString()));
   }
 
   /**
@@ -879,8 +927,21 @@ public class PulsarJMSProducer implements JMSProducer {
    */
   @Override
   public long getLongProperty(String name) {
-    return Utils.runtimeException(
-        () -> Long.parseLong(properties.getOrDefault(name, "0").toString()));
+    if (!properties.containsKey(name)) {
+      throw new NumberFormatException();
+    }
+    final Object currentValue = properties.getOrDefault(name, "0");
+    if (currentValue instanceof Number) {
+      if (!(currentValue instanceof Short)
+          && !(currentValue instanceof Integer)
+          && !(currentValue instanceof Byte)
+          && !(currentValue instanceof Long)) {
+        throw new MessageFormatRuntimeException("unsupported conversion");
+      } else {
+        return ((Number) currentValue).longValue();
+      }
+    }
+    return Utils.runtimeException(() -> Long.parseLong(currentValue.toString()));
   }
 
   /**
@@ -896,8 +957,18 @@ public class PulsarJMSProducer implements JMSProducer {
    */
   @Override
   public float getFloatProperty(String name) {
-    return Utils.runtimeException(
-        () -> Float.parseFloat(properties.getOrDefault(name, "0").toString()));
+    if (!properties.containsKey(name)) {
+      throw new NullPointerException();
+    }
+    final Object currentValue = properties.getOrDefault(name, "0");
+    if (currentValue instanceof Number) {
+      if (!(currentValue instanceof Float)) {
+        throw new MessageFormatRuntimeException("unsupported conversion");
+      } else {
+        return (Float) currentValue;
+      }
+    }
+    return Utils.runtimeException(() -> Float.parseFloat(currentValue.toString()));
   }
 
   /**
@@ -913,8 +984,18 @@ public class PulsarJMSProducer implements JMSProducer {
    */
   @Override
   public double getDoubleProperty(String name) {
-    return Utils.runtimeException(
-        () -> Double.parseDouble(properties.getOrDefault(name, "0").toString()));
+    if (!properties.containsKey(name)) {
+      throw new NullPointerException();
+    }
+    final Object currentValue = properties.getOrDefault(name, "0");
+    if (currentValue instanceof Number) {
+      if (!(currentValue instanceof Double) && !(currentValue instanceof Float)) {
+        throw new MessageFormatRuntimeException("unsupported conversion");
+      } else {
+        return ((Number) currentValue).doubleValue();
+      }
+    }
+    return Utils.runtimeException(() -> Double.parseDouble(currentValue.toString()));
   }
 
   /**

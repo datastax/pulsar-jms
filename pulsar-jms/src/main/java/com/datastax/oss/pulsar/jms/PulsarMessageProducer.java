@@ -1129,7 +1129,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
     if (defaultDeliveryDelay > 0) {
       typedMessageBuilder.deliverAfter(defaultDeliveryDelay, TimeUnit.MILLISECONDS);
     }
-    pulsarMessage.send(typedMessageBuilder);
+    pulsarMessage.send(typedMessageBuilder, disableMessageTimestamp);
   }
 
   private void sendMessage(
@@ -1147,9 +1147,13 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
     PulsarMessage pulsarMessage = convertToPulsarMessage(message);
     if (session.getTransacted()) {
       pulsarMessage.sendAsync(
-          producer.newMessage(session.getTransaction()), completionListener, session);
+          producer.newMessage(session.getTransaction()),
+          completionListener,
+          session,
+          disableMessageTimestamp);
     } else {
-      pulsarMessage.sendAsync(producer.newMessage(), completionListener, session);
+      pulsarMessage.sendAsync(
+          producer.newMessage(), completionListener, session, disableMessageTimestamp);
     }
   }
 

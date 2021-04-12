@@ -40,3 +40,7 @@ com/sun/ts/tests/jms/core20/jmscontexttopictests/Client.java#illegalStateRuntime
 
 # noLocal
 com/sun/ts/tests/jms/core20/jmscontexttopictests/Client.java#durableConsumerTopicNoLocalTest_from_standalone
+
+
+# timeToLive
+com/sun/ts/tests/jms/core20/jmsproducerqueuetests/Client.java#msgHdrJMSExpirationTest_from_standalone

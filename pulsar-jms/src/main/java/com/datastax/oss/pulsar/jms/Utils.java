@@ -172,6 +172,10 @@ final class Utils {
   }
 
   private static void throwAsRuntimeException(Exception err) {
+    if (err instanceof NumberFormatException) {
+      throw (MessageFormatRuntimeException)
+          new MessageFormatRuntimeException("Illegal value: " + err.getMessage()).initCause(err);
+    }
     if (err instanceof IllegalStateException) {
       IllegalStateException jmsException = (IllegalStateException) err;
       throw new IllegalStateRuntimeException(

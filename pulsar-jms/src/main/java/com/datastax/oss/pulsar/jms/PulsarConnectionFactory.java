@@ -65,6 +65,7 @@ public class PulsarConnectionFactory
   private final List<Consumer<byte[]>> consumers = new CopyOnWriteArrayList<>();
   private final Set<String> clientIdentifiers = new ConcurrentSkipListSet<>();
   private final String systemNamespace;
+  private final String defaultClientId;
   private final boolean enableTransaction;
   private final boolean forceDeleteTemporaryDestinations;
 
@@ -93,6 +94,8 @@ public class PulsarConnectionFactory
         systemNamespace = "public/default";
       }
       this.systemNamespace = systemNamespace;
+
+      this.defaultClientId = (String) properties.remove("jms.clientId");
 
       // default is false
       this.forceDeleteTemporaryDestinations =
@@ -158,6 +161,10 @@ public class PulsarConnectionFactory
   @Override
   public PulsarConnection createConnection() throws JMSException {
     PulsarConnection res = new PulsarConnection(this);
+    if (defaultClientId != null) {
+      res.setClientID(defaultClientId);
+      res.setAllowSetClientId(false);
+    }
     connections.add(res);
     return res;
   }
@@ -613,8 +620,28 @@ public class PulsarConnectionFactory
 
   public void deleteSubscription(PulsarDestination destination, String name) throws JMSException {
     try {
-      log.info("deleteSubscription topic {} name {}", destination.topicName, name);
-      pulsarAdmin.topics().deleteSubscription(destination.topicName, name, true);
+
+      // TCK mode, scan for all subscriptions
+      List<String> allTopics = pulsarAdmin.topics().getList(systemNamespace);
+      for (String topic : allTopics) {
+        log.info("Scanning topic {}", topic);
+        List<String> subscriptions = pulsarAdmin.topics().getSubscriptions(topic);
+        log.info("Subscriptions {}", subscriptions);
+        for (String subscription : subscriptions) {
+          log.info("Found subscription {} ", subscription);
+          if (subscription.equals(name)) {
+            log.info("deleteSubscription topic {} name {}", destination.topicName, name);
+            pulsarAdmin.topics().deleteSubscription(topic, name, true);
+          }
+        }
+      }
+
+      if (destination != null) {
+        log.info("deleteSubscription topic {} name {}", destination.topicName, name);
+        pulsarAdmin.topics().deleteSubscription(destination.topicName, name, true);
+      }
+    } catch (PulsarAdminException.NotFoundException notFound) {
+      log.error("Cannot unsubscribe {} from {}: not found", name, destination.topicName);
     } catch (Exception err) {
       throw Utils.handleException(err);
     }

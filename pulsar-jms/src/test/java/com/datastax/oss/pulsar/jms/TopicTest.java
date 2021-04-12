@@ -29,7 +29,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import javax.jms.Connection;
+import javax.jms.JMSConsumer;
+import javax.jms.JMSContext;
 import javax.jms.JMSException;
+import javax.jms.JMSProducer;
 import javax.jms.Message;
 import javax.jms.MessageConsumer;
 import javax.jms.MessageProducer;
@@ -113,6 +116,7 @@ public class TopicTest {
 
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
+    properties.put("jms.clientId", "the-id");
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
         connection.start();
@@ -171,6 +175,32 @@ public class TopicTest {
             assertNull(consumer1.receiveNoWait());
           }
         }
+      }
+    }
+  }
+
+  @Test
+  public void simpleDurableConsumerTest() throws Exception {
+
+    Map<String, Object> properties = new HashMap<>();
+    properties.put("webServiceUrl", cluster.getAddress());
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+      try (JMSContext context1 = factory.createContext();
+          JMSContext context2 = factory.createContext()) {
+        Topic topic = context1.createTopic("persistent://public/default/test-" + UUID.randomUUID());
+        String durableSubscriptionName = "simpleDurableConsumerTest";
+
+        JMSConsumer consumer2 = context2.createDurableConsumer(topic, durableSubscriptionName);
+
+        JMSProducer producer = context1.createProducer();
+
+        TextMessage messageSent = context2.createTextMessage("just a test");
+        messageSent.setStringProperty("COM_SUN_JMS_TESTNAME", durableSubscriptionName);
+        producer.send(topic, messageSent);
+        TextMessage messageReceived = (TextMessage) consumer2.receive(5000);
+
+        // Check to see if correct message received
+        assertEquals(messageReceived.getText(), messageSent.getText());
       }
     }
   }

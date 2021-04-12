@@ -31,6 +31,7 @@ import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 import javax.jms.BytesMessage;
 import javax.jms.CompletionListener;
 import javax.jms.DeliveryMode;
@@ -788,7 +789,12 @@ abstract class PulsarMessage implements Message {
    */
   @Override
   public Enumeration getPropertyNames() throws JMSException {
-    return Collections.enumeration(properties.keySet());
+    return Collections.enumeration(
+        properties
+            .keySet()
+            .stream()
+            .filter(n -> !n.endsWith("_jsmtype"))
+            .collect(Collectors.toList()));
   }
 
   /**
@@ -1035,12 +1041,12 @@ abstract class PulsarMessage implements Message {
   final void sendAsync(
       TypedMessageBuilder<byte[]> producer,
       CompletionListener completionListener,
-      PulsarSession session)
+      PulsarSession session,
+      boolean disableMessageTimestamp)
       throws JMSException {
     prepareForSend(producer);
-    fillSystemProperties(producer);
+    fillSystemProperties(producer, disableMessageTimestamp);
 
-    this.jmsTimestamp = System.currentTimeMillis();
     producer
         .sendAsync()
         .whenComplete(
@@ -1052,7 +1058,6 @@ abstract class PulsarMessage implements Message {
                       completionListener.onException(this, Utils.handleException(error));
                     } else {
                       this.messageId = "ID:" + Arrays.toString(messageIdFromServer.toByteArray());
-                      this.jmsDeliveryTime = System.currentTimeMillis();
                       // we do not know in the producer about the actual time-to-live
                       this.jmsExpiration = 0;
                       completionListener.onCompletion(this);
@@ -1061,7 +1066,12 @@ abstract class PulsarMessage implements Message {
             });
   }
 
-  private void fillSystemProperties(TypedMessageBuilder<byte[]> producer) {
+  private void fillSystemProperties(
+      TypedMessageBuilder<byte[]> producer, boolean disableMessageTimestamp)
+      throws MessageNotWriteableException {
+    if (!writable || consumer != null) {
+      throw new MessageNotWriteableException("Message is not writable");
+    }
     producer.properties(properties);
     // useful for deserialization
     producer.property("JMS_PulsarMessageType", messageType());
@@ -1083,19 +1093,32 @@ abstract class PulsarMessage implements Message {
     if (jmsPriority != Message.DEFAULT_PRIORITY) {
       producer.property("JMSPriority", jmsPriority + "");
     }
+    this.jmsTimestamp = System.currentTimeMillis();
+    if (!disableMessageTimestamp) {
+      producer.eventTime(jmsTimestamp);
+    }
+    this.jmsDeliveryTime = jmsTimestamp;
+    if (jmsPriority != Message.DEFAULT_PRIORITY) {
+      producer.property("JMSDeliveryTime", jmsDeliveryTime + "");
+    }
+
+    // we can use JMSXGroupID as key in order to provide
+    // a behaviour similar to https://activemq.apache.org/message-groups
+    String JMSXGroupID = properties.get("JMSXGroupID");
+    if (JMSXGroupID != null) {
+      producer.key(JMSXGroupID);
+    }
   }
 
-  final void send(TypedMessageBuilder<byte[]> producer) throws JMSException {
+  final void send(TypedMessageBuilder<byte[]> producer, boolean disableMessageTimestamp)
+      throws JMSException {
     prepareForSend(producer);
-    fillSystemProperties(producer);
+    fillSystemProperties(producer, disableMessageTimestamp);
 
-    this.jmsTimestamp = System.currentTimeMillis();
     MessageId messageIdFromServer = Utils.invoke(() -> producer.send());
     this.messageId = "ID:" + Arrays.toString(messageIdFromServer.toByteArray());
-    this.jmsDeliveryTime = System.currentTimeMillis();
     // we do not know in the producer about the actual time-to-live
     this.jmsExpiration = 0;
-    log.info("sendMessage {}, Pulsar ID {}", this, messageId);
   }
 
   abstract void prepareForSend(TypedMessageBuilder<byte[]> producer) throws JMSException;
@@ -1884,6 +1907,7 @@ abstract class PulsarMessage implements Message {
         throw new MessageFormatException("null not allowed here");
       }
       try {
+        // see also validateWritableObject
         if (value instanceof Integer) {
           writeInt((Integer) value);
         } else if (value instanceof String) {
@@ -1900,6 +1924,8 @@ abstract class PulsarMessage implements Message {
           writeByte((Byte) value);
         } else if (value instanceof Character) {
           writeChar((Character) value);
+        } else if (value instanceof Boolean) {
+          writeBoolean((Boolean) value);
         } else if (value instanceof byte[]) {
           writeBytes((byte[]) value);
         } else {
@@ -2093,6 +2119,14 @@ abstract class PulsarMessage implements Message {
   static final class PulsarTextMessage extends PulsarMessage implements TextMessage {
     private String text;
 
+    public PulsarTextMessage(byte[] payload) {
+      if (payload == null) {
+        this.text = null;
+      } else {
+        this.text = new String(payload, StandardCharsets.UTF_8);
+      }
+    }
+
     public PulsarTextMessage(String text) {
       this.text = text;
     }
@@ -2119,7 +2153,11 @@ abstract class PulsarMessage implements Message {
 
     @Override
     void prepareForSend(TypedMessageBuilder<byte[]> producer) throws JMSException {
-      producer.value(text.getBytes(StandardCharsets.UTF_8));
+      if (text == null) {
+        producer.value(null);
+      } else {
+        producer.value(text.getBytes(StandardCharsets.UTF_8));
+      }
     }
 
     /**
@@ -2288,10 +2326,13 @@ abstract class PulsarMessage implements Message {
       writable = true;
     }
 
-    public PulsarMapMessage(Map<String, Object> body) {
+    public PulsarMapMessage(Map<String, Object> body) throws MessageFormatException {
       this();
       if (body != null) {
         map.putAll(body);
+        for (Object value : body.values()) {
+          validateWritableObject(value);
+        }
       }
     }
 
@@ -2734,6 +2775,7 @@ abstract class PulsarMessage implements Message {
     @Override
     public void setObject(String name, Object value) throws JMSException {
       checkWritableProperty(name);
+      validateWritableObject(value);
       map.put(name, value);
     }
 
@@ -2772,8 +2814,7 @@ abstract class PulsarMessage implements Message {
       case "bytes":
         return new PulsarBytesMessage(value).applyMessage(msg, consumer);
       case "text":
-        return new PulsarTextMessage(new String(value, StandardCharsets.UTF_8))
-            .applyMessage(msg, consumer);
+        return new PulsarTextMessage(value).applyMessage(msg, consumer);
       default:
         return new SimpleMessage().applyMessage(msg, consumer);
     }
@@ -2811,11 +2852,51 @@ abstract class PulsarMessage implements Message {
         // cannot decode deliveryMode, not a big deal as it is not supported in Pulsar
       }
     }
-    this.jmsDeliveryTime = msg.getEventTime();
-    this.properties.put("JMSXDeliveryCount", msg.getRedeliveryCount() + "");
+
+    // this is optional
+    this.jmsTimestamp = msg.getEventTime();
+
+    this.jmsDeliveryTime = jmsTimestamp;
+    if (msg.hasProperty("JMSDeliveryTime")) {
+      try {
+        this.jmsDeliveryTime = Long.parseLong(msg.getProperty("JMSDeliveryTime"));
+      } catch (NumberFormatException err) {
+        // cannot decode JMSDeliveryTime
+      }
+    }
+
+    this.properties.put("JMSXDeliveryCount", (msg.getRedeliveryCount() + 1) + "");
+    if (msg.getKey() != null) {
+      this.properties.put("JMSXGroupID", msg.getKey());
+    } else {
+      this.properties.put("JMSXGroupID", "");
+    }
+    if (!properties.containsKey("JMSXGroupSeq")) {
+      this.properties.put("JMSXGroupSeq", msg.getSequenceId() + "");
+    }
+
     this.jmsRedelivered = msg.getRedeliveryCount() > 0;
     this.receivedPulsarMessage = msg;
     this.consumer = consumer;
     return this;
+  }
+
+  static void validateWritableObject(Object value) throws MessageFormatException {
+    if (value == null) {
+      return;
+    }
+    if (value instanceof Integer) {
+    } else if (value instanceof String) {
+    } else if (value instanceof Short) {
+    } else if (value instanceof Long) {
+    } else if (value instanceof Double) {
+    } else if (value instanceof Float) {
+    } else if (value instanceof Boolean) {
+    } else if (value instanceof Byte) {
+    } else if (value instanceof Character) {
+    } else if (value instanceof byte[]) {
+    } else {
+      throw new MessageFormatException("Unsupported type " + value.getClass());
+    }
   }
 }
