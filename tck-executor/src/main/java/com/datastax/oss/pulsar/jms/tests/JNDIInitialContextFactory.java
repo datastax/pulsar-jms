@@ -58,7 +58,7 @@ public class JNDIInitialContextFactory implements InitialContextFactory {
     }
   }
 
-  private static PulsarConnectionFactory buildConnectionFactory() throws Exception {
+  private static PulsarConnectionFactory buildConnectionFactory(String name) throws Exception {
     Map<String, Object> configuration = new HashMap<>();
     configuration.put("enableTransaction", true);
     configuration.put("forceDeleteTemporaryDestinations", true);
@@ -70,6 +70,11 @@ public class JNDIInitialContextFactory implements InitialContextFactory {
     consumerConfig.put("receiverQueueSize", 1);
     configuration.put("consumerConfig", consumerConfig);
     configuration.put("producerConfig", producerConfig);
+    if (name.equals("DURABLE_SUB_CONNECTION_FACTORY")) {
+      // see
+      // com.sun.ts.tests.jms.core20.jmscontexttopictests.Client.verifyClientIDOnAdminConfiguredIDTest
+      configuration.put("jms.clientId", "cts");
+    }
     return new PulsarConnectionFactory(configuration);
   }
 
@@ -80,7 +85,7 @@ public class JNDIInitialContextFactory implements InitialContextFactory {
       case "MyTopicConnectionFactory":
       case "MyConnectionFactory":
       case "DURABLE_SUB_CONNECTION_FACTORY":
-        return buildConnectionFactory();
+        return buildConnectionFactory(name);
       case "MY_QUEUE":
       case "MY_QUEUE2":
       case "testQ0":
