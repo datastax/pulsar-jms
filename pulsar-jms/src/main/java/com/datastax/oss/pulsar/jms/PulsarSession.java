@@ -1234,7 +1234,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   @Override
   public PulsarConsumer createDurableConsumer(
       Topic topic, String name, String messageSelector, boolean noLocal) throws JMSException {
-    return createDurableSubscriber(topic, name, messageSelector, noLocal, true);
+    return createDurableSubscriber(topic, name, messageSelector, noLocal, false);
   }
 
   /**
