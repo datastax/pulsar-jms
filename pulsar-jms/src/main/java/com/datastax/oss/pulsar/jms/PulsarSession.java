@@ -66,6 +66,7 @@ import org.apache.pulsar.client.api.transaction.TransactionCoordinatorClientExce
 public class PulsarSession implements Session, QueueSession, TopicSession {
 
   private final PulsarConnection connection;
+  private boolean jms20;
   private final int sessionMode;
   Transaction transaction;
   private MessageListener messageListener;
@@ -80,6 +81,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   private final List<PulsarConsumer> consumers = new CopyOnWriteArrayList<>();
 
   public PulsarSession(int sessionMode, PulsarConnection connection) throws JMSException {
+    this.jms20 = false;
     this.connection = connection;
     this.sessionMode = sessionMode;
     validateSessionMode(sessionMode);
@@ -1509,6 +1511,14 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   public void registerConsumer(PulsarConsumer consumer) {
     consumers.add(consumer);
     connection.setAllowSetClientId(false);
+  }
+
+  public boolean isJms20() {
+    return jms20;
+  }
+
+  public void setJms20(boolean jms20) {
+    this.jms20 = jms20;
   }
 
   interface BlockCLoseOperation<T> {

@@ -44,3 +44,4 @@ com/sun/ts/tests/jms/core20/jmscontexttopictests/Client.java#durableConsumerTopi
 
 # timeToLive
 com/sun/ts/tests/jms/core20/jmsproducerqueuetests/Client.java#msgHdrJMSExpirationTest_from_standalone
+com/sun/ts/tests/jms/core20/jmsproducertopictests/Client.java#msgHdrJMSExpirationTest_from_standalone

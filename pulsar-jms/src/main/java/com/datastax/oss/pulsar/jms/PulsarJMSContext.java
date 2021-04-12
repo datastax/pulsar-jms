@@ -54,6 +54,7 @@ public class PulsarJMSContext implements JMSContext {
     try {
       this.connection = factory.createConnection();
       this.session = connection.createSession(sessionMode);
+      this.session.setJms20(true);
       this.session.setTrackUnacknowledgedMessages(true);
       this.connection.setAllowSetClientId(true);
       this.owningConnection = true;
@@ -69,6 +70,7 @@ public class PulsarJMSContext implements JMSContext {
       this.owningConnection = false;
       this.connection = connection;
       this.session = connection.createSession(sessionMode);
+      this.session.setJms20(true);
       this.session.setTrackUnacknowledgedMessages(true);
     } catch (JMSException err) {
       JMSRuntimeException jms = new JMSRuntimeException("error");

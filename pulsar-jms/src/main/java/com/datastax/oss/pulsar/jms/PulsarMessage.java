@@ -1045,7 +1045,7 @@ abstract class PulsarMessage implements Message {
       boolean disableMessageTimestamp)
       throws JMSException {
     prepareForSend(producer);
-    fillSystemProperties(producer, disableMessageTimestamp);
+    fillSystemPropertiesBeforeSend(producer, disableMessageTimestamp);
 
     producer
         .sendAsync()
@@ -1066,12 +1066,18 @@ abstract class PulsarMessage implements Message {
             });
   }
 
-  private void fillSystemProperties(
+  private void fillSystemPropertiesBeforeSend(
       TypedMessageBuilder<byte[]> producer, boolean disableMessageTimestamp)
       throws MessageNotWriteableException {
-    if (!writable || consumer != null) {
+    if (!writable) {
       throw new MessageNotWriteableException("Message is not writable");
     }
+    //   is this required only by JMS 2 ?
+    //    if (consumer != null) {
+    //      throw new MessageNotWriteableException(
+    //          "Message is not writable because consumer is not null");
+    //    }
+    consumer = null;
     producer.properties(properties);
     // useful for deserialization
     producer.property("JMS_PulsarMessageType", messageType());
@@ -1113,7 +1119,7 @@ abstract class PulsarMessage implements Message {
   final void send(TypedMessageBuilder<byte[]> producer, boolean disableMessageTimestamp)
       throws JMSException {
     prepareForSend(producer);
-    fillSystemProperties(producer, disableMessageTimestamp);
+    fillSystemPropertiesBeforeSend(producer, disableMessageTimestamp);
 
     MessageId messageIdFromServer = Utils.invoke(() -> producer.send());
     this.messageId = "ID:" + Arrays.toString(messageIdFromServer.toByteArray());

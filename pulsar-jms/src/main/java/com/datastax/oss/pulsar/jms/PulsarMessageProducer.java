@@ -44,9 +44,11 @@ import org.apache.pulsar.client.api.TypedMessageBuilder;
 class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSender {
   private final PulsarSession session;
   private PulsarDestination defaultDestination;
+  private final boolean jms20;
 
   public PulsarMessageProducer(PulsarSession session, Destination defaultDestination)
       throws JMSException {
+    this.jms20 = session.isJms20();
     session.checkNotClosed();
     this.session = session;
     try {
@@ -151,7 +153,18 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
   @Override
   public void setDeliveryMode(int deliveryMode) throws JMSException {
     session.checkNotClosed();
+    validateDeliveryMode(deliveryMode);
     this.deliveryMode = deliveryMode;
+  }
+
+  private static void validateDeliveryMode(int deliveryMode) throws JMSException {
+    switch (deliveryMode) {
+      case DeliveryMode.NON_PERSISTENT:
+      case DeliveryMode.PERSISTENT:
+        break;
+      default:
+        throw new JMSException("Invalid deliveryMode " + deliveryMode);
+    }
   }
 
   /**
@@ -184,7 +197,14 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
   @Override
   public void setPriority(int defaultPriority) throws JMSException {
     session.checkNotClosed();
-    this.priority = priority;
+    validatePriority(defaultPriority);
+    this.priority = defaultPriority;
+  }
+
+  private void validatePriority(int defaultPriority) throws JMSException {
+    if (defaultPriority < 0 || defaultPriority > 10) {
+      throw new JMSException("invalid priority " + defaultPriority);
+    }
   }
 
   /**
@@ -436,9 +456,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
     if (deliveryMode != DeliveryMode.PERSISTENT && deliveryMode != DeliveryMode.NON_PERSISTENT) {
       throw new JMSException("Invalid deliveryMode " + deliveryMode);
     }
-    if (priority < 0 || priority > 10) {
-      throw new JMSException("Invalid priority " + priority);
-    }
+    validatePriority(priority);
     if (destination == null) {
       if (isDefaultDestination) {
         throw new UnsupportedOperationException("please set a destination");
@@ -581,6 +599,12 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
   @Override
   public void send(Message message, CompletionListener completionListener) throws JMSException {
     validateCompletionListener(completionListener);
+
+    if (!jms20) {
+      // here the error is to be reported not in the CompletionListener
+      validateDeliveryMode(deliveryMode);
+    }
+
     try {
       validateMessageSend(message, defaultDestination, true, 0, deliveryMode, priority);
     } catch (JMSException err) {
@@ -731,6 +755,12 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
       CompletionListener completionListener)
       throws JMSException {
     validateCompletionListener(completionListener);
+    if (!jms20) {
+      // here the error is to be reported not in the CompletionListener
+      validateDeliveryMode(deliveryMode);
+      validatePriority(priority);
+    }
+
     try {
       validateMessageSend(message, defaultDestination, true, timeToLive, deliveryMode, priority);
     } catch (JMSException err) {
@@ -935,6 +965,10 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
       throws JMSException {
     validateCompletionListener(completionListener);
     checkNoDefaultDestinationSet();
+    if (!jms20) {
+      // here the error is to be reported not in the CompletionListener
+      validateDeliveryMode(deliveryMode);
+    }
     try {
       validateMessageSend(
           message, defaultDestination, true, Message.DEFAULT_TIME_TO_LIVE, deliveryMode, priority);
@@ -1092,6 +1126,11 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
       throws JMSException {
     validateCompletionListener(completionListener);
     checkNoDefaultDestinationSet();
+    if (!jms20) {
+      // here the error is to be reported not in the CompletionListener
+      validateDeliveryMode(deliveryMode);
+      validatePriority(priority);
+    }
     try {
       validateMessageSend(message, destination, false, timeToLive, deliveryMode, priority);
     } catch (JMSException err) {
