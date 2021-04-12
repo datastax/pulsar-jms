@@ -37,6 +37,16 @@ com/sun/ts/tests/jms/core20/jmscontexttopictests/Client.java#createConsumerTest_
 com/sun/ts/tests/jms/core20/jmscontexttopictests/Client.java#createDurableConsumerTest2_from_standalone
 com/sun/ts/tests/jms/core20/jmscontexttopictests/Client.java#createSharedConsumerTest2_from_standalone
 com/sun/ts/tests/jms/core20/jmscontexttopictests/Client.java#illegalStateRuntimeExceptionTest_from_standalone
+com/sun/ts/tests/jms/core20/sessiontests/Client.java#createDurableConsumerTopicTest2_from_standalone
+com/sun/ts/tests/jms/core20/sessiontests/Client.java#createSharedDurableConsumerTopicTest2_from_standalone
+com/sun/ts/tests/jms/core20/sessiontests/Client.java#createSharedConsumerTopicTest2_from_standalone
+com/sun/ts/tests/jms/core20/sessiontests/Client.java#invalidDestinationExceptionTests_from_standalone
+com/sun/ts/tests/jms/core20/sessiontests/Client.java#createConsumerProducerQueueTest_from_standalone
+com/sun/ts/tests/jms/core20/sessiontests/Client.java#createConsumerProducerTopicTest_from_standalone
+com/sun/ts/tests/jms/core20/sessiontests/Client.java#illegalStateExceptionTests_from_standalone
+com/sun/ts/tests/jms/core20/sessiontests/Client.java#createDurableSubscriberTopicTest2_from_standalone
+com/sun/ts/tests/jms/core20/sessiontests/Client.java#createConsumerProducerTopicTest_from_standalone
+com/sun/ts/tests/jms/core20/sessiontests/Client.java#createQueueBrowserTest_from_standalone
 
 # noLocal
 com/sun/ts/tests/jms/core20/jmscontexttopictests/Client.java#durableConsumerTopicNoLocalTest_from_standalone

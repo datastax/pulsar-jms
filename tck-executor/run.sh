@@ -17,8 +17,8 @@ cd $TS_HOME/src/com/sun/ts/tests/jms
 
 #cd $TS_HOME/src/com/sun/ts/tests/jms/core20/jmsproducerqueuetests
 #cd $TS_HOME/src/com/sun/ts/tests/jms/core20/jmsproducertopictests
-cd $TS_HOME/src/com/sun/ts/tests/jms/core20/messageproducertests
-#cd $TS_HOME/src/com/sun/ts/tests/jms/core20/sessiontests
+#cd $TS_HOME/src/com/sun/ts/tests/jms/core20/messageproducertests
+cd $TS_HOME/src/com/sun/ts/tests/jms/core20/sessiontests
 
 #cd $TS_HOME/src/com/sun/ts/tests/jms/core20/appclient
 
