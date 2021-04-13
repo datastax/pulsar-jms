@@ -47,6 +47,7 @@ com/sun/ts/tests/jms/core20/sessiontests/Client.java#illegalStateExceptionTests_
 com/sun/ts/tests/jms/core20/sessiontests/Client.java#createDurableSubscriberTopicTest2_from_standalone
 com/sun/ts/tests/jms/core20/sessiontests/Client.java#createConsumerProducerTopicTest_from_standalone
 com/sun/ts/tests/jms/core20/sessiontests/Client.java#createQueueBrowserTest_from_standalone
+com/sun/ts/tests/jms/core/appclient/invalidDest/InvalidDestTests.java#invalidDestinationTests_from_standalone
 
 # noLocal
 com/sun/ts/tests/jms/core20/jmscontexttopictests/Client.java#durableConsumerTopicNoLocalTest_from_standalone
@@ -55,3 +56,9 @@ com/sun/ts/tests/jms/core20/jmscontexttopictests/Client.java#durableConsumerTopi
 # timeToLive
 com/sun/ts/tests/jms/core20/jmsproducerqueuetests/Client.java#msgHdrJMSExpirationTest_from_standalone
 com/sun/ts/tests/jms/core20/jmsproducertopictests/Client.java#msgHdrJMSExpirationTest_from_standalone
+
+# JMSRedelivered
+com/sun/ts/tests/jms/core/appclient/queuetests/QueueTests.java#autoAckMsgListenerQueueTest_from_standalone
+
+# Buggy test (line 1629, "exception" variable is never assigned)
+com/sun/ts/tests/jms/core20/appclient/jmscontexttopictests/Client.java#messageFormatRuntimeExceptionTests_from_standalone

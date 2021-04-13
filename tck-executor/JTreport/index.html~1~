@@ -1,0 +1,17 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+<title>Report Index</title></head>
+<body>
+<h1>JMS Compatibility Test Suite Version 2.0</h1>
+Date of report : 12 April 2021  18:51:56
+
+<p>
+<a href="html~1~/report.html">HTML Report</a>
+<br>Standard JT Harness HTML report.  Can show a summary of the results, configuration information, and environment values.
+<p>
+<a href="/tmp/JTreport/text~1~">Plain Text Report</a>
+<br>Standard JT Harness text report showing only test names and their result status string.  Suitable for parsing by external program.</body></html>

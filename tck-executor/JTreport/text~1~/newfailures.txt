@@ -1,0 +1,15 @@
+# newfailures.txt
+com/sun/ts/tests/jms/core20/appclient/jmscontextqueuetests/Client.java#illegalStateRuntimeExceptionTests_from_standalone 
+com/sun/ts/tests/jms/core20/appclient/jmscontextqueuetests/Client.java#sendAndRecvMsgOfEachTypeCLTest_from_standalone 
+com/sun/ts/tests/jms/core20/appclient/jmscontexttopictests/Client.java#messageFormatRuntimeExceptionTests_from_standalone 
+com/sun/ts/tests/jms/core20/appclient/jmscontexttopictests/Client.java#sendAndRecvMsgOfEachTypeCLTest_from_standalone 
+com/sun/ts/tests/jms/core20/appclient/jmscontexttopictests/Client.java#setClientIDOnAdminConfiguredIDTest_from_standalone 
+com/sun/ts/tests/jms/core20/appclient/listenerexceptiontests/Client.java#callingJMSConsumerCloseIsAllowed_from_standalone 
+com/sun/ts/tests/jms/core20/appclient/messageproducertests/Client.java#queueIllegalStateExceptionTests_from_standalone 
+com/sun/ts/tests/jms/core20/appclient/messageproducertests/Client.java#queueMessageFormatExceptionTests_from_standalone 
+com/sun/ts/tests/jms/core20/appclient/messageproducertests/Client.java#queueSendRecvCompletionListenerTest1_from_standalone 
+com/sun/ts/tests/jms/core20/appclient/messageproducertests/Client.java#topicIllegalStateExceptionTests_from_standalone 
+com/sun/ts/tests/jms/core20/appclient/messageproducertests/Client.java#topicMessageFormatExceptionTests_from_standalone 
+com/sun/ts/tests/jms/core20/appclient/messageproducertests/Client.java#topicSendRecvCompletionListenerTest1_from_standalone 
+com/sun/ts/tests/jms/core20/jmsproducerqueuetests/Client.java#sendExceptionTests_from_standalone 
+com/sun/ts/tests/jms/core20/jmsproducertopictests/Client.java#sendExceptionTests_from_standalone 

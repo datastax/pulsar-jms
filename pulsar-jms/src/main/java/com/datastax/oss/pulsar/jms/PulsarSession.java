@@ -1541,8 +1541,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     // executeInConnectionPausedLock also prevents any ongoing "stop()" operation
     // to complete if we entered the execution of the given operation
     checkNotClosed();
-    return connection.executeInConnectionPausedLock(
-        () -> executeCriticalOperation(operation), timeoutMillis);
+    return connection.executeInConnectionPausedLock(operation::execute, timeoutMillis);
   }
 
   <T> T executeCriticalOperation(BlockCLoseOperation<T> operation) throws JMSException {
@@ -1596,6 +1595,15 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   public void checkNotClosed() throws JMSException {
     if (closed) {
       throw new IllegalStateException("Session is closed");
+    }
+  }
+
+  public boolean isClosed() {
+    closeLock.readLock().lock();
+    try {
+      return closed;
+    } finally {
+      closeLock.readLock().unlock();
     }
   }
 

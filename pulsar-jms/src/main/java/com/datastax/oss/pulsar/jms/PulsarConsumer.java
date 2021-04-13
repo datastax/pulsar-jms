@@ -205,29 +205,7 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
    */
   @Override
   public Message receive() throws JMSException {
-    return receiveAndValidateType(null);
-  }
-
-  private synchronized Message receiveAndValidateType(Class expectedType) throws JMSException {
-    checkNotClosed();
-    if (listener != null) {
-      throw new IllegalStateException("cannot receive if you have a messageListener");
-    }
-    return session.executeOperationIfConnectionStarted(
-        () -> {
-          try {
-            Consumer<byte[]> consumer = getConsumer();
-            org.apache.pulsar.client.api.Message<byte[]> message = consumer.receive();
-            if (message == null) {
-              return null;
-            }
-            Message res = handleReceivedMessage(message, expectedType, null);
-            return res;
-          } catch (Exception err) {
-            throw Utils.handleException(err);
-          }
-        },
-        0);
+    return receiveWithTimeoutAndValidateType(Long.MAX_VALUE, null);
   }
 
   /**
@@ -253,23 +231,39 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
     if (listener != null) {
       throw new IllegalStateException("cannot receive if you have a messageListener");
     }
-
+    // time to wait for the Connection to "start"
+    final int acquireConnectionStartTime =
+        timeout == Long.MAX_VALUE ? Integer.MAX_VALUE : (int) timeout;
+    // time to wait for each cycle
+    final int stepTimeout = timeout < 100 ? ((int) timeout) : 100;
+    final long start = System.currentTimeMillis();
     return session.executeOperationIfConnectionStarted(
         () -> {
-          try {
-            Consumer<byte[]> consumer = getConsumer();
-            org.apache.pulsar.client.api.Message<byte[]> message =
-                consumer.receive((int) timeout, TimeUnit.MILLISECONDS);
-            if (message == null) {
-              return null;
+          do {
+            Message result =
+                session.executeCriticalOperation(
+                    () -> {
+                      try {
+                        Consumer<byte[]> consumer = getConsumer();
+                        org.apache.pulsar.client.api.Message<byte[]> message =
+                            consumer.receive(stepTimeout, TimeUnit.MILLISECONDS);
+                        if (message == null) {
+                          return null;
+                        }
+                        Message res = handleReceivedMessage(message, expectedType, null);
+                        return res;
+                      } catch (Exception err) {
+                        throw Utils.handleException(err);
+                      }
+                    });
+            if (result != null) {
+              return result;
             }
-            Message res = handleReceivedMessage(message, expectedType, null);
-            return res;
-          } catch (Exception err) {
-            throw Utils.handleException(err);
-          }
+          } while (System.currentTimeMillis() - start < timeout && !session.isClosed());
+
+          return null;
         },
-        (int) timeout);
+        acquireConnectionStartTime);
   }
 
   /**
@@ -474,7 +468,8 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
       public <T> T receiveBody(Class<T> c) {
         return Utils.runtimeException(
             () -> {
-              Message msg = PulsarConsumer.this.receiveAndValidateType(c);
+              Message msg =
+                  PulsarConsumer.this.receiveWithTimeoutAndValidateType(Long.MAX_VALUE, c);
               return msg == null ? null : msg.getBody(c);
             });
       }

@@ -142,6 +142,7 @@ public class ConnectionPausedTest {
                               consumerSession.createSharedDurableConsumer(destination, "sub1")) {
                         // no message in the topic, so this consumer will hang
                         beforeReceive.countDown();
+                        log.info("receiving...");
                         consumerResult.complete(consumer.receive());
                       } catch (Throwable err) {
                         consumerResult.completeExceptionally(err);
@@ -158,7 +159,7 @@ public class ConnectionPausedTest {
 
             log.info("Consumer thread status {}", consumerThread);
             Stream.of(consumerThread.getStackTrace()).forEach(t -> System.err.println(t));
-            assertEquals(Thread.State.WAITING, consumerThread.getState());
+            assertEquals(Thread.State.TIMED_WAITING, consumerThread.getState());
 
             ScheduledExecutorService executeLater = Executors.newSingleThreadScheduledExecutor();
             try {
