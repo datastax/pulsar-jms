@@ -678,6 +678,7 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
       ServerSessionPool sessionPool,
       int maxMessages)
       throws JMSException {
+    checkNotClosed();
     throw new JMSException("not supported");
   }
 
@@ -722,6 +723,7 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
       ServerSessionPool sessionPool,
       int maxMessages)
       throws JMSException {
+    checkNotClosed();
     throw new JMSException("not supported");
   }
 
@@ -766,6 +768,7 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
       ServerSessionPool sessionPool,
       int maxMessages)
       throws JMSException {
+    checkNotClosed();
     throw new JMSException("not supported");
   }
 
@@ -810,6 +813,7 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
       ServerSessionPool sessionPool,
       int maxMessages)
       throws JMSException {
+    checkNotClosed();
     throw new JMSException("not supported");
   }
 
@@ -879,6 +883,7 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
   }
 
   public TemporaryQueue createTemporaryQueue() throws JMSException {
+    checkNotClosed();
     String name =
         "persistent://" + factory.getSystemNamespace() + "/jms-temp-queue-" + UUID.randomUUID();
     try {
@@ -892,6 +897,7 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
   }
 
   public TemporaryTopic createTemporaryTopic() throws JMSException {
+    checkNotClosed();
     String name =
         "persistent://" + factory.getSystemNamespace() + "/jms-temp-topic-" + UUID.randomUUID();
     try {
@@ -912,7 +918,8 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
   @Override
   public ConnectionConsumer createConnectionConsumer(
       Queue queue, String s, ServerSessionPool serverSessionPool, int i) throws JMSException {
-    return createConnectionConsumer(queue, s, serverSessionPool, i);
+    checkNotClosed();
+    throw new JMSException("Not implemented");
   }
 
   @Override
