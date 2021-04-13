@@ -434,6 +434,7 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
    */
   @Override
   public synchronized boolean getNoLocal() throws JMSException {
+    checkNotClosed();
     return false;
   }
 

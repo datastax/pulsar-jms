@@ -484,7 +484,7 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public BytesMessage createBytesMessage() {
-    return session.createBytesMessage();
+    return Utils.runtimeException(session::createBytesMessage);
   }
 
   /**
@@ -504,7 +504,7 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public MapMessage createMapMessage() {
-    return session.createMapMessage();
+    return Utils.runtimeException(() -> session.createMapMessage());
   }
 
   /**
@@ -524,7 +524,7 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public Message createMessage() {
-    return session.createMessage();
+    return Utils.runtimeException(session::createMessage);
   }
 
   /**
@@ -543,7 +543,7 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public ObjectMessage createObjectMessage() {
-    return session.createObjectMessage();
+    return Utils.runtimeException(() -> session.createObjectMessage());
   }
 
   /**
@@ -563,7 +563,7 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public ObjectMessage createObjectMessage(Serializable object) {
-    return session.createObjectMessage(object);
+    return Utils.runtimeException(() -> session.createObjectMessage(object));
   }
 
   /**
@@ -582,7 +582,7 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public StreamMessage createStreamMessage() {
-    return session.createStreamMessage();
+    return Utils.runtimeException(() -> session.createStreamMessage());
   }
 
   /**
@@ -601,7 +601,7 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public TextMessage createTextMessage() {
-    return session.createTextMessage();
+    return Utils.runtimeException(() -> session.createTextMessage());
   }
 
   /**
@@ -621,7 +621,7 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public TextMessage createTextMessage(String text) {
-    return session.createTextMessage(text);
+    return Utils.runtimeException(() -> session.createTextMessage(text));
   }
 
   /**
@@ -633,7 +633,7 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public boolean getTransacted() {
-    return session.getTransacted();
+    return Utils.runtimeException(() -> session.getTransacted());
   }
 
   /**
@@ -652,7 +652,7 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public int getSessionMode() {
-    return session.getAcknowledgeMode();
+    return Utils.runtimeException(session::getAcknowledgeMode);
   }
 
   /**

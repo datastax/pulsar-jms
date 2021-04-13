@@ -9,7 +9,8 @@ PATH=$PATH:$JMS_HOME/bin:$TS_HOME/tools/ant/bin
 cp ts.* $TS_HOME/bin
 
 cd $TS_HOME/src/com/sun/ts/tests/jms
-cd $TS_HOME/src/com/sun/ts/tests/jms/core/appclient
+#cd $TS_HOME/src/com/sun/ts/tests/jms/core/appclient/topictests
+cd $TS_HOME/src/com/sun/ts/tests/jms/core
 #cd $TS_HOME/src/com/sun/ts/tests/jms/core20
 #cd $TS_HOME/src/com/sun/ts/tests/jms/core20/connectionfactorytests
 #cd $TS_HOME/src/com/sun/ts/tests/jms/core20/runtimeexceptiontests

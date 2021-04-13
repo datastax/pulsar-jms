@@ -1,5 +1,0 @@
-# other_errors.txt
-com/sun/ts/tests/jms/core/appclient/queuetests/QueueTests.java#autoAckMsgListenerQueueTest_from_standalone 
-com/sun/ts/tests/jms/core/appclient/queuetests/QueueTests.java#receiveNullClosedSessionQueueTest_from_standalone 
-com/sun/ts/tests/jms/core/appclient/topictests/TopicTests.java#autoAckMsgListenerTopicTest_from_standalone 
-com/sun/ts/tests/jms/core/appclient/topictests/TopicTests.java#receiveNullClosedSessionTopicTest_from_standalone 

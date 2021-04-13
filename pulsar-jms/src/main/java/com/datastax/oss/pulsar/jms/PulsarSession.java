@@ -68,6 +68,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   private final PulsarConnection connection;
   private boolean jms20;
   private final int sessionMode;
+  private final boolean transacted;
   Transaction transaction;
   private MessageListener messageListener;
   private final Map<PulsarDestination, Producer<byte[]>> producers = new HashMap<>();
@@ -83,6 +84,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     this.jms20 = false;
     this.connection = connection;
     this.sessionMode = sessionMode;
+    this.transacted = sessionMode == Session.SESSION_TRANSACTED;
     validateSessionMode(sessionMode);
     if (sessionMode == SESSION_TRANSACTED) {
       if (!connection.getFactory().isEnableTransaction()) {
@@ -157,7 +159,8 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    *     error.
    */
   @Override
-  public PulsarMessage.PulsarBytesMessage createBytesMessage() {
+  public PulsarMessage.PulsarBytesMessage createBytesMessage() throws JMSException {
+    checkNotClosed();
     return new PulsarMessage.PulsarBytesMessage();
   }
 
@@ -177,7 +180,8 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    *     error.
    */
   @Override
-  public MapMessage createMapMessage() {
+  public MapMessage createMapMessage() throws JMSException {
+    checkNotClosed();
     return new PulsarMessage.PulsarMapMessage();
   }
 
@@ -201,7 +205,8 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    *     error.
    */
   @Override
-  public Message createMessage() {
+  public Message createMessage() throws JMSException {
+    checkNotClosed();
     return new PulsarMessage.SimpleMessage();
   }
 
@@ -220,7 +225,8 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    *     error.
    */
   @Override
-  public ObjectMessage createObjectMessage() {
+  public ObjectMessage createObjectMessage() throws JMSException {
+    checkNotClosed();
     return new PulsarMessage.PulsarObjectMessage();
   }
 
@@ -240,7 +246,8 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    *     error.
    */
   @Override
-  public ObjectMessage createObjectMessage(Serializable object) {
+  public ObjectMessage createObjectMessage(Serializable object) throws JMSException {
+    checkNotClosed();
     PulsarMessage.PulsarObjectMessage res = new PulsarMessage.PulsarObjectMessage();
     res.setObject(object);
     return res;
@@ -261,7 +268,8 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    *     error.
    */
   @Override
-  public StreamMessage createStreamMessage() {
+  public StreamMessage createStreamMessage() throws JMSException {
+    checkNotClosed();
     return new PulsarMessage.PulsarStreamMessage();
   }
 
@@ -280,7 +288,8 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    *     error.
    */
   @Override
-  public TextMessage createTextMessage() {
+  public TextMessage createTextMessage() throws JMSException {
+    checkNotClosed();
     return new PulsarMessage.PulsarTextMessage((String) null);
   }
 
@@ -300,7 +309,8 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    *     error.
    */
   @Override
-  public TextMessage createTextMessage(String text) {
+  public TextMessage createTextMessage(String text) throws JMSException {
+    checkNotClosed();
     return new PulsarMessage.PulsarTextMessage(text);
   }
 
@@ -312,7 +322,8 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    *     internal error.
    */
   @Override
-  public boolean getTransacted() {
+  public boolean getTransacted() throws JMSException {
+    checkNotClosed();
     return sessionMode == SESSION_TRANSACTED;
   }
 
@@ -328,7 +339,8 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    * @since JMS 1.1
    */
   @Override
-  public int getAcknowledgeMode() {
+  public int getAcknowledgeMode() throws JMSException {
+    checkNotClosed();
     return sessionMode;
   }
 
@@ -356,8 +368,9 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    */
   @Override
   public void commit() throws JMSException {
+    checkNotClosed();
     Utils.checkNotOnMessageListener(this);
-    if (!getTransacted()) {
+    if (!transacted) {
       throw new IllegalStateException("session is not transacted");
     }
     closeLock.readLock().lock();
@@ -393,10 +406,11 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    */
   @Override
   public void rollback() throws JMSException {
+    checkNotClosed();
     closeLock.readLock().lock();
     try {
       Utils.checkNotOnMessageListener(this);
-      if (!getTransacted()) {
+      if (!transacted) {
         throw new IllegalStateException("session is not transacted");
       }
       if (transaction != null) {
@@ -469,7 +483,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
       }
       closed = true;
       unackedMessages.clear();
-      if (getTransacted() && transaction != null) {
+      if (transacted && transaction != null) {
         Utils.get(transaction.abort());
         transaction = null;
       }
@@ -516,7 +530,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   @Override
   public void recover() throws JMSException {
     checkNotClosed();
-    if (getTransacted()) {
+    if (transacted) {
       throw new IllegalStateException("cannot call this method inside a transacted session");
     }
     log.info("recover, unacked messages {}", unackedMessages);
@@ -1487,12 +1501,10 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   }
 
   public void registerUnacknowledgedMessage(PulsarMessage result) {
-    log.info("register unacked message {}", result);
     unackedMessages.add(result);
   }
 
   public void unregisterUnacknowledgedMessage(PulsarMessage result) {
-    log.info("unregister unacked message {}", result);
     unackedMessages.remove(result);
   }
 
@@ -1593,6 +1605,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     if (closed) {
       throw new IllegalStateException("Session is closed");
     }
+    connection.checkNotClosed();
   }
 
   public boolean isClosed() {

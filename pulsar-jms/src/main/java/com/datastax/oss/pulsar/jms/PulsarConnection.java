@@ -170,7 +170,7 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
     return session;
   }
 
-  private void checkNotClosed() throws JMSException {
+  void checkNotClosed() throws JMSException {
     if (closed) {
       throw new IllegalStateException("This connection is closed");
     }
