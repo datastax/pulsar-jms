@@ -100,8 +100,9 @@ final class Utils {
     }
   }
 
-  public static void executeListenerInSessionContext(PulsarSession session, Runnable code) {
-    currentSession.set(session);
+  public static void executeMessageListenerInSessionContext(
+      PulsarSession session, PulsarConsumer consumer, Runnable code) {
+    currentSession.set(new CallbackContext(session, consumer, null));
     try {
       session.executeCriticalOperation(
           () -> {
@@ -117,14 +118,58 @@ final class Utils {
     }
   }
 
-  public static void checkNotOnListener(PulsarSession session) throws JMSException {
-    PulsarSession current = currentSession.get();
-    if (current == session) {
+  public static void executeCompletionListenerInSessionContext(
+      PulsarSession session, PulsarMessageProducer producer, Runnable code) {
+    currentSession.set(new CallbackContext(session, null, producer));
+    try {
+      session.executeCriticalOperation(
+          () -> {
+            code.run();
+            return null;
+          });
+    } catch (IllegalStateException err) {
+      log.debug("Ignore error in listener", err);
+    } catch (JMSException err) {
+      log.error("Unexpected error in listener", err);
+    } finally {
+      currentSession.remove();
+    }
+  }
+
+  public static boolean isOnMessageListener(PulsarSession session, PulsarConsumer consumer) {
+    CallbackContext current = currentSession.get();
+    return current != null && current.session == session && current.consumer == consumer;
+  }
+
+  public static void checkNotOnMessageListener(PulsarSession session) throws JMSException {
+    CallbackContext current = currentSession.get();
+    if (current != null && current.session == session && current.consumer != null) {
       throw new IllegalStateException("Cannot call this method inside a listener");
     }
   }
 
-  private static ThreadLocal<PulsarSession> currentSession = new ThreadLocal();
+  public static void checkNotOnMessageProducer(
+      PulsarSession session, PulsarMessageProducer producer) throws JMSException {
+    CallbackContext current = currentSession.get();
+    if (current != null && current.session == session && current.producer == producer) {
+      throw new IllegalStateException("Cannot call this method inside a CompletionListener");
+    }
+  }
+
+  private static class CallbackContext {
+    final PulsarSession session;
+    final PulsarConsumer consumer;
+    final PulsarMessageProducer producer;
+
+    private CallbackContext(
+        PulsarSession session, PulsarConsumer consumer, PulsarMessageProducer producer) {
+      this.session = session;
+      this.consumer = consumer;
+      this.producer = producer;
+    }
+  }
+
+  private static ThreadLocal<CallbackContext> currentSession = new ThreadLocal();
 
   public static void noException(RunnableWithException run) {
     try {

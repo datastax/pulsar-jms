@@ -365,7 +365,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    */
   @Override
   public void commit() throws JMSException {
-    Utils.checkNotOnListener(this);
+    Utils.checkNotOnMessageListener(this);
     if (!getTransacted()) {
       throw new IllegalStateException("session is not transacted");
     }
@@ -404,7 +404,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   public void rollback() throws JMSException {
     closeLock.readLock().lock();
     try {
-      Utils.checkNotOnListener(this);
+      Utils.checkNotOnMessageListener(this);
       if (!getTransacted()) {
         throw new IllegalStateException("session is not transacted");
       }
@@ -470,7 +470,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    */
   @Override
   public void close() throws JMSException {
-    Utils.checkNotOnListener(this);
+    Utils.checkNotOnMessageListener(this);
     closeLock.writeLock().lock();
     try {
       if (closed) {

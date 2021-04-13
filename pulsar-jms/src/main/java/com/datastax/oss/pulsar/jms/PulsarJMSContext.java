@@ -353,7 +353,7 @@ public class PulsarJMSContext implements JMSContext {
   public void stop() {
     Utils.runtimeException(
         () -> {
-          Utils.checkNotOnListener(session);
+          Utils.checkNotOnMessageListener(session);
           connection.stop();
         });
   }

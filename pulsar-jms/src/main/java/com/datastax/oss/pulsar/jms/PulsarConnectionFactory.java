@@ -163,7 +163,6 @@ public class PulsarConnectionFactory
     PulsarConnection res = new PulsarConnection(this);
     if (defaultClientId != null) {
       res.setClientID(defaultClientId);
-      res.setAllowSetClientId(false);
     }
     connections.add(res);
     return res;

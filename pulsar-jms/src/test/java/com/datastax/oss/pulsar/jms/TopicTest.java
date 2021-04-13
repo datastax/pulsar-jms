@@ -189,6 +189,7 @@ public class TopicTest {
           JMSContext context2 = factory.createContext()) {
         Topic topic = context1.createTopic("persistent://public/default/test-" + UUID.randomUUID());
         String durableSubscriptionName = "simpleDurableConsumerTest";
+        context2.setClientID("testclient");
 
         JMSConsumer consumer2 = context2.createDurableConsumer(topic, durableSubscriptionName);
 

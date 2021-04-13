@@ -48,7 +48,8 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
   private MessageListener listener;
   private final SubscriptionMode subscriptionMode;
   private final SubscriptionType subscriptionType;
-  private volatile boolean closed;
+  private boolean closed;
+  private boolean requestClose;
 
   public PulsarConsumer(
       String subscriptionName,
@@ -95,7 +96,7 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
     return this;
   }
 
-  private Consumer<byte[]> getConsumer() throws JMSException {
+  private synchronized Consumer<byte[]> getConsumer() throws JMSException {
     if (closed) {
       throw new IllegalStateException("Consumer is closed");
     }
@@ -123,7 +124,7 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
    *     error.
    */
   @Override
-  public String getMessageSelector() throws JMSException {
+  public synchronized String getMessageSelector() throws JMSException {
     checkNotClosed();
     return null;
   }
@@ -146,14 +147,14 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
    * @see MessageConsumer#setMessageListener(MessageListener)
    */
   @Override
-  public MessageListener getMessageListener() throws JMSException {
+  public synchronized MessageListener getMessageListener() throws JMSException {
     checkNotClosed();
     return listener;
   }
 
-  void checkNotClosed() throws JMSException {
+  synchronized void checkNotClosed() throws JMSException {
     session.checkNotClosed();
-    if (closed) {
+    if (closed || requestClose) {
       throw new IllegalStateException("This consumer is closed");
     }
   }
@@ -182,7 +183,7 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
    * @see MessageConsumer#getMessageListener()
    */
   @Override
-  public void setMessageListener(MessageListener listener) throws JMSException {
+  public synchronized void setMessageListener(MessageListener listener) throws JMSException {
     checkNotClosed();
     this.listener = listener;
     session.ensureListenerThread();
@@ -207,7 +208,7 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
     return receiveAndValidateType(null);
   }
 
-  private Message receiveAndValidateType(Class expectedType) throws JMSException {
+  private synchronized Message receiveAndValidateType(Class expectedType) throws JMSException {
     checkNotClosed();
     if (listener != null) {
       throw new IllegalStateException("cannot receive if you have a messageListener");
@@ -220,7 +221,7 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
             if (message == null) {
               return null;
             }
-            Message res = handleReceivedMessage(message, expectedType);
+            Message res = handleReceivedMessage(message, expectedType, null);
             return res;
           } catch (Exception err) {
             throw Utils.handleException(err);
@@ -262,7 +263,7 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
             if (message == null) {
               return null;
             }
-            Message res = handleReceivedMessage(message, expectedType);
+            Message res = handleReceivedMessage(message, expectedType, null);
             return res;
           } catch (Exception err) {
             throw Utils.handleException(err);
@@ -285,7 +286,9 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
   }
 
   private PulsarMessage handleReceivedMessage(
-      org.apache.pulsar.client.api.Message<byte[]> message, Class expectedType)
+      org.apache.pulsar.client.api.Message<byte[]> message,
+      Class expectedType,
+      java.util.function.Consumer<PulsarMessage> listenerCode)
       throws JMSException, org.apache.pulsar.client.api.PulsarClientException {
     PulsarMessage result = PulsarMessage.decode(this, message);
     Consumer<byte[]> consumer = getConsumer();
@@ -303,6 +306,17 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
               + ",) cannot be converted to a "
               + expectedType);
     }
+
+    if (listenerCode != null) {
+      try {
+        listenerCode.accept(result);
+      } catch (Throwable t) {
+        log.error("Listener thrown error, calling negativeAcknowledge", t);
+        consumer.negativeAcknowledge(message);
+        throw Utils.handleException(t);
+      }
+    }
+
     if (session.getTransacted()) {
       Utils.get(consumer.acknowledgeAsync(message.getMessageId(), session.getTransaction()));
     } else if (session.getAcknowledgeMode() == Session.AUTO_ACKNOWLEDGE) {
@@ -318,6 +332,9 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
               });
     } else if (session.getAcknowledgeMode() == Session.CLIENT_ACKNOWLEDGE) {
       session.registerUnacknowledgedMessage(result);
+    }
+    if (requestClose) {
+      closeInternal();
     }
     return result;
   }
@@ -345,8 +362,11 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
    *     error.
    */
   @Override
-  public void close() throws JMSException {
-    Utils.checkNotOnListener(session);
+  public synchronized void close() throws JMSException {
+    if (Utils.isOnMessageListener(session, this)) {
+      requestClose = true;
+      return;
+    }
     if (closed) {
       return;
     }
@@ -383,7 +403,7 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
    *     to some internal error.
    */
   @Override
-  public Topic getTopic() throws JMSException {
+  public synchronized Topic getTopic() throws JMSException {
     checkNotClosed();
     if (destination.isTopic()) {
       return (Topic) destination;
@@ -392,7 +412,7 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
   }
 
   @Override
-  public Queue getQueue() throws JMSException {
+  public synchronized Queue getQueue() throws JMSException {
     checkNotClosed();
     if (destination.isQueue()) {
       return (Queue) destination;
@@ -409,7 +429,7 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
    *     topic subscriber due to some internal error.
    */
   @Override
-  public boolean getNoLocal() throws JMSException {
+  public synchronized boolean getNoLocal() throws JMSException {
     return false;
   }
 
@@ -479,7 +499,7 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
     };
   }
 
-  void acknowledge(org.apache.pulsar.client.api.Message<byte[]> receivedPulsarMessage)
+  synchronized void acknowledge(org.apache.pulsar.client.api.Message<byte[]> receivedPulsarMessage)
       throws JMSException {
     Consumer<byte[]> consumer = getConsumer();
     try {
@@ -489,15 +509,16 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
     }
   }
 
-  void runListener(int timeout) {
+  synchronized void runListener(int timeout) {
     if (closed || listener == null) {
       return;
     }
     if (listener != null) {
       // activate checks about methods that cannot be called inside a listener
       // and block any concurrent "close()" operations
-      Utils.executeListenerInSessionContext(
+      Utils.executeMessageListenerInSessionContext(
           session,
+          this,
           () -> {
             if (closed) {
               return;
@@ -509,10 +530,13 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
               if (message == null) {
                 return;
               }
-              PulsarMessage pulsarMessage = handleReceivedMessage(message, null);
-              if (message != null) {
-                listener.onMessage(pulsarMessage);
-              }
+              PulsarMessage pulsarMessage =
+                  handleReceivedMessage(
+                      message,
+                      null,
+                      (pmessage) -> {
+                        listener.onMessage(pmessage);
+                      });
             } catch (PulsarClientException.AlreadyClosedException closed) {
               log.error("Error while receiving message con Closed consumer {}", this);
             } catch (JMSException | PulsarClientException err) {
@@ -528,6 +552,7 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
       return;
     }
     closed = true;
+    requestClose = false;
     try {
       if (consumer != null) {
         consumer.close();

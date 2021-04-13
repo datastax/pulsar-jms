@@ -462,7 +462,7 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
    */
   @Override
   public void start() throws JMSException {
-    checkNotInSessionListener();
+    checkNotInSessionMessageListener();
     checkNotClosed();
     connectionPausedLock.writeLock().lock();
     try {
@@ -524,7 +524,7 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
    */
   @Override
   public void stop() throws JMSException {
-    checkNotInSessionListener();
+    checkNotInSessionMessageListener();
     checkNotClosed();
     connectionPausedLock.writeLock().lock();
     try {
@@ -537,9 +537,9 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
     }
   }
 
-  private void checkNotInSessionListener() throws JMSException {
+  private void checkNotInSessionMessageListener() throws JMSException {
     for (PulsarSession session : sessions) {
-      Utils.checkNotOnListener(session);
+      Utils.checkNotOnMessageListener(session);
     }
   }
 
@@ -609,7 +609,7 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
    */
   @Override
   public void close() throws JMSException {
-    checkNotInSessionListener();
+    checkNotInSessionMessageListener();
     if (closed) {
       return;
     }

@@ -1039,25 +1039,28 @@ abstract class PulsarMessage implements Message {
   protected abstract String messageType();
 
   final void sendAsync(
-      TypedMessageBuilder<byte[]> producer,
+      TypedMessageBuilder<byte[]> message,
       CompletionListener completionListener,
       PulsarSession session,
+      PulsarMessageProducer pulsarProducer,
       boolean disableMessageTimestamp)
       throws JMSException {
-    prepareForSend(producer);
-    fillSystemPropertiesBeforeSend(producer, disableMessageTimestamp);
+    prepareForSend(message);
+    fillSystemPropertiesBeforeSend(message, disableMessageTimestamp);
 
-    producer
+    message
         .sendAsync()
         .whenComplete(
             (messageIdFromServer, error) -> {
-              Utils.executeListenerInSessionContext(
+              Utils.executeCompletionListenerInSessionContext(
                   session,
+                  pulsarProducer,
                   () -> {
                     if (error != null) {
                       completionListener.onException(this, Utils.handleException(error));
                     } else {
-                      this.messageId = "ID:" + Arrays.toString(messageIdFromServer.toByteArray());
+                      assignSystemMessageId(messageIdFromServer);
+
                       // we do not know in the producer about the actual time-to-live
                       this.jmsExpiration = 0;
                       completionListener.onCompletion(this);
@@ -1067,52 +1070,55 @@ abstract class PulsarMessage implements Message {
   }
 
   private void fillSystemPropertiesBeforeSend(
-      TypedMessageBuilder<byte[]> producer, boolean disableMessageTimestamp)
+      TypedMessageBuilder<byte[]> message, boolean disableMessageTimestamp)
       throws MessageNotWriteableException {
-    if (!writable) {
-      throw new MessageNotWriteableException("Message is not writable");
-    }
+    //    if (!writable) {
+    //      throw new MessageNotWriteableException("Message is not writable");
+    //    }
     //   is this required only by JMS 2 ?
     //    if (consumer != null) {
     //      throw new MessageNotWriteableException(
     //          "Message is not writable because consumer is not null");
     //    }
     consumer = null;
-    producer.properties(properties);
+    message.properties(properties);
     // useful for deserialization
-    producer.property("JMS_PulsarMessageType", messageType());
+    message.property("JMS_PulsarMessageType", messageType());
+    if (messageId != null) {
+      message.property("JMSMessageId", messageId);
+    }
     if (jmsReplyTo != null) {
-      producer.property("JMSReplyTo", ((PulsarDestination) jmsReplyTo).topicName);
+      message.property("JMSReplyTo", ((PulsarDestination) jmsReplyTo).topicName);
       if (((PulsarDestination) jmsReplyTo).isTopic()) {
-        producer.property("JMSReplyToType", "topic");
+        message.property("JMSReplyToType", "topic");
       }
     }
     if (jmsType != null) {
-      producer.property("JMSType", jmsType);
+      message.property("JMSType", jmsType);
     }
     if (correlationId != null) {
-      producer.property("JMSCorrelationID", Base64.getEncoder().encodeToString(correlationId));
+      message.property("JMSCorrelationID", Base64.getEncoder().encodeToString(correlationId));
     }
     if (deliveryMode != DeliveryMode.PERSISTENT) {
-      producer.property("JMSDeliveryMode", deliveryMode + "");
+      message.property("JMSDeliveryMode", deliveryMode + "");
     }
     if (jmsPriority != Message.DEFAULT_PRIORITY) {
-      producer.property("JMSPriority", jmsPriority + "");
+      message.property("JMSPriority", jmsPriority + "");
     }
     this.jmsTimestamp = System.currentTimeMillis();
     if (!disableMessageTimestamp) {
-      producer.eventTime(jmsTimestamp);
+      message.eventTime(jmsTimestamp);
     }
     this.jmsDeliveryTime = jmsTimestamp;
     if (jmsPriority != Message.DEFAULT_PRIORITY) {
-      producer.property("JMSDeliveryTime", jmsDeliveryTime + "");
+      message.property("JMSDeliveryTime", jmsDeliveryTime + "");
     }
 
     // we can use JMSXGroupID as key in order to provide
     // a behaviour similar to https://activemq.apache.org/message-groups
     String JMSXGroupID = properties.get("JMSXGroupID");
     if (JMSXGroupID != null) {
-      producer.key(JMSXGroupID);
+      message.key(JMSXGroupID);
     }
   }
 
@@ -1122,7 +1128,8 @@ abstract class PulsarMessage implements Message {
     fillSystemPropertiesBeforeSend(producer, disableMessageTimestamp);
 
     MessageId messageIdFromServer = Utils.invoke(() -> producer.send());
-    this.messageId = "ID:" + Arrays.toString(messageIdFromServer.toByteArray());
+    assignSystemMessageId(messageIdFromServer);
+
     // we do not know in the producer about the actual time-to-live
     this.jmsExpiration = 0;
   }
@@ -2349,17 +2356,19 @@ abstract class PulsarMessage implements Message {
 
     public PulsarMapMessage(byte[] payload) throws JMSException {
       writable = false;
-      try {
-        ByteArrayInputStream in = new ByteArrayInputStream(payload);
-        ObjectInputStream input = new ObjectInputStream(in);
-        int size = input.readInt();
-        for (int i = 0; i < size; i++) {
-          String key = input.readUTF();
-          Object value = input.readUnshared();
-          map.put(key, value);
+      if (payload != null) {
+        try {
+          ByteArrayInputStream in = new ByteArrayInputStream(payload);
+          ObjectInputStream input = new ObjectInputStream(in);
+          int size = input.readInt();
+          for (int i = 0; i < size; i++) {
+            String key = input.readUTF();
+            Object value = input.readUnshared();
+            map.put(key, value);
+          }
+        } catch (Exception err) {
+          throw Utils.handleException(err);
         }
-      } catch (Exception err) {
-        throw Utils.handleException(err);
       }
     }
 
@@ -2840,7 +2849,15 @@ abstract class PulsarMessage implements Message {
           this.jmsReplyTo = new PulsarQueue(jmsReplyTo);
       }
     }
-    this.jmsType = msg.getProperty("JMSType");
+    if (msg.hasProperty("JMSType")) {
+      this.jmsType = msg.getProperty("JMSType");
+    }
+
+    if (msg.hasProperty("JMSMessageId")) {
+      this.messageId = msg.getProperty("JMSMessageId");
+    }
+    assignSystemMessageId(msg.getMessageId());
+
     if (msg.hasProperty("JMSCorrelationID")) {
       this.correlationId = Base64.getDecoder().decode(msg.getProperty("JMSCorrelationID"));
     }
@@ -2885,6 +2902,12 @@ abstract class PulsarMessage implements Message {
     this.receivedPulsarMessage = msg;
     this.consumer = consumer;
     return this;
+  }
+
+  private void assignSystemMessageId(org.apache.pulsar.client.api.MessageId msg) {
+    if (this.messageId == null) {
+      this.messageId = "ID:" + Arrays.toString(msg.toByteArray());
+    }
   }
 
   static void validateWritableObject(Object value) throws MessageFormatException {

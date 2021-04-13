@@ -326,7 +326,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
    */
   @Override
   public void close() throws JMSException {
-    Utils.checkNotOnListener(session);
+    Utils.checkNotOnMessageProducer(session, this);
   }
 
   /**
@@ -971,7 +971,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
     }
     try {
       validateMessageSend(
-          message, defaultDestination, true, Message.DEFAULT_TIME_TO_LIVE, deliveryMode, priority);
+          message, destination, false, Message.DEFAULT_TIME_TO_LIVE, deliveryMode, priority);
     } catch (JMSException err) {
       completionListener.onException(message, err);
       return;
@@ -1189,10 +1189,11 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
           producer.newMessage(session.getTransaction()),
           completionListener,
           session,
+          this,
           disableMessageTimestamp);
     } else {
       pulsarMessage.sendAsync(
-          producer.newMessage(), completionListener, session, disableMessageTimestamp);
+          producer.newMessage(), completionListener, session, this, disableMessageTimestamp);
     }
   }
 
