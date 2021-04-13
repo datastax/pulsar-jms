@@ -70,6 +70,7 @@ abstract class PulsarMessage implements Message {
   private int jmsPriority = Message.DEFAULT_PRIORITY;
   protected final Map<String, String> properties = new HashMap<>();
   private PulsarConsumer consumer;
+  private boolean negativeAcked;
   private org.apache.pulsar.client.api.Message<byte[]> receivedPulsarMessage;
 
   /**
@@ -996,15 +997,26 @@ abstract class PulsarMessage implements Message {
    */
   @Override
   public void acknowledge() throws JMSException {
+    consumer.checkNotClosed();
+    consumer.getSession().acknowledgeAllMessages();
+  }
+
+  void acknowledgeInternal() throws JMSException {
     if (consumer == null) {
       throw new IllegalStateException("not received by a consumer");
     }
-    consumer.checkNotClosed();
+    if (negativeAcked) {
+      return;
+    }
     try {
-      consumer.acknowledge(receivedPulsarMessage);
+      consumer.acknowledge(receivedPulsarMessage, this);
     } catch (Exception err) {
       throw Utils.handleException(err);
     }
+  }
+
+  boolean isNegativeAcked() {
+    return negativeAcked;
   }
 
   public void negativeAck() throws JMSException {
@@ -1014,6 +1026,7 @@ abstract class PulsarMessage implements Message {
     consumer.checkNotClosed();
     try {
       consumer.negativeAck(receivedPulsarMessage);
+      negativeAcked = true;
     } catch (Exception err) {
       throw Utils.handleException(err);
     }
@@ -1917,7 +1930,7 @@ abstract class PulsarMessage implements Message {
     public void writeObject(Object value) throws JMSException {
       checkWritable();
       if (value == null) {
-        throw new MessageFormatException("null not allowed here");
+        throw new NullPointerException("null not allowed here");
       }
       try {
         // see also validateWritableObject
@@ -2225,6 +2238,10 @@ abstract class PulsarMessage implements Message {
     @Override
     protected String messageType() {
       return "header";
+    }
+
+    public String toString() {
+      return "SimpleMessage{" + properties + "}";
     }
   }
 

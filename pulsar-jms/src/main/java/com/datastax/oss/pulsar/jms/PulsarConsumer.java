@@ -285,6 +285,7 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
       java.util.function.Consumer<PulsarMessage> listenerCode)
       throws JMSException, org.apache.pulsar.client.api.PulsarClientException {
     PulsarMessage result = PulsarMessage.decode(this, message);
+    log.info("handle recevied {} {}", message, result);
     Consumer<byte[]> consumer = getConsumer();
     if (expectedType != null && !result.isBodyAssignableTo(expectedType)) {
       log.info(
@@ -301,6 +302,10 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
               + expectedType);
     }
 
+    // this must happen before the execution of the listener
+    // in order to support Session.recover
+    session.registerUnacknowledgedMessage(result);
+
     if (listenerCode != null) {
       try {
         listenerCode.accept(result);
@@ -308,6 +313,10 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
         log.error("Listener thrown error, calling negativeAcknowledge", t);
         consumer.negativeAcknowledge(message);
         throw Utils.handleException(t);
+      }
+      if (result.isNegativeAcked()) {
+        // this may happen if the listener calls "Session.recover"
+        return null;
       }
     }
 
@@ -324,8 +333,9 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
                   log.error("Cannot acknowledge message {} {}", message, ex);
                 }
               });
-    } else if (session.getAcknowledgeMode() == Session.CLIENT_ACKNOWLEDGE) {
-      session.registerUnacknowledgedMessage(result);
+    }
+    if (session.getAcknowledgeMode() != Session.CLIENT_ACKNOWLEDGE) {
+      session.unregisterUnacknowledgedMessage(result);
     }
     if (requestClose) {
       closeInternal();
@@ -494,11 +504,13 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
     };
   }
 
-  synchronized void acknowledge(org.apache.pulsar.client.api.Message<byte[]> receivedPulsarMessage)
+  synchronized void acknowledge(
+      org.apache.pulsar.client.api.Message<byte[]> receivedPulsarMessage, PulsarMessage message)
       throws JMSException {
     Consumer<byte[]> consumer = getConsumer();
     try {
       consumer.acknowledge(receivedPulsarMessage);
+      session.unregisterUnacknowledgedMessage(message);
     } catch (PulsarClientException err) {
       throw Utils.handleException(err);
     }
@@ -530,6 +542,7 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
                       message,
                       null,
                       (pmessage) -> {
+                        log.info("passing {} to litener {}", pmessage, listener);
                         listener.onMessage(pmessage);
                       });
             } catch (PulsarClientException.AlreadyClosedException closed) {
@@ -562,5 +575,9 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
     if (consumer != null) {
       consumer.negativeAcknowledge(message);
     }
+  }
+
+  PulsarSession getSession() {
+    return session;
   }
 }

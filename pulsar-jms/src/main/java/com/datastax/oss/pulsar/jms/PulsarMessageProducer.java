@@ -21,6 +21,7 @@ import javax.jms.BytesMessage;
 import javax.jms.CompletionListener;
 import javax.jms.DeliveryMode;
 import javax.jms.Destination;
+import javax.jms.IllegalStateException;
 import javax.jms.InvalidDestinationException;
 import javax.jms.JMSException;
 import javax.jms.MapMessage;
@@ -59,6 +60,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
     }
   }
 
+  private boolean closed;
   private boolean disableMessageId;
   private boolean disableMessageTimestamp;
   private int deliveryMode = Message.DEFAULT_DELIVERY_MODE;
@@ -84,7 +86,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
    */
   @Override
   public void setDisableMessageID(boolean value) throws JMSException {
-    session.checkNotClosed();
+    checkNotClosed();
     this.disableMessageId = value;
   }
 
@@ -97,7 +99,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
    */
   @Override
   public boolean getDisableMessageID() throws JMSException {
-    session.checkNotClosed();
+    checkNotClosed();
     return disableMessageId;
   }
 
@@ -119,7 +121,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
    */
   @Override
   public void setDisableMessageTimestamp(boolean value) throws JMSException {
-    session.checkNotClosed();
+    checkNotClosed();
     this.disableMessageTimestamp = value;
   }
 
@@ -132,7 +134,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
    */
   @Override
   public boolean getDisableMessageTimestamp() throws JMSException {
-    session.checkNotClosed();
+    checkNotClosed();
     return disableMessageTimestamp;
   }
 
@@ -152,7 +154,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
    */
   @Override
   public void setDeliveryMode(int deliveryMode) throws JMSException {
-    session.checkNotClosed();
+    checkNotClosed();
     validateDeliveryMode(deliveryMode);
     this.deliveryMode = deliveryMode;
   }
@@ -177,8 +179,15 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
    */
   @Override
   public int getDeliveryMode() throws JMSException {
-    session.checkNotClosed();
+    checkNotClosed();
     return deliveryMode;
+  }
+
+  private void checkNotClosed() throws JMSException {
+    session.checkNotClosed();
+    if (closed) {
+      throw new IllegalStateException("this producer is closed");
+    }
   }
 
   /**
@@ -196,7 +205,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
    */
   @Override
   public void setPriority(int defaultPriority) throws JMSException {
-    session.checkNotClosed();
+    checkNotClosed();
     validatePriority(defaultPriority);
     this.priority = defaultPriority;
   }
@@ -216,7 +225,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
    */
   @Override
   public int getPriority() throws JMSException {
-    session.checkNotClosed();
+    checkNotClosed();
     return priority;
   }
 
@@ -234,7 +243,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
    */
   @Override
   public void setTimeToLive(long timeToLive) throws JMSException {
-    session.checkNotClosed();
+    checkNotClosed();
     this.defaultTimeToLive = timeToLive;
   }
 
@@ -249,7 +258,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
    */
   @Override
   public long getTimeToLive() throws JMSException {
-    session.checkNotClosed();
+    checkNotClosed();
     return defaultTimeToLive;
   }
 
@@ -271,7 +280,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
    */
   @Override
   public void setDeliveryDelay(long deliveryDelay) throws JMSException {
-    session.checkNotClosed();
+    checkNotClosed();
     this.defaultDeliveryDelay = deliveryDelay;
   }
 
@@ -287,7 +296,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
    */
   @Override
   public long getDeliveryDelay() throws JMSException {
-    session.checkNotClosed();
+    checkNotClosed();
     return defaultDeliveryDelay;
   }
 
@@ -301,7 +310,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
    */
   @Override
   public Destination getDestination() throws JMSException {
-    session.checkNotClosed();
+    checkNotClosed();
     return defaultDestination;
   }
 
@@ -327,6 +336,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
   @Override
   public void close() throws JMSException {
     Utils.checkNotOnMessageProducer(session, this);
+    closed = true;
   }
 
   /**
@@ -449,7 +459,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
       int deliveryMode,
       int priority)
       throws JMSException {
-    session.checkNotClosed();
+    checkNotClosed();
     if (message == null) {
       throw new MessageFormatException("Invalid null message");
     }
@@ -1152,7 +1162,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
     if (message == null) {
       throw new MessageFormatException("null message");
     }
-    log.debug("sendMessage {} {}", defaultDestination, message);
+    log.info("sendMessage {} {}", defaultDestination, message);
     Producer<byte[]> producer =
         session
             .getFactory()
@@ -1199,6 +1209,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
 
   @Override
   public Queue getQueue() throws JMSException {
+    checkNotClosed();
     if (defaultDestination.isQueue()) {
       return (Queue) defaultDestination;
     }
@@ -1217,6 +1228,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
 
   @Override
   public Topic getTopic() throws JMSException {
+    checkNotClosed();
     if (defaultDestination.isTopic()) {
       return (Topic) defaultDestination;
     }

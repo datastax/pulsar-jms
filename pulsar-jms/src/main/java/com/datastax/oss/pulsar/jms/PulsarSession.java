@@ -74,7 +74,6 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   private final ReentrantReadWriteLock closeLock = new ReentrantReadWriteLock();
   private final List<PulsarMessage> unackedMessages = new ArrayList<>();
   private final Map<String, PulsarDestination> destinationBySubscription = new HashMap<>();
-  private boolean trackUnacknowledgedMessages = false;
   private volatile boolean closed;
   private volatile ListenerThread listenerThread;
   // this collection is accessed by the Listener thread
@@ -137,14 +136,6 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
       default:
         throw new JMSException("Invalid sessionMode " + sessionMode);
     }
-  }
-
-  public boolean isTrackUnacknowledgedMessages() {
-    return trackUnacknowledgedMessages;
-  }
-
-  public void setTrackUnacknowledgedMessages(boolean trackUnacknowledgedMessages) {
-    this.trackUnacknowledgedMessages = trackUnacknowledgedMessages;
   }
 
   PulsarConnectionFactory getFactory() {
@@ -528,7 +519,9 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     if (getTransacted()) {
       throw new IllegalStateException("cannot call this method inside a transacted session");
     }
+    log.info("recover, unacked messages {}", unackedMessages);
     for (PulsarMessage msg : unackedMessages) {
+      log.info("recovering message {}", msg);
       msg.negativeAck();
     }
     unackedMessages.clear();
@@ -1487,16 +1480,20 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    */
   void acknowledgeAllMessages() throws JMSException {
     checkNotClosed();
-    for (PulsarMessage unackedMessage : unackedMessages) {
-      unackedMessage.acknowledge();
+    for (PulsarMessage unackedMessage : new ArrayList<>(unackedMessages)) {
+      unackedMessage.acknowledgeInternal();
     }
     unackedMessages.clear();
   }
 
   public void registerUnacknowledgedMessage(PulsarMessage result) {
-    if (trackUnacknowledgedMessages) {
-      unackedMessages.add(result);
-    }
+    log.info("register unacked message {}", result);
+    unackedMessages.add(result);
+  }
+
+  public void unregisterUnacknowledgedMessage(PulsarMessage result) {
+    log.info("unregister unacked message {}", result);
+    unackedMessages.remove(result);
   }
 
   public void removeConsumer(Consumer<byte[]> consumer) {

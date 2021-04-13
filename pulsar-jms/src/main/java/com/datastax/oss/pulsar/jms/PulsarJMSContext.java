@@ -55,7 +55,6 @@ public class PulsarJMSContext implements JMSContext {
       this.connection = factory.createConnection();
       this.session = connection.createSession(sessionMode);
       this.session.setJms20(true);
-      this.session.setTrackUnacknowledgedMessages(true);
       this.connection.setAllowSetClientId(true);
       this.owningConnection = true;
     } catch (JMSException err) {
@@ -71,7 +70,6 @@ public class PulsarJMSContext implements JMSContext {
       this.connection = connection;
       this.session = connection.createSession(sessionMode);
       this.session.setJms20(true);
-      this.session.setTrackUnacknowledgedMessages(true);
     } catch (JMSException err) {
       JMSRuntimeException jms = new JMSRuntimeException("error");
       jms.initCause(err);
@@ -193,7 +191,7 @@ public class PulsarJMSContext implements JMSContext {
    * @throws IllegalStateRuntimeException
    *     <ul>
    *       <li>if the JMS client attempts to set the client ID for the JMSContext's connection at
-   *           the wrong time or
+   *           the wrong time
    *       <li>if the client ID has been administratively configured or
    *       <li>if the {@code JMSContext} is container-managed (injected).
    *     </ul>

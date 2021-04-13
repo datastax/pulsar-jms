@@ -123,7 +123,7 @@ public class QueueTest {
               }
             }
 
-            // scan without hasMoreElements
+            // scan again without hasMoreElements
             try (QueueBrowser browser = session.createBrowser(destination)) {
               Enumeration en = browser.getEnumeration();
               for (int i = 0; i < 10; i++) {

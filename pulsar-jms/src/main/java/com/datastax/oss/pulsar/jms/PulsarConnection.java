@@ -60,9 +60,12 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
   private final Condition pausedCondition = connectionPausedLock.writeLock().newCondition();;
   private volatile boolean paused = true;
 
-  public PulsarConnection(PulsarConnectionFactory factory) {
+  public PulsarConnection(PulsarConnectionFactory factory) throws JMSException {
     this.factory = factory;
     this.clientId = factory.getDefaultClientId();
+    if (this.clientId != null) {
+      factory.registerClientId(this.clientId);
+    }
   }
 
   public PulsarConnectionFactory getFactory() {
@@ -374,6 +377,7 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
    */
   @Override
   public void setClientID(String clientID) throws JMSException {
+    log.info("setClientID {} on {}, factory {}", clientID, this, factory);
     checkNotClosed();
     if (!allowSetClientId) {
       throw new IllegalStateException("Cannot set clientId after performing any other operation");

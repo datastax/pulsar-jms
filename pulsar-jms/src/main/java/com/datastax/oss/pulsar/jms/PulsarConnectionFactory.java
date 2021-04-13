@@ -55,6 +55,7 @@ import org.apache.pulsar.client.api.SubscriptionType;
 @Slf4j
 public class PulsarConnectionFactory
     implements ConnectionFactory, QueueConnectionFactory, TopicConnectionFactory, AutoCloseable {
+  private static final Set<String> clientIdentifiers = new ConcurrentSkipListSet<>();
 
   private final PulsarClient pulsarClient;
   private final PulsarAdmin pulsarAdmin;
@@ -63,7 +64,6 @@ public class PulsarConnectionFactory
   private final Map<String, Producer<byte[]>> producers = new ConcurrentHashMap<>();
   private final Set<PulsarConnection> connections = Collections.synchronizedSet(new HashSet<>());
   private final List<Consumer<byte[]>> consumers = new CopyOnWriteArrayList<>();
-  private final Set<String> clientIdentifiers = new ConcurrentSkipListSet<>();
   private final String systemNamespace;
   private final String defaultClientId;
   private final boolean enableTransaction;
@@ -569,6 +569,7 @@ public class PulsarConnectionFactory
         destination.isTopic()
             ? SubscriptionInitialPosition.Latest
             : SubscriptionInitialPosition.Earliest;
+    MessageId seekMessageId = null;
     if (sessionMode != PulsarQueueBrowser.SESSION_MODE_MARKER) {
       if (destination.isQueue() && subscriptionMode != SubscriptionMode.Durable) {
         throw new IllegalStateException("only durable mode for queues");
@@ -578,8 +579,7 @@ public class PulsarConnectionFactory
       }
     } else {
       // for QueueBrowsers we create a non durable consumer that starts
-      // at the beginning of the queue (TODO: this is wrong, we must pick the last unconsumed
-      // message id)
+      // at the message id from the shared jms-queue-emulator queue
       subscriptionName = consumerName;
       subscriptionMode = SubscriptionMode.NonDurable;
       subscriptionType = SubscriptionType.Exclusive;
@@ -648,6 +648,7 @@ public class PulsarConnectionFactory
   }
 
   public void registerClientId(String clientID) throws InvalidClientIDException {
+    log.info("registerClientId {}, existing {}", clientID, clientIdentifiers);
     if (!clientIdentifiers.add(clientID)) {
       throw new InvalidClientIDException(
           "A connection with this client id '" + clientID + "'is already opened locally");
@@ -657,6 +658,7 @@ public class PulsarConnectionFactory
   public void unregisterConnection(PulsarConnection connection) {
     if (connection.clientId != null) {
       clientIdentifiers.remove(connection.clientId);
+      log.info("unregisterClientId {} {}", connection.clientId, clientIdentifiers);
     }
     connections.remove(connection);
   }
