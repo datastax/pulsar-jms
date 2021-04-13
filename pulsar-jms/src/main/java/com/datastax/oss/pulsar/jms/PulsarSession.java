@@ -470,7 +470,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    */
   @Override
   public void close() throws JMSException {
-    Utils.checkNotOnMessageListener(this);
+    Utils.checkNotOnSessionCallback(this);
     closeLock.writeLock().lock();
     try {
       if (closed) {

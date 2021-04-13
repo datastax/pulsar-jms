@@ -131,6 +131,10 @@ public class PulsarConnectionFactory
     }
   }
 
+  String getDefaultClientId() {
+    return defaultClientId;
+  }
+
   public boolean isEnableTransaction() {
     return enableTransaction;
   }
@@ -161,9 +165,6 @@ public class PulsarConnectionFactory
   @Override
   public PulsarConnection createConnection() throws JMSException {
     PulsarConnection res = new PulsarConnection(this);
-    if (defaultClientId != null) {
-      res.setClientID(defaultClientId);
-    }
     connections.add(res);
     return res;
   }

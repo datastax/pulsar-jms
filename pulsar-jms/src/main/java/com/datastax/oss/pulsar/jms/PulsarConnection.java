@@ -62,6 +62,7 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
 
   public PulsarConnection(PulsarConnectionFactory factory) {
     this.factory = factory;
+    this.clientId = factory.getDefaultClientId();
   }
 
   public PulsarConnectionFactory getFactory() {
@@ -376,6 +377,12 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
     checkNotClosed();
     if (!allowSetClientId) {
       throw new IllegalStateException("Cannot set clientId after performing any other operation");
+    }
+    if (factory.getDefaultClientId() != null) {
+      throw new IllegalStateException(
+          "ClientId has be administratively configured as "
+              + factory.getDefaultClientId()
+              + ", you cannot change it");
     }
     if (clientID == null || clientID.isEmpty()) {
       throw new InvalidClientIDException("Invalid empty clientId");

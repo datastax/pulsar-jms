@@ -148,6 +148,13 @@ final class Utils {
     }
   }
 
+  public static void checkNotOnSessionCallback(PulsarSession session) throws JMSException {
+    CallbackContext current = currentSession.get();
+    if (current != null && current.session == session) {
+      throw new IllegalStateException("Cannot call this method inside a callback");
+    }
+  }
+
   public static void checkNotOnMessageProducer(
       PulsarSession session, PulsarMessageProducer producer) throws JMSException {
     CallbackContext current = currentSession.get();
