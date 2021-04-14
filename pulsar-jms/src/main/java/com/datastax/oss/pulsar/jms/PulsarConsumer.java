@@ -382,7 +382,7 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
         () -> {
           try {
             consumer.close();
-            session.removeConsumer(consumer);
+            session.removeConsumer(this);
             return null;
           } catch (Exception err) {
             throw Utils.handleException(err);
@@ -580,5 +580,9 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
 
   PulsarSession getSession() {
     return session;
+  }
+
+  Consumer<byte[]> getInternalConsumer() {
+    return consumer;
   }
 }

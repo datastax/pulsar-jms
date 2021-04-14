@@ -15,6 +15,12 @@
  */
 package com.datastax.oss.pulsar.jms;
 
+import com.datastax.oss.pulsar.jms.messages.PulsarBytesMessage;
+import com.datastax.oss.pulsar.jms.messages.PulsarMapMessage;
+import com.datastax.oss.pulsar.jms.messages.PulsarObjectMessage;
+import com.datastax.oss.pulsar.jms.messages.PulsarSimpleMessage;
+import com.datastax.oss.pulsar.jms.messages.PulsarStreamMessage;
+import com.datastax.oss.pulsar.jms.messages.PulsarTextMessage;
 import java.util.Enumeration;
 import java.util.concurrent.TimeUnit;
 import javax.jms.BytesMessage;
@@ -37,12 +43,6 @@ import javax.jms.StreamMessage;
 import javax.jms.TextMessage;
 import javax.jms.Topic;
 import javax.jms.TopicPublisher;
-
-import com.datastax.oss.pulsar.jms.messages.PulsarMapMessage;
-import com.datastax.oss.pulsar.jms.messages.PulsarObjectMessage;
-import com.datastax.oss.pulsar.jms.messages.PulsarStreamMessage;
-import com.datastax.oss.pulsar.jms.messages.PulsarTextMessage;
-import com.datastax.oss.pulsar.jms.messages.PulsarSimpleMessage;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.api.Producer;
 import org.apache.pulsar.client.api.TypedMessageBuilder;
@@ -361,6 +361,8 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
    */
   @Override
   public void send(Message message) throws JMSException {
+    message.setJMSDeliveryMode(deliveryMode);
+    message.setJMSPriority(priority);
     validateMessageSend(
         message, defaultDestination, true, Message.DEFAULT_TIME_TO_LIVE, deliveryMode, priority);
     sendMessage(defaultDestination, message);
@@ -614,6 +616,8 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
    */
   @Override
   public void send(Message message, CompletionListener completionListener) throws JMSException {
+    message.setJMSDeliveryMode(deliveryMode);
+    message.setJMSPriority(priority);
     validateCompletionListener(completionListener);
 
     if (!jms20) {
@@ -1177,8 +1181,6 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
             .getProducerForDestination(
                 (PulsarDestination) defaultDestination, session.getTransacted());
     message.setJMSDestination(defaultDestination);
-    message.setJMSDeliveryMode(deliveryMode);
-    message.setJMSPriority(priority);
     PulsarMessage pulsarMessage = convertToPulsarMessage(message);
     TypedMessageBuilder<byte[]> typedMessageBuilder = producer.newMessage();
     if (session.getTransacted()) {

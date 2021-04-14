@@ -15,6 +15,12 @@
  */
 package com.datastax.oss.pulsar.jms;
 
+import com.datastax.oss.pulsar.jms.messages.PulsarBytesMessage;
+import com.datastax.oss.pulsar.jms.messages.PulsarMapMessage;
+import com.datastax.oss.pulsar.jms.messages.PulsarObjectMessage;
+import com.datastax.oss.pulsar.jms.messages.PulsarSimpleMessage;
+import com.datastax.oss.pulsar.jms.messages.PulsarStreamMessage;
+import com.datastax.oss.pulsar.jms.messages.PulsarTextMessage;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Base64;
@@ -34,12 +40,6 @@ import javax.jms.MessageNotReadableException;
 import javax.jms.MessageNotWriteableException;
 import javax.jms.MessageProducer;
 import javax.jms.Session;
-
-import com.datastax.oss.pulsar.jms.messages.PulsarMapMessage;
-import com.datastax.oss.pulsar.jms.messages.PulsarObjectMessage;
-import com.datastax.oss.pulsar.jms.messages.PulsarStreamMessage;
-import com.datastax.oss.pulsar.jms.messages.PulsarTextMessage;
-import com.datastax.oss.pulsar.jms.messages.PulsarSimpleMessage;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.api.TypedMessageBuilder;
@@ -1114,9 +1114,8 @@ public abstract class PulsarMessage implements Message {
       message.eventTime(jmsTimestamp);
     }
     this.jmsDeliveryTime = jmsTimestamp;
-    if (jmsPriority != Message.DEFAULT_PRIORITY) {
-      message.property("JMSDeliveryTime", jmsDeliveryTime + "");
-    }
+
+    message.property("JMSDeliveryTime", jmsDeliveryTime + "");
 
     // we can use JMSXGroupID as key in order to provide
     // a behaviour similar to https://activemq.apache.org/message-groups
@@ -1259,5 +1258,9 @@ public abstract class PulsarMessage implements Message {
     } else {
       throw new MessageFormatException("Unsupported type " + value.getClass());
     }
+  }
+
+  public boolean isReceivedFromConsumer(PulsarConsumer consumer) {
+    return this.consumer == consumer;
   }
 }

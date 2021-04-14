@@ -15,9 +15,16 @@
  */
 package com.datastax.oss.pulsar.jms;
 
+import com.datastax.oss.pulsar.jms.messages.PulsarBytesMessage;
+import com.datastax.oss.pulsar.jms.messages.PulsarMapMessage;
+import com.datastax.oss.pulsar.jms.messages.PulsarObjectMessage;
+import com.datastax.oss.pulsar.jms.messages.PulsarSimpleMessage;
+import com.datastax.oss.pulsar.jms.messages.PulsarStreamMessage;
+import com.datastax.oss.pulsar.jms.messages.PulsarTextMessage;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -54,12 +61,6 @@ import javax.jms.TopicPublisher;
 import javax.jms.TopicSession;
 import javax.jms.TopicSubscriber;
 import javax.jms.TransactionRolledBackException;
-
-import com.datastax.oss.pulsar.jms.messages.PulsarMapMessage;
-import com.datastax.oss.pulsar.jms.messages.PulsarObjectMessage;
-import com.datastax.oss.pulsar.jms.messages.PulsarStreamMessage;
-import com.datastax.oss.pulsar.jms.messages.PulsarTextMessage;
-import com.datastax.oss.pulsar.jms.messages.PulsarSimpleMessage;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.api.Consumer;
 import org.apache.pulsar.client.api.Producer;
@@ -1520,9 +1521,18 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     unackedMessages.remove(result);
   }
 
-  public void removeConsumer(Consumer<byte[]> consumer) {
-    consumers.remove(consumer);
-    getFactory().removeConsumer(consumer);
+  public void removeConsumer(PulsarConsumer consumer) {
+    Consumer<byte[]> pulsarConsumer = consumer.getInternalConsumer();
+    if (pulsarConsumer != null) {
+      consumers.remove(pulsarConsumer);
+      getFactory().removeConsumer(pulsarConsumer);
+      for (Iterator<PulsarMessage> it = unackedMessages.iterator(); it.hasNext(); ) {
+        PulsarMessage message = it.next();
+        if (message.isReceivedFromConsumer(consumer)) {
+          it.remove();
+        }
+      }
+    }
   }
 
   public void onError(Throwable err) {

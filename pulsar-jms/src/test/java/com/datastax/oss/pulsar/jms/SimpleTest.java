@@ -244,19 +244,14 @@ public class SimpleTest {
               simpleMessage.setFloatProperty("f", 1.3f);
               simpleMessage.setDoubleProperty("g", 1.9d);
               simpleMessage.setShortProperty("h", (short) 89);
-              simpleMessage.setJMSPriority(2);
-              simpleMessage.setJMSDeliveryMode(DeliveryMode.NON_PERSISTENT);
               simpleMessage.setJMSType("mytype");
               simpleMessage.setJMSCorrelationID("correlationid");
-
               simpleMessage.setObjectProperty("i", 1.3d);
-              producer.send(simpleMessage);
+              producer.send(simpleMessage, DeliveryMode.NON_PERSISTENT, 2, 0);
 
               Message simpleMessage2 = session.createMessage();
-              simpleMessage2.setJMSPriority(3);
-              simpleMessage2.setJMSDeliveryMode(DeliveryMode.PERSISTENT);
               simpleMessage2.setJMSCorrelationIDAsBytes(new byte[] {1, 2, 3});
-              producer.send(simpleMessage2);
+              producer.send(simpleMessage2, DeliveryMode.PERSISTENT, 3, 0);
             }
 
             TextMessage msg = (TextMessage) consumer.receive();
