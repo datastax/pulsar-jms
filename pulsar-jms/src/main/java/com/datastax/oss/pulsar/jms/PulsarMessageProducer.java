@@ -802,7 +802,6 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
     if (message instanceof PulsarMessage) {
       return (PulsarMessage) message;
     }
-
     PulsarMessage res;
     if (message instanceof TextMessage) {
       res = new PulsarTextMessage(((TextMessage) message).getText());
@@ -816,7 +815,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
     } else if (message instanceof MapMessage) {
       MapMessage sm = (MapMessage) message;
       PulsarMapMessage dest = new PulsarMapMessage();
-      for (Enumeration en = sm.getPropertyNames(); en.hasMoreElements(); ) {
+      for (Enumeration en = sm.getMapNames(); en.hasMoreElements(); ) {
         String name = (String) en.nextElement();
         dest.setObject(name, sm.getObject(name));
       }
@@ -846,12 +845,15 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
     }
     res.setJMSCorrelationIDAsBytes(message.getJMSCorrelationIDAsBytes());
     res.setJMSDeliveryMode(message.getJMSDeliveryMode());
-    res.setJMSMessageID(message.getJMSMessageID());
     res.setJMSPriority(message.getJMSPriority());
     res.setJMSDestination(message.getJMSDestination());
     res.setJMSDeliveryTime(message.getJMSDeliveryTime());
-    res.setJMSExpiration(message.getJMSExpiration());
-    res.setJMSTimestamp(message.getJMSTimestamp());
+
+    // DO NOT COPY THESE VALUES
+    // res.setJMSMessageID(message.getJMSMessageID());
+    // res.setJMSTimestamp(message.getJMSTimestamp());
+    // res.setJMSExpiration(message.getJMSExpiration());
+
     return res;
   }
 
@@ -1197,6 +1199,9 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
       typedMessageBuilder.deliverAfter(defaultDeliveryDelay, TimeUnit.MILLISECONDS);
     }
     pulsarMessage.send(typedMessageBuilder, disableMessageTimestamp);
+    if (message != pulsarMessage) {
+      applyBackMessageProperties(message, pulsarMessage);
+    }
   }
 
   private void sendMessage(
@@ -1215,17 +1220,42 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
     message.setJMSPriority(priority);
     message.setJMSDeliveryMode(deliveryMode);
     PulsarMessage pulsarMessage = convertToPulsarMessage(message);
-    if (session.getTransacted()) {
-      pulsarMessage.sendAsync(
-          producer.newMessage(session.getTransaction()),
-          completionListener,
-          session,
-          this,
-          disableMessageTimestamp);
-    } else {
-      pulsarMessage.sendAsync(
-          producer.newMessage(), completionListener, session, this, disableMessageTimestamp);
+    CompletionListener finalCompletionListener = completionListener;
+    if (pulsarMessage != message) {
+      finalCompletionListener =
+          new CompletionListener() {
+            @Override
+            public void onCompletion(Message completedMessage) {
+              // we have to pass the original message to the called
+              applyBackMessageProperties(message, pulsarMessage);
+              completionListener.onCompletion(message);
+            }
+
+            @Override
+            public void onException(Message completedMessage, Exception e) {
+              // we have to pass the original message to the called
+              applyBackMessageProperties(message, pulsarMessage);
+              completionListener.onException(message, e);
+            }
+          };
     }
+    TypedMessageBuilder<byte[]> typedMessageBuilder = producer.newMessage(session.getTransaction());
+    if (session.getTransacted()) {
+      typedMessageBuilder = producer.newMessage(session.getTransaction());
+    } else {
+      typedMessageBuilder = producer.newMessage();
+    }
+    pulsarMessage.sendAsync(
+        typedMessageBuilder, finalCompletionListener, session, this, disableMessageTimestamp);
+  }
+
+  private void applyBackMessageProperties(Message message, PulsarMessage pulsarMessage) {
+    Utils.runtimeException(
+        () -> {
+          message.setJMSTimestamp(pulsarMessage.getJMSTimestamp());
+          message.setJMSExpiration(pulsarMessage.getJMSExpiration());
+          message.setJMSMessageID(pulsarMessage.getJMSMessageID());
+        });
   }
 
   @Override

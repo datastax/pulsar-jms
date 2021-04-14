@@ -1185,9 +1185,9 @@ public abstract class PulsarMessage implements Message {
     if (jmsPriority != Message.DEFAULT_PRIORITY) {
       message.property("JMSPriority", jmsPriority + "");
     }
-    if (jmsTimestamp == 0) {
-      this.jmsTimestamp = System.currentTimeMillis();
-    }
+
+    this.jmsTimestamp = System.currentTimeMillis();
+
     if (!disableMessageTimestamp) {
       message.eventTime(jmsTimestamp);
     }
