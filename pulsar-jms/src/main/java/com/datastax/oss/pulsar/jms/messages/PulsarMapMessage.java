@@ -67,7 +67,7 @@ public final class PulsarMapMessage extends PulsarMessage implements MapMessage 
           map.put(key, value);
         }
       } catch (Exception err) {
-        throw Utils.handleException(err);
+        throw handleException(err);
       }
     }
   }
@@ -108,7 +108,7 @@ public final class PulsarMapMessage extends PulsarMessage implements MapMessage 
       oo.close();
       producer.value(out.toByteArray());
     } catch (Exception err) {
-      throw Utils.handleException(err);
+      throw handleException(err);
     }
   }
 
@@ -122,7 +122,20 @@ public final class PulsarMapMessage extends PulsarMessage implements MapMessage 
    */
   @Override
   public boolean getBoolean(String name) throws JMSException {
-    return Utils.invoke(() -> (Boolean) map.get(name));
+    Object value = map.get(name);
+    if (value == null) {
+      throw new NullPointerException("Invalid null value");
+    }
+    if (value instanceof Boolean) {
+      return (Boolean) value;
+    } else if (value instanceof Number) {
+      throw new MessageFormatException("Invalid conversion");
+    }
+    try {
+      return Boolean.parseBoolean(value.toString());
+    } catch (Exception err) {
+      throw handleException(err);
+    }
   }
 
   /**
@@ -135,7 +148,20 @@ public final class PulsarMapMessage extends PulsarMessage implements MapMessage 
    */
   @Override
   public byte getByte(String name) throws JMSException {
-    return Utils.invoke(() -> (Byte) map.get(name));
+    Object value = map.get(name);
+    if (value == null) {
+      throw new NullPointerException("Invalid null value");
+    }
+    if (value instanceof Byte) {
+      return (Byte) value;
+    } else if (value instanceof Number) {
+      throw new MessageFormatException("Invalid conversion");
+    }
+    try {
+      return Byte.parseByte(value.toString());
+    } catch (Exception err) {
+      throw handleException(err);
+    }
   }
 
   /**
@@ -148,7 +174,20 @@ public final class PulsarMapMessage extends PulsarMessage implements MapMessage 
    */
   @Override
   public short getShort(String name) throws JMSException {
-    return Utils.invoke(() -> (Short) map.get(name));
+    Object value = map.get(name);
+    if (value == null) {
+      throw new NullPointerException("Invalid null value");
+    }
+    if ((value instanceof Byte) || (value instanceof Short)) {
+      return ((Number) value).shortValue();
+    } else if (value instanceof Number) {
+      throw new MessageFormatException("Invalid conversion");
+    }
+    try {
+      return Short.parseShort(value.toString());
+    } catch (Exception err) {
+      throw handleException(err);
+    }
   }
 
   /**
@@ -174,7 +213,20 @@ public final class PulsarMapMessage extends PulsarMessage implements MapMessage 
    */
   @Override
   public int getInt(String name) throws JMSException {
-    return Utils.invoke(() -> (Integer) map.get(name));
+    Object value = map.get(name);
+    if (value == null) {
+      throw new NullPointerException("Invalid null value");
+    }
+    if ((value instanceof Integer) || (value instanceof Short) || (value instanceof Byte)) {
+      return ((Number) value).intValue();
+    } else if (value instanceof Number) {
+      throw new MessageFormatException("Invalid conversion");
+    }
+    try {
+      return Integer.parseInt(value.toString());
+    } catch (Exception err) {
+      throw handleException(err);
+    }
   }
 
   /**
@@ -187,7 +239,23 @@ public final class PulsarMapMessage extends PulsarMessage implements MapMessage 
    */
   @Override
   public long getLong(String name) throws JMSException {
-    return Utils.invoke(() -> (Long) map.get(name));
+    Object value = map.get(name);
+    if (value == null) {
+      throw new NullPointerException("Invalid null value");
+    }
+    if ((value instanceof Integer)
+        || (value instanceof Short)
+        || (value instanceof Byte)
+        || (value instanceof Long)) {
+      return ((Number) value).longValue();
+    } else if (value instanceof Number) {
+      throw new MessageFormatException("Invalid conversion");
+    }
+    try {
+      return Long.parseLong(value.toString());
+    } catch (Exception err) {
+      throw handleException(err);
+    }
   }
 
   /**
@@ -200,7 +268,20 @@ public final class PulsarMapMessage extends PulsarMessage implements MapMessage 
    */
   @Override
   public float getFloat(String name) throws JMSException {
-    return Utils.invoke(() -> (Float) map.get(name));
+    Object value = map.get(name);
+    if (value == null) {
+      throw new NullPointerException("Invalid null value");
+    }
+    if (value instanceof Float) {
+      return (Float) value;
+    } else if (value instanceof Number) {
+      throw new MessageFormatException("Invalid conversion");
+    }
+    try {
+      return Float.parseFloat(value.toString());
+    } catch (Exception err) {
+      throw handleException(err);
+    }
   }
 
   /**
@@ -213,7 +294,20 @@ public final class PulsarMapMessage extends PulsarMessage implements MapMessage 
    */
   @Override
   public double getDouble(String name) throws JMSException {
-    return Utils.invoke(() -> (Double) map.get(name));
+    Object value = map.get(name);
+    if (value == null) {
+      throw new NullPointerException("Invalid null value");
+    }
+    if ((value instanceof Double) || (value instanceof Float)) {
+      return ((Number) value).doubleValue();
+    } else if (value instanceof Number) {
+      throw new MessageFormatException("Invalid conversion");
+    }
+    try {
+      return Double.parseDouble(value.toString());
+    } catch (Exception err) {
+      throw handleException(err);
+    }
   }
 
   /**
@@ -227,7 +321,14 @@ public final class PulsarMapMessage extends PulsarMessage implements MapMessage 
    */
   @Override
   public String getString(String name) throws JMSException {
-    return Utils.invoke(() -> (String) map.get(name));
+    Object value = map.get(name);
+    if (value == null) {
+      return null;
+    }
+    if (value instanceof String) {
+      return (String) value;
+    }
+    return value.toString();
   }
 
   /**

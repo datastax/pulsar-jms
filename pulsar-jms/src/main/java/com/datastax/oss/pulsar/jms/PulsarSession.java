@@ -76,6 +76,9 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   private boolean jms20;
   private final int sessionMode;
   private final boolean transacted;
+  // this is to emulate QueueSession/TopicSession
+  private boolean allowQueueOperations = true;
+  private boolean allowTopicOperations = true;
   Transaction transaction;
   private MessageListener messageListener;
   private final Map<PulsarDestination, Producer<byte[]>> producers = new HashMap<>();
@@ -702,6 +705,9 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   @Override
   public PulsarMessageConsumer createConsumer(Destination destination, String messageSelector)
       throws JMSException {
+    if (destination == null) {
+      throw new InvalidDestinationException("null destination");
+    }
     messageSelectorNotSupported(messageSelector);
     return createConsumer(destination, messageSelector, false);
   }
@@ -745,6 +751,9 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   @Override
   public PulsarMessageConsumer createConsumer(
       Destination destination, String messageSelector, boolean noLocal) throws JMSException {
+    if (destination == null) {
+      throw new InvalidDestinationException("null destination");
+    }
     messageSelectorNotSupported(messageSelector);
     if (noLocal) {
       throw new InvalidSelectorException("noLocal mode is not supported by Pulsar");
@@ -856,6 +865,9 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   @Override
   public PulsarMessageConsumer createSharedConsumer(
       Topic topic, String sharedSubscriptionName, String messageSelector) throws JMSException {
+    if (topic == null) {
+      throw new InvalidDestinationException("null destination");
+    }
     sharedSubscriptionName = connection.prependClientId(sharedSubscriptionName, true);
     messageSelectorNotSupported(messageSelector);
     registerSubscriptionName(topic, sharedSubscriptionName);
@@ -890,6 +902,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   @Override
   public Queue createQueue(String queueName) throws JMSException {
     checkNotClosed();
+    checkQueueOperationEnabled();
     return new PulsarQueue(queueName);
   }
 
@@ -915,6 +928,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   @Override
   public Topic createTopic(String topicName) throws JMSException {
     checkNotClosed();
+    checkTopicOperationEnabled();
     return new PulsarTopic(topicName);
   }
 
@@ -1073,6 +1087,9 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   private PulsarMessageConsumer createDurableSubscriber(
       Topic topic, String name, String messageSelector, boolean noLocal, boolean allowUnsetClientId)
       throws JMSException {
+    if (topic == null) {
+      throw new InvalidDestinationException("null destination");
+    }
     messageSelectorNotSupported(messageSelector);
     if (noLocal) {
       throw new InvalidSelectorException("noLocal mode is not supported by Pulsar");
@@ -1386,6 +1403,9 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   @Override
   public PulsarMessageConsumer createSharedDurableConsumer(
       Topic topic, String name, String messageSelector) throws JMSException {
+    if (topic == null) {
+      throw new InvalidDestinationException("null destination");
+    }
     messageSelectorNotSupported(messageSelector);
     name = connection.prependClientId(name, true);
     registerSubscriptionName(topic, name);
@@ -1431,6 +1451,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     if (queue == null) {
       throw new InvalidDestinationException("invalid null queue");
     }
+    checkQueueOperationEnabled();
     messageSelectorNotSupported(messageSelector);
     return new PulsarQueueBrowser(this, queue);
   }
@@ -1447,6 +1468,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   @Override
   public TemporaryQueue createTemporaryQueue() throws JMSException {
     checkNotClosed();
+    checkQueueOperationEnabled();
     return connection.createTemporaryQueue(this);
   }
 
@@ -1462,6 +1484,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   @Override
   public TemporaryTopic createTemporaryTopic() throws JMSException {
     checkNotClosed();
+    checkTopicOperationEnabled();
     return connection.createTemporaryTopic(this);
   }
 
@@ -1497,7 +1520,10 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
           destinationBySubscription);
     }
 
-    getFactory().deleteSubscription(destination, name);
+    boolean someThingDone = getFactory().deleteSubscription(destination, name);
+    if (!someThingDone) {
+      throw new InvalidDestinationException("Subscription " + name + " not found");
+    }
   }
 
   /**
@@ -1662,5 +1688,23 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
       listenerThread = new ListenerThread();
       listenerThread.start();
     }
+  }
+
+  void checkQueueOperationEnabled() throws JMSException {
+    if (!allowQueueOperations) {
+      throw new IllegalStateException("This is not a QueueSession");
+    }
+  }
+
+  void checkTopicOperationEnabled() throws JMSException {
+    if (!allowTopicOperations) {
+      throw new IllegalStateException("This is not a TopicSession");
+    }
+  }
+
+  PulsarSession emulateLegacySession(boolean queue, boolean topic) {
+    this.allowQueueOperations = queue;
+    this.allowTopicOperations = topic;
+    return this;
   }
 }

@@ -911,7 +911,7 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
 
   @Override
   public QueueSession createQueueSession(boolean b, int i) throws JMSException {
-    return createSession(b, i);
+    return createSession(b, i).emulateLegacySession(true, false);
   }
 
   @Override
@@ -923,7 +923,7 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
 
   @Override
   public TopicSession createTopicSession(boolean b, int i) throws JMSException {
-    return createSession(b, i);
+    return createSession(b, i).emulateLegacySession(false, true);
   }
 
   @Override

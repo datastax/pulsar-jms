@@ -21,6 +21,7 @@ import com.datastax.oss.pulsar.jms.messages.PulsarObjectMessage;
 import com.datastax.oss.pulsar.jms.messages.PulsarSimpleMessage;
 import com.datastax.oss.pulsar.jms.messages.PulsarStreamMessage;
 import com.datastax.oss.pulsar.jms.messages.PulsarTextMessage;
+import java.io.EOFException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Base64;
@@ -35,6 +36,7 @@ import javax.jms.Destination;
 import javax.jms.IllegalStateException;
 import javax.jms.JMSException;
 import javax.jms.Message;
+import javax.jms.MessageEOFException;
 import javax.jms.MessageFormatException;
 import javax.jms.MessageNotReadableException;
 import javax.jms.MessageNotWriteableException;
@@ -1340,5 +1342,16 @@ public abstract class PulsarMessage implements Message {
 
   public boolean isReceivedFromConsumer(PulsarMessageConsumer consumer) {
     return this.consumer == consumer;
+  }
+
+  protected static JMSException handleException(Throwable t) throws JMSException {
+    if (t instanceof NumberFormatException) {
+      // TCK
+      throw (NumberFormatException) t;
+    }
+    if (t instanceof EOFException) {
+      throw new MessageEOFException(t + "");
+    }
+    throw Utils.handleException(t);
   }
 }

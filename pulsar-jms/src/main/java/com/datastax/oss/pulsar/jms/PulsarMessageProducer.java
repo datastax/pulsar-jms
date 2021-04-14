@@ -50,7 +50,7 @@ import org.apache.pulsar.client.api.TypedMessageBuilder;
 @Slf4j
 class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSender {
   private final PulsarSession session;
-  private PulsarDestination defaultDestination;
+  private final PulsarDestination defaultDestination;
   private final boolean jms20;
 
   public PulsarMessageProducer(PulsarSession session, Destination defaultDestination)
@@ -413,6 +413,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
    */
   @Override
   public void send(Destination destination, Message message) throws JMSException {
+    checkNoDefaultDestinationSet();
     validateMessageSend(
         message, destination, false, Message.DEFAULT_TIME_TO_LIVE, deliveryMode, priority);
     message.setJMSDeliveryMode(deliveryMode);

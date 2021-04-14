@@ -618,7 +618,9 @@ public class PulsarConnectionFactory
     consumers.remove(consumer);
   }
 
-  public void deleteSubscription(PulsarDestination destination, String name) throws JMSException {
+  public boolean deleteSubscription(PulsarDestination destination, String name)
+      throws JMSException {
+    boolean somethingDone = false;
     try {
 
       // TCK mode, scan for all subscriptions
@@ -632,6 +634,7 @@ public class PulsarConnectionFactory
           if (subscription.equals(name)) {
             log.info("deleteSubscription topic {} name {}", destination.topicName, name);
             pulsarAdmin.topics().deleteSubscription(topic, name, true);
+            somethingDone = true;
           }
         }
       }
@@ -639,12 +642,14 @@ public class PulsarConnectionFactory
       if (destination != null) {
         log.info("deleteSubscription topic {} name {}", destination.topicName, name);
         pulsarAdmin.topics().deleteSubscription(destination.topicName, name, true);
+        somethingDone = true;
       }
     } catch (PulsarAdminException.NotFoundException notFound) {
       log.error("Cannot unsubscribe {} from {}: not found", name, destination.topicName);
     } catch (Exception err) {
       throw Utils.handleException(err);
     }
+    return somethingDone;
   }
 
   public void registerClientId(String clientID) throws InvalidClientIDException {

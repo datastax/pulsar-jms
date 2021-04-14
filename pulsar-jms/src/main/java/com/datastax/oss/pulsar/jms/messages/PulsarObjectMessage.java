@@ -33,19 +33,22 @@ public final class PulsarObjectMessage extends PulsarMessage implements ObjectMe
   private Serializable object;
 
   public PulsarObjectMessage(Serializable object) throws JMSException {
-    this.object = object;
+    this(encode(object)); // clone object
   }
 
   public PulsarObjectMessage(byte[] originalMessage) throws JMSException {
+    this.object = decode(originalMessage);
+  }
+
+  private static Serializable decode(byte[] originalMessage) throws JMSException {
     if (originalMessage == null) {
-      this.object = null;
-    } else {
-      try {
-        ObjectInputStream input = new ObjectInputStream(new ByteArrayInputStream(originalMessage));
-        this.object = (Serializable) input.readUnshared();
-      } catch (Exception err) {
-        throw Utils.handleException(err);
-      }
+      return null;
+    }
+    try {
+      ObjectInputStream input = new ObjectInputStream(new ByteArrayInputStream(originalMessage));
+      return (Serializable) input.readUnshared();
+    } catch (Exception err) {
+      throw Utils.handleException(err);
     }
   }
 
@@ -76,9 +79,13 @@ public final class PulsarObjectMessage extends PulsarMessage implements ObjectMe
 
   @Override
   protected void prepareForSend(TypedMessageBuilder<byte[]> producer) throws JMSException {
+    byte[] encoded = encode(object);
+    producer.value(encoded);
+  }
+
+  private static byte[] encode(Object object) throws JMSException {
     if (object == null) {
-      producer.value(null);
-      return;
+      return null;
     }
     try {
       ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -86,7 +93,7 @@ public final class PulsarObjectMessage extends PulsarMessage implements ObjectMe
       oo.writeUnshared(object);
       oo.flush();
       oo.close();
-      producer.value(out.toByteArray());
+      return out.toByteArray();
     } catch (Exception err) {
       throw Utils.handleException(err);
     }
@@ -104,8 +111,9 @@ public final class PulsarObjectMessage extends PulsarMessage implements ObjectMe
    * @throws MessageNotWriteableException if the message is in read-only mode.
    */
   @Override
-  public void setObject(Serializable object) {
-    this.object = object;
+  public void setObject(Serializable object) throws JMSException {
+    checkWritable();
+    this.object = decode(encode(object)); // clone
   }
 
   /**
@@ -116,7 +124,8 @@ public final class PulsarObjectMessage extends PulsarMessage implements ObjectMe
    * @throws MessageFormatException if object deserialization fails.
    */
   @Override
-  public Serializable getObject() {
+  public Serializable getObject() throws JMSException {
+    checkReadable();
     return object;
   }
 

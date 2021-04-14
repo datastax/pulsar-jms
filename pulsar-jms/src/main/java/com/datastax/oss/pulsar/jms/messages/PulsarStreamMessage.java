@@ -324,17 +324,6 @@ public final class PulsarStreamMessage extends PulsarMessage implements StreamMe
     }
   }
 
-  protected static JMSException handleException(Throwable t) throws JMSException {
-    if (t instanceof NumberFormatException) {
-      // TCK
-      throw (NumberFormatException) t;
-    }
-    if (t instanceof EOFException) {
-      throw new MessageEOFException(t + "");
-    }
-    throw Utils.handleException(t);
-  }
-
   /**
    * Reads a {@code byte} value from the stream message.
    *
