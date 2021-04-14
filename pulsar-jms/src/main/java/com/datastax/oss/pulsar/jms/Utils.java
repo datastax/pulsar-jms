@@ -162,7 +162,12 @@ public final class Utils {
   public static void checkNotOnMessageProducer(
       PulsarSession session, PulsarMessageProducer producer) throws JMSException {
     CallbackContext current = currentSession.get();
-    if (current != null && current.session == session && current.producer == producer) {
+    if (current != null
+        && current.session == session
+        && ((producer != null && current.producer == producer)
+            || // specific producer
+            (producer == null || current.producer != null))) // any producer
+    {
       throw new IllegalStateException("Cannot call this method inside a CompletionListener");
     }
   }

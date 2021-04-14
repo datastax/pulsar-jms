@@ -683,7 +683,10 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public void commit() {
-    Utils.runtimeException(() -> session.commit());
+    Utils.runtimeException(
+        () -> {
+          session.commit();
+        });
   }
 
   /**

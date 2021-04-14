@@ -1181,7 +1181,6 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
     if (message == null) {
       throw new MessageFormatException("null message");
     }
-    log.info("sendMessage {} {}", defaultDestination, message);
     Producer<byte[]> producer =
         session
             .getFactory()
@@ -1210,15 +1209,12 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
     if (message == null) {
       throw new MessageFormatException("null message");
     }
-    log.info("sendMessage Async{} {}", defaultDestination, message);
     Producer<byte[]> producer =
         session
             .getFactory()
             .getProducerForDestination(
                 (PulsarDestination) defaultDestination, session.getTransacted());
     message.setJMSDestination(defaultDestination);
-    message.setJMSPriority(priority);
-    message.setJMSDeliveryMode(deliveryMode);
     PulsarMessage pulsarMessage = convertToPulsarMessage(message);
     CompletionListener finalCompletionListener = completionListener;
     if (pulsarMessage != message) {
@@ -1239,7 +1235,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
             }
           };
     }
-    TypedMessageBuilder<byte[]> typedMessageBuilder = producer.newMessage(session.getTransaction());
+    TypedMessageBuilder<byte[]> typedMessageBuilder;
     if (session.getTransacted()) {
       typedMessageBuilder = producer.newMessage(session.getTransaction());
     } else {
