@@ -54,6 +54,12 @@ import javax.jms.TopicPublisher;
 import javax.jms.TopicSession;
 import javax.jms.TopicSubscriber;
 import javax.jms.TransactionRolledBackException;
+
+import com.datastax.oss.pulsar.jms.messages.PulsarMapMessage;
+import com.datastax.oss.pulsar.jms.messages.PulsarObjectMessage;
+import com.datastax.oss.pulsar.jms.messages.PulsarStreamMessage;
+import com.datastax.oss.pulsar.jms.messages.PulsarTextMessage;
+import com.datastax.oss.pulsar.jms.messages.PulsarSimpleMessage;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.api.Consumer;
 import org.apache.pulsar.client.api.Producer;
@@ -159,9 +165,9 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    *     error.
    */
   @Override
-  public PulsarMessage.PulsarBytesMessage createBytesMessage() throws JMSException {
+  public PulsarBytesMessage createBytesMessage() throws JMSException {
     checkNotClosed();
-    return new PulsarMessage.PulsarBytesMessage();
+    return new PulsarBytesMessage();
   }
 
   /**
@@ -182,11 +188,11 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   @Override
   public MapMessage createMapMessage() throws JMSException {
     checkNotClosed();
-    return new PulsarMessage.PulsarMapMessage();
+    return new PulsarMapMessage();
   }
 
   public MapMessage createMapMessage(Map<String, Object> body) throws JMSException {
-    return new PulsarMessage.PulsarMapMessage(body);
+    return new PulsarMapMessage(body);
   }
 
   /**
@@ -207,7 +213,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   @Override
   public Message createMessage() throws JMSException {
     checkNotClosed();
-    return new PulsarMessage.SimpleMessage();
+    return new PulsarSimpleMessage();
   }
 
   /**
@@ -227,7 +233,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   @Override
   public ObjectMessage createObjectMessage() throws JMSException {
     checkNotClosed();
-    return new PulsarMessage.PulsarObjectMessage();
+    return new PulsarObjectMessage();
   }
 
   /**
@@ -248,7 +254,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   @Override
   public ObjectMessage createObjectMessage(Serializable object) throws JMSException {
     checkNotClosed();
-    PulsarMessage.PulsarObjectMessage res = new PulsarMessage.PulsarObjectMessage();
+    PulsarObjectMessage res = new PulsarObjectMessage();
     res.setObject(object);
     return res;
   }
@@ -270,7 +276,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   @Override
   public StreamMessage createStreamMessage() throws JMSException {
     checkNotClosed();
-    return new PulsarMessage.PulsarStreamMessage();
+    return new PulsarStreamMessage();
   }
 
   /**
@@ -290,7 +296,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   @Override
   public TextMessage createTextMessage() throws JMSException {
     checkNotClosed();
-    return new PulsarMessage.PulsarTextMessage((String) null);
+    return new PulsarTextMessage((String) null);
   }
 
   /**
@@ -311,7 +317,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   @Override
   public TextMessage createTextMessage(String text) throws JMSException {
     checkNotClosed();
-    return new PulsarMessage.PulsarTextMessage(text);
+    return new PulsarTextMessage(text);
   }
 
   /**
@@ -1421,6 +1427,9 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    */
   @Override
   public QueueBrowser createBrowser(Queue queue, String messageSelector) throws JMSException {
+    if (queue == null) {
+      throw new InvalidDestinationException("invalid null queue");
+    }
     messageSelectorNotSupported(messageSelector);
     return new PulsarQueueBrowser(this, queue);
   }
@@ -1436,6 +1445,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    */
   @Override
   public TemporaryQueue createTemporaryQueue() throws JMSException {
+    checkNotClosed();
     return connection.createTemporaryQueue();
   }
 
@@ -1450,6 +1460,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    */
   @Override
   public TemporaryTopic createTemporaryTopic() throws JMSException {
+    checkNotClosed();
     return connection.createTemporaryTopic();
   }
 
@@ -1475,6 +1486,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    */
   @Override
   public void unsubscribe(String name) throws JMSException {
+    checkNotClosed();
     name = connection.prependClientId(name, true);
     PulsarDestination destination = destinationBySubscription.get(name);
     if (destination == null) {

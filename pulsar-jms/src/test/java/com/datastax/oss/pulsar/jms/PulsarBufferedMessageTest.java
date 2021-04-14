@@ -24,23 +24,26 @@ import javax.jms.BytesMessage;
 import javax.jms.JMSException;
 import javax.jms.MessageEOFException;
 import javax.jms.StreamMessage;
+
+import com.datastax.oss.pulsar.jms.messages.PulsarBufferedMessage;
+import com.datastax.oss.pulsar.jms.messages.PulsarStreamMessage;
 import org.junit.jupiter.api.Test;
 
 public class PulsarBufferedMessageTest {
 
   @Test
   public void testPulsarBytesMessage() throws Exception {
-    PulsarMessage.PulsarBufferedMessage streamMessage = new PulsarMessage.PulsarBytesMessage();
+    PulsarBufferedMessage streamMessage = new PulsarBytesMessage();
     testMessage(streamMessage);
   }
 
   @Test
   public void testPulsarStreamMessage() throws Exception {
-    PulsarMessage.PulsarBufferedMessage streamMessage = new PulsarMessage.PulsarStreamMessage();
+    PulsarBufferedMessage streamMessage = new PulsarStreamMessage();
     testMessage(streamMessage);
   }
 
-  private void testMessage(PulsarMessage.PulsarBufferedMessage msg) throws JMSException {
+  private void testMessage(PulsarBufferedMessage msg) throws JMSException {
     msg.writeBoolean(true);
     msg.writeChar('a');
     msg.writeInt(123);

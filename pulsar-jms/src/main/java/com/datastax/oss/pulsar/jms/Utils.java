@@ -39,7 +39,7 @@ import javax.jms.TransactionRolledBackRuntimeException;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-final class Utils {
+public final class Utils {
   private Utils() {}
 
   public static JMSException handleException(Throwable cause) {
