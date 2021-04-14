@@ -74,6 +74,7 @@ public final class PulsarMapMessage extends PulsarMessage implements MapMessage 
 
   @Override
   public void clearBody() throws JMSException {
+    writable = true;
     map.clear();
   }
 
@@ -124,7 +125,7 @@ public final class PulsarMapMessage extends PulsarMessage implements MapMessage 
   public boolean getBoolean(String name) throws JMSException {
     Object value = map.get(name);
     if (value == null) {
-      throw new NullPointerException("Invalid null value");
+      throw new NullPointerException("Invalid null value (" + map + ")");
     }
     if (value instanceof Boolean) {
       return (Boolean) value;

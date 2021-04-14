@@ -802,11 +802,13 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
     if (message instanceof PulsarMessage) {
       return (PulsarMessage) message;
     }
+
     PulsarMessage res;
     if (message instanceof TextMessage) {
       res = new PulsarTextMessage(((TextMessage) message).getText());
     } else if (message instanceof BytesMessage) {
       BytesMessage sm = (BytesMessage) message;
+      sm.reset();
       byte[] buffer = new byte[(int) sm.getBodyLength()];
       sm.readBytes(buffer);
       PulsarBytesMessage dest = new PulsarBytesMessage(buffer);
@@ -823,6 +825,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
       res = new PulsarObjectMessage(((ObjectMessage) message).getObject());
     } else if (message instanceof StreamMessage) {
       StreamMessage sm = (StreamMessage) message;
+      sm.reset();
       PulsarStreamMessage dest = new PulsarStreamMessage();
       while (true) {
         try {
@@ -836,6 +839,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
     } else {
       res = new PulsarSimpleMessage();
     }
+    res.setWritable(true);
     for (Enumeration en = message.getPropertyNames(); en.hasMoreElements(); ) {
       String name = (String) en.nextElement();
       res.setObjectProperty(name, message.getObjectProperty(name));

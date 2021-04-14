@@ -399,8 +399,19 @@ public final class PulsarStreamMessage extends PulsarMessage implements StreamMe
     checkReadable();
     try {
       dataInputStream.mark(2);
-      checkType(readDataType(), TYPE_CHAR);
-      return dataInputStream.readChar();
+      byte dataType = readDataType();
+      switch (dataType) {
+        case TYPE_CHAR:
+          return dataInputStream.readChar();
+        case TYPE_NULL:
+          throw new NullPointerException("invalid conversion");
+        default:
+          // failing
+          checkType(dataType, TYPE_CHAR);
+          return 0;
+      }
+    } catch (NullPointerException err) {
+      throw err;
     } catch (Exception err) {
       resetStreamAtMark();
       throw handleException(err);

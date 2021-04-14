@@ -413,7 +413,7 @@ public abstract class PulsarMessage implements Message {
    */
   @Override
   public void setJMSRedelivered(boolean redelivered) throws JMSException {
-    this.jmsRedelivered = jmsRedelivered;
+    this.jmsRedelivered = redelivered;
   }
 
   /**
@@ -1185,11 +1185,16 @@ public abstract class PulsarMessage implements Message {
     if (jmsPriority != Message.DEFAULT_PRIORITY) {
       message.property("JMSPriority", jmsPriority + "");
     }
-    this.jmsTimestamp = System.currentTimeMillis();
+    if (jmsTimestamp == 0) {
+      this.jmsTimestamp = System.currentTimeMillis();
+    }
     if (!disableMessageTimestamp) {
       message.eventTime(jmsTimestamp);
     }
     this.jmsDeliveryTime = jmsTimestamp;
+    if (jmsDeliveryTime == 0) {
+      this.jmsDeliveryTime = System.currentTimeMillis();
+    }
 
     message.property("JMSDeliveryTime", jmsDeliveryTime + "");
 
@@ -1353,5 +1358,9 @@ public abstract class PulsarMessage implements Message {
       throw new MessageEOFException(t + "");
     }
     throw Utils.handleException(t);
+  }
+
+  public void setWritable(boolean b) {
+    writable = b;
   }
 }

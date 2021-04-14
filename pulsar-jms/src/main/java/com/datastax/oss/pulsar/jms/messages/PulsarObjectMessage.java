@@ -66,6 +66,7 @@ public final class PulsarObjectMessage extends PulsarMessage implements ObjectMe
 
   @Override
   public void clearBody() throws JMSException {
+    this.writable = true;
     this.object = null;
   }
 
@@ -125,7 +126,6 @@ public final class PulsarObjectMessage extends PulsarMessage implements ObjectMe
    */
   @Override
   public Serializable getObject() throws JMSException {
-    checkReadable();
     return object;
   }
 
