@@ -60,7 +60,7 @@ public abstract class PulsarMessage implements Message {
   private volatile long jmsDeliveryTime;
   private int jmsPriority = Message.DEFAULT_PRIORITY;
   protected final Map<String, String> properties = new HashMap<>();
-  private PulsarConsumer consumer;
+  private PulsarMessageConsumer consumer;
   private boolean negativeAcked;
   private org.apache.pulsar.client.api.Message<byte[]> receivedPulsarMessage;
 
@@ -620,7 +620,17 @@ public abstract class PulsarMessage implements Message {
    */
   @Override
   public boolean getBooleanProperty(String name) throws JMSException {
-    return Utils.invoke(() -> Boolean.parseBoolean(properties.getOrDefault(name, "false")));
+    Object value = getObjectProperty(name);
+    if (value == null) {
+      return false;
+    }
+    if (value instanceof Boolean) {
+      return (Boolean) value;
+    } else if (value instanceof String) {
+      return Boolean.parseBoolean(value.toString());
+    } else {
+      throw new MessageFormatException("Unsupported conversion to boolean for " + value);
+    }
   }
 
   /**
@@ -634,7 +644,18 @@ public abstract class PulsarMessage implements Message {
    */
   @Override
   public byte getByteProperty(String name) throws JMSException {
-    return Utils.invoke(() -> Byte.parseByte(properties.getOrDefault(name, "0")));
+
+    Object value = getObjectProperty(name);
+    if (value == null) {
+      throw new NumberFormatException("null not allowed");
+    }
+    if (value instanceof Byte) {
+      return ((Number) value).byteValue();
+    } else if (value instanceof String) {
+      return Utils.invoke(() -> Byte.parseByte(value.toString()));
+    } else {
+      throw new MessageFormatException("Unsupported conversion");
+    }
   }
 
   /**
@@ -648,7 +669,17 @@ public abstract class PulsarMessage implements Message {
    */
   @Override
   public short getShortProperty(String name) throws JMSException {
-    return Utils.invoke(() -> Short.parseShort(properties.getOrDefault(name, "0")));
+    Object value = getObjectProperty(name);
+    if (value == null) {
+      throw new NumberFormatException("null not allowed");
+    }
+    if ((value instanceof Byte) || (value instanceof Short)) {
+      return ((Number) value).shortValue();
+    } else if (value instanceof String) {
+      return Utils.invoke(() -> Short.parseShort(value.toString()));
+    } else {
+      throw new MessageFormatException("Unsupported conversion");
+    }
   }
 
   /**
@@ -662,7 +693,17 @@ public abstract class PulsarMessage implements Message {
    */
   @Override
   public int getIntProperty(String name) throws JMSException {
-    return Utils.invoke(() -> Integer.parseInt(properties.getOrDefault(name, "0")));
+    Object value = getObjectProperty(name);
+    if (value == null) {
+      throw new NumberFormatException("null not allowed");
+    }
+    if ((value instanceof Byte) || (value instanceof Short) || (value instanceof Integer)) {
+      return ((Number) value).intValue();
+    } else if (value instanceof String) {
+      return Utils.invoke(() -> Integer.parseInt(value.toString()));
+    } else {
+      throw new MessageFormatException("Unsupported conversion");
+    }
   }
 
   /**
@@ -676,7 +717,20 @@ public abstract class PulsarMessage implements Message {
    */
   @Override
   public long getLongProperty(String name) throws JMSException {
-    return Utils.invoke(() -> Long.parseLong(properties.getOrDefault(name, "0")));
+    Object value = getObjectProperty(name);
+    if (value == null) {
+      throw new NumberFormatException("null not allowed");
+    }
+    if ((value instanceof Byte)
+        || (value instanceof Short)
+        || (value instanceof Integer)
+        || (value instanceof Long)) {
+      return ((Number) value).longValue();
+    } else if (value instanceof String) {
+      return Utils.invoke(() -> Long.parseLong(value.toString()));
+    } else {
+      throw new MessageFormatException("Unsupported conversion");
+    }
   }
 
   /**
@@ -690,7 +744,17 @@ public abstract class PulsarMessage implements Message {
    */
   @Override
   public float getFloatProperty(String name) throws JMSException {
-    return Utils.invoke(() -> Float.parseFloat(properties.getOrDefault(name, "0")));
+    Object value = getObjectProperty(name);
+    if (value == null) {
+      throw new NullPointerException("null not allowed");
+    }
+    if (value instanceof Float) {
+      return ((Number) value).floatValue();
+    } else if (value instanceof String) {
+      return Utils.invoke(() -> Float.parseFloat(value.toString()));
+    } else {
+      throw new MessageFormatException("Unsuppported");
+    }
   }
 
   /**
@@ -704,7 +768,17 @@ public abstract class PulsarMessage implements Message {
    */
   @Override
   public double getDoubleProperty(String name) throws JMSException {
-    return Utils.invoke(() -> Double.parseDouble(properties.getOrDefault(name, "0")));
+    Object value = getObjectProperty(name);
+    if (value == null) {
+      throw new NullPointerException("null not allowed");
+    }
+    if ((value instanceof Float) || (value instanceof Double)) {
+      return ((Number) value).doubleValue();
+    } else if (value instanceof String) {
+      return Utils.invoke(() -> Double.parseDouble(value.toString()));
+    } else {
+      throw new MessageFormatException("Unsuppported");
+    }
   }
 
   /**
@@ -719,7 +793,7 @@ public abstract class PulsarMessage implements Message {
    */
   @Override
   public String getStringProperty(String name) throws JMSException {
-    return Utils.invoke(() -> properties.getOrDefault(name, ""));
+    return Utils.invoke(() -> properties.getOrDefault(name, null));
   }
 
   /**
@@ -740,28 +814,28 @@ public abstract class PulsarMessage implements Message {
   public Object getObjectProperty(String name) throws JMSException {
     return Utils.invoke(
         () -> {
-          Object value = properties.getOrDefault(name, null);
+          String value = properties.getOrDefault(name, null);
           if (value == null) {
             return null;
           }
           String type = properties.getOrDefault(propertyType(name), "string");
           switch (type) {
             case "string":
-              return getStringProperty(name);
+              return value;
             case "boolean":
-              return getBooleanProperty(name);
+              return Boolean.parseBoolean(value);
             case "float":
-              return getFloatProperty(name);
+              return Float.parseFloat(value);
             case "double":
-              return getDoubleProperty(name);
+              return Double.parseDouble(value);
             case "int":
-              return getIntProperty(name);
+              return Integer.parseInt(value);
             case "short":
-              return getShortProperty(name);
+              return Short.parseShort(value);
             case "byte":
-              return getByteProperty(name);
+              return Byte.parseByte(value);
             case "long":
-              return getLongProperty(name);
+              return Long.parseLong(value);
             default:
               // string
               return value;
@@ -1140,7 +1214,7 @@ public abstract class PulsarMessage implements Message {
   protected abstract void prepareForSend(TypedMessageBuilder<byte[]> producer) throws JMSException;
 
   static PulsarMessage decode(
-      PulsarConsumer consumer, org.apache.pulsar.client.api.Message<byte[]> msg)
+      PulsarMessageConsumer consumer, org.apache.pulsar.client.api.Message<byte[]> msg)
       throws JMSException {
     if (msg == null) {
       return null;
@@ -1167,8 +1241,12 @@ public abstract class PulsarMessage implements Message {
   }
 
   protected PulsarMessage applyMessage(
-      org.apache.pulsar.client.api.Message<byte[]> msg, PulsarConsumer consumer) {
+      org.apache.pulsar.client.api.Message<byte[]> msg, PulsarMessageConsumer consumer) {
+    this.writable = false;
     this.properties.putAll(msg.getProperties());
+    if (consumer != null) {
+      this.destination = consumer.getDestination();
+    }
     String jmsReplyTo = msg.getProperty("JMSReplyTo");
     if (jmsReplyTo != null) {
       String jmsReplyToType = msg.getProperty("JMSReplyToType") + "";
@@ -1260,7 +1338,7 @@ public abstract class PulsarMessage implements Message {
     }
   }
 
-  public boolean isReceivedFromConsumer(PulsarConsumer consumer) {
+  public boolean isReceivedFromConsumer(PulsarMessageConsumer consumer) {
     return this.consumer == consumer;
   }
 }

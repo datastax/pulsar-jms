@@ -56,6 +56,10 @@ public final class Utils {
       return (JMSException)
           new MessageFormatException("Invalid cast " + cause.getMessage()).initCause(cause);
     }
+    if (cause instanceof NumberFormatException) {
+      return (JMSException)
+          new MessageFormatException("Invalid conversion " + cause.getMessage()).initCause(cause);
+    }
     JMSException err = new JMSException(cause + "");
     err.initCause(cause);
     if (cause instanceof Exception) {
@@ -101,7 +105,7 @@ public final class Utils {
   }
 
   public static void executeMessageListenerInSessionContext(
-      PulsarSession session, PulsarConsumer consumer, Runnable code) {
+      PulsarSession session, PulsarMessageConsumer consumer, Runnable code) {
     currentSession.set(new CallbackContext(session, consumer, null));
     try {
       session.executeCriticalOperation(
@@ -136,7 +140,7 @@ public final class Utils {
     }
   }
 
-  public static boolean isOnMessageListener(PulsarSession session, PulsarConsumer consumer) {
+  public static boolean isOnMessageListener(PulsarSession session, PulsarMessageConsumer consumer) {
     CallbackContext current = currentSession.get();
     return current != null && current.session == session && current.consumer == consumer;
   }
@@ -165,11 +169,11 @@ public final class Utils {
 
   private static class CallbackContext {
     final PulsarSession session;
-    final PulsarConsumer consumer;
+    final PulsarMessageConsumer consumer;
     final PulsarMessageProducer producer;
 
     private CallbackContext(
-        PulsarSession session, PulsarConsumer consumer, PulsarMessageProducer producer) {
+        PulsarSession session, PulsarMessageConsumer consumer, PulsarMessageProducer producer) {
       this.session = session;
       this.consumer = consumer;
       this.producer = producer;

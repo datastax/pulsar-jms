@@ -16,6 +16,7 @@
 package com.datastax.oss.pulsar.jms;
 
 import java.util.concurrent.TimeUnit;
+import javax.jms.Destination;
 import javax.jms.IllegalStateException;
 import javax.jms.InvalidDestinationException;
 import javax.jms.JMSConsumer;
@@ -39,7 +40,7 @@ import org.apache.pulsar.client.api.SubscriptionMode;
 import org.apache.pulsar.client.api.SubscriptionType;
 
 @Slf4j
-public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueReceiver {
+public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, QueueReceiver {
 
   private final String subscriptionName;
   private final PulsarSession session;
@@ -51,7 +52,7 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
   private boolean closed;
   private boolean requestClose;
 
-  public PulsarConsumer(
+  public PulsarMessageConsumer(
       String subscriptionName,
       PulsarDestination destination,
       PulsarSession session,
@@ -62,6 +63,13 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
     if (destination == null) {
       throw new InvalidDestinationException("Invalid destination");
     }
+    if (destination instanceof PulsarTemporaryDestination) {
+      PulsarTemporaryDestination dest = (PulsarTemporaryDestination) destination;
+      if (dest.getSession() != session) {
+        throw new JMSException(
+            "Cannot subscribe to a temporary destination not created but this session");
+      }
+    }
     this.subscriptionName = subscriptionName;
     this.session = session;
     this.destination = destination;
@@ -69,7 +77,7 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
     this.subscriptionType = destination.isQueue() ? SubscriptionType.Shared : subscriptionType;
   }
 
-  public PulsarConsumer subscribe() throws JMSException {
+  public PulsarMessageConsumer subscribe() throws JMSException {
     session.registerConsumer(this);
     if (destination.isQueue()) {
       try {
@@ -442,37 +450,37 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
     return new JMSConsumer() {
       @Override
       public String getMessageSelector() {
-        return Utils.runtimeException(() -> PulsarConsumer.this.getMessageSelector());
+        return Utils.runtimeException(() -> PulsarMessageConsumer.this.getMessageSelector());
       }
 
       @Override
       public MessageListener getMessageListener() throws JMSRuntimeException {
-        return Utils.runtimeException(() -> PulsarConsumer.this.getMessageListener());
+        return Utils.runtimeException(() -> PulsarMessageConsumer.this.getMessageListener());
       }
 
       @Override
       public void setMessageListener(MessageListener listener) throws JMSRuntimeException {
-        Utils.runtimeException(() -> PulsarConsumer.this.setMessageListener(listener));
+        Utils.runtimeException(() -> PulsarMessageConsumer.this.setMessageListener(listener));
       }
 
       @Override
       public Message receive() {
-        return Utils.runtimeException(() -> PulsarConsumer.this.receive());
+        return Utils.runtimeException(() -> PulsarMessageConsumer.this.receive());
       }
 
       @Override
       public Message receive(long timeout) {
-        return Utils.runtimeException(() -> PulsarConsumer.this.receive(timeout));
+        return Utils.runtimeException(() -> PulsarMessageConsumer.this.receive(timeout));
       }
 
       @Override
       public Message receiveNoWait() {
-        return Utils.runtimeException(() -> PulsarConsumer.this.receiveNoWait());
+        return Utils.runtimeException(() -> PulsarMessageConsumer.this.receiveNoWait());
       }
 
       @Override
       public void close() {
-        Utils.runtimeException(() -> PulsarConsumer.this.close());
+        Utils.runtimeException(() -> PulsarMessageConsumer.this.close());
       }
 
       @Override
@@ -480,7 +488,7 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
         return Utils.runtimeException(
             () -> {
               Message msg =
-                  PulsarConsumer.this.receiveWithTimeoutAndValidateType(Long.MAX_VALUE, c);
+                  PulsarMessageConsumer.this.receiveWithTimeoutAndValidateType(Long.MAX_VALUE, c);
               return msg == null ? null : msg.getBody(c);
             });
       }
@@ -489,7 +497,8 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
       public <T> T receiveBody(Class<T> c, long timeout) {
         return Utils.runtimeException(
             () -> {
-              Message msg = PulsarConsumer.this.receiveWithTimeoutAndValidateType(timeout, c);
+              Message msg =
+                  PulsarMessageConsumer.this.receiveWithTimeoutAndValidateType(timeout, c);
               return msg == null ? null : msg.getBody(c);
             });
       }
@@ -498,7 +507,7 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
       public <T> T receiveBodyNoWait(Class<T> c) {
         return Utils.runtimeException(
             () -> {
-              Message msg = PulsarConsumer.this.receiveWithTimeoutAndValidateType(1, c);
+              Message msg = PulsarMessageConsumer.this.receiveWithTimeoutAndValidateType(1, c);
               return msg == null ? null : msg.getBody(c);
             });
       }
@@ -584,5 +593,9 @@ public class PulsarConsumer implements MessageConsumer, TopicSubscriber, QueueRe
 
   Consumer<byte[]> getInternalConsumer() {
     return consumer;
+  }
+
+  Destination getDestination() {
+    return destination;
   }
 }

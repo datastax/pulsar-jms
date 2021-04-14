@@ -43,7 +43,6 @@ import javax.jms.Topic;
 import javax.jms.TopicConnection;
 import javax.jms.TopicSession;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.pulsar.common.policies.data.TopicStats;
 
 @Slf4j
 public class PulsarConnection implements Connection, QueueConnection, TopicConnection {
@@ -882,7 +881,7 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
     }
   }
 
-  public TemporaryQueue createTemporaryQueue() throws JMSException {
+  public TemporaryQueue createTemporaryQueue(PulsarSession session) throws JMSException {
     checkNotClosed();
     String name =
         "persistent://" + factory.getSystemNamespace() + "/jms-temp-queue-" + UUID.randomUUID();
@@ -891,12 +890,12 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
     } catch (Exception err) {
       throw Utils.handleException(err);
     }
-    PulsarTemporaryQueue res = new PulsarTemporaryQueue(name);
+    PulsarTemporaryQueue res = new PulsarTemporaryQueue(name, session);
     temporaryDestinations.add(res);
     return res;
   }
 
-  public TemporaryTopic createTemporaryTopic() throws JMSException {
+  public TemporaryTopic createTemporaryTopic(PulsarSession session) throws JMSException {
     checkNotClosed();
     String name =
         "persistent://" + factory.getSystemNamespace() + "/jms-temp-topic-" + UUID.randomUUID();
@@ -905,7 +904,7 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
     } catch (Exception err) {
       throw Utils.handleException(err);
     }
-    PulsarTemporaryTopic res = new PulsarTemporaryTopic(name);
+    PulsarTemporaryTopic res = new PulsarTemporaryTopic(name, session);
     temporaryDestinations.add(res);
     return res;
   }
@@ -933,88 +932,7 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
     return createConnectionConsumer(topic, s, serverSessionPool, i);
   }
 
-  private abstract class PulsarTemporaryDestination extends PulsarDestination {
-
-    public PulsarTemporaryDestination(String topicName) {
-      super(topicName);
-    }
-
-    public final void delete() throws JMSException {
-      try {
-        log.info("Deleting {}", this);
-
-        TopicStats stats = factory.getPulsarAdmin().topics().getStats(topicName);
-        log.info("Stats {}", stats);
-
-        int numConsumers =
-            stats.subscriptions.values().stream().mapToInt(s -> s.consumers.size()).sum();
-        if (numConsumers > 0) {
-          throw new JMSException("Cannot delete a temporary destination with active consumers");
-        }
-
-        factory
-            .getPulsarAdmin()
-            .topics()
-            .delete(topicName, factory.isForceDeleteTemporaryDestinations(), true);
-      } catch (Exception err) {
-        throw Utils.handleException(err);
-      } finally {
-        temporaryDestinations.remove(this);
-      }
-    }
-  }
-
-  private class PulsarTemporaryQueue extends PulsarTemporaryDestination implements TemporaryQueue {
-
-    public PulsarTemporaryQueue(String topicName) {
-      super(topicName);
-    }
-
-    @Override
-    public boolean isQueue() {
-      return true;
-    }
-
-    @Override
-    public boolean isTopic() {
-      return false;
-    }
-
-    @Override
-    public String getQueueName() throws JMSException {
-      return topicName;
-    }
-
-    @Override
-    public String toString() {
-      return "TemporaryQueue{" + topicName + "}";
-    }
-  }
-
-  private class PulsarTemporaryTopic extends PulsarTemporaryDestination implements TemporaryTopic {
-
-    public PulsarTemporaryTopic(String topicName) {
-      super(topicName);
-    }
-
-    @Override
-    public boolean isQueue() {
-      return false;
-    }
-
-    @Override
-    public boolean isTopic() {
-      return true;
-    }
-
-    @Override
-    public String getTopicName() throws JMSException {
-      return topicName;
-    }
-
-    @Override
-    public String toString() {
-      return "TemporaryTopic{" + topicName + "}";
-    }
+  void removeTemporaryDestination(PulsarTemporaryDestination pulsarTemporaryDestination) {
+    temporaryDestinations.remove(pulsarTemporaryDestination);
   }
 }

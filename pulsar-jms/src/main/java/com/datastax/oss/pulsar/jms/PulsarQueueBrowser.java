@@ -119,12 +119,13 @@ final class PulsarQueueBrowser implements QueueBrowser {
       private void next() {
         try {
           if (!finished && nextMessage == null) {
-            // TODO: this is not good, we cannot set a timeout
-            final Message<byte[]> message = consumer.receive(1000, TimeUnit.MILLISECONDS);
+            // TODO: this is not good, we should not be setting a timeout
+            final Message<byte[]> message = consumer.receive(500, TimeUnit.MILLISECONDS);
             if (message != null) {
               //              log.info("browser received {} last {}", message.getMessageId(), last);
               consumer.acknowledgeAsync(message);
               nextMessage = PulsarMessage.decode(null, message);
+              nextMessage.setJMSDestination(queue);
 
               if (message.getMessageId().compareTo(last) >= 0) {
                 finished = true;

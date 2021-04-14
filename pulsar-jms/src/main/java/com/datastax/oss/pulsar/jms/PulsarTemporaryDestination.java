@@ -1,0 +1,60 @@
+/*
+ * Copyright DataStax, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.datastax.oss.pulsar.jms;
+
+import javax.jms.JMSException;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.pulsar.common.policies.data.TopicStats;
+
+@Slf4j
+abstract class PulsarTemporaryDestination extends PulsarDestination {
+
+  private final PulsarSession session;
+
+  public PulsarTemporaryDestination(String topicName, PulsarSession session) {
+    super(topicName);
+    this.session = session;
+  }
+
+  public PulsarSession getSession() {
+    return session;
+  }
+
+  public final void delete() throws JMSException {
+    try {
+      log.info("Deleting {}", this);
+
+      TopicStats stats = session.getFactory().getPulsarAdmin().topics().getStats(topicName);
+      log.info("Stats {}", stats);
+
+      int numConsumers =
+          stats.subscriptions.values().stream().mapToInt(s -> s.consumers.size()).sum();
+      if (numConsumers > 0) {
+        throw new JMSException("Cannot delete a temporary destination with active consumers");
+      }
+
+      session
+          .getFactory()
+          .getPulsarAdmin()
+          .topics()
+          .delete(topicName, session.getFactory().isForceDeleteTemporaryDestinations(), true);
+    } catch (Exception err) {
+      throw Utils.handleException(err);
+    } finally {
+      session.getConnection().removeTemporaryDestination(this);
+    }
+  }
+}
