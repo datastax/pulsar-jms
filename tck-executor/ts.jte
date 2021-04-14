@@ -170,7 +170,7 @@ command.testExecute=com.sun.ts.lib.harness.ExecTSTestCmd \
 		-Djava.security.policy="${bin.dir}/harness.policy" \
 		-Djava.security.manager \
 		-Dlog4j2.debug=true \
-		-Dorg.slf4j.simpleLogger.defaultLogLevel=warn \
+		-Dorg.slf4j.simpleLogger.defaultLogLevel=info \
 		-Djava.naming.factory.initial=${java.naming.factory.initial} \
 		-Ddeliverable.class=${deliverable.class} \
                 -Djava.endorsed.dirs=${endorsed.dirs} \
@@ -200,7 +200,7 @@ porting.ts.jmsObjects.class.1=com.sun.ts.lib.implementation.sun.jms.SunRIJMSObje
 ###############################################################
 #These properties are needed for the JMS tests.
 ###############################################################
-jms_timeout=5000
+jms_timeout=3000
 user=j2ee
 password=j2ee
 
