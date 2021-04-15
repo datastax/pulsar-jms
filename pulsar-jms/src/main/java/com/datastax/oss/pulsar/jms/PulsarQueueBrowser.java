@@ -65,7 +65,7 @@ final class PulsarQueueBrowser implements QueueBrowser {
    */
   @Override
   public String getMessageSelector() throws JMSException {
-    return null;
+    return selectorSupport != null ? selectorSupport.getSelector() : null;
   }
 
   /**

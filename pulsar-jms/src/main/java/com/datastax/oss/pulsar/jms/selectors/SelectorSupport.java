@@ -49,4 +49,8 @@ public final class SelectorSupport {
   public String toString() {
     return "Selector=" + selector + ", exp=" + expression;
   }
+
+  public String getSelector() {
+    return selector;
+  }
 }

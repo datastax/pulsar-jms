@@ -668,7 +668,7 @@ public class PulsarConnectionFactory
         for (String subscription : subscriptions) {
           log.info("Found subscription {} ", subscription);
           if (subscription.equals(name)) {
-            log.info("deleteSubscription topic {} name {}", destination.topicName, name);
+            log.info("deleteSubscription topic {} name {}", topic, name);
             pulsarAdmin.topics().deleteSubscription(topic, name, true);
             somethingDone = true;
           }

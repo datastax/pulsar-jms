@@ -43,7 +43,7 @@ import org.apache.pulsar.client.api.SubscriptionType;
 @Slf4j
 public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, QueueReceiver {
 
-  private final String subscriptionName;
+  final String subscriptionName;
   private final PulsarSession session;
   private final PulsarDestination destination;
   private final SelectorSupport selectorSupport;
@@ -51,6 +51,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
   private MessageListener listener;
   private final SubscriptionMode subscriptionMode;
   private final SubscriptionType subscriptionType;
+  final boolean unregisterSubscriptionOnClose;
   private boolean closed;
   private boolean requestClose;
 
@@ -60,7 +61,8 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
       PulsarSession session,
       SubscriptionMode subscriptionMode,
       SubscriptionType subscriptionType,
-      String selector)
+      String selector,
+      boolean unregisterSubscriptionOnClose)
       throws JMSException {
     session.checkNotClosed();
     if (destination == null) {
@@ -79,6 +81,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
     this.subscriptionMode = destination.isQueue() ? SubscriptionMode.Durable : subscriptionMode;
     this.subscriptionType = destination.isQueue() ? SubscriptionType.Shared : subscriptionType;
     this.selectorSupport = SelectorSupport.build(selector);
+    this.unregisterSubscriptionOnClose = unregisterSubscriptionOnClose;
   }
 
   public PulsarMessageConsumer subscribe() throws JMSException {
@@ -138,7 +141,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
   @Override
   public synchronized String getMessageSelector() throws JMSException {
     checkNotClosed();
-    return null;
+    return selectorSupport != null ? selectorSupport.getSelector() : null;
   }
 
   /**

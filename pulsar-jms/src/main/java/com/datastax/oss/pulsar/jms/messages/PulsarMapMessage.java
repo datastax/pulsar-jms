@@ -328,7 +328,7 @@ public final class PulsarMapMessage extends PulsarMessage implements MapMessage 
     if (value instanceof String) {
       return (String) value;
     }
-    if ((value instanceof Number) || (value instanceof Boolean)) {
+    if ((value instanceof Number) || (value instanceof Boolean) || (value instanceof Character)) {
       return value.toString();
     }
     throw new MessageFormatException("Unsupported conversion");
