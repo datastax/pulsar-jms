@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import javax.jms.Connection;
+import javax.jms.IllegalStateException;
 import javax.jms.JMSConsumer;
 import javax.jms.JMSContext;
 import javax.jms.JMSException;
@@ -120,7 +121,8 @@ public class TopicTest {
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
         connection.start();
-        try (Session session = connection.createSession(); ) {
+        try (Session session = connection.createSession();
+            Session session2 = connection.createSession(); ) {
           Topic destination =
               session.createTopic("persistent://public/default/test-" + UUID.randomUUID());
 
@@ -132,6 +134,14 @@ public class TopicTest {
             // it is not possible to create a consumer sharing the same subscription
             try {
               session.createDurableSubscriber(destination, "subscription2");
+              fail("should not create two createDurableSubscriber on the same subscription");
+            } catch (IllegalStateException err) {
+            }
+
+            // it is not possible to create a consumer sharing the same subscription (broker side
+            // check)
+            try {
+              session2.createDurableSubscriber(destination, "subscription2");
               fail("should not create two createDurableSubscriber on the same subscription");
             } catch (JMSException err) {
               assertTrue(err.getCause() instanceof PulsarClientException.ConsumerBusyException);
@@ -214,19 +224,20 @@ public class TopicTest {
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
         connection.start();
-        try (Session session = connection.createSession(); ) {
+        try (Session session = connection.createSession();
+            Session session2 = connection.createSession(); ) {
           Topic destination =
               session.createTopic("persistent://public/default/test-" + UUID.randomUUID());
 
           try (MessageConsumer consumer1 =
                   session.createSharedDurableConsumer(destination, "subscription1");
               MessageConsumer consumer2a =
-                  session.createSharedDurableConsumer(destination, "subscription2");
-              // sharing the same subscription
+                  session2.createSharedDurableConsumer(destination, "subscription2");
+              // sharing the same subscription (from two different sessions)
               MessageConsumer consumer2b =
                   session.createSharedDurableConsumer(destination, "subscription2");
               MessageConsumer consumer3 =
-                  session.createSharedDurableConsumer(destination, "subscription3"); ) {
+                  session2.createSharedDurableConsumer(destination, "subscription3"); ) {
             try (MessageProducer producer = session.createProducer(destination); ) {
               for (int i = 0; i < 10; i++) {
                 producer.send(session.createTextMessage("foo-" + i));
@@ -291,7 +302,8 @@ public class TopicTest {
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
         connection.start();
-        try (Session session = connection.createSession(); ) {
+        try (Session session = connection.createSession();
+            Session session2 = connection.createSession(); ) {
           Topic destination =
               session.createTopic("persistent://public/default/test-" + UUID.randomUUID());
 
@@ -301,7 +313,7 @@ public class TopicTest {
                   session.createSharedConsumer(destination, "subscription2");
               // sharing the same subscription
               MessageConsumer consumer2b =
-                  session.createSharedConsumer(destination, "subscription2");
+                  session2.createSharedConsumer(destination, "subscription2");
               MessageConsumer consumer3 =
                   session.createSharedConsumer(destination, "subscription3"); ) {
             try (MessageProducer producer = session.createProducer(destination); ) {

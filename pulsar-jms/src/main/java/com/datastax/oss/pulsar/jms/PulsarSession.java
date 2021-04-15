@@ -1105,7 +1105,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
         destinationBySubscription.put(name, (PulsarDestination) topic);
     if (alreadyExists != null) {
       // we cannot perform a cluster wide check
-      throw new JMSException(
+      throw new IllegalStateException(
           "a subscription with name " + name + " is already registered on this session");
     }
   }
