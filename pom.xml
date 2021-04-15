@@ -43,6 +43,8 @@
     <maven.compiler.target>8</maven.compiler.target>
     <jms.version>2.0.3</jms.version>
     <pulsar.version>2.7.1</pulsar.version>
+    <activemq.version>5.16.1</activemq.version>
+    <hawtbuf.version>1.11</hawtbuf.version>
     <curator.version>5.1.0</curator.version>
     <slf4j.version>1.7.30</slf4j.version>
     <logback.version>1.2.3</logback.version>
@@ -82,6 +84,22 @@
         <groupId>org.apache.pulsar</groupId>
         <artifactId>pulsar-broker</artifactId>
         <version>${pulsar.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.activemq</groupId>
+        <artifactId>activemq-client</artifactId>
+        <version>${activemq.version}</version>
+        <exclusions>
+          <exclusion>
+            <groupId>*</groupId>
+            <artifactId>*</artifactId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>org.fusesource.hawtbuf</groupId>
+        <artifactId>hawtbuf</artifactId>
+        <version>${hawtbuf.version}</version>
       </dependency>
       <dependency>
         <groupId>com.fasterxml.jackson.core</groupId>
