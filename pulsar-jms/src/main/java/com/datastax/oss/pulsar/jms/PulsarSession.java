@@ -710,15 +710,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     if (destination == null) {
       throw new InvalidDestinationException("null destination");
     }
-    messageSelectorNotSupported(messageSelector);
     return createConsumer(destination, messageSelector, false);
-  }
-
-  private void messageSelectorNotSupported(String messageSelector) throws InvalidSelectorException {
-    if (messageSelector != null && !messageSelector.isEmpty()) {
-      throw new InvalidSelectorException(
-          "Message selectors are not supported on Pulsar (requesting '" + messageSelector + "')");
-    }
   }
 
   /**
@@ -756,16 +748,14 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     if (destination == null) {
       throw new InvalidDestinationException("null destination");
     }
-    messageSelectorNotSupported(messageSelector);
-    if (noLocal) {
-      throw new InvalidSelectorException("noLocal mode is not supported by Pulsar");
-    }
+    checkNoLocal(noLocal);
     return new PulsarMessageConsumer(
             UUID.randomUUID().toString(),
             (PulsarDestination) destination,
             this,
             SubscriptionMode.NonDurable,
-            SubscriptionType.Shared)
+            SubscriptionType.Shared,
+            messageSelector)
         .subscribe();
   }
 
@@ -818,7 +808,8 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
             (PulsarDestination) topic,
             this,
             SubscriptionMode.NonDurable,
-            SubscriptionType.Shared)
+            SubscriptionType.Shared,
+            null)
         .subscribe();
   }
 
@@ -871,14 +862,14 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
       throw new InvalidDestinationException("null destination");
     }
     sharedSubscriptionName = connection.prependClientId(sharedSubscriptionName, true);
-    messageSelectorNotSupported(messageSelector);
     registerSubscriptionName(topic, sharedSubscriptionName);
     return new PulsarMessageConsumer(
             sharedSubscriptionName,
             (PulsarDestination) topic,
             this,
             SubscriptionMode.NonDurable,
-            SubscriptionType.Shared)
+            SubscriptionType.Shared,
+            messageSelector)
         .subscribe();
   }
 
@@ -1092,11 +1083,8 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     if (topic == null) {
       throw new InvalidDestinationException("null destination");
     }
-    messageSelectorNotSupported(messageSelector);
-    if (noLocal) {
-      throw new InvalidSelectorException("noLocal mode is not supported by Pulsar");
-    }
     name = connection.prependClientId(name, allowUnsetClientId);
+    checkNoLocal(noLocal);
     registerSubscriptionName(topic, name);
 
     return new PulsarMessageConsumer(
@@ -1104,8 +1092,15 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
             (PulsarDestination) topic,
             this,
             SubscriptionMode.Durable,
-            SubscriptionType.Exclusive)
+            SubscriptionType.Exclusive,
+            messageSelector)
         .subscribe();
+  }
+
+  private void checkNoLocal(boolean noLocal) throws InvalidSelectorException {
+    if (noLocal) {
+      log.error("noLocal mode is not supported by Pulsar");
+    }
   }
 
   private void registerSubscriptionName(Topic topic, String name) throws JMSException {
@@ -1408,7 +1403,6 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     if (topic == null) {
       throw new InvalidDestinationException("null destination");
     }
-    messageSelectorNotSupported(messageSelector);
     name = connection.prependClientId(name, true);
     registerSubscriptionName(topic, name);
     return new PulsarMessageConsumer(
@@ -1416,7 +1410,8 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
             (PulsarDestination) topic,
             this,
             SubscriptionMode.Durable,
-            SubscriptionType.Shared)
+            SubscriptionType.Shared,
+            messageSelector)
         .subscribe();
   }
 
@@ -1454,8 +1449,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
       throw new InvalidDestinationException("invalid null queue");
     }
     checkQueueOperationEnabled();
-    messageSelectorNotSupported(messageSelector);
-    return new PulsarQueueBrowser(this, queue);
+    return new PulsarQueueBrowser(this, queue, messageSelector);
   }
 
   /**

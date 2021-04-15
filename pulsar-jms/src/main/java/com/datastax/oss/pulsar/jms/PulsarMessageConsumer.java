@@ -15,6 +15,7 @@
  */
 package com.datastax.oss.pulsar.jms;
 
+import com.datastax.oss.pulsar.jms.selectors.SelectorSupport;
 import java.util.concurrent.TimeUnit;
 import javax.jms.Destination;
 import javax.jms.IllegalStateException;
@@ -45,6 +46,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
   private final String subscriptionName;
   private final PulsarSession session;
   private final PulsarDestination destination;
+  private final SelectorSupport selectorSupport;
   private Consumer<byte[]> consumer;
   private MessageListener listener;
   private final SubscriptionMode subscriptionMode;
@@ -57,7 +59,8 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
       PulsarDestination destination,
       PulsarSession session,
       SubscriptionMode subscriptionMode,
-      SubscriptionType subscriptionType)
+      SubscriptionType subscriptionType,
+      String selector)
       throws JMSException {
     session.checkNotClosed();
     if (destination == null) {
@@ -75,6 +78,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
     this.destination = destination;
     this.subscriptionMode = destination.isQueue() ? SubscriptionMode.Durable : subscriptionMode;
     this.subscriptionType = destination.isQueue() ? SubscriptionType.Shared : subscriptionType;
+    this.selectorSupport = SelectorSupport.build(selector);
   }
 
   public PulsarMessageConsumer subscribe() throws JMSException {
@@ -307,6 +311,14 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
               + result
               + ",) cannot be converted to a "
               + expectedType);
+    }
+    if (selectorSupport != null && !selectorSupport.matches(result)) {
+      log.info(
+          "negativeAcknowledge for message {} that does not match filter {}",
+          message,
+          selectorSupport);
+      consumer.negativeAcknowledge(message);
+      return null;
     }
 
     // this must happen before the execution of the listener

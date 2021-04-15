@@ -18,6 +18,7 @@ package com.datastax.oss.pulsar.jms;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
@@ -162,7 +163,9 @@ public class QueueTest {
 
           try (MessageProducer producer = session.createProducer(destination); ) {
             for (int i = 0; i < numMessages; i++) {
-              producer.send(session.createTextMessage("foo-" + i));
+              TextMessage textMessage = session.createTextMessage("foo-" + i);
+              textMessage.setBooleanProperty("lastMessage", i == numMessages - 1);
+              producer.send(textMessage);
             }
           }
 
@@ -183,6 +186,20 @@ public class QueueTest {
               fail("should throw NoSuchElementException");
             } catch (NoSuchElementException expected) {
             }
+          }
+
+          // scan with selector
+          try (QueueBrowser browser = session.createBrowser(destination, "lastMessage=true")) {
+            Enumeration en = browser.getEnumeration();
+            int count = 0;
+            while (en.hasMoreElements()) {
+              TextMessage msg = (TextMessage) en.nextElement();
+              log.info("browsed {}", msg.getText());
+              assertEquals("foo-" + (numMessages - 1), msg.getText());
+              assertTrue(msg.getBooleanProperty("lastMessage"));
+              count++;
+            }
+            assertEquals(1, count);
           }
 
           // scan again without calling hasMoreElements explicitly

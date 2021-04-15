@@ -15,9 +15,11 @@
  */
 package com.datastax.oss.pulsar.jms;
 
+import com.datastax.oss.pulsar.jms.selectors.SelectorSupport;
 import java.io.IOException;
 import java.util.Enumeration;
 import java.util.NoSuchElementException;
+import java.util.concurrent.TimeUnit;
 import javax.jms.JMSException;
 import javax.jms.Queue;
 import javax.jms.QueueBrowser;
@@ -29,12 +31,15 @@ final class PulsarQueueBrowser implements QueueBrowser {
   private final PulsarSession session;
   private final PulsarQueue queue;
   private final Reader<byte[]> reader;
+  private final SelectorSupport selectorSupport;
 
-  public PulsarQueueBrowser(PulsarSession session, Queue queue) throws JMSException {
+  public PulsarQueueBrowser(PulsarSession session, Queue queue, String selector)
+      throws JMSException {
     session.checkNotClosed();
     this.session = session;
     this.queue = (PulsarQueue) queue;
     this.reader = session.getFactory().createReaderForBrowser(this.queue);
+    this.selectorSupport = SelectorSupport.build(selector);
   }
 
   /**
@@ -79,7 +84,8 @@ final class PulsarQueueBrowser implements QueueBrowser {
 
       @Override
       public boolean hasMoreElements() {
-        return Utils.runtimeException(reader::hasMessageAvailable);
+        ensureNext();
+        return !finished;
       }
 
       @Override
@@ -87,9 +93,34 @@ final class PulsarQueueBrowser implements QueueBrowser {
         if (!hasMoreElements()) {
           throw new NoSuchElementException();
         }
-        return Utils.runtimeException(
+        PulsarMessage res = nextMessage;
+        nextMessage = null;
+        return res;
+      }
+
+      private void ensureNext() {
+        Utils.runtimeException(
             () -> {
-              return PulsarMessage.decode(null, reader.readNext());
+              while (!finished && nextMessage == null) {
+                if (!reader.hasMessageAvailable()) {
+                  finished = true;
+                  return;
+                } else {
+                  nextMessage =
+                      PulsarMessage.decode(null, reader.readNext(1000, TimeUnit.MILLISECONDS));
+                  if (nextMessage == null) {
+                    log.info("no message received from browser in time");
+                    finished = true;
+                    return;
+                  }
+                  if (selectorSupport != null && !selectorSupport.matches(nextMessage)) {
+                    log.info("skip non matching message {}", nextMessage);
+                    nextMessage = null;
+                  } else {
+                    return;
+                  }
+                }
+              }
             });
       }
     };
