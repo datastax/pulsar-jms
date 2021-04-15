@@ -22,6 +22,7 @@
 # change selector = unsubscribe and resubscribe
 com/sun/ts/tests/jms/core/topictests/TopicTests.java#durableSubscriberChangeSelectorTest2_from_standalone
 com/sun/ts/tests/jms/core20/jmscontexttopictests/Client.java#durableConsumerChangeSelectorTest2_from_standalone
+com/sun/ts/tests/jms/core20/sessiontests/Client.java#invalidSelectorExceptionTopicTests_from_standalone
 
 # noLocal
 com/sun/ts/tests/jms/core/topictests/TopicTests.java#noLocalDeliveryTopicTest_from_standalone
@@ -35,6 +36,10 @@ com/sun/ts/tests/jms/core20/sessiontests/Client.java#createDurableConsumerTopicT
 com/sun/ts/tests/jms/core20/jmscontexttopictests/Client.java#createConsumerTest_from_standalone
 com/sun/ts/tests/jms/core20/jmscontexttopictests/Client.java#jMSRuntimeExceptionTests_from_standalone
 com/sun/ts/tests/jms/core20/sessiontests/Client.java#createDurableSubscriberTopicTest2_from_standalone
+
+#global subscriptions
+com/sun/ts/tests/jms/core20/sessiontests/Client.java#jMSExceptionTests_from_standalone
+com/sun/ts/tests/jms/core20/jmscontexttopictests/Client.java#invalidDestinationRuntimeExceptionTests_from_standalone
 
 # timeToLive
 com/sun/ts/tests/jms/core20/jmsproducerqueuetests/Client.java#msgHdrJMSExpirationTest_from_standalone

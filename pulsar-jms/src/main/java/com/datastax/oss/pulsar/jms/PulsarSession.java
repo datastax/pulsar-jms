@@ -855,7 +855,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     }
     checkTopicOperationEnabled();
     sharedSubscriptionName = connection.prependClientId(sharedSubscriptionName, true);
-    registerSubscriptionName(topic, sharedSubscriptionName);
+    registerSubscriptionName(topic, sharedSubscriptionName, true);
     return new PulsarMessageConsumer(
             sharedSubscriptionName,
             (PulsarDestination) topic,
@@ -1080,7 +1080,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     }
     name = connection.prependClientId(name, allowUnsetClientId);
     checkNoLocal(noLocal);
-    registerSubscriptionName(topic, name);
+    registerSubscriptionName(topic, name, false);
 
     return new PulsarMessageConsumer(
             name,
@@ -1099,11 +1099,12 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     }
   }
 
-  private void registerSubscriptionName(Topic topic, String name) throws JMSException {
+  private void registerSubscriptionName(Topic topic, String name, boolean shared)
+      throws JMSException {
     log.error("registerSubscritionName {} {} current {}", topic, name, destinationBySubscription);
     PulsarDestination alreadyExists =
         destinationBySubscription.put(name, (PulsarDestination) topic);
-    if (alreadyExists != null) {
+    if (alreadyExists != null && alreadyExists.equals(topic) && !shared) {
       // we cannot perform a cluster wide check
       throw new IllegalStateException(
           "a subscription with name " + name + " is already registered on this session");
@@ -1112,7 +1113,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
 
   private void unregisterSubscriptionName(String name, Topic topic) {
     PulsarDestination existing = destinationBySubscription.get(name);
-    if (existing != null) {
+    if (existing != null && existing.equals(topic)) {
       destinationBySubscription.remove(name);
     }
     log.error("unregisterSubscriptionName {} {} after {}", topic, name, destinationBySubscription);
@@ -1410,7 +1411,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     }
     checkTopicOperationEnabled();
     name = connection.prependClientId(name, true);
-    registerSubscriptionName(topic, name);
+    registerSubscriptionName(topic, name, true);
     return new PulsarMessageConsumer(
             name,
             (PulsarDestination) topic,
@@ -1515,7 +1516,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   public void unsubscribe(String name) throws JMSException {
     checkNotClosed();
     name = connection.prependClientId(name, true);
-    PulsarDestination destination = destinationBySubscription.get(name);
+    PulsarDestination destination = destinationBySubscription.remove(name);
     if (destination == null) {
       log.error(
           "Cannot unsubscribe {}, please open and close the subscription within this session before unsubscribing, because in Pulsar you need to known the Destination for the subscription. Known subscription names {}",
