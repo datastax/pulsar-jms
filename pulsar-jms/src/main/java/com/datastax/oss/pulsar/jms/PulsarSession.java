@@ -1526,7 +1526,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
 
     boolean someThingDone = getFactory().deleteSubscription(destination, name);
     if (!someThingDone) {
-      throw new IllegalStateException("Subscription " + name + " not found");
+      throw new InvalidDestinationException("Subscription " + name + " not found");
     }
   }
 
