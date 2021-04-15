@@ -1349,7 +1349,8 @@ public abstract class PulsarMessage implements Message {
     return this.consumer == consumer;
   }
 
-  protected static JMSException handleException(Throwable t) throws JMSException {
+  protected static JMSException handleExceptionAccordingToMessageSpecs(Throwable t)
+      throws JMSException {
     if (t instanceof NumberFormatException) {
       // TCK
       throw (NumberFormatException) t;

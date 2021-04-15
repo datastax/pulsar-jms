@@ -67,7 +67,7 @@ public final class PulsarMapMessage extends PulsarMessage implements MapMessage 
           map.put(key, value);
         }
       } catch (Exception err) {
-        throw handleException(err);
+        throw handleExceptionAccordingToMessageSpecs(err);
       }
     }
   }
@@ -109,7 +109,7 @@ public final class PulsarMapMessage extends PulsarMessage implements MapMessage 
       oo.close();
       producer.value(out.toByteArray());
     } catch (Exception err) {
-      throw handleException(err);
+      throw handleExceptionAccordingToMessageSpecs(err);
     }
   }
 
@@ -129,13 +129,12 @@ public final class PulsarMapMessage extends PulsarMessage implements MapMessage 
     }
     if (value instanceof Boolean) {
       return (Boolean) value;
-    } else if (value instanceof Number) {
-      throw new MessageFormatException("Invalid conversion");
     }
+    allowOnlyStrings(value);
     try {
       return Boolean.parseBoolean(value.toString());
     } catch (Exception err) {
-      throw handleException(err);
+      throw handleExceptionAccordingToMessageSpecs(err);
     }
   }
 
@@ -155,13 +154,12 @@ public final class PulsarMapMessage extends PulsarMessage implements MapMessage 
     }
     if (value instanceof Byte) {
       return (Byte) value;
-    } else if (value instanceof Number) {
-      throw new MessageFormatException("Invalid conversion");
     }
+    allowOnlyStrings(value);
     try {
       return Byte.parseByte(value.toString());
     } catch (Exception err) {
-      throw handleException(err);
+      throw handleExceptionAccordingToMessageSpecs(err);
     }
   }
 
@@ -181,13 +179,12 @@ public final class PulsarMapMessage extends PulsarMessage implements MapMessage 
     }
     if ((value instanceof Byte) || (value instanceof Short)) {
       return ((Number) value).shortValue();
-    } else if (value instanceof Number) {
-      throw new MessageFormatException("Invalid conversion");
     }
+    allowOnlyStrings(value);
     try {
       return Short.parseShort(value.toString());
     } catch (Exception err) {
-      throw handleException(err);
+      throw handleExceptionAccordingToMessageSpecs(err);
     }
   }
 
@@ -220,13 +217,12 @@ public final class PulsarMapMessage extends PulsarMessage implements MapMessage 
     }
     if ((value instanceof Integer) || (value instanceof Short) || (value instanceof Byte)) {
       return ((Number) value).intValue();
-    } else if (value instanceof Number) {
-      throw new MessageFormatException("Invalid conversion");
     }
+    allowOnlyStrings(value);
     try {
       return Integer.parseInt(value.toString());
     } catch (Exception err) {
-      throw handleException(err);
+      throw handleExceptionAccordingToMessageSpecs(err);
     }
   }
 
@@ -249,13 +245,12 @@ public final class PulsarMapMessage extends PulsarMessage implements MapMessage 
         || (value instanceof Byte)
         || (value instanceof Long)) {
       return ((Number) value).longValue();
-    } else if (value instanceof Number) {
-      throw new MessageFormatException("Invalid conversion");
     }
+    allowOnlyStrings(value);
     try {
       return Long.parseLong(value.toString());
     } catch (Exception err) {
-      throw handleException(err);
+      throw handleExceptionAccordingToMessageSpecs(err);
     }
   }
 
@@ -275,13 +270,12 @@ public final class PulsarMapMessage extends PulsarMessage implements MapMessage 
     }
     if (value instanceof Float) {
       return (Float) value;
-    } else if (value instanceof Number) {
-      throw new MessageFormatException("Invalid conversion");
     }
+    allowOnlyStrings(value);
     try {
       return Float.parseFloat(value.toString());
     } catch (Exception err) {
-      throw handleException(err);
+      throw handleExceptionAccordingToMessageSpecs(err);
     }
   }
 
@@ -301,13 +295,18 @@ public final class PulsarMapMessage extends PulsarMessage implements MapMessage 
     }
     if ((value instanceof Double) || (value instanceof Float)) {
       return ((Number) value).doubleValue();
-    } else if (value instanceof Number) {
-      throw new MessageFormatException("Invalid conversion");
     }
+    allowOnlyStrings(value);
     try {
       return Double.parseDouble(value.toString());
     } catch (Exception err) {
-      throw handleException(err);
+      throw handleExceptionAccordingToMessageSpecs(err);
+    }
+  }
+
+  private void allowOnlyStrings(Object value) throws MessageFormatException {
+    if (!(value instanceof String)) {
+      throw new MessageFormatException("Invalid conversion");
     }
   }
 
@@ -329,7 +328,10 @@ public final class PulsarMapMessage extends PulsarMessage implements MapMessage 
     if (value instanceof String) {
       return (String) value;
     }
-    return value.toString();
+    if ((value instanceof Number) || (value instanceof Boolean)) {
+      return value.toString();
+    }
+    throw new MessageFormatException("Unsupported conversion");
   }
 
   /**

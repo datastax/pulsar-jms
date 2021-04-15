@@ -105,7 +105,7 @@ public final class PulsarStreamMessage extends PulsarMessage implements StreamMe
     try {
       dataInputStream.reset();
     } catch (IOException err) {
-      throw handleException(err);
+      throw handleExceptionAccordingToMessageSpecs(err);
     }
   }
 
@@ -170,7 +170,7 @@ public final class PulsarStreamMessage extends PulsarMessage implements StreamMe
       }
     } catch (Exception err) {
       resetStreamAtMark();
-      throw handleException(err);
+      throw handleExceptionAccordingToMessageSpecs(err);
     }
   }
 
@@ -320,7 +320,7 @@ public final class PulsarStreamMessage extends PulsarMessage implements StreamMe
           return false;
       }
     } catch (Exception err) {
-      throw handleException(err);
+      throw handleExceptionAccordingToMessageSpecs(err);
     }
   }
 
@@ -350,7 +350,7 @@ public final class PulsarStreamMessage extends PulsarMessage implements StreamMe
       }
     } catch (Exception err) {
       resetStreamAtMark();
-      throw handleException(err);
+      throw handleExceptionAccordingToMessageSpecs(err);
     }
   }
 
@@ -382,7 +382,7 @@ public final class PulsarStreamMessage extends PulsarMessage implements StreamMe
       }
     } catch (Exception err) {
       resetStreamAtMark();
-      throw handleException(err);
+      throw handleExceptionAccordingToMessageSpecs(err);
     }
   }
 
@@ -414,7 +414,7 @@ public final class PulsarStreamMessage extends PulsarMessage implements StreamMe
       throw err;
     } catch (Exception err) {
       resetStreamAtMark();
-      throw handleException(err);
+      throw handleExceptionAccordingToMessageSpecs(err);
     }
   }
 
@@ -446,7 +446,7 @@ public final class PulsarStreamMessage extends PulsarMessage implements StreamMe
           return 0;
       }
     } catch (Exception err) {
-      throw handleException(err);
+      throw handleExceptionAccordingToMessageSpecs(err);
     }
   }
 
@@ -482,7 +482,7 @@ public final class PulsarStreamMessage extends PulsarMessage implements StreamMe
       }
     } catch (Exception err) {
       resetStreamAtMark();
-      throw handleException(err);
+      throw handleExceptionAccordingToMessageSpecs(err);
     }
   }
 
@@ -512,7 +512,7 @@ public final class PulsarStreamMessage extends PulsarMessage implements StreamMe
       }
     } catch (Exception err) {
       resetStreamAtMark();
-      throw handleException(err);
+      throw handleExceptionAccordingToMessageSpecs(err);
     }
   }
 
@@ -544,7 +544,7 @@ public final class PulsarStreamMessage extends PulsarMessage implements StreamMe
       }
     } catch (Exception err) {
       resetStreamAtMark();
-      throw handleException(err);
+      throw handleExceptionAccordingToMessageSpecs(err);
     }
   }
 
@@ -590,7 +590,7 @@ public final class PulsarStreamMessage extends PulsarMessage implements StreamMe
 
     } catch (Exception err) {
       resetStreamAtMark();
-      throw handleException(err);
+      throw handleExceptionAccordingToMessageSpecs(err);
     }
   }
 
@@ -608,7 +608,7 @@ public final class PulsarStreamMessage extends PulsarMessage implements StreamMe
       writeDataType(TYPE_BOOLEAN);
       dataOutputStream.writeBoolean(value);
     } catch (Exception err) {
-      throw handleException(err);
+      throw handleExceptionAccordingToMessageSpecs(err);
     }
   }
 
@@ -625,7 +625,7 @@ public final class PulsarStreamMessage extends PulsarMessage implements StreamMe
       writeDataType(TYPE_BYTE);
       dataOutputStream.writeByte(value);
     } catch (Exception err) {
-      throw handleException(err);
+      throw handleExceptionAccordingToMessageSpecs(err);
     }
   }
 
@@ -642,7 +642,7 @@ public final class PulsarStreamMessage extends PulsarMessage implements StreamMe
       writeDataType(TYPE_SHORT);
       dataOutputStream.writeShort(value);
     } catch (Exception err) {
-      throw handleException(err);
+      throw handleExceptionAccordingToMessageSpecs(err);
     }
   }
 
@@ -659,7 +659,7 @@ public final class PulsarStreamMessage extends PulsarMessage implements StreamMe
       writeDataType(TYPE_CHAR);
       dataOutputStream.writeChar(value);
     } catch (Exception err) {
-      throw handleException(err);
+      throw handleExceptionAccordingToMessageSpecs(err);
     }
   }
 
@@ -676,7 +676,7 @@ public final class PulsarStreamMessage extends PulsarMessage implements StreamMe
       writeDataType(TYPE_INT);
       dataOutputStream.writeInt(value);
     } catch (Exception err) {
-      throw handleException(err);
+      throw handleExceptionAccordingToMessageSpecs(err);
     }
   }
 
@@ -693,7 +693,7 @@ public final class PulsarStreamMessage extends PulsarMessage implements StreamMe
       writeDataType(TYPE_LONG);
       dataOutputStream.writeLong(value);
     } catch (Exception err) {
-      throw handleException(err);
+      throw handleExceptionAccordingToMessageSpecs(err);
     }
   }
 
@@ -710,7 +710,7 @@ public final class PulsarStreamMessage extends PulsarMessage implements StreamMe
       writeDataType(TYPE_FLOAT);
       dataOutputStream.writeFloat(value);
     } catch (Exception err) {
-      throw handleException(err);
+      throw handleExceptionAccordingToMessageSpecs(err);
     }
   }
 
@@ -727,7 +727,7 @@ public final class PulsarStreamMessage extends PulsarMessage implements StreamMe
       writeDataType(TYPE_DOUBLE);
       dataOutputStream.writeDouble(value);
     } catch (Exception err) {
-      throw handleException(err);
+      throw handleExceptionAccordingToMessageSpecs(err);
     }
   }
 
@@ -748,7 +748,7 @@ public final class PulsarStreamMessage extends PulsarMessage implements StreamMe
       writeDataType(TYPE_STRING);
       dataOutputStream.writeUTF(value);
     } catch (Exception err) {
-      throw handleException(err);
+      throw handleExceptionAccordingToMessageSpecs(err);
     }
   }
 
@@ -789,7 +789,7 @@ public final class PulsarStreamMessage extends PulsarMessage implements StreamMe
       writeArrayLen(length);
       dataOutputStream.write(value, offset, length);
     } catch (Exception err) {
-      throw handleException(err);
+      throw handleExceptionAccordingToMessageSpecs(err);
     }
   }
 
@@ -836,7 +836,7 @@ public final class PulsarStreamMessage extends PulsarMessage implements StreamMe
         throw new MessageFormatException("Unsupported type " + value.getClass());
       }
     } catch (Exception err) {
-      throw handleException(err);
+      throw handleExceptionAccordingToMessageSpecs(err);
     }
   }
 
@@ -866,7 +866,7 @@ public final class PulsarStreamMessage extends PulsarMessage implements StreamMe
         this.dataInputStream = null;
       }
     } catch (Exception err) {
-      throw handleException(err);
+      throw handleExceptionAccordingToMessageSpecs(err);
     }
   }
 
@@ -890,7 +890,7 @@ public final class PulsarStreamMessage extends PulsarMessage implements StreamMe
         this.dataInputStream = new DataInputStream(new ByteArrayInputStream(originalMessage));
       }
     } catch (Exception err) {
-      throw handleException(err);
+      throw handleExceptionAccordingToMessageSpecs(err);
     }
   }
 
@@ -925,7 +925,7 @@ public final class PulsarStreamMessage extends PulsarMessage implements StreamMe
       return dataInputStream.readUnsignedByte();
     } catch (Exception err) {
       resetStreamAtMark();
-      throw handleException(err);
+      throw handleExceptionAccordingToMessageSpecs(err);
     }
   }
 
@@ -946,7 +946,7 @@ public final class PulsarStreamMessage extends PulsarMessage implements StreamMe
       return dataInputStream.readUnsignedShort();
     } catch (Exception err) {
       resetStreamAtMark();
-      throw handleException(err);
+      throw handleExceptionAccordingToMessageSpecs(err);
     }
   }
 
@@ -1019,7 +1019,7 @@ public final class PulsarStreamMessage extends PulsarMessage implements StreamMe
       return -1;
     } catch (Exception err) {
       resetStreamAtMark();
-      throw handleException(err);
+      throw handleExceptionAccordingToMessageSpecs(err);
     }
   }
 
