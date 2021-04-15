@@ -98,6 +98,12 @@ public final class PulsarStreamMessage extends PulsarMessage implements StreamMe
    * @see #readObject()
    */
   public int readBytes(byte[] value) throws JMSException {
+    if (value == null) {
+      return -1;
+    }
+    if (value.length == 0) {
+      return 0;
+    }
     return readBytes(value, value.length);
   }
 
@@ -133,7 +139,7 @@ public final class PulsarStreamMessage extends PulsarMessage implements StreamMe
   @Override
   public Object readObject() throws JMSException {
     checkReadable();
-    if (remainingByteArrayLen > 0) {
+    if (remainingByteArrayLen != Integer.MIN_VALUE) {
       throw new MessageFormatException("You must complete the readBytes operation");
     }
     try {
@@ -991,10 +997,13 @@ public final class PulsarStreamMessage extends PulsarMessage implements StreamMe
    * @throws MessageNotReadableException if the message is in write-only mode.
    */
   public int readBytes(byte[] value, int length) throws JMSException {
+    if (length < 0 || length > value.length) {
+      throw new IndexOutOfBoundsException();
+    }
     checkReadable();
     try {
-      dataInputStream.mark(length);
-      if (remainingByteArrayLen == Integer.MIN_VALUE) {
+      if (remainingByteArrayLen == Integer.MIN_VALUE) { // start of field
+        dataInputStream.mark(length);
         checkType(readDataType(), TYPE_BYTES);
         remainingByteArrayLen = readArrayLen();
         if (value == null) {

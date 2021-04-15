@@ -22,6 +22,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -43,11 +44,14 @@ import org.apache.pulsar.client.admin.PulsarAdmin;
 import org.apache.pulsar.client.admin.PulsarAdminException;
 import org.apache.pulsar.client.api.Consumer;
 import org.apache.pulsar.client.api.ConsumerBuilder;
+import org.apache.pulsar.client.api.Message;
 import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.api.Producer;
 import org.apache.pulsar.client.api.ProducerBuilder;
 import org.apache.pulsar.client.api.PulsarClient;
 import org.apache.pulsar.client.api.PulsarClientException;
+import org.apache.pulsar.client.api.Reader;
+import org.apache.pulsar.client.api.ReaderBuilder;
 import org.apache.pulsar.client.api.SubscriptionInitialPosition;
 import org.apache.pulsar.client.api.SubscriptionMode;
 import org.apache.pulsar.client.api.SubscriptionType;
@@ -64,6 +68,7 @@ public class PulsarConnectionFactory
   private final Map<String, Producer<byte[]>> producers = new ConcurrentHashMap<>();
   private final Set<PulsarConnection> connections = Collections.synchronizedSet(new HashSet<>());
   private final List<Consumer<byte[]>> consumers = new CopyOnWriteArrayList<>();
+  private final List<Reader<byte[]>> readers = new CopyOnWriteArrayList<>();
   private final String systemNamespace;
   private final String defaultClientId;
   private final boolean enableTransaction;
@@ -570,23 +575,14 @@ public class PulsarConnectionFactory
             ? SubscriptionInitialPosition.Latest
             : SubscriptionInitialPosition.Earliest;
     MessageId seekMessageId = null;
-    if (sessionMode != PulsarQueueBrowser.SESSION_MODE_MARKER) {
-      if (destination.isQueue() && subscriptionMode != SubscriptionMode.Durable) {
-        throw new IllegalStateException("only durable mode for queues");
-      }
-      if (destination.isQueue() && subscriptionType != SubscriptionType.Shared) {
-        throw new IllegalStateException("only Shared SubscriptionType for queues");
-      }
-    } else {
-      // for QueueBrowsers we create a non durable consumer that starts
-      // at the message id from the shared jms-queue-emulator queue
-      subscriptionName = consumerName;
-      subscriptionMode = SubscriptionMode.NonDurable;
-      subscriptionType = SubscriptionType.Exclusive;
-      initialPosition = SubscriptionInitialPosition.Earliest;
+    if (destination.isQueue() && subscriptionMode != SubscriptionMode.Durable) {
+      throw new IllegalStateException("only durable mode for queues");
+    }
+    if (destination.isQueue() && subscriptionType != SubscriptionType.Shared) {
+      throw new IllegalStateException("only Shared SubscriptionType for queues");
     }
 
-    log.info(
+    log.debug(
         "createConsumer {} {} {}",
         destination.topicName,
         consumerName,
@@ -614,8 +610,48 @@ public class PulsarConnectionFactory
     }
   }
 
+  public Reader<byte[]> createReaderForBrowser(PulsarQueue destination) throws JMSException {
+
+    try {
+      List<Message<byte[]>> messages =
+          getPulsarAdmin()
+              .topics()
+              .peekMessages(destination.topicName, QUEUE_SHARED_SUBCRIPTION_NAME, 1);
+
+      MessageId seekMessageId;
+      if (messages.isEmpty()) {
+        // no more messages
+        seekMessageId = MessageId.latest;
+      } else {
+        seekMessageId = messages.get(0).getMessageId();
+      }
+      ;
+      log.info("createBrowser {} at {}", destination.topicName, seekMessageId);
+
+      ReaderBuilder<byte[]> builder =
+          pulsarClient
+              .newReader()
+              // these properties can be overridden by the configuration
+              .loadConf(consumerConfiguration)
+              // these properties cannot be overwritten by the configuration
+              .readerName("jms-queue-browser-" + UUID.randomUUID())
+              .startMessageId(seekMessageId)
+              .startMessageIdInclusive()
+              .topic(destination.topicName);
+      Reader<byte[]> newReader = builder.create();
+      readers.add(newReader);
+      return newReader;
+    } catch (PulsarClientException | PulsarAdminException err) {
+      throw Utils.handleException(err);
+    }
+  }
+
   public void removeConsumer(Consumer<byte[]> consumer) {
     consumers.remove(consumer);
+  }
+
+  public void removeReader(Reader<byte[]> reader) {
+    readers.remove(reader);
   }
 
   public boolean deleteSubscription(PulsarDestination destination, String name)

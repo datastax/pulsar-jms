@@ -15,43 +15,26 @@
  */
 package com.datastax.oss.pulsar.jms;
 
-import java.util.Collections;
+import java.io.IOException;
 import java.util.Enumeration;
 import java.util.NoSuchElementException;
-import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 import javax.jms.JMSException;
-import javax.jms.JMSRuntimeException;
 import javax.jms.Queue;
 import javax.jms.QueueBrowser;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.pulsar.client.api.Consumer;
-import org.apache.pulsar.client.api.Message;
-import org.apache.pulsar.client.api.MessageId;
-import org.apache.pulsar.client.api.PulsarClientException;
-import org.apache.pulsar.client.api.SubscriptionMode;
-import org.apache.pulsar.client.api.SubscriptionType;
+import org.apache.pulsar.client.api.Reader;
 
 @Slf4j
 final class PulsarQueueBrowser implements QueueBrowser {
-  static final int SESSION_MODE_MARKER = Integer.MIN_VALUE;
   private final PulsarSession session;
-  private final Queue queue;
-  private final Consumer<byte[]> consumer;
+  private final PulsarQueue queue;
+  private final Reader<byte[]> reader;
 
   public PulsarQueueBrowser(PulsarSession session, Queue queue) throws JMSException {
     session.checkNotClosed();
     this.session = session;
-    this.queue = queue;
-    this.consumer =
-        session
-            .getFactory()
-            .createConsumer(
-                (PulsarDestination) queue,
-                "queue-browser-" + UUID.randomUUID(),
-                SESSION_MODE_MARKER,
-                SubscriptionMode.NonDurable,
-                SubscriptionType.Exclusive);
+    this.queue = (PulsarQueue) queue;
+    this.reader = session.getFactory().createReaderForBrowser(this.queue);
   }
 
   /**
@@ -90,55 +73,24 @@ final class PulsarQueueBrowser implements QueueBrowser {
    */
   @Override
   public Enumeration getEnumeration() throws JMSException {
-    MessageId last = Utils.invoke(() -> consumer.getLastMessageId());
-    log.info("browser last {}", last);
-    if (last.toString().contains("-1:-1")) { // this is bad
-      return Collections.emptyEnumeration();
-    }
     return new Enumeration() {
       PulsarMessage nextMessage;
       boolean finished;
 
       @Override
       public boolean hasMoreElements() {
-        next();
-        return nextMessage != null || !finished;
+        return Utils.runtimeException(reader::hasMessageAvailable);
       }
 
       @Override
       public Object nextElement() {
-        next();
-        PulsarMessage next = nextMessage;
-        if (next == null) {
+        if (!hasMoreElements()) {
           throw new NoSuchElementException();
         }
-        nextMessage = null;
-        return next;
-      }
-
-      private void next() {
-        try {
-          if (!finished && nextMessage == null) {
-            // TODO: this is not good, we should not be setting a timeout
-            final Message<byte[]> message = consumer.receive(500, TimeUnit.MILLISECONDS);
-            if (message != null) {
-              //              log.info("browser received {} last {}", message.getMessageId(), last);
-              consumer.acknowledgeAsync(message);
-              nextMessage = PulsarMessage.decode(null, message);
-              nextMessage.setJMSDestination(queue);
-
-              if (message.getMessageId().compareTo(last) >= 0) {
-                finished = true;
-              }
-            } else {
-              finished = true;
-            }
-          }
-        } catch (PulsarClientException | JMSException err) {
-          JMSRuntimeException error = new JMSRuntimeException("Internal error during scan");
-          error.initCause(err);
-          throw error;
-        }
+        return Utils.runtimeException(
+            () -> {
+              return PulsarMessage.decode(null, reader.readNext());
+            });
       }
     };
   }
@@ -156,9 +108,9 @@ final class PulsarQueueBrowser implements QueueBrowser {
   @Override
   public void close() throws JMSException {
     try {
-      consumer.close();
-    } catch (PulsarClientException err) {
+      reader.close();
+    } catch (IOException err) {
     }
-    session.getFactory().removeConsumer(consumer);
+    session.getFactory().removeReader(reader);
   }
 }

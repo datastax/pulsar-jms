@@ -23,7 +23,6 @@ import com.datastax.oss.pulsar.jms.messages.PulsarStreamMessage;
 import com.datastax.oss.pulsar.jms.messages.PulsarTextMessage;
 import java.io.EOFException;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.Enumeration;
@@ -1320,9 +1319,9 @@ public abstract class PulsarMessage implements Message {
     return this;
   }
 
-  private void assignSystemMessageId(org.apache.pulsar.client.api.MessageId msg) {
+  private void assignSystemMessageId(org.apache.pulsar.client.api.MessageId msgId) {
     if (this.messageId == null) {
-      this.messageId = "ID:" + Arrays.toString(msg.toByteArray());
+      this.messageId = "ID:" + msgId; // MessageId toString is not bad
     }
   }
 

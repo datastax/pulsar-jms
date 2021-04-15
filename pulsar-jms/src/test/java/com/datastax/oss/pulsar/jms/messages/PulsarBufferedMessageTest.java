@@ -32,16 +32,8 @@ import org.junit.jupiter.api.Test;
 public class PulsarBufferedMessageTest {
 
   @Test
-  public void testPulsarBytesMessage() throws Exception {
-    testMessage(new PulsarBytesMessage());
-  }
-
-  @Test
-  public void testPulsarStreamMessage() throws Exception {
-    testMessage(new PulsarStreamMessage());
-  }
-
-  private void testMessage(PulsarStreamMessage msg) throws JMSException {
+  public void testPulsarStreamMessage() throws JMSException {
+    PulsarStreamMessage msg = new PulsarStreamMessage();
     msg.writeBoolean(true);
     msg.writeChar('a');
     msg.writeInt(123);
@@ -71,7 +63,8 @@ public class PulsarBufferedMessageTest {
     assertEquals((byte) 1, msg.readByte());
     byte[] buffer = new byte[3];
 
-    assertEquals(3, ((StreamMessage) msg).readBytes(buffer));
+    assertEquals(3, msg.readBytes(buffer));
+    assertEquals(-1, msg.readBytes(buffer)); // end of field
 
     assertArrayEquals("foo".getBytes(StandardCharsets.UTF_8), buffer);
     assertEquals(1.2d, msg.readDouble(), 0);
@@ -79,7 +72,8 @@ public class PulsarBufferedMessageTest {
 
     buffer = new byte[1];
 
-    assertEquals(1, ((StreamMessage) msg).readBytes(buffer));
+    assertEquals(1, msg.readBytes(buffer));
+    assertEquals(-1, msg.readBytes(buffer)); // end of field
 
     assertArrayEquals("o".getBytes(StandardCharsets.UTF_8), buffer);
 
@@ -87,10 +81,10 @@ public class PulsarBufferedMessageTest {
     assertEquals(32, msg.readUnsignedByte());
     assertEquals(33333, msg.readUnsignedShort());
 
-    assertEquals("test", ((StreamMessage) msg).readObject());
+    assertEquals("test", msg.readObject());
     // additional EOF cases
-    assertEquals(-1, ((StreamMessage) msg).readBytes(null));
-    assertEquals(-1, ((StreamMessage) msg).readBytes(buffer));
+    assertEquals(-1, msg.readBytes(null));
+    assertEquals(-1, msg.readBytes(buffer));
 
     try {
       msg.readBoolean();
@@ -113,7 +107,9 @@ public class PulsarBufferedMessageTest {
     }
   }
 
-  private void testMessage(PulsarBytesMessage msg) throws JMSException {
+  @Test
+  public void testPulsarBytesMessage() throws JMSException {
+    PulsarBytesMessage msg = new PulsarBytesMessage();
     msg.writeBoolean(true);
     msg.writeChar('a');
     msg.writeInt(123);

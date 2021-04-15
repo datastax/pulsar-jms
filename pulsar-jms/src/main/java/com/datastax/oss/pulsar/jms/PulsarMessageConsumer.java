@@ -293,7 +293,6 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
       java.util.function.Consumer<PulsarMessage> listenerCode)
       throws JMSException, org.apache.pulsar.client.api.PulsarClientException {
     PulsarMessage result = PulsarMessage.decode(this, message);
-    log.info("handle recevied {} {}", message, result);
     Consumer<byte[]> consumer = getConsumer();
     if (expectedType != null && !result.isBodyAssignableTo(expectedType)) {
       log.info(
@@ -552,7 +551,6 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
                       message,
                       null,
                       (pmessage) -> {
-                        log.info("passing {} to litener {}", pmessage, listener);
                         listener.onMessage(pmessage);
                       });
             } catch (PulsarClientException.AlreadyClosedException closed) {

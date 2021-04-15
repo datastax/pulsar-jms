@@ -103,53 +103,6 @@ public class QueueTest {
             // no more messages
             assertNull(consumer1.receiveNoWait());
             assertNull(consumer2.receiveNoWait());
-
-            // scan from the beginning
-            try (QueueBrowser browser = session.createBrowser(destination)) {
-              Enumeration en = browser.getEnumeration();
-              int i = 0;
-              while (en.hasMoreElements()) {
-                TextMessage msg = (TextMessage) en.nextElement();
-                log.info("received {}", msg.getText());
-                assertEquals("foo-" + i, msg.getText());
-                i++;
-              }
-              assertEquals(10, i);
-
-              try {
-                en.nextElement();
-                fail("should throw NoSuchElementException");
-              } catch (NoSuchElementException expected) {
-              }
-            }
-
-            // scan again without hasMoreElements
-            try (QueueBrowser browser = session.createBrowser(destination)) {
-              Enumeration en = browser.getEnumeration();
-              for (int i = 0; i < 10; i++) {
-                TextMessage msg = (TextMessage) en.nextElement();
-                assertEquals("foo-" + i, msg.getText());
-              }
-              assertFalse(en.hasMoreElements());
-              try {
-                en.nextElement();
-                fail("should throw NoSuchElementException");
-              } catch (NoSuchElementException expected) {
-              }
-            }
-
-            // browse empty queue
-            Queue destinationEmpty =
-                session.createQueue("persistent://public/default/test-" + UUID.randomUUID());
-            try (QueueBrowser browser = session.createBrowser(destinationEmpty)) {
-              Enumeration en = browser.getEnumeration();
-              assertFalse(en.hasMoreElements());
-              try {
-                en.nextElement();
-                fail("should throw NoSuchElementException");
-              } catch (NoSuchElementException expected) {
-              }
-            }
           }
         }
       }
@@ -174,9 +127,11 @@ public class QueueTest {
 
           try (MessageConsumer consumer1 = session.createConsumer(destination); ) {
             Message message = consumer1.receive();
-            assertEquals(0, message.getIntProperty("JMSRedeliveryCount"));
+            assertEquals("foo", message.getBody(String.class));
+            assertEquals(1, message.getIntProperty("JMSXDeliveryCount"));
             assertFalse(message.getJMSRedelivered());
           }
+
           // close consumer, message not acked, so it must be redelivered
 
           try (MessageConsumer consumer1 = session.createConsumer(destination); ) {
@@ -184,8 +139,130 @@ public class QueueTest {
             assertEquals("foo", message.getBody(String.class));
 
             // Unfortunately Pulsar does not set properly the redelivery count
-            // assertEquals(1, message.getIntProperty("JMSRedeliveryCount"));
-            // assertTrue(message.getJMSRedelivered());
+            // so these assertions are testing the bad behaviour
+            assertEquals(1, message.getIntProperty("JMSXDeliveryCount"));
+            assertFalse(message.getJMSRedelivered());
+          }
+        }
+      }
+    }
+  }
+
+  @Test
+  public void testQueueBrowsers() throws Exception {
+    int numMessages = 20;
+    Map<String, Object> properties = new HashMap<>();
+    properties.put("webServiceUrl", cluster.getAddress());
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+      try (Connection connection = factory.createConnection()) {
+        connection.start();
+        try (Session session = connection.createSession(); ) {
+          Queue destination =
+              session.createQueue("persistent://public/default/test-" + UUID.randomUUID());
+
+          try (MessageProducer producer = session.createProducer(destination); ) {
+            for (int i = 0; i < numMessages; i++) {
+              producer.send(session.createTextMessage("foo-" + i));
+            }
+          }
+
+          // scan from the beginning, no one consumed messages
+          try (QueueBrowser browser = session.createBrowser(destination)) {
+            Enumeration en = browser.getEnumeration();
+            int i = 0;
+            while (en.hasMoreElements()) {
+              TextMessage msg = (TextMessage) en.nextElement();
+              log.info("browsed {}", msg.getText());
+              assertEquals("foo-" + i, msg.getText());
+              i++;
+            }
+            assertEquals(numMessages, i);
+
+            try {
+              en.nextElement();
+              fail("should throw NoSuchElementException");
+            } catch (NoSuchElementException expected) {
+            }
+          }
+
+          // scan again without calling hasMoreElements explicitly
+          try (QueueBrowser browser = session.createBrowser(destination)) {
+            Enumeration en = browser.getEnumeration();
+            for (int i = 0; i < numMessages; i++) {
+              TextMessage msg = (TextMessage) en.nextElement();
+              assertEquals("foo-" + i, msg.getText());
+            }
+            assertFalse(en.hasMoreElements());
+            try {
+              en.nextElement();
+              fail("should throw NoSuchElementException");
+            } catch (NoSuchElementException expected) {
+            }
+          }
+
+          try (MessageConsumer consumer1 = session.createConsumer(destination); ) {
+            // consume half queue
+            for (int i = 0; i < numMessages / 2; i++) {
+              TextMessage msg = (TextMessage) consumer1.receive();
+              log.info("consume {}", msg);
+              assertEquals("foo-" + i, msg.getText());
+            }
+          }
+
+          // browser unconsumed messages
+          try (QueueBrowser browser = session.createBrowser(destination)) {
+            Enumeration en = browser.getEnumeration();
+            for (int i = numMessages / 2; i < numMessages; i++) {
+              TextMessage msg = (TextMessage) en.nextElement();
+              assertEquals("foo-" + i, msg.getText());
+            }
+          }
+
+          // consume the rest of the queue
+          try (MessageConsumer consumer1 = session.createConsumer(destination); ) {
+            // consume half queue
+            for (int i = numMessages / 2; i < numMessages; i++) {
+              TextMessage msg = (TextMessage) consumer1.receive();
+              log.info("consume2 {} {}", msg, msg.getJMSMessageID());
+              assertEquals("foo-" + i, msg.getText());
+            }
+            assertNull(consumer1.receiveNoWait());
+          }
+
+          // now the queue is empty (but Pulsar "peek" still returns the last consumed message in
+          // this case)
+          try (QueueBrowser browser = session.createBrowser(destination)) {
+            Enumeration en = browser.getEnumeration();
+            TextMessage msg = (TextMessage) en.nextElement();
+            log.info("next {} {}", msg, msg.getJMSMessageID());
+            assertEquals("foo-" + (numMessages - 1), msg.getText());
+            assertFalse(en.hasMoreElements());
+          }
+          // validate again this kind of bug
+          try (QueueBrowser browser = session.createBrowser(destination)) {
+            Enumeration en = browser.getEnumeration();
+            TextMessage msg = (TextMessage) en.nextElement();
+            log.info("next {} {}", msg, msg.getJMSMessageID());
+            assertEquals("foo-" + (numMessages - 1), msg.getText());
+            assertFalse(en.hasMoreElements());
+          }
+
+          // still validate that the queue is empty
+          try (MessageConsumer consumer1 = session.createConsumer(destination); ) {
+            assertNull(consumer1.receive(1000));
+          }
+
+          // browse a brand new empty queue
+          Queue destinationEmpty =
+              session.createQueue("persistent://public/default/test-" + UUID.randomUUID());
+          try (QueueBrowser browser = session.createBrowser(destinationEmpty)) {
+            Enumeration en = browser.getEnumeration();
+            assertFalse(en.hasMoreElements());
+            try {
+              en.nextElement();
+              fail("should throw NoSuchElementException");
+            } catch (NoSuchElementException expected) {
+            }
           }
         }
       }
