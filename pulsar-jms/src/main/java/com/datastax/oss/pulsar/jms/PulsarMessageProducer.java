@@ -791,70 +791,73 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
     message.setJMSDestination(defaultDestination);
     message.setJMSDeliveryMode(deliveryMode);
     message.setJMSPriority(priority);
-    PulsarMessage pulsarMessage = convertToPulsarMessage(message);
+    PulsarMessage pulsarMessage = prepareMessageForSend(message);
     sendMessage(defaultDestination, message, completionListener);
   }
 
-  private static PulsarMessage convertToPulsarMessage(Message message) throws JMSException {
+  private PulsarMessage prepareMessageForSend(Message message) throws JMSException {
     if (message == null) {
       throw new IllegalArgumentException("Cannot send a null message");
     }
-    if (message instanceof PulsarMessage) {
-      return (PulsarMessage) message;
-    }
-    PulsarMessage res;
-    if (message instanceof TextMessage) {
-      res = new PulsarTextMessage(((TextMessage) message).getText());
-    } else if (message instanceof BytesMessage) {
-      BytesMessage sm = (BytesMessage) message;
-      sm.reset();
-      byte[] buffer = new byte[(int) sm.getBodyLength()];
-      sm.readBytes(buffer);
-      PulsarBytesMessage dest = new PulsarBytesMessage(buffer);
-      res = dest;
-    } else if (message instanceof MapMessage) {
-      MapMessage sm = (MapMessage) message;
-      PulsarMapMessage dest = new PulsarMapMessage();
-      for (Enumeration en = sm.getMapNames(); en.hasMoreElements(); ) {
-        String name = (String) en.nextElement();
-        dest.setObject(name, sm.getObject(name));
-      }
-      res = dest;
-    } else if (message instanceof ObjectMessage) {
-      res = new PulsarObjectMessage(((ObjectMessage) message).getObject());
-    } else if (message instanceof StreamMessage) {
-      StreamMessage sm = (StreamMessage) message;
-      sm.reset();
-      PulsarStreamMessage dest = new PulsarStreamMessage();
-      while (true) {
-        try {
-          Object object = sm.readObject();
-          dest.writeObject(object);
-        } catch (MessageEOFException end) {
-          break;
+    if (!(message instanceof PulsarMessage)) {
+
+      PulsarMessage res;
+      if (message instanceof TextMessage) {
+        res = new PulsarTextMessage(((TextMessage) message).getText());
+      } else if (message instanceof BytesMessage) {
+        BytesMessage sm = (BytesMessage) message;
+        sm.reset();
+        byte[] buffer = new byte[(int) sm.getBodyLength()];
+        sm.readBytes(buffer);
+        PulsarBytesMessage dest = new PulsarBytesMessage(buffer);
+        res = dest;
+      } else if (message instanceof MapMessage) {
+        MapMessage sm = (MapMessage) message;
+        PulsarMapMessage dest = new PulsarMapMessage();
+        for (Enumeration en = sm.getMapNames(); en.hasMoreElements(); ) {
+          String name = (String) en.nextElement();
+          dest.setObject(name, sm.getObject(name));
         }
+        res = dest;
+      } else if (message instanceof ObjectMessage) {
+        res = new PulsarObjectMessage(((ObjectMessage) message).getObject());
+      } else if (message instanceof StreamMessage) {
+        StreamMessage sm = (StreamMessage) message;
+        sm.reset();
+        PulsarStreamMessage dest = new PulsarStreamMessage();
+        while (true) {
+          try {
+            Object object = sm.readObject();
+            dest.writeObject(object);
+          } catch (MessageEOFException end) {
+            break;
+          }
+        }
+        res = dest;
+      } else {
+        res = new PulsarSimpleMessage();
       }
-      res = dest;
-    } else {
-      res = new PulsarSimpleMessage();
-    }
-    res.setWritable(true);
-    for (Enumeration en = message.getPropertyNames(); en.hasMoreElements(); ) {
-      String name = (String) en.nextElement();
-      res.setObjectProperty(name, message.getObjectProperty(name));
-    }
-    res.setJMSCorrelationIDAsBytes(message.getJMSCorrelationIDAsBytes());
-    res.setJMSDeliveryMode(message.getJMSDeliveryMode());
-    res.setJMSPriority(message.getJMSPriority());
-    res.setJMSDestination(message.getJMSDestination());
-    res.setJMSDeliveryTime(message.getJMSDeliveryTime());
+      res.setWritable(true);
+      for (Enumeration en = message.getPropertyNames(); en.hasMoreElements(); ) {
+        String name = (String) en.nextElement();
+        res.setObjectProperty(name, message.getObjectProperty(name));
+      }
+      res.setJMSCorrelationIDAsBytes(message.getJMSCorrelationIDAsBytes());
+      res.setJMSDeliveryMode(message.getJMSDeliveryMode());
+      res.setJMSPriority(message.getJMSPriority());
+      res.setJMSDestination(message.getJMSDestination());
+      res.setJMSDeliveryTime(message.getJMSDeliveryTime());
 
-    // DO NOT COPY THESE VALUES
-    // res.setJMSMessageID(message.getJMSMessageID());
-    // res.setJMSTimestamp(message.getJMSTimestamp());
-    // res.setJMSExpiration(message.getJMSExpiration());
-
-    return res;
+      // DO NOT COPY THESE VALUES
+      // res.setJMSMessageID(message.getJMSMessageID());
+      // res.setJMSTimestamp(message.getJMSTimestamp());
+      // res.setJMSExpiration(message.getJMSExpiration());
+      message = res;
+    }
+    if (session.getFactory().isEnableClientSideFeatures()) {
+      message.setStringProperty("JMSConnectionID", session.getConnection().getConnectionId());
+    }
+    return (PulsarMessage) message;
   }
 
   /**
@@ -1187,7 +1190,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
             .getProducerForDestination(
                 (PulsarDestination) defaultDestination, session.getTransacted());
     message.setJMSDestination(defaultDestination);
-    PulsarMessage pulsarMessage = convertToPulsarMessage(message);
+    PulsarMessage pulsarMessage = prepareMessageForSend(message);
     TypedMessageBuilder<byte[]> typedMessageBuilder = producer.newMessage();
     if (session.getTransacted()) {
       typedMessageBuilder = producer.newMessage(session.getTransaction());
@@ -1215,7 +1218,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
             .getProducerForDestination(
                 (PulsarDestination) defaultDestination, session.getTransacted());
     message.setJMSDestination(defaultDestination);
-    PulsarMessage pulsarMessage = convertToPulsarMessage(message);
+    PulsarMessage pulsarMessage = prepareMessageForSend(message);
     CompletionListener finalCompletionListener = completionListener;
     if (pulsarMessage != message) {
       finalCompletionListener =

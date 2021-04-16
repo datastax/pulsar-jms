@@ -15,6 +15,7 @@
  */
 package com.datastax.oss.pulsar.jms.selectors;
 
+import javax.jms.InvalidSelectorException;
 import javax.jms.JMSException;
 import javax.jms.Message;
 import lombok.AllArgsConstructor;
@@ -30,9 +31,13 @@ public final class SelectorSupport {
   private final BooleanExpression expression;
   private final String selector;
 
-  public static SelectorSupport build(String selector) throws JMSException {
+  public static SelectorSupport build(String selector, boolean enabled) throws JMSException {
     if (selector == null || selector.isEmpty()) {
       return null;
+    }
+    if (!enabled) {
+      throw new InvalidSelectorException(
+          "Client-Side selectors are not enabled, please set enableClientSideFeatures=true");
     }
     BooleanExpression parse = SelectorParser.parse(selector);
     return new SelectorSupport(parse, selector);

@@ -72,7 +72,11 @@ public class PulsarConnectionFactory
   private final String systemNamespace;
   private final String defaultClientId;
   private final boolean enableTransaction;
+  private final boolean enableClientSideFeatures;
   private final boolean forceDeleteTemporaryDestinations;
+  private final String tckUsername;
+  private final String tckPassword;
+  private final String queueSubscriptioName;
 
   public PulsarConnectionFactory(Map<String, Object> properties) throws JMSException {
     try {
@@ -93,26 +97,30 @@ public class PulsarConnectionFactory
       } else {
         this.consumerConfiguration = Collections.emptyMap();
       }
+      this.systemNamespace =
+          getAndRemoveString("jms.systemNamespace", "public/default", properties);
 
-      String systemNamespace = (String) properties.remove("jms.system.namespace");
-      if (systemNamespace == null) {
-        systemNamespace = "public/default";
-      }
-      this.systemNamespace = systemNamespace;
+      this.tckUsername = getAndRemoveString("jms.tckUsername", "", properties);
+      this.tckPassword = getAndRemoveString("jms.tckPassword", "", properties);
 
-      this.defaultClientId = (String) properties.remove("jms.clientId");
+      this.defaultClientId = getAndRemoveString("jms.clientId", null, properties);
+
+      this.queueSubscriptioName = getAndRemoveString("jms.queueName", "jms-queue", properties);
+
+      this.enableClientSideFeatures =
+          Boolean.parseBoolean(
+              getAndRemoveString("jms.enableClientSideFeatures", "false", properties));
 
       // default is false
       this.forceDeleteTemporaryDestinations =
-          Boolean.parseBoolean(properties.remove("forceDeleteTemporaryDestinations") + "");
+          Boolean.parseBoolean(
+              getAndRemoveString("jms.forceDeleteTemporaryDestinations", "false", properties));
 
       this.enableTransaction =
           Boolean.parseBoolean(properties.getOrDefault("enableTransaction", "false").toString());
 
-      String webServiceUrl = (String) properties.remove("webServiceUrl");
-      if (webServiceUrl == null) {
-        webServiceUrl = "http://localhost:8080";
-      }
+      String webServiceUrl =
+          getAndRemoveString("webServiceUrl", "http://localhost:8080", properties);
 
       PulsarClient pulsarClient = null;
       PulsarAdmin pulsarAdmin = null;
@@ -134,6 +142,16 @@ public class PulsarConnectionFactory
     } catch (Throwable t) {
       throw Utils.handleException(t);
     }
+  }
+
+  private static String getAndRemoveString(
+      String name, String defaultValue, Map<String, Object> properties) {
+    String value = (String) properties.remove(name);
+    return value != null ? value : defaultValue;
+  }
+
+  public boolean isEnableClientSideFeatures() {
+    return enableClientSideFeatures;
   }
 
   String getDefaultClientId() {
@@ -194,10 +212,10 @@ public class PulsarConnectionFactory
     return createConnection();
   }
 
-  private static void validateDummyUserNamePassword(String userName, String password)
+  private void validateDummyUserNamePassword(String userName, String password)
       throws JMSSecurityException {
-    if (!"j2ee".equals(userName) && !"j2ee".equals(password)) {
-      // this verification is here only for the TCK, Pulsar does not use username/password
+    if (!tckUsername.isEmpty() && !tckUsername.equals(userName) && !tckPassword.equals(password)) {
+      // this verification is here only for the TCK, Pulsar does not support username/password
       // authentication
       // therefore we are using only one single PulsarClient per factory
       // authentication must be set at Factory level
@@ -543,12 +561,10 @@ public class PulsarConnectionFactory
     }
   }
 
-  static final String QUEUE_SHARED_SUBCRIPTION_NAME = "jms-queue-emulator";
-
   public void ensureSubscription(PulsarDestination destination, String consumerName)
       throws JMSException {
     // for queues we have a single shared subscription
-    String subscriptionName = destination.isQueue() ? QUEUE_SHARED_SUBCRIPTION_NAME : consumerName;
+    String subscriptionName = destination.isQueue() ? queueSubscriptioName : consumerName;
     log.info("Creating subscription {} for destination {}", subscriptionName, destination);
     try {
       pulsarAdmin
@@ -569,7 +585,7 @@ public class PulsarConnectionFactory
       SubscriptionType subscriptionType)
       throws JMSException {
     // for queues we have a single shared subscription
-    String subscriptionName = destination.isQueue() ? QUEUE_SHARED_SUBCRIPTION_NAME : consumerName;
+    String subscriptionName = destination.isQueue() ? queueSubscriptioName : consumerName;
     SubscriptionInitialPosition initialPosition =
         destination.isTopic()
             ? SubscriptionInitialPosition.Latest
@@ -614,9 +630,7 @@ public class PulsarConnectionFactory
 
     try {
       List<Message<byte[]>> messages =
-          getPulsarAdmin()
-              .topics()
-              .peekMessages(destination.topicName, QUEUE_SHARED_SUBCRIPTION_NAME, 1);
+          getPulsarAdmin().topics().peekMessages(destination.topicName, queueSubscriptioName, 1);
 
       MessageId seekMessageId;
       if (messages.isEmpty()) {
@@ -726,5 +740,9 @@ public class PulsarConnectionFactory
 
   public boolean isForceDeleteTemporaryDestinations() {
     return forceDeleteTemporaryDestinations;
+  }
+
+  public String getQueueSubscriptionName() {
+    return queueSubscriptioName;
   }
 }

@@ -47,6 +47,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
   private final PulsarSession session;
   private final PulsarDestination destination;
   private final SelectorSupport selectorSupport;
+  private final boolean noLocal;
   private Consumer<byte[]> consumer;
   private MessageListener listener;
   private final SubscriptionMode subscriptionMode;
@@ -62,8 +63,10 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
       SubscriptionMode subscriptionMode,
       SubscriptionType subscriptionType,
       String selector,
-      boolean unregisterSubscriptionOnClose)
+      boolean unregisterSubscriptionOnClose,
+      boolean noLocal)
       throws JMSException {
+    this.noLocal = noLocal;
     session.checkNotClosed();
     if (destination == null) {
       throw new InvalidDestinationException("Invalid destination");
@@ -75,12 +78,16 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
             "Cannot subscribe to a temporary destination not created but this session");
       }
     }
+    if (noLocal && !session.getFactory().isEnableClientSideFeatures()) {
+      throw new IllegalStateException("noLocal is not enabled, please set jms.EnableClientSideFeatures=true");
+    }
     this.subscriptionName = subscriptionName;
     this.session = session;
     this.destination = destination;
     this.subscriptionMode = destination.isQueue() ? SubscriptionMode.Durable : subscriptionMode;
     this.subscriptionType = destination.isQueue() ? SubscriptionType.Shared : subscriptionType;
-    this.selectorSupport = SelectorSupport.build(selector);
+    this.selectorSupport =
+        SelectorSupport.build(selector, session.getFactory().isEnableClientSideFeatures());
     this.unregisterSubscriptionOnClose = unregisterSubscriptionOnClose;
   }
 
@@ -94,12 +101,12 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
             .topics()
             .createSubscription(
                 destination.topicName,
-                PulsarConnectionFactory.QUEUE_SHARED_SUBCRIPTION_NAME,
+                session.getFactory().getQueueSubscriptionName(),
                 MessageId.earliest);
       } catch (PulsarAdminException.ConflictException exists) {
         log.debug(
             "Subscription {} already exists for {}",
-            PulsarConnectionFactory.QUEUE_SHARED_SUBCRIPTION_NAME,
+            session.getFactory().getQueueSubscriptionName(),
             destination.topicName);
       } catch (PulsarAdminException err) {
         throw Utils.handleException(err);
@@ -265,8 +272,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
                         if (message == null) {
                           return null;
                         }
-                        Message res = handleReceivedMessage(message, expectedType, null);
-                        return res;
+                        return handleReceivedMessage(message, expectedType, null, noLocal);
                       } catch (Exception err) {
                         throw Utils.handleException(err);
                       }
@@ -294,10 +300,29 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
     return receive(1);
   }
 
+  private void skipMessage(org.apache.pulsar.client.api.Message<byte[]> message) throws JMSException {
+    if (subscriptionType == SubscriptionType.Exclusive) {
+      // we are the only one that will ever receive this message
+      // we can acknowledge it
+      if (session.getTransaction() != null) {
+        consumer.acknowledgeAsync(message.getMessageId(), session.getTransaction());
+      } else {
+        consumer.acknowledgeAsync(message.getMessageId());
+      }
+    } else {
+      log.info(
+              "negativeAcknowledge for message {} that does not match filter {}",
+              message,
+              selectorSupport);
+      consumer.negativeAcknowledge(message);
+    }
+  }
+
   private PulsarMessage handleReceivedMessage(
       org.apache.pulsar.client.api.Message<byte[]> message,
       Class expectedType,
-      java.util.function.Consumer<PulsarMessage> listenerCode)
+      java.util.function.Consumer<PulsarMessage> listenerCode,
+      boolean noLocalFilter)
       throws JMSException, org.apache.pulsar.client.api.PulsarClientException {
     PulsarMessage result = PulsarMessage.decode(this, message);
     Consumer<byte[]> consumer = getConsumer();
@@ -316,12 +341,18 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
               + expectedType);
     }
     if (selectorSupport != null && !selectorSupport.matches(result)) {
-      log.info(
-          "negativeAcknowledge for message {} that does not match filter {}",
-          message,
-          selectorSupport);
-      consumer.negativeAcknowledge(message);
+      log.info("msg {} does not match selector {}", result, selectorSupport.getSelector());
+      skipMessage(message);
       return null;
+    }
+    if (noLocalFilter) {
+      String senderConnectionID = result.getStringProperty("JMSConnectionID");
+      if (senderConnectionID != null
+              && senderConnectionID.equals(session.getConnection().getConnectionId())) {
+        log.info("msg {} was generated from this connection {}", result, senderConnectionID);
+        skipMessage(message);
+        return null;
+      }
     }
 
     // this must happen before the execution of the listener
@@ -457,7 +488,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
   @Override
   public synchronized boolean getNoLocal() throws JMSException {
     checkNotClosed();
-    return false;
+    return noLocal;
   }
 
   public JMSConsumer asJMSConsumer() {
@@ -567,7 +598,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
                       null,
                       (pmessage) -> {
                         listener.onMessage(pmessage);
-                      });
+                      }, noLocal);
             } catch (PulsarClientException.AlreadyClosedException closed) {
               log.error("Error while receiving message con Closed consumer {}", this);
             } catch (JMSException | PulsarClientException err) {
@@ -610,5 +641,9 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
 
   Destination getDestination() {
     return destination;
+  }
+
+  public SubscriptionType getSubscriptionType() {
+    return subscriptionType;
   }
 }

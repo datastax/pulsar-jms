@@ -748,15 +748,15 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     if (destination == null) {
       throw new InvalidDestinationException("null destination");
     }
-    checkNoLocal(noLocal);
     return new PulsarMessageConsumer(
             UUID.randomUUID().toString(),
             (PulsarDestination) destination,
             this,
             SubscriptionMode.NonDurable,
-            SubscriptionType.Shared,
+            SubscriptionType.Exclusive,
             messageSelector,
-            false)
+            false,
+            noLocal)
         .subscribe();
   }
 
@@ -863,7 +863,8 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
             SubscriptionMode.NonDurable,
             SubscriptionType.Shared,
             messageSelector,
-            true)
+            true,
+            false)
         .subscribe();
   }
 
@@ -1079,7 +1080,6 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
       throw new InvalidDestinationException("null destination");
     }
     name = connection.prependClientId(name, allowUnsetClientId);
-    checkNoLocal(noLocal);
     registerSubscriptionName(topic, name, false);
 
     return new PulsarMessageConsumer(
@@ -1089,15 +1089,11 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
             SubscriptionMode.Durable,
             SubscriptionType.Exclusive,
             messageSelector,
-            true)
+            true,
+            noLocal)
         .subscribe();
   }
 
-  private void checkNoLocal(boolean noLocal) throws InvalidSelectorException {
-    if (noLocal) {
-      log.error("noLocal mode is not supported by Pulsar");
-    }
-  }
 
   private void registerSubscriptionName(Topic topic, String name, boolean shared)
       throws JMSException {
@@ -1419,7 +1415,8 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
             SubscriptionMode.Durable,
             SubscriptionType.Shared,
             messageSelector,
-            true)
+            true,
+            false)
         .subscribe();
   }
 

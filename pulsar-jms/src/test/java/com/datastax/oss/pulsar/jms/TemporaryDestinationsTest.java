@@ -74,7 +74,7 @@ public class TemporaryDestinationsTest {
     String temporaryDestinationName;
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
-    properties.put("forceDeleteTemporaryDestinations", "true");
+    properties.put("jms.forceDeleteTemporaryDestinations", "true");
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
         connection.start();

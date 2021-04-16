@@ -15,22 +15,7 @@
  */
 package com.datastax.oss.pulsar.jms;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
-
 import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
-import java.nio.file.Path;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
-import javax.jms.Connection;
-import javax.jms.MessageConsumer;
-import javax.jms.MessageProducer;
-import javax.jms.Queue;
-import javax.jms.Session;
-import javax.jms.TextMessage;
-import javax.jms.Topic;
-
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.api.SubscriptionType;
 import org.junit.jupiter.api.AfterAll;
@@ -38,8 +23,25 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import javax.jms.Connection;
+import javax.jms.JMSContext;
+import javax.jms.MessageConsumer;
+import javax.jms.MessageProducer;
+import javax.jms.Queue;
+import javax.jms.Session;
+import javax.jms.TextMessage;
+import javax.jms.Topic;
+import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 @Slf4j
-public class SelectorsTest {
+public class NoLocalTest {
 
   @TempDir public static Path tempDir;
   private static PulsarCluster cluster;
@@ -58,38 +60,39 @@ public class SelectorsTest {
   }
 
   @Test
-  public void sendMessageReceiveFromQueueWithSelector() throws Exception {
+  public void sendMessageReceiveFromQueueWithNoLocal() throws Exception {
 
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
     properties.put("jms.enableClientSideFeatures", "true");
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
-      try (Connection connection = factory.createConnection()) {
+      try (Connection connection = factory.createConnection();) {
         connection.start();
         try (Session session = connection.createSession(); ) {
           Queue destination =
               session.createQueue("persistent://public/default/test-" + UUID.randomUUID());
 
           try (MessageConsumer consumer1 =
-              session.createConsumer(destination, "lastMessage=TRUE"); ) {
+              session.createConsumer(destination, null, true); ) {
             assertEquals(SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
-            assertEquals("lastMessage=TRUE", consumer1.getMessageSelector());
+            assertTrue(((PulsarMessageConsumer) consumer1).getNoLocal());
 
             try (MessageProducer producer = session.createProducer(destination); ) {
               for (int i = 0; i < 10; i++) {
                 TextMessage textMessage = session.createTextMessage("foo-" + i);
-                if (i == 9) {
-                  textMessage.setBooleanProperty("lastMessage", true);
-                }
                 producer.send(textMessage);
               }
             }
-
-            TextMessage textMessage = (TextMessage) consumer1.receive();
-            assertEquals("foo-9", textMessage.getText());
-
-            // no more messages
+            // no message
             assertNull(consumer1.receiveNoWait());
+
+            try (JMSContext connection2 = factory.createContext()) {
+                connection2.createProducer().send(destination, "test");
+            }
+
+            // we must be able to receive the message from the second connection
+            TextMessage textMessage = (TextMessage) consumer1.receive();
+            assertEquals("test", textMessage.getText());
           }
         }
       }
@@ -97,38 +100,40 @@ public class SelectorsTest {
   }
 
   @Test
-  public void sendMessageReceiveFromTopicWithSelector() throws Exception {
+  public void sendMessageReceiveFromTopicWithNoLocal() throws Exception {
 
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
     properties.put("jms.enableClientSideFeatures", "true");
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
-      try (Connection connection = factory.createConnection()) {
+      try (Connection connection = factory.createConnection();) {
+        connection.setClientID("clientId1");
         connection.start();
         try (Session session = connection.createSession(); ) {
           Topic destination =
                   session.createTopic("persistent://public/default/test-" + UUID.randomUUID());
 
           try (MessageConsumer consumer1 =
-                       session.createConsumer(destination, "lastMessage=TRUE"); ) {
-            assertEquals(SubscriptionType.Exclusive, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
-            assertEquals("lastMessage=TRUE", consumer1.getMessageSelector());
+                       session.createConsumer(destination, null, true); ) {
+            assertEquals(SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
+            assertTrue(((PulsarMessageConsumer) consumer1).getNoLocal());
 
             try (MessageProducer producer = session.createProducer(destination); ) {
               for (int i = 0; i < 10; i++) {
                 TextMessage textMessage = session.createTextMessage("foo-" + i);
-                if (i == 9) {
-                  textMessage.setBooleanProperty("lastMessage", true);
-                }
                 producer.send(textMessage);
               }
             }
-
-            TextMessage textMessage = (TextMessage) consumer1.receive();
-            assertEquals("foo-9", textMessage.getText());
-
-            // no more messages
+            // no message
             assertNull(consumer1.receiveNoWait());
+
+            try (JMSContext connection2 = factory.createContext()) {
+              connection2.createProducer().send(destination, "test");
+            }
+
+            // we must be able to receive the message from the second connection
+            TextMessage textMessage = (TextMessage) consumer1.receive();
+            assertEquals("test", textMessage.getText());
           }
         }
       }
@@ -141,34 +146,35 @@ public class SelectorsTest {
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
     properties.put("jms.enableClientSideFeatures", "true");
-    properties.put("jms.clientId", "id");
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
+        connection.setClientID("clientId1");
         connection.start();
         try (Session session = connection.createSession(); ) {
           Topic destination =
                   session.createTopic("persistent://public/default/test-" + UUID.randomUUID());
 
           try (MessageConsumer consumer1 =
-                       session.createDurableConsumer(destination, "sub1", "lastMessage=TRUE", false); ) {
+                       session.createDurableConsumer(destination, "sub1", null, true); ) {
             assertEquals(SubscriptionType.Exclusive, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
-            assertEquals("lastMessage=TRUE", consumer1.getMessageSelector());
+            assertTrue(((PulsarMessageConsumer) consumer1).getNoLocal());
 
             try (MessageProducer producer = session.createProducer(destination); ) {
               for (int i = 0; i < 10; i++) {
                 TextMessage textMessage = session.createTextMessage("foo-" + i);
-                if (i == 9) {
-                  textMessage.setBooleanProperty("lastMessage", true);
-                }
                 producer.send(textMessage);
               }
             }
-
-            TextMessage textMessage = (TextMessage) consumer1.receive();
-            assertEquals("foo-9", textMessage.getText());
-
-            // no more messages
+            // no message
             assertNull(consumer1.receiveNoWait());
+
+            try (JMSContext connection2 = factory.createContext()) {
+              connection2.createProducer().send(destination, "test");
+            }
+
+            // we must be able to receive the message from the second connection
+            TextMessage textMessage = (TextMessage) consumer1.receive();
+            assertEquals("test", textMessage.getText());
           }
         }
       }
@@ -176,38 +182,39 @@ public class SelectorsTest {
   }
 
   @Test
-  public void sendMessageReceiveFromSharedSubscriptionWithSelector() throws Exception {
-
+  public void sendMessageReceiveFromSharedSubscriptionWithNoLocal() throws Exception {
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
     properties.put("jms.enableClientSideFeatures", "true");
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
+        connection.setClientID("clientId1");
         connection.start();
         try (Session session = connection.createSession(); ) {
           Topic destination =
                   session.createTopic("persistent://public/default/test-" + UUID.randomUUID());
 
           try (MessageConsumer consumer1 =
-                       session.createSharedDurableConsumer(destination, "sub1", "lastMessage=TRUE"); ) {
-            assertEquals(SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
-            assertEquals("lastMessage=TRUE", consumer1.getMessageSelector());
+                       session.createDurableSubscriber(destination, "sub1", null, true); ) {
+            assertEquals(SubscriptionType.Exclusive, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
+            assertTrue(((PulsarMessageConsumer) consumer1).getNoLocal());
 
             try (MessageProducer producer = session.createProducer(destination); ) {
               for (int i = 0; i < 10; i++) {
                 TextMessage textMessage = session.createTextMessage("foo-" + i);
-                if (i == 9) {
-                  textMessage.setBooleanProperty("lastMessage", true);
-                }
                 producer.send(textMessage);
               }
             }
-
-            TextMessage textMessage = (TextMessage) consumer1.receive();
-            assertEquals("foo-9", textMessage.getText());
-
-            // no more messages
+            // no message
             assertNull(consumer1.receiveNoWait());
+
+            try (JMSContext connection2 = factory.createContext()) {
+              connection2.createProducer().send(destination, "test");
+            }
+
+            // we must be able to receive the message from the second connection
+            TextMessage textMessage = (TextMessage) consumer1.receive();
+            assertEquals("test", textMessage.getText());
           }
         }
       }

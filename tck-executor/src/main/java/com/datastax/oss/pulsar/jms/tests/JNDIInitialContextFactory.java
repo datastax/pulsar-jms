@@ -70,6 +70,12 @@ public class JNDIInitialContextFactory implements InitialContextFactory {
     consumerConfig.put("receiverQueueSize", 1);
     configuration.put("consumerConfig", consumerConfig);
     configuration.put("producerConfig", producerConfig);
+
+    configuration.put("jms.clientId", "cts");
+    configuration.put("jms.tckUsername", "j2ee");
+    configuration.put("jms.tckUsername", "j2ee");
+    configuration.put("jms.enableClientSideFeatures", "true");
+
     if (name.equals("DURABLE_SUB_CONNECTION_FACTORY")) {
       // see
       // com.sun.ts.tests.jms.core20.jmscontexttopictests.Client.verifyClientIDOnAdminConfiguredIDTest
