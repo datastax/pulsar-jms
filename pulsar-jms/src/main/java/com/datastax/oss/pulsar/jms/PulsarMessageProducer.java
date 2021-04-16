@@ -803,9 +803,8 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
     if (message == null) {
       throw new IllegalArgumentException("Cannot send a null message");
     }
+    PulsarMessage res;
     if (!(message instanceof PulsarMessage)) {
-
-      PulsarMessage res;
       if (message instanceof TextMessage) {
         res = new PulsarTextMessage(((TextMessage) message).getText());
       } else if (message instanceof BytesMessage) {
@@ -857,9 +856,12 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
       // res.setJMSTimestamp(message.getJMSTimestamp());
       // res.setJMSExpiration(message.getJMSExpiration());
       message = res;
+    } else {
+      res = (PulsarMessage) message;
     }
-    message.setStringProperty("JMSConnectionID", session.getConnection().getConnectionId());
-    return (PulsarMessage) message;
+    res.setWritable(true);
+    res.setStringProperty("JMSConnectionID", session.getConnection().getConnectionId());
+    return res;
   }
 
   /**

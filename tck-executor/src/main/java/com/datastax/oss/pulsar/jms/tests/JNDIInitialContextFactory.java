@@ -61,7 +61,7 @@ public class JNDIInitialContextFactory implements InitialContextFactory {
   private static PulsarConnectionFactory buildConnectionFactory(String name) throws Exception {
     Map<String, Object> configuration = new HashMap<>();
     configuration.put("enableTransaction", true);
-    configuration.put("forceDeleteTemporaryDestinations", true);
+    configuration.put("jms.forceDeleteTemporaryDestinations", true);
 
     Map<String, Object> producerConfig = new HashMap<>();
     producerConfig.put("batchingEnabled", false);
@@ -71,10 +71,11 @@ public class JNDIInitialContextFactory implements InitialContextFactory {
     configuration.put("consumerConfig", consumerConfig);
     configuration.put("producerConfig", producerConfig);
 
-    configuration.put("jms.clientId", "cts");
     configuration.put("jms.tckUsername", "j2ee");
     configuration.put("jms.tckUsername", "j2ee");
     configuration.put("jms.enableClientSideFeatures", "true");
+    // this is needed to support delayed messages even with simple unnamed Consumers
+    configuration.put("jms.useExclusiveSubscriptionsForSimpleConsumers", "false");
 
     if (name.equals("DURABLE_SUB_CONNECTION_FACTORY")) {
       // see

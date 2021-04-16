@@ -1135,6 +1135,7 @@ public abstract class PulsarMessage implements Message {
                   session,
                   pulsarProducer,
                   () -> {
+                    this.writable = false;
                     if (error != null) {
                       completionListener.onException(this, Utils.handleException(error));
                     } else {

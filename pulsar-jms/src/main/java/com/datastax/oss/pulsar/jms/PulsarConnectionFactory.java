@@ -74,6 +74,7 @@ public class PulsarConnectionFactory
   private final boolean enableTransaction;
   private final boolean enableClientSideFeatures;
   private final boolean forceDeleteTemporaryDestinations;
+  private final boolean useExclusiveSubscriptionsForSimpleConsumers;
   private final String tckUsername;
   private final String tckPassword;
   private final String queueSubscriptioName;
@@ -111,6 +112,14 @@ public class PulsarConnectionFactory
           Boolean.parseBoolean(
               getAndRemoveString("jms.enableClientSideFeatures", "false", properties));
 
+      // in Exclusive mode Pulsar does not support delayed messages
+      // with this flag you force to not use Exclusive subscription and so to support
+      // delayed messages are well
+      this.useExclusiveSubscriptionsForSimpleConsumers =
+          Boolean.parseBoolean(
+              getAndRemoveString(
+                  "jms.useExclusiveSubscriptionsForSimpleConsumers", "true", properties));
+
       // default is false
       this.forceDeleteTemporaryDestinations =
           Boolean.parseBoolean(
@@ -146,8 +155,8 @@ public class PulsarConnectionFactory
 
   private static String getAndRemoveString(
       String name, String defaultValue, Map<String, Object> properties) {
-    String value = (String) properties.remove(name);
-    return value != null ? value : defaultValue;
+    Object value = (Object) properties.remove(name);
+    return value != null ? value.toString() : defaultValue;
   }
 
   public boolean isEnableClientSideFeatures() {
@@ -744,5 +753,11 @@ public class PulsarConnectionFactory
 
   public String getQueueSubscriptionName() {
     return queueSubscriptioName;
+  }
+
+  public SubscriptionType getExclusiveSubscriptionTypeForSimpleConsumers() {
+    return useExclusiveSubscriptionsForSimpleConsumers
+        ? SubscriptionType.Exclusive
+        : SubscriptionType.Shared;
   }
 }

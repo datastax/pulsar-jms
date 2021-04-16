@@ -240,47 +240,46 @@ public final class Utils {
     if (err instanceof IllegalStateException) {
       IllegalStateException jmsException = (IllegalStateException) err;
       throw new IllegalStateRuntimeException(
-          jmsException.getMessage(), jmsException.getErrorCode(), jmsException.getCause());
+          jmsException.getMessage(), jmsException.getErrorCode(), err);
     }
     if (err instanceof TransactionRolledBackException) {
       TransactionRolledBackException jmsException = (TransactionRolledBackException) err;
       throw new TransactionRolledBackRuntimeException(
-          jmsException.getMessage(), jmsException.getErrorCode(), jmsException.getCause());
+          jmsException.getMessage(), jmsException.getErrorCode(), err);
     }
     if (err instanceof InvalidDestinationException) {
       InvalidDestinationException jmsException = (InvalidDestinationException) err;
       throw new InvalidDestinationRuntimeException(
-          jmsException.getMessage(), jmsException.getErrorCode(), jmsException.getCause());
+          jmsException.getMessage(), jmsException.getErrorCode(), err);
     }
     if (err instanceof InvalidClientIDException) {
       InvalidClientIDException jmsException = (InvalidClientIDException) err;
       throw new InvalidClientIDRuntimeException(
-          jmsException.getMessage(), jmsException.getErrorCode(), jmsException.getCause());
+          jmsException.getMessage(), jmsException.getErrorCode(), err);
     }
     if (err instanceof InvalidSelectorException) {
       InvalidSelectorException jmsException = (InvalidSelectorException) err;
       throw new InvalidSelectorRuntimeException(
-          jmsException.getMessage(), jmsException.getErrorCode(), jmsException.getCause());
+          jmsException.getMessage(), jmsException.getErrorCode(), err);
     }
     if (err instanceof MessageFormatException) {
       MessageFormatException jmsException = (MessageFormatException) err;
       throw new MessageFormatRuntimeException(
-          jmsException.getMessage(), jmsException.getErrorCode(), jmsException.getCause());
+          jmsException.getMessage(), jmsException.getErrorCode(), err);
     }
     if (err instanceof MessageNotWriteableException) {
       MessageNotWriteableException jmsException = (MessageNotWriteableException) err;
       throw new MessageNotWriteableRuntimeException(
-          jmsException.getMessage(), jmsException.getErrorCode(), jmsException.getCause());
+          jmsException.getMessage(), jmsException.getErrorCode(), err);
     }
     if (err instanceof JMSSecurityException) {
       JMSSecurityException jmsException = (JMSSecurityException) err;
       throw new JMSSecurityRuntimeException(
-          jmsException.getMessage(), jmsException.getErrorCode(), jmsException.getCause());
+          jmsException.getMessage(), jmsException.getErrorCode(), err);
     }
     if (err instanceof JMSException) {
       JMSException jmsException = (JMSException) err;
-      throw new JMSRuntimeException(
-          jmsException.getMessage(), jmsException.getErrorCode(), jmsException.getCause());
+      throw new JMSRuntimeException(jmsException.getMessage(), jmsException.getErrorCode(), err);
     }
     JMSRuntimeException jms = new JMSRuntimeException("Generic error " + err.getMessage());
     jms.initCause(err);
