@@ -15,14 +15,15 @@
  */
 package com.datastax.oss.pulsar.jms;
 
-import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.pulsar.client.api.SubscriptionType;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
+import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
 import javax.jms.Connection;
 import javax.jms.JMSContext;
 import javax.jms.MessageConsumer;
@@ -31,14 +32,12 @@ import javax.jms.Queue;
 import javax.jms.Session;
 import javax.jms.TextMessage;
 import javax.jms.Topic;
-import java.nio.file.Path;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.pulsar.client.api.SubscriptionType;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 @Slf4j
 public class NoLocalTest {
@@ -66,15 +65,15 @@ public class NoLocalTest {
     properties.put("webServiceUrl", cluster.getAddress());
     properties.put("jms.enableClientSideFeatures", "true");
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
-      try (Connection connection = factory.createConnection();) {
+      try (Connection connection = factory.createConnection(); ) {
         connection.start();
         try (Session session = connection.createSession(); ) {
           Queue destination =
               session.createQueue("persistent://public/default/test-" + UUID.randomUUID());
 
-          try (MessageConsumer consumer1 =
-              session.createConsumer(destination, null, true); ) {
-            assertEquals(SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
+          try (MessageConsumer consumer1 = session.createConsumer(destination, null, true); ) {
+            assertEquals(
+                SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
             assertTrue(((PulsarMessageConsumer) consumer1).getNoLocal());
 
             try (MessageProducer producer = session.createProducer(destination); ) {
@@ -87,7 +86,7 @@ public class NoLocalTest {
             assertNull(consumer1.receiveNoWait());
 
             try (JMSContext connection2 = factory.createContext()) {
-                connection2.createProducer().send(destination, "test");
+              connection2.createProducer().send(destination, "test");
             }
 
             // we must be able to receive the message from the second connection
@@ -106,16 +105,17 @@ public class NoLocalTest {
     properties.put("webServiceUrl", cluster.getAddress());
     properties.put("jms.enableClientSideFeatures", "true");
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
-      try (Connection connection = factory.createConnection();) {
+      try (Connection connection = factory.createConnection(); ) {
         connection.setClientID("clientId1");
         connection.start();
         try (Session session = connection.createSession(); ) {
           Topic destination =
-                  session.createTopic("persistent://public/default/test-" + UUID.randomUUID());
+              session.createTopic("persistent://public/default/test-" + UUID.randomUUID());
 
-          try (MessageConsumer consumer1 =
-                       session.createConsumer(destination, null, true); ) {
-            assertEquals(SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
+          try (MessageConsumer consumer1 = session.createConsumer(destination, null, true); ) {
+            assertEquals(
+                SubscriptionType.Exclusive,
+                ((PulsarMessageConsumer) consumer1).getSubscriptionType());
             assertTrue(((PulsarMessageConsumer) consumer1).getNoLocal());
 
             try (MessageProducer producer = session.createProducer(destination); ) {
@@ -152,11 +152,13 @@ public class NoLocalTest {
         connection.start();
         try (Session session = connection.createSession(); ) {
           Topic destination =
-                  session.createTopic("persistent://public/default/test-" + UUID.randomUUID());
+              session.createTopic("persistent://public/default/test-" + UUID.randomUUID());
 
           try (MessageConsumer consumer1 =
-                       session.createDurableConsumer(destination, "sub1", null, true); ) {
-            assertEquals(SubscriptionType.Exclusive, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
+              session.createDurableConsumer(destination, "sub1", null, true); ) {
+            assertEquals(
+                SubscriptionType.Exclusive,
+                ((PulsarMessageConsumer) consumer1).getSubscriptionType());
             assertTrue(((PulsarMessageConsumer) consumer1).getNoLocal());
 
             try (MessageProducer producer = session.createProducer(destination); ) {
@@ -192,11 +194,13 @@ public class NoLocalTest {
         connection.start();
         try (Session session = connection.createSession(); ) {
           Topic destination =
-                  session.createTopic("persistent://public/default/test-" + UUID.randomUUID());
+              session.createTopic("persistent://public/default/test-" + UUID.randomUUID());
 
           try (MessageConsumer consumer1 =
-                       session.createDurableSubscriber(destination, "sub1", null, true); ) {
-            assertEquals(SubscriptionType.Exclusive, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
+              session.createDurableSubscriber(destination, "sub1", null, true); ) {
+            assertEquals(
+                SubscriptionType.Exclusive,
+                ((PulsarMessageConsumer) consumer1).getSubscriptionType());
             assertTrue(((PulsarMessageConsumer) consumer1).getNoLocal());
 
             try (MessageProducer producer = session.createProducer(destination); ) {

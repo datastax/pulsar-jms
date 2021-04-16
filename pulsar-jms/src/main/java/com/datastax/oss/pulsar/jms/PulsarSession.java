@@ -1094,7 +1094,6 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
         .subscribe();
   }
 
-
   private void registerSubscriptionName(Topic topic, String name, boolean shared)
       throws JMSException {
     log.error("registerSubscritionName {} {} current {}", topic, name, destinationBySubscription);

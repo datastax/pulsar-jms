@@ -16,6 +16,7 @@
 package com.datastax.oss.pulsar.jms;
 
 import com.datastax.oss.pulsar.jms.selectors.SelectorSupport;
+import java.time.Instant;
 import java.util.concurrent.TimeUnit;
 import javax.jms.Destination;
 import javax.jms.IllegalStateException;
@@ -79,7 +80,8 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
       }
     }
     if (noLocal && !session.getFactory().isEnableClientSideFeatures()) {
-      throw new IllegalStateException("noLocal is not enabled, please set jms.EnableClientSideFeatures=true");
+      throw new IllegalStateException(
+          "noLocal is not enabled, please set jms.EnableClientSideFeatures=true");
     }
     this.subscriptionName = subscriptionName;
     this.session = session;
@@ -300,7 +302,8 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
     return receive(1);
   }
 
-  private void skipMessage(org.apache.pulsar.client.api.Message<byte[]> message) throws JMSException {
+  private void skipMessage(org.apache.pulsar.client.api.Message<byte[]> message)
+      throws JMSException {
     if (subscriptionType == SubscriptionType.Exclusive) {
       // we are the only one that will ever receive this message
       // we can acknowledge it
@@ -311,9 +314,9 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
       }
     } else {
       log.info(
-              "negativeAcknowledge for message {} that does not match filter {}",
-              message,
-              selectorSupport);
+          "negativeAcknowledge for message {} that does not match filter {}",
+          message,
+          selectorSupport);
       consumer.negativeAcknowledge(message);
     }
   }
@@ -348,11 +351,16 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
     if (noLocalFilter) {
       String senderConnectionID = result.getStringProperty("JMSConnectionID");
       if (senderConnectionID != null
-              && senderConnectionID.equals(session.getConnection().getConnectionId())) {
+          && senderConnectionID.equals(session.getConnection().getConnectionId())) {
         log.info("msg {} was generated from this connection {}", result, senderConnectionID);
         skipMessage(message);
         return null;
       }
+    }
+    if (result.getJMSExpiration() > 0 && System.currentTimeMillis() >= result.getJMSExpiration()) {
+      log.info("msg {} expired at {}", result, Instant.ofEpochMilli(result.getJMSExpiration()));
+      skipMessage(message);
+      return null;
     }
 
     // this must happen before the execution of the listener
@@ -598,7 +606,8 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
                       null,
                       (pmessage) -> {
                         listener.onMessage(pmessage);
-                      }, noLocal);
+                      },
+                      noLocal);
             } catch (PulsarClientException.AlreadyClosedException closed) {
               log.error("Error while receiving message con Closed consumer {}", this);
             } catch (JMSException | PulsarClientException err) {

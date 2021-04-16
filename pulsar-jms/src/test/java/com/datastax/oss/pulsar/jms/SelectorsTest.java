@@ -30,7 +30,6 @@ import javax.jms.Queue;
 import javax.jms.Session;
 import javax.jms.TextMessage;
 import javax.jms.Topic;
-
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.api.SubscriptionType;
 import org.junit.jupiter.api.AfterAll;
@@ -72,7 +71,8 @@ public class SelectorsTest {
 
           try (MessageConsumer consumer1 =
               session.createConsumer(destination, "lastMessage=TRUE"); ) {
-            assertEquals(SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
+            assertEquals(
+                SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
             assertEquals("lastMessage=TRUE", consumer1.getMessageSelector());
 
             try (MessageProducer producer = session.createProducer(destination); ) {
@@ -107,11 +107,13 @@ public class SelectorsTest {
         connection.start();
         try (Session session = connection.createSession(); ) {
           Topic destination =
-                  session.createTopic("persistent://public/default/test-" + UUID.randomUUID());
+              session.createTopic("persistent://public/default/test-" + UUID.randomUUID());
 
           try (MessageConsumer consumer1 =
-                       session.createConsumer(destination, "lastMessage=TRUE"); ) {
-            assertEquals(SubscriptionType.Exclusive, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
+              session.createConsumer(destination, "lastMessage=TRUE"); ) {
+            assertEquals(
+                SubscriptionType.Exclusive,
+                ((PulsarMessageConsumer) consumer1).getSubscriptionType());
             assertEquals("lastMessage=TRUE", consumer1.getMessageSelector());
 
             try (MessageProducer producer = session.createProducer(destination); ) {
@@ -147,11 +149,13 @@ public class SelectorsTest {
         connection.start();
         try (Session session = connection.createSession(); ) {
           Topic destination =
-                  session.createTopic("persistent://public/default/test-" + UUID.randomUUID());
+              session.createTopic("persistent://public/default/test-" + UUID.randomUUID());
 
           try (MessageConsumer consumer1 =
-                       session.createDurableConsumer(destination, "sub1", "lastMessage=TRUE", false); ) {
-            assertEquals(SubscriptionType.Exclusive, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
+              session.createDurableConsumer(destination, "sub1", "lastMessage=TRUE", false); ) {
+            assertEquals(
+                SubscriptionType.Exclusive,
+                ((PulsarMessageConsumer) consumer1).getSubscriptionType());
             assertEquals("lastMessage=TRUE", consumer1.getMessageSelector());
 
             try (MessageProducer producer = session.createProducer(destination); ) {
@@ -186,11 +190,12 @@ public class SelectorsTest {
         connection.start();
         try (Session session = connection.createSession(); ) {
           Topic destination =
-                  session.createTopic("persistent://public/default/test-" + UUID.randomUUID());
+              session.createTopic("persistent://public/default/test-" + UUID.randomUUID());
 
           try (MessageConsumer consumer1 =
-                       session.createSharedDurableConsumer(destination, "sub1", "lastMessage=TRUE"); ) {
-            assertEquals(SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
+              session.createSharedDurableConsumer(destination, "sub1", "lastMessage=TRUE"); ) {
+            assertEquals(
+                SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
             assertEquals("lastMessage=TRUE", consumer1.getMessageSelector());
 
             try (MessageProducer producer = session.createProducer(destination); ) {

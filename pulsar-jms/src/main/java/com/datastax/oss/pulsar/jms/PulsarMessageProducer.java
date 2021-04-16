@@ -390,6 +390,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
     validateMessageSend(message, defaultDestination, true, timeToLive, deliveryMode, priority);
     message.setJMSDeliveryMode(deliveryMode);
     message.setJMSPriority(priority);
+    applyTimeToLive(message, timeToLive);
     sendMessage(defaultDestination, message);
   }
 
@@ -450,6 +451,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
     validateMessageSend(message, destination, false, timeToLive, deliveryMode, priority);
     message.setJMSDeliveryMode(deliveryMode);
     message.setJMSPriority(priority);
+    applyTimeToLive(message, timeToLive);
     sendMessage(destination, message);
   }
 
@@ -483,8 +485,9 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
         throw new InvalidDestinationException("destination is null");
       }
     }
-    if (timeToLive > 0) {
-      throw new JMSException("timeToLive not supported");
+    if (timeToLive > 0 && !session.getFactory().isEnableClientSideFeatures()) {
+      throw new JMSException(
+          "timeToLive not enabled, please set jms.enableClientSideFeatures=true");
     }
   }
 
@@ -791,6 +794,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
     message.setJMSDestination(defaultDestination);
     message.setJMSDeliveryMode(deliveryMode);
     message.setJMSPriority(priority);
+    applyTimeToLive(message, timeToLive);
     PulsarMessage pulsarMessage = prepareMessageForSend(message);
     sendMessage(defaultDestination, message, completionListener);
   }
@@ -854,9 +858,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
       // res.setJMSExpiration(message.getJMSExpiration());
       message = res;
     }
-    if (session.getFactory().isEnableClientSideFeatures()) {
-      message.setStringProperty("JMSConnectionID", session.getConnection().getConnectionId());
-    }
+    message.setStringProperty("JMSConnectionID", session.getConnection().getConnectionId());
     return (PulsarMessage) message;
   }
 
@@ -1171,7 +1173,16 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
     }
     message.setJMSDeliveryMode(deliveryMode);
     message.setJMSPriority(priority);
+    applyTimeToLive(message, timeToLive);
     sendMessage(destination, message, completionListener);
+  }
+
+  private void applyTimeToLive(Message message, long timeToLive) throws JMSException {
+    if (timeToLive > 0) {
+      long time = System.currentTimeMillis() + timeToLive;
+      message.setLongProperty("JMSExpiration", System.currentTimeMillis() + timeToLive);
+      message.setJMSExpiration(time);
+    }
   }
 
   private void validateCompletionListener(CompletionListener completionListener) {

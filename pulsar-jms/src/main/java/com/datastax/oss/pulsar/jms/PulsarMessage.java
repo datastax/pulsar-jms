@@ -500,7 +500,7 @@ public abstract class PulsarMessage implements Message {
    */
   @Override
   public void setJMSExpiration(long expiration) throws JMSException {
-    this.jmsExpiration = jmsExpiration;
+    this.jmsExpiration = expiration;
   }
 
   /**
@@ -1140,8 +1140,6 @@ public abstract class PulsarMessage implements Message {
                     } else {
                       assignSystemMessageId(messageIdFromServer);
 
-                      // we do not know in the producer about the actual time-to-live
-                      this.jmsExpiration = 0;
                       completionListener.onCompletion(this);
                     }
                   });
@@ -1212,9 +1210,6 @@ public abstract class PulsarMessage implements Message {
 
     MessageId messageIdFromServer = Utils.invoke(() -> producer.send());
     assignSystemMessageId(messageIdFromServer);
-
-    // we do not know in the producer about the actual time-to-live
-    this.jmsExpiration = 0;
   }
 
   protected abstract void prepareForSend(TypedMessageBuilder<byte[]> producer) throws JMSException;
@@ -1290,7 +1285,13 @@ public abstract class PulsarMessage implements Message {
         // cannot decode deliveryMode, not a big deal as it is not supported in Pulsar
       }
     }
-
+    if (msg.hasProperty("JMSExpiration")) {
+      try {
+        this.jmsExpiration = Long.parseLong(msg.getProperty("JMSExpiration"));
+      } catch (NumberFormatException err) {
+        // cannot decode JMSExpiration
+      }
+    }
     // this is optional
     this.jmsTimestamp = msg.getEventTime();
 
