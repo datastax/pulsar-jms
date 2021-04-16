@@ -79,18 +79,30 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
             "Cannot subscribe to a temporary destination not created but this session");
       }
     }
-    if (noLocal && !session.getFactory().isEnableClientSideFeatures()) {
-      throw new IllegalStateException(
-          "noLocal is not enabled, please set jms.EnableClientSideFeatures=true");
-    }
     this.subscriptionName = subscriptionName;
     this.session = session;
     this.destination = destination;
     this.subscriptionMode = destination.isQueue() ? SubscriptionMode.Durable : subscriptionMode;
     this.subscriptionType = destination.isQueue() ? SubscriptionType.Shared : subscriptionType;
+
+    // when we are in an Exclusive subscription
+    // it is always safe to apply selectors, noLocal and timeToLive
+    // when we are in a Shared subscription and we receive an invalid message
+    // we have to bounce it?
     this.selectorSupport =
-        SelectorSupport.build(selector, session.getFactory().isEnableClientSideFeatures());
+        SelectorSupport.build(
+            selector,
+            subscriptionType == SubscriptionType.Exclusive
+                || session.getFactory().isEnableClientSideFeatures());
     this.unregisterSubscriptionOnClose = unregisterSubscriptionOnClose;
+    if (noLocal
+        && subscriptionType != SubscriptionType.Exclusive
+        && !session.getFactory().isEnableClientSideFeatures()) {
+      throw new IllegalStateException(
+          "noLocal is not enabled by default with subscriptionType "
+              + subscriptionType
+              + ", please set jms.EnableClientSideFeatures=true");
+    }
   }
 
   public PulsarMessageConsumer subscribe() throws JMSException {

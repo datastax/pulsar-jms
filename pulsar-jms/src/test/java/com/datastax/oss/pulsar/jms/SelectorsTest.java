@@ -101,7 +101,7 @@ public class SelectorsTest {
 
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
-    properties.put("jms.enableClientSideFeatures", "true");
+    properties.put("jms.enableClientSideFeatures", "false");
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
         connection.start();
@@ -142,7 +142,7 @@ public class SelectorsTest {
 
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
-    properties.put("jms.enableClientSideFeatures", "true");
+    properties.put("jms.enableClientSideFeatures", "false");
     properties.put("jms.clientId", "id");
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {

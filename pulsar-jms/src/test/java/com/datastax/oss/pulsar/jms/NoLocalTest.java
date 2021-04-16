@@ -103,7 +103,7 @@ public class NoLocalTest {
 
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
-    properties.put("jms.enableClientSideFeatures", "true");
+    properties.put("jms.enableClientSideFeatures", "false");
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection(); ) {
         connection.setClientID("clientId1");
@@ -145,7 +145,7 @@ public class NoLocalTest {
 
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
-    properties.put("jms.enableClientSideFeatures", "true");
+    properties.put("jms.enableClientSideFeatures", "false");
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
         connection.setClientID("clientId1");
@@ -187,7 +187,7 @@ public class NoLocalTest {
   public void sendMessageReceiveFromSharedSubscriptionWithNoLocal() throws Exception {
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
-    properties.put("jms.enableClientSideFeatures", "true");
+    properties.put("jms.enableClientSideFeatures", "false");
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
         connection.setClientID("clientId1");
