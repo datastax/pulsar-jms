@@ -46,6 +46,7 @@ import org.apache.pulsar.client.admin.PulsarAdminBuilder;
 import org.apache.pulsar.client.admin.PulsarAdminException;
 import org.apache.pulsar.client.api.Authentication;
 import org.apache.pulsar.client.api.AuthenticationFactory;
+import org.apache.pulsar.client.api.ClientBuilder;
 import org.apache.pulsar.client.api.Consumer;
 import org.apache.pulsar.client.api.ConsumerBuilder;
 import org.apache.pulsar.client.api.Message;
@@ -135,12 +136,29 @@ public class PulsarConnectionFactory
       String webServiceUrl =
           getAndRemoveString("webServiceUrl", "http://localhost:8080", properties);
 
+      String brokenServiceUrl =
+              getAndRemoveString("brokerServiceUrl", "", properties);
+
       PulsarClient pulsarClient = null;
       PulsarAdmin pulsarAdmin = null;
       try {
 
+        String authPluginClassName = properties.getOrDefault("authPluginClassName", "")  + "";
+        String authParamsString = properties.getOrDefault("authParams", "")  + "";
+        Authentication authentication = AuthenticationFactory.create(authPluginClassName, authParamsString);
+        log.info("Auth {}", authentication);
+
+        ClientBuilder clientBuilder = PulsarClient.builder()
+                .loadConf(properties)
+                .serviceUrl(webServiceUrl)
+                .authentication(authentication);
+        if (!brokenServiceUrl.isEmpty()) {
+          clientBuilder.serviceUrl(brokenServiceUrl);
+        }
+
         pulsarClient =
-            PulsarClient.builder().serviceUrl(webServiceUrl).loadConf(properties).build();
+                clientBuilder
+                    .build();
 
         boolean tlsAllowInsecureConnection = Boolean.parseBoolean(properties.getOrDefault("tlsAllowInsecureConnection", "false") + "");
 
@@ -151,9 +169,6 @@ public class PulsarConnectionFactory
         String tlsTrustStoreType = properties.getOrDefault("tlsTrustStoreType", "JKS")  + "";
         String tlsTrustStorePath = properties.getOrDefault("tlsTrustStorePath", "")  + "";
         String tlsTrustStorePassword = properties.getOrDefault("tlsTrustStorePassword", "")  + "";
-        String authPluginClassName = properties.getOrDefault("authPlugin", "")  + "";
-        String authParamsString = properties.getOrDefault("authParams", "")  + "";
-        Authentication authentication = AuthenticationFactory.create(authPluginClassName, authParamsString);
 
         pulsarAdmin = PulsarAdmin.builder()
                 .serviceHttpUrl(webServiceUrl)

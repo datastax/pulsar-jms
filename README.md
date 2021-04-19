@@ -289,6 +289,7 @@ The configuration is passed to the PulsarConnectionFactory constructor.
 | Configuration Entry  | Required | Type | Default value | Meaning | Notes |
 | ------------- | ------------- | -------------| ------------- | ------------- | ------------- |
 | webServiceUrl | yes | String | http://localhost:8080 | Main Pulsar HTTP endpoint | Configure this in order to access to your cluster |
+| brokerServiceUrl | no | String | same value as webServiceUrl | The URL to connect to the Pulsar broker or proxy | |
 | enableTransaction | no | boolean | false | Enable transactions | It defaults to false because Transaction support is not enabled by default in Pulsar 2.7 and the client won't be able to connect to a cluster that does not enable transactions |
 | jms.clientId | no | String | empty string | Administratively assigned clientId (see JMS specs) | It is the default value assigned to every Connection |
 | producerConfig | no | Map<String, Object> | Empty Map | Additional configuration to be set on every Pulsar Producer | |
