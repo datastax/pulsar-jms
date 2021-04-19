@@ -1096,7 +1096,6 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
 
   private void registerSubscriptionName(Topic topic, String name, boolean shared)
       throws JMSException {
-    log.error("registerSubscritionName {} {} current {}", topic, name, destinationBySubscription);
     PulsarDestination alreadyExists =
         destinationBySubscription.put(name, (PulsarDestination) topic);
     if (alreadyExists != null && alreadyExists.equals(topic) && !shared) {
@@ -1111,7 +1110,6 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     if (existing != null && existing.equals(topic)) {
       destinationBySubscription.remove(name);
     }
-    log.error("unregisterSubscriptionName {} {} after {}", topic, name, destinationBySubscription);
   }
 
   /**

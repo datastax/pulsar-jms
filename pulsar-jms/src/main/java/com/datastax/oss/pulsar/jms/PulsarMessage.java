@@ -1161,7 +1161,7 @@ public abstract class PulsarMessage implements Message {
     consumer = null;
     message.properties(properties);
     // useful for deserialization
-    message.property("JMS_PulsarMessageType", messageType());
+    message.property("JMSPulsarMessageType", messageType());
     if (messageId != null) {
       message.property("JMSMessageId", messageId);
     }
@@ -1221,9 +1221,9 @@ public abstract class PulsarMessage implements Message {
     if (msg == null) {
       return null;
     }
-    String type = msg.getProperty("JMS_PulsarMessageType");
+    String type = msg.getProperty("JMSPulsarMessageType");
     if (type == null) {
-      type = "header";
+      type = "bytes"; // non JMS clients
     }
     byte[] value = msg.getValue();
     switch (type) {

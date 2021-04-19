@@ -2,9 +2,9 @@
 
 This is a Java library that implements the JMS 2.0 (Java Messaging Service ®) over the Apache Pulsar® Java Client..
 
-This library is Open Source Software, Apache 2 licenced.
+This library is Open Source Software, Apache 2 licensed.
 
-Please refer to [official JMS documentation](https://jakarta.ee/specifications/messaging/2.0/) in order to learn about JMS.
+Please refer to the [official JMS documentation](https://jakarta.ee/specifications/messaging/2.0/) in order to learn about JMS.
 
 You can find [here](https://pulsar.apache.org) the official Aaache Pulsar documentation.
 
@@ -16,16 +16,18 @@ In order to use this library just add this dependency:
 <dependency>
    <artifactId>pulsar-jms</artifactId>
    <groupId>com.datastax.oss.pulsar.jms</groupId>
-   <version>1.0.0</version>
+   <version>VERSION</version>
 </dependency>
 ```
 
 ## Getting started
 
-In JMS you need these three concepts in order to get started:
+In JMS you need these three concepts to get started:
 - a ConnectionFactory: use com.datastax.oss.pulsar.jms.PulsarConnectionFactory
 - a Queue: use com.datastax.oss.pulsar.jms.PulsarQueue (or better Session#createQueue)
 - a Topic: use com.datastax.oss.pulsar.jms.PulsarTopic (or better Session#createTopic)
+
+This is how you access them for Pulsar
 
 ```
    Map<String, Object> configuration = new HashMap<>();
@@ -42,6 +44,14 @@ In JMS you need these three concepts in order to get started:
    }`
 ```
 
+Ensure you have a Pulsar service running at http://localhost:8080 before trying out the example.
+
+You can for instance run Pulsar Standalone using docker
+
+```
+docker run --name pulsar-jms-runner -d -p 8080:8080 -p 6650:6650 apachepulsar/pulsar:2.7.1 /pulsar/bin/pulsar standalone
+```
+
 ## Building from the sources
 
 If you want to develop and test this library you need to build the jar from sources.
@@ -56,10 +66,10 @@ You can download the TCK [here](https://jakarta.ee/specifications/messaging/2.0/
 This repository contains a copy of the TCK in order to automate the execution of the tests.
 
 In the tck-executor module you find:
-- the Java Code needed to initialize the TCK (JNDIInitialContextFactory)
-- the configuration file for the TCK runner: ts.jte
-- a file that contains the excluded tests that cannot pass with this client: ts.jtx (see below for the list of unsupported features)
-- a couple of scripts to run Aaache Pulsar 2.7.1, configure the Transaction Coordinator and prepare for the execution of the TCK
+- the Java Code needed to initialize the TCK (`JNDIInitialContextFactory.java`)
+- the configuration file for the TCK runner: `ts.jte`
+- a file that contains the excluded tests that cannot pass with this client: `ts.jtx` (see below for the list of unsupported features)
+- a couple of scripts to run Apache Pulsar 2.7.1, configure the Transaction Coordinator and prepare for the execution of the TCK
 
 With this command you build the package, run unit tests and then you run the TCK
 
@@ -72,7 +82,7 @@ In order to only run the TCK
 ## Mapping Apache Pulsar Concept to JMS Specification
 
 JMS Specifications are built over the concepts of **Topics** and **Queues**, but in Pulsar we only have a general concept of **Topic**
-that can model both of the two modes.
+that can model both of the two domains.
 
 In JMS a **Topic** is written by many **Producers** and read by many **Consumers**, that share one or many **Subscriptions**.
 Subscriptions may be **Durable** or **Non-Durable**, **Shared** or **Non-Shared**. So the same message may be received and processed by more than one Consumer. 
@@ -82,7 +92,7 @@ This is the mapping between JMS Consumer/Subscriptions and Apache Pulsar Consume
 | JMS Concept  | Pulsar Concept |
 | ------------- | ------------- |
 | Topic | Persistent topic |
-| Consumer | Exclusive Non-Durable subscription with random UUID |
+| Consumer | Exclusive Non-Durable subscription with random name (UUID) |
 | DurableConsumer | Exclusive Durable subscription with the given name + clientId |
 | SharedConsumer | Shared Non-Durable subscription with the given name + clientId |
 | SharedDurableConsumer | Shared Durable subscription with the given name + clientId |
@@ -95,6 +105,7 @@ In JMS a **Queue** is written by many **Producers** but only one **Consumer** ev
 
 In order to implement this behaviour the first time you create a Consumer over a Queue the JMS client creates a Durable Subscription
 named **jms-queue** from the beginning (initial position = Earliest) of the Pulsar Topic.
+
 Every access to the Queue pass through this Shared subscription and this guarantees that only one Consumer receives and process each message.
 
 This is the mapping between JMS Consumer/Subscriptions and Apache Pulsar Consumers for Queue:
