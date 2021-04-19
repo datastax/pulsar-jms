@@ -40,8 +40,12 @@ import javax.jms.QueueConnectionFactory;
 import javax.jms.TopicConnection;
 import javax.jms.TopicConnectionFactory;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.pulsar.client.admin.PulsarAdmin;
+import org.apache.pulsar.client.admin.PulsarAdminBuilder;
 import org.apache.pulsar.client.admin.PulsarAdminException;
+import org.apache.pulsar.client.api.Authentication;
+import org.apache.pulsar.client.api.AuthenticationFactory;
 import org.apache.pulsar.client.api.Consumer;
 import org.apache.pulsar.client.api.ConsumerBuilder;
 import org.apache.pulsar.client.api.Message;
@@ -134,9 +138,35 @@ public class PulsarConnectionFactory
       PulsarClient pulsarClient = null;
       PulsarAdmin pulsarAdmin = null;
       try {
-        pulsarAdmin = PulsarAdmin.builder().serviceHttpUrl(webServiceUrl).build();
+
         pulsarClient =
             PulsarClient.builder().serviceUrl(webServiceUrl).loadConf(properties).build();
+
+        boolean tlsAllowInsecureConnection = Boolean.parseBoolean(properties.getOrDefault("tlsAllowInsecureConnection", "false") + "");
+
+        boolean tlsEnableHostnameVerification = Boolean.parseBoolean(properties.getOrDefault("tlsEnableHostnameVerification", "false")+ "");
+        final String tlsTrustCertsFilePath = (String) properties.getOrDefault("tlsTrustCertsFilePath", "") + "";
+
+        boolean useKeyStoreTls = Boolean.parseBoolean(properties.getOrDefault("useKeyStoreTls", "false") + "");
+        String tlsTrustStoreType = properties.getOrDefault("tlsTrustStoreType", "JKS")  + "";
+        String tlsTrustStorePath = properties.getOrDefault("tlsTrustStorePath", "")  + "";
+        String tlsTrustStorePassword = properties.getOrDefault("tlsTrustStorePassword", "")  + "";
+        String authPluginClassName = properties.getOrDefault("authPlugin", "")  + "";
+        String authParamsString = properties.getOrDefault("authParams", "")  + "";
+        Authentication authentication = AuthenticationFactory.create(authPluginClassName, authParamsString);
+
+        pulsarAdmin = PulsarAdmin.builder()
+                .serviceHttpUrl(webServiceUrl)
+                .allowTlsInsecureConnection(tlsAllowInsecureConnection)
+                .enableTlsHostnameVerification(tlsEnableHostnameVerification)
+                .tlsTrustCertsFilePath(tlsTrustCertsFilePath)
+                .useKeyStoreTls(useKeyStoreTls)
+                .tlsTrustStoreType(tlsTrustStoreType)
+                .tlsTrustStorePath(tlsTrustStorePath)
+                .tlsTrustStorePassword(tlsTrustStorePassword)
+                .authentication(authentication)
+                .build();
+
       } catch (PulsarClientException err) {
         if (pulsarAdmin != null) {
           pulsarAdmin.close();

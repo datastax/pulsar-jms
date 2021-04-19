@@ -1,12 +1,12 @@
 # DataStax Apache Pulsar JMS Client
 
-This is a Java library that implements the JMS 2.0 (Java Messaging Service ®) over the Apache Pulsar® Java Client..
+This is a Java library that implements the JMS 2.0 (Java Messaging Service ®) over the Apache Pulsar® Java Client.
 
 This library is Open Source Software, Apache 2 licensed.
 
 Please refer to the [official JMS documentation](https://jakarta.ee/specifications/messaging/2.0/) in order to learn about JMS.
 
-You can find [here](https://pulsar.apache.org) the official Aaache Pulsar documentation.
+You can find [here](https://pulsar.apache.org) the official Apache Pulsar documentation.
 
 ## Installation
 
@@ -79,13 +79,16 @@ In order to only run the TCK
 
        mvn clean install -Prun-tck -pl tck-executor
 
-## Mapping Apache Pulsar Concept to JMS Specification
+This library, when you run it using Apache Pulsar 2.7.x passes most of the TCK, except from the few tests around the need
+of supporting globally unique subscription names, those tests are skipped by the configuration applied to the TCK runner.
+
+## Mapping Apache Pulsar Concepts to JMS Specifications
 
 JMS Specifications are built over the concepts of **Topics** and **Queues**, but in Pulsar we only have a general concept of **Topic**
 that can model both of the two domains.
 
-In Pulsar there is no concept of Queue: this JMS client will treat as Queue your Pulsar topic when
-you use the Queue related JMS API. There is no strict, cluster wide, verification that you are accessing
+In Pulsar there is no concept of Queue: this JMS **client will treat as Queue your Pulsar topic when
+you use the Queue related JMS API**. There is no strict, cluster wide, verification that you are accessing
 a JMS Queue using the Topic API and vice versa.
 
 In JMS a **Topic** is written by many **Producers** and read by many **Consumers**, that share one or many **Subscriptions**.
@@ -157,7 +160,7 @@ In Pulsar properties are always of type String, but JMS specs require to support
 In order to emulate this behaviour for every custom property set on the message we set an additional property that describes the original type of the property.
 
 For instance if you set a message property foo=1234 (integer) we add a property foo_type=integer in order to reconstruct properly 
-the value when the receiver call `getObjectProperty`.
+the value when the receiver calls `getObjectProperty`.
 
 The value is always serialized as string, and for floating point numbers we are using Double.toString/parseString and Float.toString/parseString, with the behaviour mandated
 by Java specifications.
@@ -174,12 +177,15 @@ in order to allow the access of the Message.
 
 The Key of the Pulsar message is always mapped to the JMSXGroupID message property.
 
-## Unsupported features
+## Unsupported and Emulated features
 
 The JMS 2.0 specifications describe broadly a generic Messaging service and define many interfaces and services.
 Apache Pulsar does not support every of the required features, and this library is a wrapper over the Apache Pulsar Client.
 
-This library, when you run it using Apache Pulsar 2.7.x passes most of the TCK, except from the few tests around this list of features.
+Most of the features that are not natively supported by Pulsar are emulated by the JMS Client,
+this may help in porting existing JMS based applications application to Pulsar.
+If you want to use emulated features, but the emulated behaviour does not fit your needs please
+open an issue in order to request an improvement, that will have to be implemented on Pulsar core.
 
 | Feature  | Supported by Pulsar | Emulated by client |
 | ------------- | ------------- | ------------- |
@@ -197,6 +203,9 @@ This library, when you run it using Apache Pulsar 2.7.x passes most of the TCK, 
 | StreamMessage | Unsupported in Pulsar | Emulated by storing the whole stream in one message | 
 | Topic vs Queue | Unsupported in Pulsar | Every destination is a Pulsar Topic, the behaviour of the client depends on which API you use |
 | Username/password authentication | Unsupported in Pulsar | Unsupported in the JMS client |
+
+This library, when you run it using Apache Pulsar 2.7.x passes most of the TCK, except from the few tests around the need
+of supporting globally unique subscription names.
 
 ## Message selectors and noLocal subscriptions
 
