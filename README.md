@@ -84,6 +84,10 @@ In order to only run the TCK
 JMS Specifications are built over the concepts of **Topics** and **Queues**, but in Pulsar we only have a general concept of **Topic**
 that can model both of the two domains.
 
+In Pulsar there is no concept of Queue: this JMS client will treat as Queue your Pulsar topic when
+you use the Queue related JMS API. There is no strict, cluster wide, verification that you are accessing
+a JMS Queue using the Topic API and vice versa.
+
 In JMS a **Topic** is written by many **Producers** and read by many **Consumers**, that share one or many **Subscriptions**.
 Subscriptions may be **Durable** or **Non-Durable**, **Shared** or **Non-Shared**. So the same message may be received and processed by more than one Consumer. 
 
@@ -180,17 +184,17 @@ This library, when you run it using Apache Pulsar 2.7.x passes most of the TCK, 
 | Feature  | Supported by Pulsar | Emulated by client |
 | ------------- | ------------- | ------------- |
 | Message selectors | Not supported by Pulsar | Emulated on Client |
-| NoLocal subscriptions | Not supported by Pulsar | Emulated on Client |
-| Per message Time To Live | Pulsar supports TTL at topic level, not per-message | Emulated on Client |
+| NoLocal subscriptions | Not supported by Pulsar | Emulated by JMS Client |
+| Per message Time To Live | Pulsar supports TTL at topic level, not per-message | Emulated by JMS Client |
 | Global registry of clientId  | Not supported by Pulsar | Partially emulated by JSM Client |
 | Global unique subscription names  | In Pulsar the subcription name is unique per topic | Partially emulated by JSM Client |
-| Temporary destinations (auto deleted when Connection is closed) | Not supported by Pulsar | Emulated on Client, require admin privileges |
-| Creation of subscriptions from client | Supported by it requires relevant privileges granted to the client | |
+| Temporary destinations (auto deleted when Connection is closed) | Not supported by Pulsar | Partially emulated by JSM Client |
+| Creation of subscriptions from client | Supported, but it requires relevant privileges granted to the client | |
 | Delayed messages | It does not work for Exclusive subscriptions | There is an option to use Shared subscriptions even in cases there an Exclusive subscription would be preferred |
 | Message Priority | Unsupported | Priority is stored as property and delivered to the consumer, but ignored|
 | Non-Durable Messages | Unsupported, every Message is persisted | DeliveryMode is stored as property and delivered to the consumer, but ignored|
-| Transactions | Supported as BETA in Pulsar 2.7.x | |
-| StreamMessage | Unsupported in Pulsar | The message contains the whole stream | 
+| Transactions | Supported as BETA in Pulsar 2.7.x | Transactions must be enabled on client and on server |
+| StreamMessage | Unsupported in Pulsar | Emulated by storing the whole stream in one message | 
 | Topic vs Queue | Unsupported in Pulsar | Every destination is a Pulsar Topic, the behaviour of the client depends on which API you use |
 | Username/password authentication | Unsupported in Pulsar | Unsupported in the JMS client |
 
@@ -277,4 +281,6 @@ The configuration is passed to the PulsarConnectionFactory constructor.
 | jms.tckPassword | no | String | empty string | Password for running the TCK | Not used in production |
 
 Every other option is passed as configuration to the Pulsar Client and to the Pulsar Admin client, this way
-you can configure additional Pulsar features and especially security related features, like Authentication and Encryption. 
+you can configure additional Pulsar features and especially security related features, like Authentication and Encryption.
+
+Please check Apache Pulsar documentation for the complete list of configuration options.
