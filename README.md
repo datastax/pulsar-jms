@@ -113,11 +113,46 @@ In order to peek the next message we use the Pulsar Admin API `peekMessages`.
 Sometimes it happens that the 'peekMessages' API still returns the last consumed message of the subscription, so the QueueBrowser may return non-accurate
 results.
 
+## Pulsar Message Key and JMSXGroupID
+
+The special JMSXGroupID property is defined in the JMS specs as a way to group the messages and possibly route them to the same destination.
+This is the same behaviour implemented in [Apache ActiveMQ](https://activemq.apache.org/message-groups).
+For this reason we are mapping this property to the Message Key in Pulsar, this way JMSXGroupID will be used as routing key.
+
 ## Message Listeners and Concurrency
-TODO
+
+The JMS specifications require a specific behaviour for MessageListener in respect to concurrency, for this reason the JMS client starts a dedicated
+thread per each Session in order process every MessageListener.
+
+There are also specific behaviours mandates but the specs regarding these APIs:
+- Connection/JMSContext.start() and Connection/JMSContext.stop()
+- Session.close()/JMSContext.close()
+- Connection/JMSContext.close()
+
+Pulsar JMS client implements its own concurrent processing model in order to obey the specs, and it cannot use the builtin facilities provider by the Pulsar client.
+
+For CompletionListeners, that are useful for asynchronous sending of messages the JMS relies on Pulsar async API, but there are some behaviour that are still to be enforced
+in respect to Session/JMSContext.close().
+
+## Message properties
+In Pulsar properties are always of type String, but JMS specs require to support every Java primitive type.
+In order to emulate this behaviour for every custom property set on the message we set an additional property that describes the original type of the property.
+
+For instance if you set a message property foo=1234 (integer) we add a property foo_type=integer on the message in order to reconstruct properly 
+the value when the receiver call "getObjectProperty".
+The value is always serialized as string, and for floating point numbers we are using Double.toString/parseString and Float.toString/parseString, with the behaviour mandated
+by Java specifications.
 
 ## Interoperability with other Pulsar Clients
-TODO
+
+The Pulsar JMS Client do not deal with Schema, and it treats every message as a raw array of bytes, interpreting the content of the message according to the JMS API
+that is used and to a special JMSPulsarMessageType property.
+JMS specs require that on the consumer side you receive a message of the same type that has been sent by the producer: TextMessage,BytesMessage,StreamMessage,MapMessage.
+
+When the JMS consumer receives a message that has not been produced bu the JMS client itself and lacks the JMSPulsarMessageType property it converts it to a BytesMessage
+in order to allow the access of the Message.
+
+The Key of the Pulsar message is always mapped to the JMSXGroupID message property.
 
 ## Unsupported features
 
@@ -141,6 +176,7 @@ This library, when you run it using Apache Pulsar 2.7.x passes most of the TCK, 
 | Transactions | Supported as BETA in Pulsar 2.7.x | |
 | StreamMessage | Unsupported in Pulsar | The message contains the whole stream | 
 | Topic vs Queue | Unsupported in Pulsar | Every destination is a Pulsar Topic, the behaviour of the client depends on which API you use |
+| Username/password authentication | Unsupported in Pulsar | Unsupported in the JMS client |
 
 ## Message selectors and noLocal subscriptions.
 
@@ -157,7 +193,7 @@ Both of these features can be emulated on the client side with these limitations
 
 Currently, the implementation of Message Selectors is based on Apache ActiveMQ® Java client classes, imported as dependency, Apache ActiveMQ is Apache 2 licensed.
 
-## Global registry of subscription names
+## Global registry of subscription names and of clientIds
 
 The JMS specifications require a subscription name, together with the clientId, to be globally unique in the system, but in Pulsar the subscription name is defined
 in the scope of the Topic, so you can use the same subscription name on two different topics, referring to district entities.
@@ -166,7 +202,8 @@ These are the most notable side effects while using Pulsar with the JMS API:
 - `Session.unsubscribe(String subscriptionName)` cannot be used, because it refers to the subscriptionName without a topic name
 - We cannot implement the requirements of the specs when for instance you change a message selector, and you should _unsubscribe_ the old subscriptionName and create a new subscription
 
-In Pulsar, we cannot attach labels or metadata to subscriptions and we cannot enforce globally that a subscription is accessed everywhere using the same "messaage selector" and "noLocal" options.
+In Pulsar, we cannot attach labels or metadata to subscriptions, and we cannot enforce globally that a subscription is accessed everywhere using the same "messaage selector" and "noLocal" options.
+Pulsar does not have the concept of clientId, so it is not possible to prevent the existence of multiple Connections with the same clientId in the cluster, such check is performed only locally in the context of the JVM/Classloader execution (using a _static_ registry)
 
 ## Delayed Messages
 
@@ -195,7 +232,30 @@ In order to allow the JMS client to create subscriptions the client must be allo
 please check `allowAutoSubscriptionCreation=true` parameter on your broker configuration.
 
 
-
 ## Configuration reference
 
-TODO
+
+This is the complete reference for configuring the Pulsar JMS client.
+The configuration is passed to the PulsarConnectionFactory constructor.
+
+```
+    Map<String, Object> configuration = new HashMap<>();
+    configuration.put("...","...");
+    ConnectionFactory factory = new PulsarConnectionFactory(configuration);
+    ....
+    factory.close();
+```
+
+| Configuration Entry  | Required | Type | Default value | Meaning | Notes |
+| ------------- | ------------- | -------------| ------------- | ------------- | ------------- |
+| webServiceUrl | yes | String | http://localhost:8080 | Main Pulsar HTTP endpoint | Configure this in order to access to your cluster |
+| jms.clientId | no | String | empty string | Administratively assigned clientId (see JMS specs) | It is the default value assigned to every Connection |
+| producerConfig | no | Map<String, Object> | Empty Map | Additional configuration to be set on every Pulsar Producer | |
+| consumerConfig | no | Map<String, Object> | Empty Map | Additional configuration to be set on every Pulsar Consumer | |
+| jms.systemNamespace | no | String | public/default | Pulsar namespace in which create TemporaryDestinations | |
+| jms.queueName | no | String | jms-queue | Name of the system subscription used to emulate JMS Queues | |
+| jms.useExclusiveSubscriptionsForSimpleConsumers | no | boolean | true | Use Exclusive subscription for Topic consumers | Set this to 'false' to make Delayed Messages work properly |
+| jms.forceDeleteTemporaryDestinations | no | boolean | false | Force the deletion of Temporary Destinations | Use Pulsar API to force the deletion even in case of active subscriptions (as 'jms-queue' for instance) |
+| jms.tckUsername | no | String | empty string | Username for running the TCK | Not used in production |
+| jms.tckPassword | no | String | empty string | Password for running the TCK | Not used in production |
+| enableTransaction | no | boolean | false | Enable transactions | It defaults to false because Transaction support is not enabled by default in Pulsar 2.7 and the client won't be able to connect to a cluster that does not enable transactions |
