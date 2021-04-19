@@ -11,7 +11,7 @@ cp ts.* $TS_HOME/bin
 cd $TS_HOME/src/com/sun/ts/tests/jms
 #cd $TS_HOME/src/com/sun/ts/tests/jms/core20/appclient/jmscontexttopictests
 
-cd $TS_HOME/src/com/sun/ts/tests/jms/core20/sessiontests
+#cd $TS_HOME/src/com/sun/ts/tests/jms/core20/sessiontests
 #cd $TS_HOME/src/com/sun/ts/tests/jms/core
 #cd $TS_HOME/src/com/sun/ts/tests/jms/core20
 #cd $TS_HOME/src/com/sun/ts/tests/jms/core20/connectionfactorytests

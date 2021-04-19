@@ -23,6 +23,7 @@
 com/sun/ts/tests/jms/core/topictests/TopicTests.java#durableSubscriberChangeSelectorTest2_from_standalone
 com/sun/ts/tests/jms/core/topictests/TopicTests.java#durableSubscriberTopicNoLocalTest2_from_standalone
 com/sun/ts/tests/jms/core20/jmscontexttopictests/Client.java#durableConsumerChangeSelectorTest2_from_standalone
+com/sun/ts/tests/jms/core20/jmscontexttopictests/Client.java#durableConsumerTopicNoLocalTest_from_standalone
 
 #global subscriptions
 com/sun/ts/tests/jms/core20/sessiontests/Client.java#jMSExceptionTests_from_standalone
