@@ -5,6 +5,7 @@ This is a Java library that implements the JMS 2.0 (Java Messaging Service ®) o
 This library is Open Source Software, Apache 2 licensed.
 
 Please refer to the [official JMS documentation](https://jakarta.ee/specifications/messaging/2.0/) in order to learn about JMS.
+This [website](https://javaee.github.io/jms-spec/) is useful as well as it contains the former JMS 2.0 specifications before the Jakarta transitions.
 
 You can find [here](https://pulsar.apache.org) the official Apache Pulsar documentation.
 
@@ -176,6 +177,14 @@ When the JMS consumer receives a message that has not been produced bu the JMS c
 in order to allow the access of the Message.
 
 The Key of the Pulsar message is always mapped to the JMSXGroupID message property.
+
+## Client identifiers
+
+Each Connection may have a client identifier, that can be set programmatically or configured administratively using the 
+`jms.clientId` configuration parameters.
+Client identifiers must be globally unique but there is no way to enforce this constraint on a Pulsar cluster.
+
+When you set a clientId the actual subscription name in Pulsar is composed by `clientId + '_' + subscriptionName`. 
 
 ## Unsupported and Emulated features
 
