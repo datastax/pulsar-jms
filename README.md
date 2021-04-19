@@ -198,11 +198,11 @@ open an issue in order to request an improvement, that will have to be implement
 | Creation of subscriptions from client | Supported, but it requires relevant privileges granted to the client | |
 | Delayed messages | It does not work for Exclusive subscriptions | There is an option to use Shared subscriptions even in cases there an Exclusive subscription would be preferred |
 | Message Priority | Unsupported | Priority is stored as property and delivered to the consumer, but ignored|
-| Non-Durable Messages | Unsupported, every Message is persisted | DeliveryMode is stored as property and delivered to the consumer, but ignored|
+| Non-Persistent Messages | Unsupported, every Message is persisted | DeliveryMode.NON_PERSISTENT is stored as property and delivered to the consumer, but ignored|
 | Transactions | Supported as BETA in Pulsar 2.7.x | Transactions must be enabled on client and on server |
 | StreamMessage | Unsupported in Pulsar | Emulated by storing the whole stream in one message | 
 | Topic vs Queue | Unsupported in Pulsar | Every destination is a Pulsar Topic, the behaviour of the client depends on which API you use |
-| Username/password authentication | Unsupported in Pulsar | Unsupported in the JMS client |
+| Username/password authentication | Unsupported in Pulsar | Unsupported in the JMS client, but you can configure Pulsar client security features |
 
 This library, when you run it using Apache Pulsar 2.7.x passes most of the TCK, except from the few tests around the need
 of supporting globally unique subscription names.
@@ -242,6 +242,8 @@ But anyway you are not going to use a Shared subscription when an Exclusive subs
 The most notable case is Session.createConsumer(destination), that creates an unnamed subscription, and an Exclusive subscription would be a better fit.
 
 If you set `jms.useExclusiveSubscriptionsForSimpleConsumers=false` the client will use a Shared subscription, and the delay will be respected.
+
+See [PIP-26](https://github.com/apache/pulsar/wiki/PIP-26:-Delayed-Message-Delivery) for reference.
 
 ## Temporary destinations
 
