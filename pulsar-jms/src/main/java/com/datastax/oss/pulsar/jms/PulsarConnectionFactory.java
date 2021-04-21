@@ -40,9 +40,7 @@ import javax.jms.QueueConnectionFactory;
 import javax.jms.TopicConnection;
 import javax.jms.TopicConnectionFactory;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.pulsar.client.admin.PulsarAdmin;
-import org.apache.pulsar.client.admin.PulsarAdminBuilder;
 import org.apache.pulsar.client.admin.PulsarAdminException;
 import org.apache.pulsar.client.api.Authentication;
 import org.apache.pulsar.client.api.AuthenticationFactory;
@@ -136,19 +134,23 @@ public class PulsarConnectionFactory
       String webServiceUrl =
           getAndRemoveString("webServiceUrl", "http://localhost:8080", properties);
 
-      String brokenServiceUrl =
-              getAndRemoveString("brokerServiceUrl", "", properties);
+      String brokenServiceUrl = getAndRemoveString("brokerServiceUrl", "", properties);
 
       PulsarClient pulsarClient = null;
       PulsarAdmin pulsarAdmin = null;
       try {
 
-        String authPluginClassName = properties.getOrDefault("authPluginClassName", "")  + "";
-        String authParamsString = properties.getOrDefault("authParams", "")  + "";
-        Authentication authentication = AuthenticationFactory.create(authPluginClassName, authParamsString);
-        log.info("Auth {}", authentication);
+        // must be the same as https://pulsar.apache.org/docs/en/security-tls-keystore/#configuring-clients
+        String authPluginClassName = getAndRemoveString("authPlugin", "", properties);
+        String authParamsString = getAndRemoveString("authParams", "", properties);
+        Authentication authentication =
+            AuthenticationFactory.create(authPluginClassName, authParamsString);
+        if (log.isDebugEnabled()) {
+          log.debug("Authentication {}", authentication);
+        }
 
-        ClientBuilder clientBuilder = PulsarClient.builder()
+        ClientBuilder clientBuilder =
+            PulsarClient.builder()
                 .loadConf(properties)
                 .serviceUrl(webServiceUrl)
                 .authentication(authentication);
@@ -156,21 +158,26 @@ public class PulsarConnectionFactory
           clientBuilder.serviceUrl(brokenServiceUrl);
         }
 
-        pulsarClient =
-                clientBuilder
-                    .build();
+        pulsarClient = clientBuilder.build();
 
-        boolean tlsAllowInsecureConnection = Boolean.parseBoolean(properties.getOrDefault("tlsAllowInsecureConnection", "false") + "");
+        boolean tlsAllowInsecureConnection =
+            Boolean.parseBoolean(
+                    getAndRemoveString("tlsAllowInsecureConnection", "false", properties));
 
-        boolean tlsEnableHostnameVerification = Boolean.parseBoolean(properties.getOrDefault("tlsEnableHostnameVerification", "false")+ "");
-        final String tlsTrustCertsFilePath = (String) properties.getOrDefault("tlsTrustCertsFilePath", "") + "";
+        boolean tlsEnableHostnameVerification =
+            Boolean.parseBoolean(
+                    getAndRemoveString("tlsEnableHostnameVerification", "false", properties));
+        final String tlsTrustCertsFilePath =
+            (String) getAndRemoveString("tlsTrustCertsFilePath", "", properties);
 
-        boolean useKeyStoreTls = Boolean.parseBoolean(properties.getOrDefault("useKeyStoreTls", "false") + "");
-        String tlsTrustStoreType = properties.getOrDefault("tlsTrustStoreType", "JKS")  + "";
-        String tlsTrustStorePath = properties.getOrDefault("tlsTrustStorePath", "")  + "";
-        String tlsTrustStorePassword = properties.getOrDefault("tlsTrustStorePassword", "")  + "";
+        boolean useKeyStoreTls =
+            Boolean.parseBoolean(getAndRemoveString("useKeyStoreTls", "false", properties));
+        String tlsTrustStoreType = getAndRemoveString("tlsTrustStoreType", "JKS", properties);
+        String tlsTrustStorePath = getAndRemoveString("tlsTrustStorePath", "", properties);
+        String tlsTrustStorePassword = getAndRemoveString("tlsTrustStorePassword", "", properties);
 
-        pulsarAdmin = PulsarAdmin.builder()
+        pulsarAdmin =
+            PulsarAdmin.builder()
                 .serviceHttpUrl(webServiceUrl)
                 .allowTlsInsecureConnection(tlsAllowInsecureConnection)
                 .enableTlsHostnameVerification(tlsEnableHostnameVerification)

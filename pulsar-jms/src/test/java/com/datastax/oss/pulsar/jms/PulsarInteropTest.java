@@ -15,7 +15,23 @@
  */
 package com.datastax.oss.pulsar.jms;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+
 import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+import javax.jms.BytesMessage;
+import javax.jms.Connection;
+import javax.jms.Destination;
+import javax.jms.JMSConsumer;
+import javax.jms.JMSContext;
+import javax.jms.MessageProducer;
+import javax.jms.Session;
+import javax.jms.TextMessage;
 import org.apache.pulsar.client.api.Consumer;
 import org.apache.pulsar.client.api.Message;
 import org.apache.pulsar.client.api.Producer;
@@ -25,42 +41,6 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-
-import javax.jms.BytesMessage;
-import javax.jms.CompletionListener;
-import javax.jms.Connection;
-import javax.jms.DeliveryMode;
-import javax.jms.Destination;
-import javax.jms.JMSConsumer;
-import javax.jms.JMSContext;
-import javax.jms.JMSProducer;
-import javax.jms.MapMessage;
-import javax.jms.MessageConsumer;
-import javax.jms.MessageProducer;
-import javax.jms.ObjectMessage;
-import javax.jms.Queue;
-import javax.jms.Session;
-import javax.jms.StreamMessage;
-import javax.jms.TextMessage;
-import java.io.ByteArrayInputStream;
-import java.io.DataInputStream;
-import java.io.EOFException;
-import java.io.Serializable;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
 
 public class PulsarInteropTest {
 
@@ -89,28 +69,27 @@ public class PulsarInteropTest {
       try (Connection connection = factory.createConnection()) {
         try (Session session = connection.createSession(); ) {
           String topic = "persistent://public/default/test-" + UUID.randomUUID();
-          Destination destination =
-              session.createTopic(topic);
+          Destination destination = session.createTopic(topic);
 
-          PulsarClient client = cluster.getService().getClient(); // do not close this client, it is internal to the broker
+          PulsarClient client =
+              cluster
+                  .getService()
+                  .getClient(); // do not close this client, it is internal to the broker
 
-            try (Consumer<String> consumer = client
-                    .newConsumer(Schema.STRING)
-                    .subscriptionName("test")
-                    .topic(topic)
-                    .subscribe()) {
+          try (Consumer<String> consumer =
+              client.newConsumer(Schema.STRING).subscriptionName("test").topic(topic).subscribe()) {
 
-              try (MessageProducer producer = session.createProducer(destination);) {
-                TextMessage textMsg = session.createTextMessage("foo");
-                textMsg.setStringProperty("JMSXGroupID", "bar");
-                producer.send(textMsg);
+            try (MessageProducer producer = session.createProducer(destination); ) {
+              TextMessage textMsg = session.createTextMessage("foo");
+              textMsg.setStringProperty("JMSXGroupID", "bar");
+              producer.send(textMsg);
 
-                Message<String> receivedMessage = consumer.receive();
-                assertEquals("foo", receivedMessage.getValue());
-                assertEquals("bar", receivedMessage.getKey());
-              }
+              Message<String> receivedMessage = consumer.receive();
+              assertEquals("foo", receivedMessage.getValue());
+              assertEquals("bar", receivedMessage.getKey());
             }
           }
+        }
       }
     }
   }
@@ -123,30 +102,27 @@ public class PulsarInteropTest {
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (JMSContext context = factory.createContext()) {
 
-          String topic = "persistent://public/default/test-" + UUID.randomUUID();
-          Destination destination =
-                  context.createTopic(topic);
+        String topic = "persistent://public/default/test-" + UUID.randomUUID();
+        Destination destination = context.createTopic(topic);
 
-          PulsarClient client = cluster.getService().getClient(); // do not close this client, it is internal to the broker
-          try (JMSConsumer consumer = context
-                  .createConsumer(destination)) {
+        PulsarClient client =
+            cluster
+                .getService()
+                .getClient(); // do not close this client, it is internal to the broker
+        try (JMSConsumer consumer = context.createConsumer(destination)) {
 
-            try (Producer<String> producer = client
-                    .newProducer(Schema.STRING)
-                    .topic(topic)
-                    .create();) {
-              producer.newMessage().value("foo").key("bar").send();
+          try (Producer<String> producer =
+              client.newProducer(Schema.STRING).topic(topic).create(); ) {
+            producer.newMessage().value("foo").key("bar").send();
 
-              // the JMS client reads raw messages always as BytesMessage
-              BytesMessage message = (BytesMessage) consumer.receive();
-              assertArrayEquals("foo".getBytes(StandardCharsets.UTF_8), message.getBody(byte[].class));
-              assertEquals("bar", message.getStringProperty("JMSXGroupID"));
-            }
+            // the JMS client reads raw messages always as BytesMessage
+            BytesMessage message = (BytesMessage) consumer.receive();
+            assertArrayEquals(
+                "foo".getBytes(StandardCharsets.UTF_8), message.getBody(byte[].class));
+            assertEquals("bar", message.getStringProperty("JMSXGroupID"));
           }
         }
-
-
+      }
     }
   }
-
 }

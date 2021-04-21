@@ -302,6 +302,6 @@ The configuration is passed to the PulsarConnectionFactory constructor.
 | jms.tckPassword | no | String | empty string | Password for running the TCK | Not used in production |
 
 Every other option is passed as configuration to the Pulsar Client and to the Pulsar Admin client, this way
-you can configure additional Pulsar features and especially security related features, like Authentication and Encryption.
+you can configure additional Pulsar features, like [security](https://pulsar.apache.org/docs/en/security-tls-keystore/#configuring-clients).
 
 Please check Apache Pulsar documentation for the complete list of configuration options.
