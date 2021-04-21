@@ -5,7 +5,7 @@
 IMAGENAME=eolivelli/pulsar:2.8.0-SNAPSHOT
 
 HERE=$(dirname $0)
-HERE=$(realpath $HERE)
+HERE=$(realpath "$HERE")
 docker rm -f pulsar-jms-runner
 docker run --name pulsar-jms-runner -v $HERE/conf:/pulsar/conf -d -p 8080:8080 -p 6650:6650 $IMAGENAME /pulsar/bin/pulsar standalone 
 # Wait for pulsar to start

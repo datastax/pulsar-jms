@@ -90,7 +90,4 @@
       <scope>test</scope>
     </dependency>
   </dependencies>
-  <build>
-    <plugins/>
-  </build>
 </project>

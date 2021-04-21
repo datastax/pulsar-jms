@@ -212,6 +212,7 @@ open an issue in order to request an improvement, that will have to be implement
 | StreamMessage | Unsupported in Pulsar | Emulated by storing the whole stream in one message | 
 | Topic vs Queue | Unsupported in Pulsar | Every destination is a Pulsar Topic, the behaviour of the client depends on which API you use |
 | Username/password authentication | Unsupported in Pulsar | Unsupported in the JMS client, but you can configure Pulsar client security features |
+| JMSXDeliveryCount/JMSRedelivered | Unsupported JMS behaviour in Pulsar | The behaviour of the delivery counter in Pulsar follows different semantics in respect to JMS |
 
 This library, when you run it using Apache Pulsar 2.7.x passes most of the TCK, except from the few tests around the need
 of supporting globally unique subscription names.

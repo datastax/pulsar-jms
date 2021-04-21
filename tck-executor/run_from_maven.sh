@@ -2,7 +2,7 @@
 
 set -x -e
 HERE=$(dirname $0)
-HERE=$(realpath $HERE)
+HERE=$(realpath "$HERE")
 
 unzip -o $HERE/jakarta-messaging-tck-2.0.0.zip -d $HERE/target
 

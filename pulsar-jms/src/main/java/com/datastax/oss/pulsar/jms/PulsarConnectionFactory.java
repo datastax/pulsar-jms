@@ -140,7 +140,8 @@ public class PulsarConnectionFactory
       PulsarAdmin pulsarAdmin = null;
       try {
 
-        // must be the same as https://pulsar.apache.org/docs/en/security-tls-keystore/#configuring-clients
+        // must be the same as
+        // https://pulsar.apache.org/docs/en/security-tls-keystore/#configuring-clients
         String authPluginClassName = getAndRemoveString("authPlugin", "", properties);
         String authParamsString = getAndRemoveString("authParams", "", properties);
         Authentication authentication =
@@ -148,25 +149,13 @@ public class PulsarConnectionFactory
         if (log.isDebugEnabled()) {
           log.debug("Authentication {}", authentication);
         }
-
-        ClientBuilder clientBuilder =
-            PulsarClient.builder()
-                .loadConf(properties)
-                .serviceUrl(webServiceUrl)
-                .authentication(authentication);
-        if (!brokenServiceUrl.isEmpty()) {
-          clientBuilder.serviceUrl(brokenServiceUrl);
-        }
-
-        pulsarClient = clientBuilder.build();
-
         boolean tlsAllowInsecureConnection =
             Boolean.parseBoolean(
-                    getAndRemoveString("tlsAllowInsecureConnection", "false", properties));
+                getAndRemoveString("tlsAllowInsecureConnection", "false", properties));
 
         boolean tlsEnableHostnameVerification =
             Boolean.parseBoolean(
-                    getAndRemoveString("tlsEnableHostnameVerification", "false", properties));
+                getAndRemoveString("tlsEnableHostnameVerification", "false", properties));
         final String tlsTrustCertsFilePath =
             (String) getAndRemoveString("tlsTrustCertsFilePath", "", properties);
 
@@ -175,6 +164,24 @@ public class PulsarConnectionFactory
         String tlsTrustStoreType = getAndRemoveString("tlsTrustStoreType", "JKS", properties);
         String tlsTrustStorePath = getAndRemoveString("tlsTrustStorePath", "", properties);
         String tlsTrustStorePassword = getAndRemoveString("tlsTrustStorePassword", "", properties);
+
+        ClientBuilder clientBuilder =
+            PulsarClient.builder()
+                .loadConf(properties)
+                .tlsTrustStorePassword(tlsTrustStorePassword)
+                .tlsTrustStorePath(tlsTrustStorePath)
+                .tlsTrustCertsFilePath(tlsTrustCertsFilePath)
+                .tlsTrustStoreType(tlsTrustStoreType)
+                .useKeyStoreTls(useKeyStoreTls)
+                .enableTlsHostnameVerification(tlsEnableHostnameVerification)
+                .allowTlsInsecureConnection(tlsAllowInsecureConnection)
+                .serviceUrl(webServiceUrl)
+                .authentication(authentication);
+        if (!brokenServiceUrl.isEmpty()) {
+          clientBuilder.serviceUrl(brokenServiceUrl);
+        }
+
+        pulsarClient = clientBuilder.build();
 
         pulsarAdmin =
             PulsarAdmin.builder()
