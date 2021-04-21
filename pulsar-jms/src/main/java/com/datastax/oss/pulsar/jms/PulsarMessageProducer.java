@@ -796,7 +796,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
     message.setJMSPriority(priority);
     applyTimeToLive(message, timeToLive);
     PulsarMessage pulsarMessage = prepareMessageForSend(message);
-    sendMessage(defaultDestination, message, completionListener);
+    sendMessage(defaultDestination, pulsarMessage, completionListener);
   }
 
   private PulsarMessage prepareMessageForSend(Message message) throws JMSException {
@@ -855,7 +855,6 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
       // res.setJMSMessageID(message.getJMSMessageID());
       // res.setJMSTimestamp(message.getJMSTimestamp());
       // res.setJMSExpiration(message.getJMSExpiration());
-      message = res;
     } else {
       res = (PulsarMessage) message;
     }
@@ -1204,7 +1203,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
                 (PulsarDestination) defaultDestination, session.getTransacted());
     message.setJMSDestination(defaultDestination);
     PulsarMessage pulsarMessage = prepareMessageForSend(message);
-    TypedMessageBuilder<byte[]> typedMessageBuilder = producer.newMessage();
+    final TypedMessageBuilder<byte[]> typedMessageBuilder;
     if (session.getTransacted()) {
       typedMessageBuilder = producer.newMessage(session.getTransaction());
     } else {

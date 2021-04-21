@@ -17,6 +17,7 @@ package com.datastax.oss.pulsar.jms.messages;
 
 import com.datastax.oss.pulsar.jms.PulsarMessage;
 import com.datastax.oss.pulsar.jms.Utils;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
@@ -51,6 +52,7 @@ public final class PulsarBytesMessage extends PulsarMessage implements BytesMess
   protected DataInputStream dataInputStream;
   protected DataOutputStream dataOutputStream;
 
+  @SuppressFBWarnings("EI_EXPOSE_REP2")
   public PulsarBytesMessage(byte[] payload) throws JMSException {
     try {
       this.dataInputStream = new DataInputStream(new ByteArrayInputStream(payload));

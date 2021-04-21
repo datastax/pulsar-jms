@@ -17,6 +17,7 @@ package com.datastax.oss.pulsar.jms.messages;
 
 import com.datastax.oss.pulsar.jms.PulsarMessage;
 import com.datastax.oss.pulsar.jms.Utils;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
@@ -169,7 +170,7 @@ public final class PulsarStreamMessage extends PulsarMessage implements StreamMe
         case TYPE_BYTES:
           int len = readArrayLen();
           byte[] buffer = new byte[len];
-          dataInputStream.read(buffer);
+          dataInputStream.readFully(buffer);
           return buffer;
         default:
           throw new MessageFormatException("Wrong data type: " + dataType);
@@ -228,6 +229,7 @@ public final class PulsarStreamMessage extends PulsarMessage implements StreamMe
     }
   }
 
+  @SuppressFBWarnings("EI_EXPOSE_REP2")
   public PulsarStreamMessage(byte[] payload) throws JMSException {
     try {
       this.dataInputStream = new DataInputStream(new ByteArrayInputStream(payload));
@@ -997,10 +999,10 @@ public final class PulsarStreamMessage extends PulsarMessage implements StreamMe
    * @throws MessageNotReadableException if the message is in write-only mode.
    */
   public int readBytes(byte[] value, int length) throws JMSException {
-    if (length < 0 || length > value.length) {
+    checkReadable();
+    if (length < 0 || (value != null && length > value.length)) {
       throw new IndexOutOfBoundsException();
     }
-    checkReadable();
     try {
       if (remainingByteArrayLen == Integer.MIN_VALUE) { // start of field
         dataInputStream.mark(length);

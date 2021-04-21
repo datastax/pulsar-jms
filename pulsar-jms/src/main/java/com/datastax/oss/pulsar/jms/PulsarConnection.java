@@ -930,7 +930,7 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
   @Override
   public ConnectionConsumer createConnectionConsumer(
       Topic topic, String s, ServerSessionPool serverSessionPool, int i) throws JMSException {
-    return createConnectionConsumer(topic, s, serverSessionPool, i);
+    throw new JMSException("Not implemented");
   }
 
   void removeTemporaryDestination(PulsarTemporaryDestination pulsarTemporaryDestination) {

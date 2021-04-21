@@ -261,7 +261,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
     return receiveWithTimeoutAndValidateType(timeout, null);
   }
 
-  private Message receiveWithTimeoutAndValidateType(long timeout, Class expectedType)
+  private synchronized Message receiveWithTimeoutAndValidateType(long timeout, Class expectedType)
       throws JMSException {
     checkNotClosed();
     if (listener != null) {
@@ -595,39 +595,37 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
     if (closed || listener == null) {
       return;
     }
-    if (listener != null) {
-      // activate checks about methods that cannot be called inside a listener
-      // and block any concurrent "close()" operations
-      Utils.executeMessageListenerInSessionContext(
-          session,
-          this,
-          () -> {
-            if (closed) {
+    // activate checks about methods that cannot be called inside a listener
+    // and block any concurrent "close()" operations
+    Utils.executeMessageListenerInSessionContext(
+        session,
+        this,
+        () -> {
+          if (closed) {
+            return;
+          }
+          try {
+            Consumer<byte[]> consumer = getConsumer();
+            org.apache.pulsar.client.api.Message<byte[]> message =
+                consumer.receive(timeout, TimeUnit.MILLISECONDS);
+            if (message == null) {
               return;
             }
-            try {
-              Consumer<byte[]> consumer = getConsumer();
-              org.apache.pulsar.client.api.Message<byte[]> message =
-                  consumer.receive(timeout, TimeUnit.MILLISECONDS);
-              if (message == null) {
-                return;
-              }
-              PulsarMessage pulsarMessage =
-                  handleReceivedMessage(
-                      message,
-                      null,
-                      (pmessage) -> {
-                        listener.onMessage(pmessage);
-                      },
-                      noLocal);
-            } catch (PulsarClientException.AlreadyClosedException closed) {
-              log.error("Error while receiving message con Closed consumer {}", this);
-            } catch (JMSException | PulsarClientException err) {
-              log.error("Error while receiving message con consumer {}", this, err);
-              session.onError(err);
-            }
-          });
-    }
+            PulsarMessage pulsarMessage =
+                handleReceivedMessage(
+                    message,
+                    null,
+                    (pmessage) -> {
+                      listener.onMessage(pmessage);
+                    },
+                    noLocal);
+          } catch (PulsarClientException.AlreadyClosedException closed) {
+            log.error("Error while receiving message con Closed consumer {}", this);
+          } catch (JMSException | PulsarClientException err) {
+            log.error("Error while receiving message con consumer {}", this, err);
+            session.onError(err);
+          }
+        });
   }
 
   public void closeInternal() throws JMSException {

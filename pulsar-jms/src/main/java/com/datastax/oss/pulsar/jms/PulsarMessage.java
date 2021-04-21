@@ -21,6 +21,7 @@ import com.datastax.oss.pulsar.jms.messages.PulsarObjectMessage;
 import com.datastax.oss.pulsar.jms.messages.PulsarSimpleMessage;
 import com.datastax.oss.pulsar.jms.messages.PulsarStreamMessage;
 import com.datastax.oss.pulsar.jms.messages.PulsarTextMessage;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.EOFException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -177,6 +178,7 @@ public abstract class PulsarMessage implements Message {
    * @see Message#setJMSCorrelationIDAsBytes(byte[])
    */
   @Override
+  @SuppressFBWarnings("EI_EXPOSE_REP")
   public byte[] getJMSCorrelationIDAsBytes() throws JMSException {
     return correlationId;
   }
@@ -203,6 +205,7 @@ public abstract class PulsarMessage implements Message {
    * @see Message#getJMSCorrelationIDAsBytes()
    */
   @Override
+  @SuppressFBWarnings("EI_EXPOSE_REP2")
   public void setJMSCorrelationIDAsBytes(byte[] correlationID) throws JMSException {
     this.correlationId = correlationID;
   }

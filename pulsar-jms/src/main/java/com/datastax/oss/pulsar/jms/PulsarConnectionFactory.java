@@ -15,6 +15,7 @@
  */
 package com.datastax.oss.pulsar.jms;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -82,6 +83,7 @@ public class PulsarConnectionFactory
   private final String tckPassword;
   private final String queueSubscriptioName;
 
+  @SuppressFBWarnings("RCN_REDUNDANT_NULLCHECK_OF_NULL_VALUE")
   public PulsarConnectionFactory(Map<String, Object> properties) throws JMSException {
     try {
       properties = new HashMap(properties);

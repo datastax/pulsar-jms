@@ -15,6 +15,7 @@
  */
 package com.datastax.oss.pulsar.jms;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
@@ -164,8 +165,7 @@ public class PulsarJMSProducer implements JMSProducer {
   private void getProducerAndSend(Destination destination, Message message) throws JMSException {
     if (message == null) {
       if (completionListener != null) {
-        completionListener.onException(
-            message, new MessageFormatRuntimeException("message is null"));
+        completionListener.onException(null, new MessageFormatRuntimeException("message is null"));
         return;
       } else {
         throw new MessageFormatException("message is null");
@@ -1088,6 +1088,7 @@ public class PulsarJMSProducer implements JMSProducer {
    * @see JMSProducer#getJMSCorrelationIDAsBytes()
    */
   @Override
+  @SuppressFBWarnings("EI_EXPOSE_REP2")
   public JMSProducer setJMSCorrelationIDAsBytes(byte[] correlationID) {
     this.correlationID = correlationID;
     return this;
@@ -1107,6 +1108,7 @@ public class PulsarJMSProducer implements JMSProducer {
    * @see JMSProducer#setJMSCorrelationIDAsBytes(byte[])
    */
   @Override
+  @SuppressFBWarnings("EI_EXPOSE_REP")
   public byte[] getJMSCorrelationIDAsBytes() {
     return correlationID;
   }
