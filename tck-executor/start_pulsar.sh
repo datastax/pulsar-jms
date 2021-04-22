@@ -1,5 +1,6 @@
 #/bin/bash
 
+set -x -e
 
 # We are using 2.8.0-SNAPSHOT, because in 2.7.x Delayed Messages do not work
 IMAGENAME=eolivelli/pulsar:2.8.0-SNAPSHOT

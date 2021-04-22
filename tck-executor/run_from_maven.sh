@@ -15,6 +15,8 @@ echo "jms.classes=\${jms.home}/target/tck-executor-1.0.0-SNAPSHOT.jar" >> $TS_HO
 # start Pulsar with docker
 $HERE/start_pulsar.sh
 
+set -e
+
 docker logs pulsar-jms-runner
 docker inspect pulsar-jms-runner
 netstat -nlp
