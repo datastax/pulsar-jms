@@ -19,6 +19,7 @@ import com.datastax.oss.pulsar.jms.PulsarConnectionFactory;
 import java.util.HashMap;
 import java.util.Map;
 import javax.jms.ConnectionFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.jms.DefaultJmsListenerContainerFactoryConfigurer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -29,19 +30,23 @@ import org.springframework.jms.support.converter.MessageConverter;
 import org.springframework.jms.support.converter.MessageType;
 
 @Configuration
-public class PulsarJMSBeanDefinitions {
+@Slf4j
+public class PulsarJMSConfiguration {
 
   @Bean
-  public ConnectionFactory connectionFactory(PulsarConfiguration pulsarConfiguration)
+  public ConnectionFactory connectionFactory(PulsarJMSConfigurationProperties pulsarConfiguration)
       throws Exception {
     Map<String, Object> configuration = new HashMap<>();
-    configuration.put("brokerServiceUrl", pulsarConfiguration.getBrokerServiceUrl());
-    configuration.put("webServiceUrl", pulsarConfiguration.getWebServiceUrl());
+    configuration.putAll(pulsarConfiguration.getConfiguration());
+    log.info("Configuration {}", configuration);
 
-    // By default in Pulsar transactions are disabled
-    // add enableTransaction=true to your PulsarConnectionFactory configuration
-    // and also you will have to enable transaction support in your Pulsar broker
-    configuration.put("enableTransaction", pulsarConfiguration.isEnableTransaction());
+    //    configuration.put("brokerServiceUrl", pulsarConfiguration.getBrokerServiceUrl());
+    //    configuration.put("webServiceUrl", pulsarConfiguration.getWebServiceUrl());
+    //
+    //    // By default in Pulsar transactions are disabled
+    //    // add enableTransaction=true to your PulsarConnectionFactory configuration
+    //    // and also you will have to enable transaction support in your Pulsar broker
+    //    configuration.put("enableTransaction", pulsarConfiguration.isEnableTransaction());
 
     return new PulsarConnectionFactory(configuration);
   }

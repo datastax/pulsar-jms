@@ -15,13 +15,13 @@
  */
 package examples;
 
+import java.util.HashMap;
+import java.util.Map;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties("pulsar")
 @Data
-public class PulsarConfiguration {
-  private String brokerServiceUrl;
-  private String webServiceUrl;
-  private boolean enableTransaction;
+public class PulsarJMSConfigurationProperties {
+  private Map<String, Object> configuration = new HashMap<>();
 }

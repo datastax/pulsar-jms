@@ -24,7 +24,7 @@ import org.springframework.jms.core.JmsTemplate;
 
 @SpringBootApplication
 @EnableJms
-@EnableConfigurationProperties(PulsarConfiguration.class)
+@EnableConfigurationProperties(PulsarJMSConfigurationProperties.class)
 public class PulsarJMSExampleApplication implements CommandLineRunner {
 
   private final JmsTemplate jmsTemplate;
