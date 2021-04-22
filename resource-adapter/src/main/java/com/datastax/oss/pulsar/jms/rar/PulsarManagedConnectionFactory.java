@@ -33,8 +33,6 @@ public class PulsarManagedConnectionFactory implements ManagedConnectionFactory 
   @Override
   public Object createConnectionFactory(ConnectionManager connectionManager)
       throws ResourceException {
-    new Exception("createConnectionFactory " + connectionManager).printStackTrace();
-    ;
     try {
       return new PulsarConnectionFactory(new HashMap<>());
     } catch (Exception err) {
@@ -44,8 +42,6 @@ public class PulsarManagedConnectionFactory implements ManagedConnectionFactory 
 
   @Override
   public Object createConnectionFactory() throws ResourceException {
-    new Exception("createConnectionFactory").printStackTrace();
-    ;
     try {
       return new PulsarConnectionFactory(new HashMap<>());
     } catch (Exception err) {
@@ -56,8 +52,7 @@ public class PulsarManagedConnectionFactory implements ManagedConnectionFactory 
   @Override
   public ManagedConnection createManagedConnection(
       Subject subject, ConnectionRequestInfo connectionRequestInfo) throws ResourceException {
-    new Exception("createManagedConnection").printStackTrace();
-    ;
+    new Exception("matchManagedConnections").printStackTrace();
     return null;
   }
 
@@ -66,7 +61,7 @@ public class PulsarManagedConnectionFactory implements ManagedConnectionFactory 
       Set set, Subject subject, ConnectionRequestInfo connectionRequestInfo)
       throws ResourceException {
     new Exception("matchManagedConnections").printStackTrace();
-    ;
+
     return null;
   }
 

@@ -28,21 +28,6 @@
   </license>
   <resourceadapter>
     <resourceadapter-class>com.datastax.oss.pulsar.jms.rar.PulsarResourceAdapter</resourceadapter-class>
-    <config-property>
-      <config-property-name>ConnectionURL</config-property-name>
-      <config-property-type>java.lang.String</config-property-type>
-      <config-property-value>mq://localhost:7676/</config-property-value>
-    </config-property>
-    <config-property>
-      <config-property-name>UserName</config-property-name>
-      <config-property-type>java.lang.String</config-property-type>
-      <config-property-value>guest</config-property-value>
-    </config-property>
-    <config-property>
-      <config-property-name>Password</config-property-name>
-      <config-property-type>java.lang.String</config-property-type>
-      <config-property-value>guest</config-property-value>
-    </config-property>
     <outbound-resourceadapter>
       <connection-definition>
         <managedconnectionfactory-class>com.datastax.oss.pulsar.jms.rar.PulsarManagedConnectionFactory</managedconnectionfactory-class>
@@ -75,7 +60,7 @@
       </messageadapter>
     </inbound-resourceadapter>
     <adminobject>
-      <adminobject-interface>java.jms.Queue</adminobject-interface>
+      <adminobject-interface>javax.jms.Queue</adminobject-interface>
       <adminobject-class>com.datastax.oss.pulsar.jms.PulsarQueue</adminobject-class>
       <config-property>
         <config-property-name>Name</config-property-name>
@@ -84,15 +69,10 @@
       </config-property>
     </adminobject>
     <adminobject>
-      <adminobject-interface>java.jms.Topic</adminobject-interface>
+      <adminobject-interface>javax.jms.Topic</adminobject-interface>
       <adminobject-class>com.datastax.oss.pulsar.jms.PulsarTopic</adminobject-class>
       <config-property>
         <config-property-name>Name</config-property-name>
-        <config-property-type>java.lang.String</config-property-type>
-        <config-property-value/>
-      </config-property>
-      <config-property>
-        <config-property-name>Description</config-property-name>
         <config-property-type>java.lang.String</config-property-type>
         <config-property-value/>
       </config-property>

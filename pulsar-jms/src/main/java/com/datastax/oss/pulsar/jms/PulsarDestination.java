@@ -19,10 +19,18 @@ import java.util.Objects;
 import javax.jms.Destination;
 
 public abstract class PulsarDestination implements Destination {
-  protected final String topicName;
+  protected String topicName;
 
   protected PulsarDestination(String topicName) {
     this.topicName = Objects.requireNonNull(topicName);
+  }
+
+  public String getName() {
+    return topicName;
+  }
+
+  public void setName(String name) {
+    this.topicName = name;
   }
 
   public abstract boolean isQueue();

@@ -21,6 +21,11 @@ import javax.jms.Topic;
 /** Represents a JMS Topic destination. In Pulsar there is no difference between Queue and Topic. */
 public final class PulsarTopic extends PulsarDestination implements Topic {
 
+  public PulsarTopic() {
+    // Resource adapter
+    this("unnamed");
+  }
+
   public PulsarTopic(String topicName) {
     super(topicName);
   }

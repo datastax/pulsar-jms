@@ -22,6 +22,24 @@ import javax.resource.spi.ResourceAdapter;
 public class PulsarActivationSpec implements javax.resource.spi.ActivationSpec {
 
   private ResourceAdapter resourceAdapter;
+  private String destination;
+  private String destinationType;
+
+  public String getDestination() {
+    return destination;
+  }
+
+  public void setDestination(String destination) {
+    this.destination = destination;
+  }
+
+  public String getDestinationType() {
+    return destinationType;
+  }
+
+  public void setDestinationType(String destinationType) {
+    this.destinationType = destinationType;
+  }
 
   @Override
   public void validate() throws InvalidPropertyException {}
@@ -34,5 +52,19 @@ public class PulsarActivationSpec implements javax.resource.spi.ActivationSpec {
   @Override
   public void setResourceAdapter(ResourceAdapter resourceAdapter) throws ResourceException {
     this.resourceAdapter = resourceAdapter;
+  }
+
+  @Override
+  public String toString() {
+    return "PulsarActivationSpec{"
+        + "resourceAdapter="
+        + resourceAdapter
+        + ", destination='"
+        + destination
+        + '\''
+        + ", destinationType='"
+        + destinationType
+        + '\''
+        + '}';
   }
 }

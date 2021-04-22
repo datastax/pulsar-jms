@@ -26,7 +26,9 @@ import javax.transaction.xa.XAResource;
 public class PulsarResourceAdapter implements ResourceAdapter {
 
   @Override
-  public void start(BootstrapContext bootstrapContext) throws ResourceAdapterInternalException {}
+  public void start(BootstrapContext bootstrapContext) throws ResourceAdapterInternalException {
+    new Exception("start " + bootstrapContext).printStackTrace();
+  }
 
   @Override
   public void stop() {}
@@ -34,11 +36,15 @@ public class PulsarResourceAdapter implements ResourceAdapter {
   @Override
   public void endpointActivation(
       MessageEndpointFactory messageEndpointFactory, ActivationSpec activationSpec)
-      throws ResourceException {}
+      throws ResourceException {
+    new Exception("endpointActivation " + activationSpec).printStackTrace();
+  }
 
   @Override
   public void endpointDeactivation(
-      MessageEndpointFactory messageEndpointFactory, ActivationSpec activationSpec) {}
+      MessageEndpointFactory messageEndpointFactory, ActivationSpec activationSpec) {
+    new Exception("endpointDeactivation").printStackTrace();
+  }
 
   @Override
   public XAResource[] getXAResources(ActivationSpec[] activationSpecs) throws ResourceException {
