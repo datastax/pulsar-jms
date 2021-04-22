@@ -15,24 +15,14 @@
  */
 package examples;
 
-import javax.jms.JMSException;
-import javax.jms.Message;
-import javax.jms.Session;
-import javax.jms.TextMessage;
-import org.springframework.jms.listener.SessionAwareMessageListener;
+import org.springframework.jms.annotation.JmsListener;
+import org.springframework.stereotype.Component;
 
-public class ExampleListener implements SessionAwareMessageListener {
+@Component
+public class ExampleListener {
 
-  @Override
-  public void onMessage(Message message, Session session) throws JMSException {
-    if (message instanceof TextMessage) {
-      try {
-        System.out.println(((TextMessage) message).getText());
-      } catch (JMSException ex) {
-        throw new RuntimeException(ex);
-      }
-    } else {
-      throw new IllegalArgumentException("Message must be of type TextMessage");
-    }
+  @JmsListener(destination = "IN_QUEUE", containerFactory = "myFactory")
+  public void onMessage(Email email) {
+    System.out.println("Received " + email);
   }
 }

@@ -15,13 +15,15 @@
  */
 package examples;
 
+import com.datastax.oss.pulsar.jms.PulsarConnectionFactory;
+import java.util.HashMap;
+import java.util.Map;
 import javax.jms.ConnectionFactory;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.jms.DefaultJmsListenerContainerFactoryConfigurer;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.ImportResource;
 import org.springframework.jms.annotation.EnableJms;
 import org.springframework.jms.config.DefaultJmsListenerContainerFactory;
 import org.springframework.jms.config.JmsListenerContainerFactory;
@@ -32,7 +34,6 @@ import org.springframework.jms.support.converter.MessageType;
 
 @SpringBootApplication
 @EnableJms
-@ImportResource("classpath:appContext.xml")
 public class Main {
 
   public static void main(String[] args) {
@@ -48,12 +49,32 @@ public class Main {
   }
 
   @Bean
+  public ConnectionFactory connectionFactory() throws Exception {
+    Map<String, Object> configuration = new HashMap<>();
+    configuration.put("brokerServiceUrl", "http://localhost:8080");
+    configuration.put("webServiceUrl", "http://localhost:8080");
+    configuration.put("jms.enableClientSideFeatures", "true");
+
+    // By default in Pulsar transactions are disabled
+    // add enableTransaction=true to your PulsarConnectionFactory configuration
+    // and also you will have to enable transaction support in your Pulsar broker
+    configuration.put("enableTransaction", "false");
+    return new PulsarConnectionFactory(configuration);
+  }
+
+  @Bean
   public JmsListenerContainerFactory<?> myFactory(
       ConnectionFactory connectionFactory,
       DefaultJmsListenerContainerFactoryConfigurer configurer) {
     DefaultJmsListenerContainerFactory factory = new DefaultJmsListenerContainerFactory();
     // This provides all boot's default to this factory, including the message converter
     configurer.configure(factory, connectionFactory);
+
+    // By default in Pulsar transactions are disabled
+    // add enableTransaction=true to your PulsarConnectionFactory configuration
+    // and also you will have to enable transaction support in your Pulsar broker
+    factory.setSessionTransacted(false);
+
     // You could still override some of Boot's default if necessary.
     return factory;
   }

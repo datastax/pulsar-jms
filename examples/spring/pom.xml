@@ -32,33 +32,21 @@
   </properties>
   <dependencies>
     <dependency>
+      <!-- DataStax Apache Pulsar JMS Client -->
       <groupId>com.datastax.oss</groupId>
       <artifactId>pulsar-jms</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.slf4j</groupId>
-      <artifactId>slf4j-simple</artifactId>
-      <version>1.7.30</version>
-    </dependency>
-    <dependency>
       <groupId>org.springframework.boot</groupId>
-      <artifactId>spring-boot</artifactId>
+      <!-- this bootstraps JMS runtime, but we are not using ActiveMQ -->
+      <artifactId>spring-boot-starter-activemq</artifactId>
       <version>2.4.4</version>
-    </dependency>
-    <dependency>
-      <groupId>org.springframework.boot</groupId>
-      <artifactId>spring-boot-autoconfigure</artifactId>
-      <version>2.4.4</version>
-    </dependency>
-    <dependency>
-      <groupId>org.springframework</groupId>
-      <artifactId>spring-jms</artifactId>
-      <version>5.3.5</version>
     </dependency>
     <dependency>
       <groupId>org.projectlombok</groupId>
       <artifactId>lombok</artifactId>
+      <version>1.18.20</version>
       <scope>provided</scope>
     </dependency>
   </dependencies>
@@ -79,6 +67,11 @@
             </configuration>
           </execution>
         </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+        <version>2.4.4</version>
       </plugin>
     </plugins>
   </build>
