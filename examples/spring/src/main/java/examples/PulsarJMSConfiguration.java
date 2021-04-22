@@ -36,18 +36,8 @@ public class PulsarJMSConfiguration {
   @Bean
   public ConnectionFactory connectionFactory(PulsarJMSConfigurationProperties pulsarConfiguration)
       throws Exception {
-    Map<String, Object> configuration = new HashMap<>();
-    configuration.putAll(pulsarConfiguration.getConfiguration());
+    Map<String, Object> configuration = new HashMap<>(pulsarConfiguration.getConfiguration());
     log.info("Configuration {}", configuration);
-
-    //    configuration.put("brokerServiceUrl", pulsarConfiguration.getBrokerServiceUrl());
-    //    configuration.put("webServiceUrl", pulsarConfiguration.getWebServiceUrl());
-    //
-    //    // By default in Pulsar transactions are disabled
-    //    // add enableTransaction=true to your PulsarConnectionFactory configuration
-    //    // and also you will have to enable transaction support in your Pulsar broker
-    //    configuration.put("enableTransaction", pulsarConfiguration.isEnableTransaction());
-
     return new PulsarConnectionFactory(configuration);
   }
 
