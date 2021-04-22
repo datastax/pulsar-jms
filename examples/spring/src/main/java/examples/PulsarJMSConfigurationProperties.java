@@ -20,7 +20,7 @@ import java.util.Map;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-@ConfigurationProperties("pulsar")
+@ConfigurationProperties("pulsar.jms")
 @Data
 public class PulsarJMSConfigurationProperties {
   private Map<String, Object> configuration = new HashMap<>();
