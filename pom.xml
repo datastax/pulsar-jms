@@ -33,6 +33,7 @@
   <modules>
     <module>pulsar-jms</module>
     <module>tck-executor</module>
+    <module>resource-adapter</module>
     <module>examples/spring</module>
   </modules>
   <properties>
