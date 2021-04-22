@@ -19,41 +19,21 @@ import com.datastax.oss.pulsar.jms.PulsarConnectionFactory;
 import java.util.HashMap;
 import java.util.Map;
 import javax.jms.ConnectionFactory;
-
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.CommandLineRunner;
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.jms.DefaultJmsListenerContainerFactoryConfigurer;
-import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
-import org.springframework.jms.annotation.EnableJms;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.jms.config.DefaultJmsListenerContainerFactory;
 import org.springframework.jms.config.JmsListenerContainerFactory;
-import org.springframework.jms.core.JmsTemplate;
 import org.springframework.jms.support.converter.MappingJackson2MessageConverter;
 import org.springframework.jms.support.converter.MessageConverter;
 import org.springframework.jms.support.converter.MessageType;
 
-@SpringBootApplication
-@EnableJms
-@EnableConfigurationProperties(PulsarConfiguration.class)
-public class Main implements CommandLineRunner {
-
-  @Autowired
-  private JmsTemplate jmsTemplate;
-
-  @Override
-  public void run(String... args) {
-    // Send a message with a POJO - the template use the message converter
-    for (int i = 0; i < 100; i++) {
-      jmsTemplate.convertAndSend("IN_QUEUE", new Email("info" + i + "@example.com", "Hello"));
-    }
-  }
+@Configuration
+public class PulsarJMSBeanDefinitions {
 
   @Bean
-  public ConnectionFactory connectionFactory(PulsarConfiguration pulsarConfiguration) throws Exception {
+  public ConnectionFactory connectionFactory(PulsarConfiguration pulsarConfiguration)
+      throws Exception {
     Map<String, Object> configuration = new HashMap<>();
     configuration.put("brokerServiceUrl", pulsarConfiguration.getBrokerServiceUrl());
     configuration.put("webServiceUrl", pulsarConfiguration.getWebServiceUrl());
@@ -90,9 +70,4 @@ public class Main implements CommandLineRunner {
     converter.setTypeIdPropertyName("_type");
     return converter;
   }
-
-  public static void main(String[] args) {
-    SpringApplication.run(Main.class, args);
-  }
-
 }

@@ -2,7 +2,7 @@
 
 This is a sample project that shows how to use Spring Builtin capabilities
 
-This example uses [Spring JMS support](https://docs.spring.io/spring-framework/docs/current/reference/html/integration.html#jms) in order to send and receive a message with Pulsar.
+This example uses [Spring JMS support](https://spring.io/guides/gs/messaging-jms/) in order to send and receive a message with Pulsar.
 
 ## Running the example
 
@@ -19,25 +19,7 @@ Bundle the repository using Maven
 `mvn clean package -DskipTests`
 
 then run the Main class using Maven
-`mvn exec:java@run`
-
-## Configuration
-
-In the appContext.xml file you can see the definition of a PulsarConnectionFactory that is the implementation of javax.jms.ConnectionFactory provided by DataStax JMS Client.
-
-```
-  <util:map id="pulsarConfiguration" map-class="java.util.HashMap">
-     <entry key="brokerServiceUrl" value="http://localhost:8080"/>
-     <entry key="webServiceUrl" value="http://localhost:8080"/>
-     <entry key="jms.enableClientSideFeatures" value="true"/>
-     <entry key="enableTransaction" value="false"/>
-  </util:map>
-
-  <bean id="connectionFactory" class="com.datastax.oss.pulsar.jms.PulsarConnectionFactory">
-    <constructor-arg ref="pulsarConfiguration" />
-  </bean>
-
-```
+`mvn spring-boot:run`
 
 ### Sending a message
 
@@ -50,25 +32,15 @@ The application uses JmsTemplate to send a message, it is a TextMessage that con
 
 ### Receiving messages
 
-We receive the JMS message using a simple `SessionAwareMessageListener`, declare in the XML configuration file
+We receive the JMS message using a simple `@JmsListener`
 
 ```
-public class ExampleListener implements SessionAwareMessageListener {
-   @Override
-   public void onMessage(Message message, Session session) throws JMSException { 
-        System.out.println(((TextMessage) message).getText());
-   }
+@Component
+public class ExampleListener {
+
+  @JmsListener(destination = "IN_QUEUE", containerFactory = "myFactory")
+  public void onMessage(Email email) {
+    System.out.println("Received " + email);
+  }
 }
-```
-
-The listener is activated by a `DefaultMessageListenerContainer`, and configured to read from `IN_QUEUE` queue
-
-```
-  <bean id="messageListener" class="examples.ExampleListener"/>
-
-  <bean id="jmsContainer" class="org.springframework.jms.listener.DefaultMessageListenerContainer">
-    <property name="connectionFactory" ref="connectionFactory"/>
-    <property name="destinationName" value="IN_QUEUE"/>
-    <property name="messageListener" ref="messageListener"/>
-  </bean>
 ```
