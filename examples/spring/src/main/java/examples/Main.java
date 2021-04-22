@@ -19,10 +19,12 @@ import com.datastax.oss.pulsar.jms.PulsarConnectionFactory;
 import java.util.HashMap;
 import java.util.Map;
 import javax.jms.ConnectionFactory;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.jms.DefaultJmsListenerContainerFactoryConfigurer;
-import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.jms.annotation.EnableJms;
 import org.springframework.jms.config.DefaultJmsListenerContainerFactory;
@@ -34,14 +36,17 @@ import org.springframework.jms.support.converter.MessageType;
 
 @SpringBootApplication
 @EnableJms
-public class Main {
+public class Main implements CommandLineRunner {
 
   public static void main(String[] args) {
+    SpringApplication.run(Main.class, args);
+  }
 
-    ConfigurableApplicationContext context = SpringApplication.run(Main.class, args);
+  @Autowired
+  private JmsTemplate jmsTemplate;
 
-    JmsTemplate jmsTemplate = context.getBean(JmsTemplate.class);
-
+  @Override
+  public void run(String... args) {
     // Send a message with a POJO - the template reuse the message converter
     for (int i = 0; i < 100; i++) {
       jmsTemplate.convertAndSend("IN_QUEUE", new Email("info" + i + "@example.com", "Hello"));
