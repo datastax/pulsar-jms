@@ -83,6 +83,10 @@ public class PulsarConnectionFactory
   private final String tckPassword;
   private final String queueSubscriptioName;
 
+  public PulsarConnectionFactory() throws JMSException {
+    this(new HashMap<>());
+  }
+
   @SuppressFBWarnings("RCN_REDUNDANT_NULLCHECK_OF_NULL_VALUE")
   public PulsarConnectionFactory(Map<String, Object> properties) throws JMSException {
     try {

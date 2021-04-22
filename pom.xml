@@ -33,6 +33,7 @@
   <modules>
     <module>pulsar-jms</module>
     <module>tck-executor</module>
+    <module>examples/spring</module>
   </modules>
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
