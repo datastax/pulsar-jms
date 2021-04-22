@@ -64,7 +64,7 @@ public class ExampleListener implements SessionAwareMessageListener {
 The listener is activated by a `DefaultMessageListenerContainer`, and configured to read from `IN_QUEUE` queue
 
 ```
-    <bean id="messageListener" class="examples.ExampleListener"/>
+  <bean id="messageListener" class="examples.ExampleListener"/>
 
   <bean id="jmsContainer" class="org.springframework.jms.listener.DefaultMessageListenerContainer">
     <property name="connectionFactory" ref="connectionFactory"/>

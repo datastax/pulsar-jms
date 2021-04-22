@@ -53,6 +53,12 @@ You can for instance run Pulsar Standalone using docker
 docker run --name pulsar-jms-runner -d -p 8080:8080 -p 6650:6650 apachepulsar/pulsar:2.7.1 /pulsar/bin/pulsar standalone
 ```
 
+## Examples
+
+In this repository you can find examples about how to run the client:
+
+- with [Spring](examples/spring)
+
 ## Building from the sources
 
 If you want to develop and test this library you need to build the jar from sources.
