@@ -15,53 +15,66 @@
  */
 package com.datastax.oss.pulsar.jms.rar;
 
-import com.datastax.oss.pulsar.jms.PulsarConnectionFactory;
 import java.io.PrintWriter;
-import java.util.HashMap;
 import java.util.Set;
 import javax.resource.ResourceException;
 import javax.resource.spi.ConnectionManager;
 import javax.resource.spi.ConnectionRequestInfo;
 import javax.resource.spi.ManagedConnection;
 import javax.resource.spi.ManagedConnectionFactory;
+import javax.resource.spi.ResourceAdapter;
+import javax.resource.spi.ResourceAdapterAssociation;
 import javax.security.auth.Subject;
 
-public class PulsarManagedConnectionFactory implements ManagedConnectionFactory {
+public class PulsarManagedConnectionFactory
+    implements ManagedConnectionFactory, ResourceAdapterAssociation {
 
   private transient PrintWriter printWriter = new PrintWriter(System.out);
+  private PulsarResourceAdapter resourceAdapter;
+  private String configuration;
+
+  public String getConfiguration() {
+    return configuration;
+  }
+
+  public void setConfiguration(String configuration) {
+    this.configuration = configuration;
+  }
+
+  @Override
+  public ResourceAdapter getResourceAdapter() {
+    return resourceAdapter;
+  }
+
+  @Override
+  public void setResourceAdapter(ResourceAdapter resourceAdapter) throws ResourceException {
+    this.resourceAdapter = (PulsarResourceAdapter) resourceAdapter;
+  }
 
   @Override
   public Object createConnectionFactory(ConnectionManager connectionManager)
       throws ResourceException {
-    try {
-      return new PulsarConnectionFactory(new HashMap<>());
-    } catch (Exception err) {
-      throw new ResourceException(err);
-    }
+    return resourceAdapter.startPulsarConnectionFactory(configuration);
   }
 
   @Override
   public Object createConnectionFactory() throws ResourceException {
-    try {
-      return new PulsarConnectionFactory(new HashMap<>());
-    } catch (Exception err) {
-      throw new ResourceException(err);
-    }
+    return resourceAdapter.startPulsarConnectionFactory(configuration);
   }
 
   @Override
   public ManagedConnection createManagedConnection(
       Subject subject, ConnectionRequestInfo connectionRequestInfo) throws ResourceException {
-    new Exception("matchManagedConnections").printStackTrace();
-    return null;
+    throw new ResourceException("Not implemented");
   }
 
   @Override
   public ManagedConnection matchManagedConnections(
       Set set, Subject subject, ConnectionRequestInfo connectionRequestInfo)
       throws ResourceException {
-    new Exception("matchManagedConnections").printStackTrace();
-
+    // If the resource adapter cannot find an acceptable ManagedConnection instance,
+    // it returns a null value. In this case, the application server requests
+    // the resource adapter to create a new connection instance.
     return null;
   }
 
@@ -73,5 +86,15 @@ public class PulsarManagedConnectionFactory implements ManagedConnectionFactory 
   @Override
   public PrintWriter getLogWriter() throws ResourceException {
     return printWriter;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    return this == o;
+  }
+
+  @Override
+  public int hashCode() {
+    return super.hashCode();
   }
 }

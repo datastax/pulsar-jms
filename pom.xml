@@ -35,6 +35,7 @@
     <module>tck-executor</module>
     <module>resource-adapter</module>
     <module>examples/spring</module>
+    <module>examples/payara-micro</module>
   </modules>
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

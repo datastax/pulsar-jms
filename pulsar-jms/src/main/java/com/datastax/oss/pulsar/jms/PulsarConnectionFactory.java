@@ -15,7 +15,7 @@
  */
 package com.datastax.oss.pulsar.jms;
 
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -65,35 +65,77 @@ public class PulsarConnectionFactory
     implements ConnectionFactory, QueueConnectionFactory, TopicConnectionFactory, AutoCloseable {
   private static final Set<String> clientIdentifiers = new ConcurrentSkipListSet<>();
 
-  private final PulsarClient pulsarClient;
-  private final PulsarAdmin pulsarAdmin;
-  private final Map<String, Object> producerConfiguration;
-  private final Map<String, Object> consumerConfiguration;
   private final Map<String, Producer<byte[]>> producers = new ConcurrentHashMap<>();
   private final Set<PulsarConnection> connections = Collections.synchronizedSet(new HashSet<>());
   private final List<Consumer<byte[]>> consumers = new CopyOnWriteArrayList<>();
   private final List<Reader<byte[]>> readers = new CopyOnWriteArrayList<>();
-  private final String systemNamespace;
-  private final String defaultClientId;
-  private final boolean enableTransaction;
-  private final boolean enableClientSideFeatures;
-  private final boolean forceDeleteTemporaryDestinations;
-  private final boolean useExclusiveSubscriptionsForSimpleConsumers;
-  private final String tckUsername;
-  private final String tckPassword;
-  private final String queueSubscriptioName;
+  private PulsarClient pulsarClient;
+  private PulsarAdmin pulsarAdmin;
+  private Map<String, Object> producerConfiguration;
+  private Map<String, Object> consumerConfiguration;
+  private String systemNamespace = "public/default";
+  private String defaultClientId = null;
+  private boolean enableTransaction = false;
+  private boolean enableClientSideFeatures = false;
+  private boolean forceDeleteTemporaryDestinations = false;
+  private boolean useExclusiveSubscriptionsForSimpleConsumers = false;
+  private String tckUsername = null;
+  private String tckPassword = null;
+  private String queueSubscriptionName = "jms-queue";
+  private boolean initialized;
+
+  private Map<String, Object> configuration;
 
   public PulsarConnectionFactory() throws JMSException {
     this(new HashMap<>());
   }
 
-  @SuppressFBWarnings("RCN_REDUNDANT_NULLCHECK_OF_NULL_VALUE")
   public PulsarConnectionFactory(Map<String, Object> properties) throws JMSException {
+    this.configuration = new HashMap(properties);
+  }
+
+  /**
+   * Utility method for configuration based on JSON
+   *
+   * @return JSON encoded configuration
+   */
+  public String getJsonConfiguration() {
+    return Utils.runtimeException(() -> new ObjectMapper().writeValueAsString(getConfiguration()));
+  }
+
+  /**
+   * Apply configuration from a JSON encoded string
+   *
+   * @param json the JSON
+   */
+  public void setJsonConfiguration(String json) {
+    setConfiguration(Utils.runtimeException(() -> new ObjectMapper().readValue(json, Map.class)));
+  }
+
+  public synchronized Map<String, Object> getConfiguration() {
+    return new HashMap<>(configuration);
+  }
+
+  public synchronized void setConfiguration(Map<String, Object> configuration) {
+    this.configuration = new HashMap<>(configuration);
+  }
+
+  private synchronized Map<String, Object> getConsumerConfiguration() {
+    return consumerConfiguration;
+  }
+
+  private synchronized Map<String, Object> getProducerConfiguration() {
+    return producerConfiguration;
+  }
+
+  private synchronized void ensureInitialized() throws JMSException {
+    if (initialized) {
+      return;
+    }
     try {
-      properties = new HashMap(properties);
 
       Map<String, Object> producerConfiguration =
-          (Map<String, Object>) properties.remove("producerConfig");
+          (Map<String, Object>) configuration.remove("producerConfig");
       if (producerConfiguration != null) {
         this.producerConfiguration = new HashMap(producerConfiguration);
       } else {
@@ -101,25 +143,25 @@ public class PulsarConnectionFactory
       }
 
       Map<String, Object> consumerConfigurationM =
-          (Map<String, Object>) properties.remove("consumerConfig");
+          (Map<String, Object>) configuration.remove("consumerConfig");
       if (consumerConfigurationM != null) {
         this.consumerConfiguration = new HashMap(consumerConfigurationM);
       } else {
         this.consumerConfiguration = Collections.emptyMap();
       }
       this.systemNamespace =
-          getAndRemoveString("jms.systemNamespace", "public/default", properties);
+          getAndRemoveString("jms.systemNamespace", "public/default", configuration);
 
-      this.tckUsername = getAndRemoveString("jms.tckUsername", "", properties);
-      this.tckPassword = getAndRemoveString("jms.tckPassword", "", properties);
+      this.tckUsername = getAndRemoveString("jms.tckUsername", "", configuration);
+      this.tckPassword = getAndRemoveString("jms.tckPassword", "", configuration);
 
-      this.defaultClientId = getAndRemoveString("jms.clientId", null, properties);
+      this.defaultClientId = getAndRemoveString("jms.clientId", null, configuration);
 
-      this.queueSubscriptioName = getAndRemoveString("jms.queueName", "jms-queue", properties);
+      this.queueSubscriptionName = getAndRemoveString("jms.queueName", "jms-queue", configuration);
 
       this.enableClientSideFeatures =
           Boolean.parseBoolean(
-              getAndRemoveString("jms.enableClientSideFeatures", "false", properties));
+              getAndRemoveString("jms.enableClientSideFeatures", "false", configuration));
 
       // in Exclusive mode Pulsar does not support delayed messages
       // with this flag you force to not use Exclusive subscription and so to support
@@ -127,20 +169,20 @@ public class PulsarConnectionFactory
       this.useExclusiveSubscriptionsForSimpleConsumers =
           Boolean.parseBoolean(
               getAndRemoveString(
-                  "jms.useExclusiveSubscriptionsForSimpleConsumers", "true", properties));
+                  "jms.useExclusiveSubscriptionsForSimpleConsumers", "true", configuration));
 
       // default is false
       this.forceDeleteTemporaryDestinations =
           Boolean.parseBoolean(
-              getAndRemoveString("jms.forceDeleteTemporaryDestinations", "false", properties));
+              getAndRemoveString("jms.forceDeleteTemporaryDestinations", "false", configuration));
 
       this.enableTransaction =
-          Boolean.parseBoolean(properties.getOrDefault("enableTransaction", "false").toString());
+          Boolean.parseBoolean(configuration.getOrDefault("enableTransaction", "false").toString());
 
       String webServiceUrl =
-          getAndRemoveString("webServiceUrl", "http://localhost:8080", properties);
+          getAndRemoveString("webServiceUrl", "http://localhost:8080", configuration);
 
-      String brokenServiceUrl = getAndRemoveString("brokerServiceUrl", "", properties);
+      String brokenServiceUrl = getAndRemoveString("brokerServiceUrl", "", configuration);
 
       PulsarClient pulsarClient = null;
       PulsarAdmin pulsarAdmin = null;
@@ -148,8 +190,8 @@ public class PulsarConnectionFactory
 
         // must be the same as
         // https://pulsar.apache.org/docs/en/security-tls-keystore/#configuring-clients
-        String authPluginClassName = getAndRemoveString("authPlugin", "", properties);
-        String authParamsString = getAndRemoveString("authParams", "", properties);
+        String authPluginClassName = getAndRemoveString("authPlugin", "", configuration);
+        String authParamsString = getAndRemoveString("authParams", "", configuration);
         Authentication authentication =
             AuthenticationFactory.create(authPluginClassName, authParamsString);
         if (log.isDebugEnabled()) {
@@ -157,23 +199,37 @@ public class PulsarConnectionFactory
         }
         boolean tlsAllowInsecureConnection =
             Boolean.parseBoolean(
-                getAndRemoveString("tlsAllowInsecureConnection", "false", properties));
+                getAndRemoveString("tlsAllowInsecureConnection", "false", configuration));
 
         boolean tlsEnableHostnameVerification =
             Boolean.parseBoolean(
-                getAndRemoveString("tlsEnableHostnameVerification", "false", properties));
+                getAndRemoveString("tlsEnableHostnameVerification", "false", configuration));
         final String tlsTrustCertsFilePath =
-            (String) getAndRemoveString("tlsTrustCertsFilePath", "", properties);
+            (String) getAndRemoveString("tlsTrustCertsFilePath", "", configuration);
 
         boolean useKeyStoreTls =
-            Boolean.parseBoolean(getAndRemoveString("useKeyStoreTls", "false", properties));
-        String tlsTrustStoreType = getAndRemoveString("tlsTrustStoreType", "JKS", properties);
-        String tlsTrustStorePath = getAndRemoveString("tlsTrustStorePath", "", properties);
-        String tlsTrustStorePassword = getAndRemoveString("tlsTrustStorePassword", "", properties);
+            Boolean.parseBoolean(getAndRemoveString("useKeyStoreTls", "false", configuration));
+        String tlsTrustStoreType = getAndRemoveString("tlsTrustStoreType", "JKS", configuration);
+        String tlsTrustStorePath = getAndRemoveString("tlsTrustStorePath", "", configuration);
+        String tlsTrustStorePassword =
+            getAndRemoveString("tlsTrustStorePassword", "", configuration);
+
+        pulsarAdmin =
+            PulsarAdmin.builder()
+                .serviceHttpUrl(webServiceUrl)
+                .allowTlsInsecureConnection(tlsAllowInsecureConnection)
+                .enableTlsHostnameVerification(tlsEnableHostnameVerification)
+                .tlsTrustCertsFilePath(tlsTrustCertsFilePath)
+                .useKeyStoreTls(useKeyStoreTls)
+                .tlsTrustStoreType(tlsTrustStoreType)
+                .tlsTrustStorePath(tlsTrustStorePath)
+                .tlsTrustStorePassword(tlsTrustStorePassword)
+                .authentication(authentication)
+                .build();
 
         ClientBuilder clientBuilder =
             PulsarClient.builder()
-                .loadConf(properties)
+                .loadConf(configuration)
                 .tlsTrustStorePassword(tlsTrustStorePassword)
                 .tlsTrustStorePath(tlsTrustStorePath)
                 .tlsTrustCertsFilePath(tlsTrustCertsFilePath)
@@ -189,19 +245,6 @@ public class PulsarConnectionFactory
 
         pulsarClient = clientBuilder.build();
 
-        pulsarAdmin =
-            PulsarAdmin.builder()
-                .serviceHttpUrl(webServiceUrl)
-                .allowTlsInsecureConnection(tlsAllowInsecureConnection)
-                .enableTlsHostnameVerification(tlsEnableHostnameVerification)
-                .tlsTrustCertsFilePath(tlsTrustCertsFilePath)
-                .useKeyStoreTls(useKeyStoreTls)
-                .tlsTrustStoreType(tlsTrustStoreType)
-                .tlsTrustStorePath(tlsTrustStorePath)
-                .tlsTrustStorePassword(tlsTrustStorePassword)
-                .authentication(authentication)
-                .build();
-
       } catch (PulsarClientException err) {
         if (pulsarAdmin != null) {
           pulsarAdmin.close();
@@ -213,6 +256,7 @@ public class PulsarConnectionFactory
       }
       this.pulsarClient = pulsarClient;
       this.pulsarAdmin = pulsarAdmin;
+      this.initialized = true;
     } catch (Throwable t) {
       throw Utils.handleException(t);
     }
@@ -224,27 +268,27 @@ public class PulsarConnectionFactory
     return value != null ? value.toString() : defaultValue;
   }
 
-  public boolean isEnableClientSideFeatures() {
+  public synchronized boolean isEnableClientSideFeatures() {
     return enableClientSideFeatures;
   }
 
-  String getDefaultClientId() {
+  synchronized String getDefaultClientId() {
     return defaultClientId;
   }
 
-  public boolean isEnableTransaction() {
+  public synchronized boolean isEnableTransaction() {
     return enableTransaction;
   }
 
-  public PulsarClient getPulsarClient() {
+  public synchronized PulsarClient getPulsarClient() {
     return pulsarClient;
   }
 
-  public PulsarAdmin getPulsarAdmin() {
+  public synchronized PulsarAdmin getPulsarAdmin() {
     return pulsarAdmin;
   }
 
-  public String getSystemNamespace() {
+  public synchronized String getSystemNamespace() {
     return systemNamespace;
   }
 
@@ -261,6 +305,7 @@ public class PulsarConnectionFactory
    */
   @Override
   public PulsarConnection createConnection() throws JMSException {
+    ensureInitialized();
     PulsarConnection res = new PulsarConnection(this);
     connections.add(res);
     return res;
@@ -282,11 +327,12 @@ public class PulsarConnectionFactory
    */
   @Override
   public PulsarConnection createConnection(String userName, String password) throws JMSException {
+    ensureInitialized();
     validateDummyUserNamePassword(userName, password);
     return createConnection();
   }
 
-  private void validateDummyUserNamePassword(String userName, String password)
+  private synchronized void validateDummyUserNamePassword(String userName, String password)
       throws JMSSecurityException {
     if (!tckUsername.isEmpty() && !tckUsername.equals(userName) && !tckPassword.equals(password)) {
       // this verification is here only for the TCK, Pulsar does not support username/password
@@ -573,10 +619,16 @@ public class PulsarConnectionFactory
    */
   @Override
   public JMSContext createContext(int sessionMode) {
+    Utils.runtimeException(this::ensureInitialized);
     return new PulsarJMSContext(this, sessionMode);
   }
 
   public void close() {
+    synchronized (this) {
+      if (!initialized) {
+        return;
+      }
+    }
     // close all connections and wait for ongoing operations
     // to complete
     for (PulsarConnection con : new ArrayList<>(connections)) {
@@ -619,7 +671,7 @@ public class PulsarConnectionFactory
                         pulsarClient
                             .newProducer()
                             .topic(defaultDestination.topicName)
-                            .loadConf(producerConfiguration);
+                            .loadConf(getProducerConfiguration());
                     if (transactions) {
                       // this is a limitation of Pulsar transaction support
                       producerBuilder.sendTimeout(0, TimeUnit.MILLISECONDS);
@@ -638,7 +690,7 @@ public class PulsarConnectionFactory
   public void ensureSubscription(PulsarDestination destination, String consumerName)
       throws JMSException {
     // for queues we have a single shared subscription
-    String subscriptionName = destination.isQueue() ? queueSubscriptioName : consumerName;
+    String subscriptionName = destination.isQueue() ? queueSubscriptionName : consumerName;
     log.info("Creating subscription {} for destination {}", subscriptionName, destination);
     try {
       pulsarAdmin
@@ -659,7 +711,7 @@ public class PulsarConnectionFactory
       SubscriptionType subscriptionType)
       throws JMSException {
     // for queues we have a single shared subscription
-    String subscriptionName = destination.isQueue() ? queueSubscriptioName : consumerName;
+    String subscriptionName = destination.isQueue() ? queueSubscriptionName : consumerName;
     SubscriptionInitialPosition initialPosition =
         destination.isTopic()
             ? SubscriptionInitialPosition.Latest
@@ -685,7 +737,7 @@ public class PulsarConnectionFactory
               .newConsumer()
               // these properties can be overridden by the configuration
               .negativeAckRedeliveryDelay(1, TimeUnit.SECONDS)
-              .loadConf(consumerConfiguration)
+              .loadConf(getConsumerConfiguration())
               // these properties cannot be overwritten by the configuration
               .subscriptionInitialPosition(initialPosition)
               .subscriptionMode(subscriptionMode)
@@ -704,7 +756,7 @@ public class PulsarConnectionFactory
 
     try {
       List<Message<byte[]>> messages =
-          getPulsarAdmin().topics().peekMessages(destination.topicName, queueSubscriptioName, 1);
+          getPulsarAdmin().topics().peekMessages(destination.topicName, queueSubscriptionName, 1);
 
       MessageId seekMessageId;
       if (messages.isEmpty()) {
@@ -720,7 +772,7 @@ public class PulsarConnectionFactory
           pulsarClient
               .newReader()
               // these properties can be overridden by the configuration
-              .loadConf(consumerConfiguration)
+              .loadConf(getConsumerConfiguration())
               // these properties cannot be overwritten by the configuration
               .readerName("jms-queue-browser-" + UUID.randomUUID())
               .startMessageId(seekMessageId)
@@ -744,29 +796,32 @@ public class PulsarConnectionFactory
 
   public boolean deleteSubscription(PulsarDestination destination, String name)
       throws JMSException {
+    String systemNamespace = getSystemNamespace();
     boolean somethingDone = false;
     try {
-
-      // TCK mode, scan for all subscriptions
-      List<String> allTopics = pulsarAdmin.topics().getList(systemNamespace);
-      for (String topic : allTopics) {
-        log.info("Scanning topic {}", topic);
-        List<String> subscriptions = pulsarAdmin.topics().getSubscriptions(topic);
-        log.info("Subscriptions {}", subscriptions);
-        for (String subscription : subscriptions) {
-          log.info("Found subscription {} ", subscription);
-          if (subscription.equals(name)) {
-            log.info("deleteSubscription topic {} name {}", topic, name);
-            pulsarAdmin.topics().deleteSubscription(topic, name, true);
-            somethingDone = true;
-          }
-        }
-      }
 
       if (destination != null) {
         log.info("deleteSubscription topic {} name {}", destination.topicName, name);
         pulsarAdmin.topics().deleteSubscription(destination.topicName, name, true);
         somethingDone = true;
+      }
+
+      if (!somethingDone) {
+        // required for TCK, scan for all subscriptions
+        List<String> allTopics = pulsarAdmin.topics().getList(systemNamespace);
+        for (String topic : allTopics) {
+          log.info("Scanning topic {}", topic);
+          List<String> subscriptions = pulsarAdmin.topics().getSubscriptions(topic);
+          log.info("Subscriptions {}", subscriptions);
+          for (String subscription : subscriptions) {
+            log.info("Found subscription {} ", subscription);
+            if (subscription.equals(name)) {
+              log.info("deleteSubscription topic {} name {}", topic, name);
+              pulsarAdmin.topics().deleteSubscription(topic, name, true);
+              somethingDone = true;
+            }
+          }
+        }
       }
     } catch (PulsarAdminException.NotFoundException notFound) {
       log.error("Cannot unsubscribe {} from {}: not found", name, destination.topicName);
@@ -812,15 +867,15 @@ public class PulsarConnectionFactory
     return createConnection(s, s1);
   }
 
-  public boolean isForceDeleteTemporaryDestinations() {
+  public synchronized boolean isForceDeleteTemporaryDestinations() {
     return forceDeleteTemporaryDestinations;
   }
 
-  public String getQueueSubscriptionName() {
-    return queueSubscriptioName;
+  public synchronized String getQueueSubscriptionName() {
+    return queueSubscriptionName;
   }
 
-  public SubscriptionType getExclusiveSubscriptionTypeForSimpleConsumers() {
+  public synchronized SubscriptionType getExclusiveSubscriptionTypeForSimpleConsumers() {
     return useExclusiveSubscriptionsForSimpleConsumers
         ? SubscriptionType.Exclusive
         : SubscriptionType.Shared;

@@ -15,6 +15,12 @@
  */
 package com.datastax.oss.pulsar.jms.rar;
 
+import com.datastax.oss.pulsar.jms.PulsarConnectionFactory;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArraySet;
+import javax.jms.JMSException;
 import javax.resource.ResourceException;
 import javax.resource.spi.ActivationSpec;
 import javax.resource.spi.BootstrapContext;
@@ -22,32 +28,82 @@ import javax.resource.spi.ResourceAdapter;
 import javax.resource.spi.ResourceAdapterInternalException;
 import javax.resource.spi.endpoint.MessageEndpointFactory;
 import javax.transaction.xa.XAResource;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public class PulsarResourceAdapter implements ResourceAdapter {
 
+  private final Set<PulsarConnectionFactory> outboundConnections = new CopyOnWriteArraySet<>();
+  private final Map<ActivationSpec, PulsarMessageEndpoint> endpoints = new ConcurrentHashMap<>();
+
   @Override
-  public void start(BootstrapContext bootstrapContext) throws ResourceAdapterInternalException {
-    new Exception("start " + bootstrapContext).printStackTrace();
+  public void start(BootstrapContext bootstrapContext) throws ResourceAdapterInternalException {}
+
+  public PulsarConnectionFactory startPulsarConnectionFactory(String configuration) {
+    log.info("startPulsarConnectionFactory {}", configuration);
+    try {
+      PulsarConnectionFactory res = new PulsarConnectionFactory();
+      res.setJsonConfiguration(configuration);
+      outboundConnections.add(res);
+      return res;
+    } catch (JMSException err) {
+      log.error("Cannot start a connection factory with configuratiobn {}", configuration, err);
+      throw new RuntimeException(err);
+    }
   }
 
   @Override
-  public void stop() {}
+  public void stop() {
+    for (PulsarConnectionFactory factory : outboundConnections) {
+      factory.close();
+    }
+    for (PulsarMessageEndpoint endpoint : endpoints.values()) {
+      endpoint.stop();
+    }
+  }
 
   @Override
   public void endpointActivation(
       MessageEndpointFactory messageEndpointFactory, ActivationSpec activationSpec)
       throws ResourceException {
-    new Exception("endpointActivation " + activationSpec).printStackTrace();
+    try {
+      log.info("Activate endpoint {} {}", activationSpec, messageEndpointFactory);
+      PulsarActivationSpec pulsarActivationSpec = (PulsarActivationSpec) activationSpec;
+      PulsarConnectionFactory connectionFactory = new PulsarConnectionFactory();
+      connectionFactory.setJsonConfiguration(pulsarActivationSpec.getConfiguration());
+      PulsarMessageEndpoint endpoint =
+          new PulsarMessageEndpoint(
+              connectionFactory, messageEndpointFactory, pulsarActivationSpec);
+      endpoints.put(activationSpec, endpoint);
+      endpoint.start();
+    } catch (Throwable t) {
+      throw new ResourceException(t);
+    }
   }
 
   @Override
   public void endpointDeactivation(
       MessageEndpointFactory messageEndpointFactory, ActivationSpec activationSpec) {
-    new Exception("endpointDeactivation").printStackTrace();
+    PulsarMessageEndpoint removed = endpoints.remove(activationSpec);
+    log.info(
+        "endpointDeactivation {} {} endpoint {}", messageEndpointFactory, activationSpec, removed);
+    if (removed != null) {
+      removed.stop();
+    }
   }
 
   @Override
   public XAResource[] getXAResources(ActivationSpec[] activationSpecs) throws ResourceException {
     return new XAResource[0];
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    return this == o;
+  }
+
+  @Override
+  public int hashCode() {
+    return super.hashCode();
   }
 }

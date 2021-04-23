@@ -20,7 +20,7 @@
   <description>Apache Pulsar JMS Adapter</description>
   <display-name>Apache Pulsar JMS Adapter</display-name>
   <vendor-name>DataStax</vendor-name>
-  <eis-type>JMS 1.1</eis-type>
+  <eis-type>JMS Provider</eis-type>
   <resourceadapter-version>1.0</resourceadapter-version>
   <license>
     <description>Apache License Version 2.0 http://www.apache.org/licenses/LICENSE-2.0.txt</description>
@@ -31,16 +31,18 @@
     <outbound-resourceadapter>
       <connection-definition>
         <managedconnectionfactory-class>com.datastax.oss.pulsar.jms.rar.PulsarManagedConnectionFactory</managedconnectionfactory-class>
+        <config-property>
+          <!-- JSON configuration -->
+          <config-property-name>Configuration</config-property-name>
+          <config-property-type>java.lang.String</config-property-type>
+          <config-property-value>{"brokerServiceUrl":"pulsar://localhost:6650","webServiceUrl":"http://localhost:8080"}</config-property-value>
+        </config-property>
         <connectionfactory-interface>javax.jms.ConnectionFactory</connectionfactory-interface>
         <connectionfactory-impl-class>com.datastax.oss.pulsar.jms.PulsarConnectionFactory</connectionfactory-impl-class>
         <connection-interface>javax.jms.Connection</connection-interface>
         <connection-impl-class>com.datastax.oss.pulsar.jms.PulsarConnection</connection-impl-class>
       </connection-definition>
-      <transaction-support>XATransaction</transaction-support>
-      <authentication-mechanism>
-        <authentication-mechanism-type>BasicPassword</authentication-mechanism-type>
-        <credential-interface>javax.resource.spi.security.PasswordCredential</credential-interface>
-      </authentication-mechanism>
+      <transaction-support>NoTransaction</transaction-support>
       <reauthentication-support>false</reauthentication-support>
     </outbound-resourceadapter>
     <inbound-resourceadapter>
@@ -50,10 +52,14 @@
           <activationspec>
             <activationspec-class>com.datastax.oss.pulsar.jms.rar.PulsarActivationSpec</activationspec-class>
             <required-config-property>
-              <config-property-name>destination</config-property-name>
+              <config-property-name>Destination</config-property-name>
             </required-config-property>
             <required-config-property>
-              <config-property-name>destinationType</config-property-name>
+              <config-property-name>DestinationType</config-property-name>
+            </required-config-property>
+            <required-config-property>
+              <!-- JSON configuration -->
+              <config-property-name>Configuration</config-property-name>
             </required-config-property>
           </activationspec>
         </messagelistener>

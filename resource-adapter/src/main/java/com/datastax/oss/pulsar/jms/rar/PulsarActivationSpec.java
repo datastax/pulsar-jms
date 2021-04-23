@@ -15,15 +15,38 @@
  */
 package com.datastax.oss.pulsar.jms.rar;
 
+import com.datastax.oss.pulsar.jms.PulsarDestination;
+import com.datastax.oss.pulsar.jms.PulsarQueue;
+import com.datastax.oss.pulsar.jms.PulsarTopic;
+import java.util.Objects;
 import javax.resource.ResourceException;
+import javax.resource.spi.ActivationSpec;
 import javax.resource.spi.InvalidPropertyException;
 import javax.resource.spi.ResourceAdapter;
+import javax.resource.spi.ResourceAdapterAssociation;
 
-public class PulsarActivationSpec implements javax.resource.spi.ActivationSpec {
+public class PulsarActivationSpec implements ActivationSpec, ResourceAdapterAssociation {
 
   private ResourceAdapter resourceAdapter;
   private String destination;
   private String destinationType;
+  private String configuration;
+
+  public String getConfiguration() {
+    return configuration;
+  }
+
+  public void setConfiguration(String configuration) {
+    this.configuration = configuration;
+  }
+
+  public PulsarDestination getPulsarDestination() {
+    if (destinationType == null | destination.toLowerCase().contains("queue")) {
+      return new PulsarQueue(destination);
+    } else {
+      return new PulsarTopic(destination);
+    }
+  }
 
   public String getDestination() {
     return destination;
@@ -57,14 +80,29 @@ public class PulsarActivationSpec implements javax.resource.spi.ActivationSpec {
   @Override
   public String toString() {
     return "PulsarActivationSpec{"
-        + "resourceAdapter="
-        + resourceAdapter
         + ", destination='"
         + destination
         + '\''
         + ", destinationType='"
         + destinationType
         + '\''
+        + ", configuration='"
+        + configuration
+        + '\''
         + '}';
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (o == null || getClass() != o.getClass()) return false;
+    PulsarActivationSpec that = (PulsarActivationSpec) o;
+    return Objects.equals(destination, that.destination)
+        && Objects.equals(destinationType, that.destinationType);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(destination, destinationType);
   }
 }
