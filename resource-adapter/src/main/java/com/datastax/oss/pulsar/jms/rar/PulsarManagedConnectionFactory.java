@@ -31,7 +31,7 @@ public class PulsarManagedConnectionFactory
 
   private transient PrintWriter printWriter = new PrintWriter(System.out);
   private PulsarResourceAdapter resourceAdapter;
-  private String configuration;
+  private String configuration = "{}";
 
   public String getConfiguration() {
     return configuration;
@@ -54,12 +54,12 @@ public class PulsarManagedConnectionFactory
   @Override
   public Object createConnectionFactory(ConnectionManager connectionManager)
       throws ResourceException {
-    return resourceAdapter.startPulsarConnectionFactory(configuration);
+    return resourceAdapter.getPulsarConnectionFactory(configuration);
   }
 
   @Override
   public Object createConnectionFactory() throws ResourceException {
-    return resourceAdapter.startPulsarConnectionFactory(configuration);
+    return resourceAdapter.getPulsarConnectionFactory(configuration);
   }
 
   @Override

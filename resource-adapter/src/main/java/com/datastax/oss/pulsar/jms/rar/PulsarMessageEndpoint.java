@@ -21,6 +21,7 @@ import javax.jms.JMSContext;
 import javax.jms.JMSException;
 import javax.jms.Message;
 import javax.jms.MessageListener;
+import javax.resource.spi.ActivationSpec;
 import javax.resource.spi.endpoint.MessageEndpointFactory;
 import javax.transaction.xa.XAException;
 import javax.transaction.xa.XAResource;
@@ -51,7 +52,6 @@ public class PulsarMessageEndpoint implements MessageListener {
 
   public void stop() {
     context.close();
-    pulsarConnectionFactory.close();
   }
 
   @Override
@@ -78,6 +78,12 @@ public class PulsarMessageEndpoint implements MessageListener {
     }
   }
 
+  public boolean matches(
+      MessageEndpointFactory messageEndpointFactory, ActivationSpec activationSpec) {
+    return this.messageEndpointFactory == messageEndpointFactory
+        && this.activationSpec == activationSpec;
+  }
+
   private static class TransactionControlHandle implements XAResource {
     private final PulsarMessage message;
 
@@ -87,6 +93,7 @@ public class PulsarMessageEndpoint implements MessageListener {
 
     @Override
     public void commit(Xid xid, boolean onePhase) throws XAException {
+      // we do not support XA transactions, simply acknowledge the message
       try {
         message.acknowledge();
       } catch (JMSException err) {
