@@ -34,6 +34,7 @@
     <module>pulsar-jms</module>
     <module>tck-executor</module>
     <module>resource-adapter</module>
+    <module>resource-adapter-tests</module>
     <module>examples/spring</module>
     <module>examples/payara-micro</module>
   </modules>

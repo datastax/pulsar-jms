@@ -20,11 +20,12 @@
   <modelVersion>4.0.0</modelVersion>
   <artifactId>payara-example</artifactId>
   <packaging>ejb</packaging>
-  <name>Payara Micro® JMS Client Pulsar Example</name>
+  <name>Payara Micro® JMS Pulsar Example</name>
   <parent>
     <groupId>com.datastax.oss</groupId>
     <artifactId>pulsar-jms-parent</artifactId>
     <version>1.0.0-SNAPSHOT</version>
+    <relativePath>../../pom.xml</relativePath>
   </parent>
   <properties>
     <openmq.rar.path>lib/pulsar.rar</openmq.rar.path>

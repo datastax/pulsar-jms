@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package fish.payara.examples.payaramicro.jms;
+package com.datastax.oss.pulsar.examples;
 
 import java.util.Date;
 import java.util.logging.Level;

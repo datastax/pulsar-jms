@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package fish.payara.examples.payaramicro.jms;
+package com.datastax.oss.pulsar.examples;
 
 import javax.ejb.ActivationConfigProperty;
 import javax.ejb.MessageDriven;
