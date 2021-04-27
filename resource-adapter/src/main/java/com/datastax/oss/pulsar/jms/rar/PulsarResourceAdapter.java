@@ -47,6 +47,15 @@ public class PulsarResourceAdapter implements ResourceAdapter {
         (config) -> {
           log.info("startPulsarConnectionFactory {}", config);
           try {
+
+            if (config != null) {
+              config = config.trim();
+              // workaround TomEE bug, it blindly remove all '}' chars
+              if (config.startsWith("{") && !config.endsWith("}")) {
+                config = config + "}";
+              }
+            }
+
             PulsarConnectionFactory res = new PulsarConnectionFactory();
             res.setJsonConfiguration(config);
             return res;

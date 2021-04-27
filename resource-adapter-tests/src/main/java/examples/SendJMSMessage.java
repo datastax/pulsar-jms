@@ -13,54 +13,30 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.datastax.oss.pulsar.examples;
+package examples;
 
 import java.util.Date;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.annotation.Resource;
-import javax.ejb.Schedule;
 import javax.ejb.Stateless;
-import javax.jms.*;
-import javax.resource.AdministeredObjectDefinition;
-import javax.resource.ConnectionFactoryDefinition;
+import javax.jms.ConnectionFactory;
+import javax.jms.JMSContext;
+import javax.jms.JMSRuntimeException;
+import javax.jms.Queue;
 
-/**
- * An example Timer Bean to send messages to an Pulsar broker
- *
- * @author Steve Millidge
- */
 @Stateless
-@ConnectionFactoryDefinition(
-  name = "java:app/jms/SendJMS",
-  interfaceName = "javax.jms.ConnectionFactory",
-  resourceAdapter = "pulsarra",
-  properties = {"configuration=${MPCONFIG=pulsar.config}"}
-)
-@AdministeredObjectDefinition(
-  resourceAdapter = "pulsarra",
-  interfaceName = "javax.jms.Queue",
-  className = "com.datastax.oss.pulsar.jms.PulsarQueue",
-  name = "java:app/jms/MyQueue",
-  properties = {"Name=${MPCONFIG=queue.name}"}
-)
 public class SendJMSMessage {
 
-  @Resource(lookup = "java:app/jms/MyQueue")
-  Queue queue;
-
-  @Resource(lookup = "java:app/jms/SendJMS")
+  @Resource(name = "MyJmsConnectionFactory")
   ConnectionFactory factory;
 
-  @Schedule(
-    hour = "*",
-    minute = "*",
-    second = "*/5",
-    info = "Every 5 second timer",
-    timezone = "UTC",
-    persistent = false
-  )
-  public void myTimer() {
+  @Resource(name = "MyQueue")
+  Queue queue;
+
+  public void doSend() {
+    System.out.println("Queue " + queue);
+    System.out.println("factory " + factory);
     try (JMSContext context = factory.createContext()) {
       System.out.println("Sending a message...");
       context.createProducer().send(queue, "This is a test at " + new Date());

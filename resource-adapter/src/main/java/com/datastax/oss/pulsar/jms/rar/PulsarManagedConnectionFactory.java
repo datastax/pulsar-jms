@@ -15,6 +15,7 @@
  */
 package com.datastax.oss.pulsar.jms.rar;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.PrintWriter;
 import java.util.Set;
 import javax.resource.ResourceException;
@@ -26,11 +27,15 @@ import javax.resource.spi.ResourceAdapter;
 import javax.resource.spi.ResourceAdapterAssociation;
 import javax.security.auth.Subject;
 
+@SuppressFBWarnings("DM_DEFAULT_ENCODING")
 public class PulsarManagedConnectionFactory
     implements ManagedConnectionFactory, ResourceAdapterAssociation {
 
+  private static final long serialVersionUID = 0;
+
   private transient PrintWriter printWriter = new PrintWriter(System.out);
-  private PulsarResourceAdapter resourceAdapter;
+
+  private transient PulsarResourceAdapter resourceAdapter;
   private String configuration = "{}";
 
   public String getConfiguration() {

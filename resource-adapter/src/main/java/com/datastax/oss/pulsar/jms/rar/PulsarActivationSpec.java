@@ -30,7 +30,7 @@ public class PulsarActivationSpec implements ActivationSpec, ResourceAdapterAsso
   private ResourceAdapter resourceAdapter;
   private String destination;
   private String destinationType;
-  private String configuration;
+  private String configuration = "{}";
 
   public String getConfiguration() {
     return configuration;
@@ -41,7 +41,7 @@ public class PulsarActivationSpec implements ActivationSpec, ResourceAdapterAsso
   }
 
   public PulsarDestination getPulsarDestination() {
-    if (destinationType == null | destination.toLowerCase().contains("queue")) {
+    if (destinationType == null || destination.toLowerCase().contains("queue")) {
       return new PulsarQueue(destination);
     } else {
       return new PulsarTopic(destination);

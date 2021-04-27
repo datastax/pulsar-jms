@@ -62,7 +62,7 @@
         <version>3.1.2</version>
         <executions>
           <execution>
-            <id>get-artifacts-path</id>
+            <id>copy-rar</id>
             <phase>package</phase>
             <goals>
               <goal>copy</goal>
@@ -73,6 +73,8 @@
                   <groupId>${project.groupId}</groupId>
                   <artifactId>pulsar-jms-resource-adapter</artifactId>
                   <version>${project.version}</version>
+                  <type>rar</type>
+                  <classifier>rar</classifier>
                   <destFileName>pulsarra.rar</destFileName>
                   <outputDirectory>${project.build.directory}</outputDirectory>
                 </artifactItem>
@@ -89,7 +91,7 @@
           <commandLineOptions>
             <option>
               <key>--systemProperties</key>
-              <value>src/main/resources/META-INF/microprofile-config.properties</value>
+              <value>${basedir}/src/main/resources/META-INF/microprofile-config.properties</value>
             </option>
             <option>
               <key>--autoBindHttp</key>

@@ -21,7 +21,7 @@
   <display-name>Apache Pulsar JMS Adapter</display-name>
   <vendor-name>DataStax</vendor-name>
   <eis-type>JMS Provider</eis-type>
-  <resourceadapter-version>1.0</resourceadapter-version>
+  <resourceadapter-version>${project.version}</resourceadapter-version>
   <license>
     <description>Apache License Version 2.0 http://www.apache.org/licenses/LICENSE-2.0.txt</description>
     <license-required>true</license-required>
