@@ -110,6 +110,10 @@ public class PulsarConnectionFactory
    * @param json the JSON
    */
   public void setJsonConfiguration(String json) {
+    if (json == null || json.isEmpty()) {
+      setConfiguration(Collections.emptyMap());
+      return;
+    }
     setConfiguration(Utils.runtimeException(() -> new ObjectMapper().readValue(json, Map.class)));
   }
 

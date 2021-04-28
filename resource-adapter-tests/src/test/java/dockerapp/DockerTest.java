@@ -26,52 +26,55 @@ import org.jboss.shrinkwrap.api.ShrinkWrap;
 import org.jboss.shrinkwrap.api.asset.EmptyAsset;
 import org.jboss.shrinkwrap.api.exporter.ZipExporter;
 import org.jboss.shrinkwrap.api.spec.WebArchive;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.utility.MountableFile;
 
-@Disabled // I cannot make it work the Configuration of the ConnectionFactory
+
 public class DockerTest {
 
   @TempDir public Path temporaryDir;
 
-  public static Archive<?> createDeployment() {
-    return ShrinkWrap.create(WebArchive.class, "test.war")
+  public Path createDeployment() throws Exception {
+      Path path = temporaryDir.resolve("test.war");
+      // create a test WebApplication that contains our JMS/JavaEE code
+      Archive<?> war =  ShrinkWrap.create(WebArchive.class, path.getFileName().toString())
         .addPackage(SendJMSMessage.class.getPackage())
         .addAsWebInfResource(EmptyAsset.INSTANCE, "beans.xml");
+      war.as(ZipExporter.class).exportTo(path.toFile());
+      return path;
   }
 
   @Test
   public void test() throws Exception {
+    int numMessages = 10;
+    CountDownLatch allMessagesReceived = new CountDownLatch(1);
 
-    Path applicationFile = temporaryDir.resolve("test.war");
-    Archive<?> ear = createDeployment();
-    ear.as(ZipExporter.class).exportTo(applicationFile.toFile());
+    Path applicationFile = createDeployment();
 
+    // this file is downloaded by maven-dependency-plugin
     Path pulsarraFile = Paths.get("target/pulsarra.rar");
-    Path tomeeFile = Paths.get("src/main/resources/tomee.xml");
-    Path systemPropertiesFile = Paths.get("src/main/resources/system.properties");
-    CountDownLatch pulsarReady = new CountDownLatch(1);
-    try (Network network = Network.newNetwork(); ) {
-      try (GenericContainer<?> pulsarContainer =
-          new GenericContainer<>("apachepulsar/pulsar:2.7.1")
-              .withNetwork(network)
-              .withNetworkAliases("pulsar")
-              .withCommand("bin/pulsar", "standalone", "--advertised-address", "pulsar")
-              .withLogConsumer(
-                  (f) -> {
-                    String text = f.getUtf8String().trim();
-                    if (text.contains("messaging service is ready")) {
-                      pulsarReady.countDown();
-                    }
-                    System.out.println(text);
-                  })) {
-        pulsarContainer.start();
-        assertTrue(pulsarReady.await(1, TimeUnit.MINUTES));
 
+    // tomee.xml file
+    Path tomeeFile = Paths.get("src/main/resources/tomee.xml");
+
+    // server wide configuration
+    Path systemPropertiesFile = Paths.get("src/main/resources/system.properties");
+
+    // create a docker network
+    try (Network network = Network.newNetwork(); ) {
+        // start Pulsar and wait for it to be ready to accept requests
+      try (PulsarContainer pulsarContainer = new PulsarContainer(network);) {
+        pulsarContainer.start();
+
+        // start TomEE
+        // deploy these files to the container:
+        // - tomee.xml
+        // - conf/system.properties
+        // - ResourceAdapter pulsarra.rar
+        // - WebApp
         try (GenericContainer<?> container =
             new GenericContainer<>("tomee:11-jre-8.0.6-plus")
                 .withNetwork(network)
@@ -86,12 +89,16 @@ public class DockerTest {
                     MountableFile.forHostPath(applicationFile), "/usr/local/tomee/webapps/test.war")
                 .withLogConsumer(
                     (f) -> {
-                      System.out.println(f.getUtf8String());
+                        String text = f.getUtf8String().trim();
+                        if (text.contains("TOTAL MESSAGES -"+numMessages+"-")) {
+                            allMessagesReceived.countDown();
+                        }
+                      System.out.println(text);
                     })) {
-
-          Thread.sleep(10000);
           container.start();
-          Thread.sleep(Integer.MAX_VALUE);
+
+          // expect the application to write an expected log
+          assertTrue(allMessagesReceived.await(2, TimeUnit.MINUTES));
         }
       }
     }

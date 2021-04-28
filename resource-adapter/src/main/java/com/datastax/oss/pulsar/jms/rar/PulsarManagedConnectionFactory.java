@@ -26,8 +26,10 @@ import javax.resource.spi.ManagedConnectionFactory;
 import javax.resource.spi.ResourceAdapter;
 import javax.resource.spi.ResourceAdapterAssociation;
 import javax.security.auth.Subject;
+import lombok.extern.slf4j.Slf4j;
 
 @SuppressFBWarnings("DM_DEFAULT_ENCODING")
+@Slf4j
 public class PulsarManagedConnectionFactory
     implements ManagedConnectionFactory, ResourceAdapterAssociation {
 
@@ -43,6 +45,7 @@ public class PulsarManagedConnectionFactory
   }
 
   public void setConfiguration(String configuration) {
+    log.info("setConfiguration {}", configuration);
     this.configuration = configuration;
   }
 
@@ -56,15 +59,23 @@ public class PulsarManagedConnectionFactory
     this.resourceAdapter = (PulsarResourceAdapter) resourceAdapter;
   }
 
+  private String getMergedConfiguration() {
+    if (this.configuration == null || this.configuration.trim().isEmpty()) {
+      return resourceAdapter.getConfiguration();
+    } else {
+      return configuration;
+    }
+  }
+
   @Override
   public Object createConnectionFactory(ConnectionManager connectionManager)
       throws ResourceException {
-    return resourceAdapter.getPulsarConnectionFactory(configuration);
+    return resourceAdapter.getPulsarConnectionFactory(getMergedConfiguration());
   }
 
   @Override
   public Object createConnectionFactory() throws ResourceException {
-    return resourceAdapter.getPulsarConnectionFactory(configuration);
+    return resourceAdapter.getPulsarConnectionFactory(getMergedConfiguration());
   }
 
   @Override

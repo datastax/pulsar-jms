@@ -24,10 +24,15 @@
   <resourceadapter-version>${project.version}</resourceadapter-version>
   <license>
     <description>Apache License Version 2.0 http://www.apache.org/licenses/LICENSE-2.0.txt</description>
-    <license-required>true</license-required>
+    <license-required>false</license-required>
   </license>
   <resourceadapter>
     <resourceadapter-class>com.datastax.oss.pulsar.jms.rar.PulsarResourceAdapter</resourceadapter-class>
+    <config-property>
+      <config-property-name>Configuration</config-property-name>
+      <config-property-type>java.lang.String</config-property-type>
+      <config-property-value>{"brokerServiceUrl":"pulsar://localhost:6650","webServiceUrl":"http://localhost:8080"}</config-property-value>
+    </config-property>
     <outbound-resourceadapter>
       <connection-definition>
         <managedconnectionfactory-class>com.datastax.oss.pulsar.jms.rar.PulsarManagedConnectionFactory</managedconnectionfactory-class>
@@ -35,7 +40,7 @@
           <!-- JSON configuration -->
           <config-property-name>Configuration</config-property-name>
           <config-property-type>java.lang.String</config-property-type>
-          <config-property-value>{"brokerServiceUrl":"pulsar://localhost:6650","webServiceUrl":"http://localhost:8080"}</config-property-value>
+          <config-property-value></config-property-value>
         </config-property>
         <connectionfactory-interface>javax.jms.ConnectionFactory</connectionfactory-interface>
         <connectionfactory-impl-class>com.datastax.oss.pulsar.jms.PulsarConnectionFactory</connectionfactory-impl-class>

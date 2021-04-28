@@ -25,4 +25,9 @@ public class ReceivedMessage {
   public String getMessage() {
     return message;
   }
+
+  public String toString() {
+    return message;
+  }
+
 }

@@ -24,7 +24,9 @@ import javax.resource.spi.ActivationSpec;
 import javax.resource.spi.InvalidPropertyException;
 import javax.resource.spi.ResourceAdapter;
 import javax.resource.spi.ResourceAdapterAssociation;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public class PulsarActivationSpec implements ActivationSpec, ResourceAdapterAssociation {
 
   private ResourceAdapter resourceAdapter;
@@ -37,6 +39,7 @@ public class PulsarActivationSpec implements ActivationSpec, ResourceAdapterAsso
   }
 
   public void setConfiguration(String configuration) {
+    log.info("setConfiguration {}", configuration);
     this.configuration = configuration;
   }
 
@@ -80,7 +83,7 @@ public class PulsarActivationSpec implements ActivationSpec, ResourceAdapterAsso
   @Override
   public String toString() {
     return "PulsarActivationSpec{"
-        + ", destination='"
+        + "destination='"
         + destination
         + '\''
         + ", destinationType='"
@@ -104,5 +107,13 @@ public class PulsarActivationSpec implements ActivationSpec, ResourceAdapterAsso
   @Override
   public int hashCode() {
     return Objects.hash(destination, destinationType);
+  }
+
+  public String getMergedConfiguration(String configuration) {
+    if (this.configuration == null || this.configuration.trim().isEmpty()) {
+      return configuration;
+    } else {
+      return this.configuration;
+    }
   }
 }

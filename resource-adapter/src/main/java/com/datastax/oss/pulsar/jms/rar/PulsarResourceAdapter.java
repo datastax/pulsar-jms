@@ -36,6 +36,16 @@ public class PulsarResourceAdapter implements ResourceAdapter {
   private final Map<String, PulsarConnectionFactory> outboundConnections =
       new ConcurrentHashMap<>();
   private final Set<PulsarMessageEndpoint> endpoints = new CopyOnWriteArraySet<>();
+  private String configuration = "{}";
+
+  public String getConfiguration() {
+    return configuration;
+  }
+
+  public void setConfiguration(String configuration) {
+    log.info("setConfiguration {}", configuration);
+    this.configuration = configuration;
+  }
 
   @Override
   public void start(BootstrapContext bootstrapContext) throws ResourceAdapterInternalException {}
@@ -81,7 +91,7 @@ public class PulsarResourceAdapter implements ResourceAdapter {
       log.info("Activate endpoint {} {}", activationSpec, messageEndpointFactory);
       PulsarActivationSpec pulsarActivationSpec = (PulsarActivationSpec) activationSpec;
       PulsarConnectionFactory connectionFactory =
-          getPulsarConnectionFactory(pulsarActivationSpec.getConfiguration());
+          getPulsarConnectionFactory(pulsarActivationSpec.getMergedConfiguration(configuration));
       PulsarMessageEndpoint endpoint =
           new PulsarMessageEndpoint(
               connectionFactory, messageEndpointFactory, pulsarActivationSpec);
