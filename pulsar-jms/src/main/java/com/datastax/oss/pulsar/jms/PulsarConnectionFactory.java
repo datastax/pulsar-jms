@@ -82,6 +82,7 @@ public class PulsarConnectionFactory
   private String tckUsername = null;
   private String tckPassword = null;
   private String queueSubscriptionName = "jms-queue";
+  private long waitForServerStartupTimeout = 60000;
   private boolean initialized;
 
   private Map<String, Object> configuration;
@@ -158,6 +159,10 @@ public class PulsarConnectionFactory
       this.defaultClientId = getAndRemoveString("jms.clientId", null, configuration);
 
       this.queueSubscriptionName = getAndRemoveString("jms.queueName", "jms-queue", configuration);
+
+      this.waitForServerStartupTimeout =
+          Long.parseLong(
+              getAndRemoveString("jms.waitForServerStartupTimeout", "60000", configuration));
 
       this.enableClientSideFeatures =
           Boolean.parseBoolean(
@@ -687,6 +692,41 @@ public class PulsarConnectionFactory
     }
   }
 
+  public void ensureQueueSubscription(PulsarDestination destination) throws JMSException {
+    long start = System.currentTimeMillis();
+    while (true) {
+      try {
+        getPulsarAdmin()
+            .topics()
+            .createSubscription(
+                destination.topicName, getQueueSubscriptionName(), MessageId.earliest);
+        break;
+      } catch (PulsarAdminException.ConflictException exists) {
+        log.debug(
+            "Subscription {} already exists for {}",
+            getQueueSubscriptionName(),
+            destination.topicName);
+      } catch (PulsarAdminException.NotFoundException err) {
+        // special handling for server startup
+        // it mitigates problems in tests
+        // but also it is useful in order to let
+        // applications start when the server is not available
+        long now = System.currentTimeMillis();
+        if (now - start > getWaitForServerStartupTimeout()) {
+          throw Utils.handleException(err);
+        } else {
+          log.info(
+              "Got {} error while setting up subscription for queue {}, maybe the namespace/broker is still starting",
+              err.toString(),
+              destination);
+        }
+
+      } catch (PulsarAdminException err) {
+        throw Utils.handleException(err);
+      }
+    }
+  }
+
   public void ensureSubscription(PulsarDestination destination, String consumerName)
       throws JMSException {
     // for queues we have a single shared subscription
@@ -873,6 +913,10 @@ public class PulsarConnectionFactory
 
   public synchronized String getQueueSubscriptionName() {
     return queueSubscriptionName;
+  }
+
+  public synchronized long getWaitForServerStartupTimeout() {
+    return waitForServerStartupTimeout;
   }
 
   public synchronized SubscriptionType getExclusiveSubscriptionTypeForSimpleConsumers() {

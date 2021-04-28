@@ -16,13 +16,6 @@
     limitations under the License.
 
 -->
-<resources>
-<!--  <Resource id="MyJmsConnectionFactory"-->
-<!--            type="javax.jms.ConnectionFactory">-->
-<!--      ResourceAdapter=pulsarra.rar-->
-<!--  </Resource>-->
-<!--  <Resource id="FooQueue" type="javax.jms.Queue" classname="com.datastax.oss.pulsar.jms.PulsarQueue">-->
-<!--      ResourceAdapter = pulsarra-->
-<!--    Name = MyQueue-->
-<!--  </Resource>-->
-</resources>
+<tomee>
+  <!--  <Deployments dir="apps"/>-->
+</tomee>

@@ -26,11 +26,8 @@
   <modelVersion>4.0.0</modelVersion>
   <artifactId>pulsar-jms-resource-adapter-tests</artifactId>
   <packaging>jar</packaging>
-  <name>Pulsar JMS Resource Adapter for Jakarta EE Containers</name>
-  <properties>
-    <build.dir>${project.build.directory}</build.dir>
-    <arquillian-bom.version>1.7.0.Alpha5</arquillian-bom.version>
-  </properties>
+  <name>Pulsar JMS Resource Adapter Tests for Jakarta EE Containers</name>
+  <properties/>
   <dependencyManagement>
     <dependencies>
       <dependency>
@@ -40,21 +37,20 @@
         <type>pom</type>
         <scope>import</scope>
       </dependency>
-      <dependency>
-        <groupId>org.jboss.arquillian</groupId>
-        <artifactId>arquillian-bom</artifactId>
-        <version>${arquillian-bom.version}</version>
-        <scope>import</scope>
-        <type>pom</type>
-      </dependency>
     </dependencies>
   </dependencyManagement>
   <dependencies>
     <dependency>
-      <groupId>jakarta.platform</groupId>
-      <artifactId>jakarta.jakartaee-api</artifactId>
-      <version>8.0.0</version>
+      <groupId>org.apache.tomee</groupId>
+      <artifactId>javaee-api</artifactId>
+      <version>8.0-5</version>
       <scope>provided</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>*</groupId>
+          <artifactId>*</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>org.junit.jupiter</groupId>
@@ -62,92 +58,68 @@
       <scope>test</scope>
     </dependency>
     <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-simple</artifactId>
+      <version>1.7.30</version>
+    </dependency>
+    <dependency>
       <groupId>org.jboss.arquillian.junit5</groupId>
       <artifactId>arquillian-junit5-container</artifactId>
+      <version>1.7.0.Alpha9</version>
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>org.wildfly</groupId>
-      <artifactId>wildfly-arquillian-container-embedded</artifactId>
-      <version>8.1.0.Final</version>
-    </dependency>
-    <dependency>
-      <groupId>org.wildfly</groupId>
-      <artifactId>wildfly-embedded</artifactId>
-      <version>8.1.0.Final</version>
-    </dependency>
-    <dependency>
-      <groupId>org.jboss.arquillian.protocol</groupId>
-      <artifactId>arquillian-protocol-servlet-jakarta</artifactId>
-      <version>${arquillian-bom.version}</version>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>5.8.0-M1</version>
       <scope>test</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>org.jetbrains.kotlin</groupId>
+          <artifactId>*</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
-<!--    <dependency>-->
-<!--      <groupId>org.apache.tomee</groupId>-->
-<!--      <artifactId>arquillian-tomee-embedded</artifactId>-->
-<!--      <version>8.0.6</version>-->
-<!--    </dependency>-->
-<!--    <dependency>-->
-<!--      <groupId>org.apache.tomee</groupId>-->
-<!--      <artifactId>tomee-embedded</artifactId>-->
-<!--      <version>8.0.6</version>-->
-<!--    </dependency>-->
     <dependency>
-      <groupId>junit</groupId>
-      <artifactId>junit</artifactId>
-      <version>4.12</version>
+      <groupId>org.apache.tomee</groupId>
+      <artifactId>arquillian-tomee-embedded</artifactId>
+      <version>8.0.6</version>
+      <scope>test</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>org.jboss.arquillian.junit</groupId>
+          <artifactId>arquillian-junit-container</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.tomee</groupId>
+      <artifactId>openejb-javaagent</artifactId>
+      <version>8.0.6</version>
+      <scope>provided</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>*</groupId>
+          <artifactId>*</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>1.15.3</version>
       <scope>test</scope>
     </dependency>
   </dependencies>
   <build>
     <plugins>
       <plugin>
-        <groupId>au.com.acegi</groupId>
-        <artifactId>xml-format-maven-plugin</artifactId>
-        <version>3.1.1</version>
-        <configuration>
-          <skip>true</skip>
-        </configuration>
-      </plugin>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-dependency-plugin</artifactId>
-        <version>2.8</version>
-        <executions>
-          <execution>
-            <id>unpack</id>
-            <phase>process-test-classes</phase>
-            <goals>
-              <goal>unpack</goal>
-            </goals>
-            <configuration>
-              <artifactItems>
-                <artifactItem>
-                  <groupId>org.wildfly</groupId>
-                  <artifactId>wildfly-dist</artifactId>
-                  <version>8.1.0.Final</version>
-                  <type>zip</type>
-                  <overWrite>false</overWrite>
-                  <outputDirectory>target</outputDirectory>
-                </artifactItem>
-              </artifactItems>
-            </configuration>
-          </execution>
-        </executions>
-      </plugin>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
         <configuration>
-          <!-- Fork every test because it will launch a separate AS instance -->
-          <forkMode>always</forkMode>
+          <trimStackTrace>false</trimStackTrace>
           <systemPropertyVariables>
-            <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
-            <!-- the maven dependency plugin will have already downloaded the server on /target -->
-            <jboss.home>${project.basedir}/target/wildfly-8.1.0.Final</jboss.home>
-            <module.path>${project.basedir}/target/wildfly-8.1.0.Final/modules</module.path>
+            <project.build.directory>${project.build.directory}</project.build.directory>
           </systemPropertyVariables>
-          <redirectTestOutputToFile>false</redirectTestOutputToFile>
         </configuration>
       </plugin>
       <plugin>
@@ -182,6 +154,17 @@
         <artifactId>spotbugs-maven-plugin</artifactId>
         <version>4.2.3</version>
         <configuration>
+          <skip>true</skip>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>au.com.acegi</groupId>
+        <artifactId>xml-format-maven-plugin</artifactId>
+        <version>3.1.1</version>
+        <configuration>
+          <excludes>
+            <exclude>**/*</exclude>
+          </excludes>
           <skip>true</skip>
         </configuration>
       </plugin>

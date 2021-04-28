@@ -16,7 +16,6 @@
 package com.datastax.oss.pulsar.jms.rar;
 
 import com.datastax.oss.pulsar.jms.PulsarConnectionFactory;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -45,22 +44,20 @@ public class PulsarResourceAdapter implements ResourceAdapter {
     return outboundConnections.computeIfAbsent(
         configuration,
         (config) -> {
+          if (config != null) {
+            config = config.trim();
+            // workaround TomEE bug, it blindly remove all '}' chars
+            if (config.startsWith("{") && !config.endsWith("}")) {
+              config = config + "}";
+            }
+          }
           log.info("startPulsarConnectionFactory {}", config);
           try {
-
-            if (config != null) {
-              config = config.trim();
-              // workaround TomEE bug, it blindly remove all '}' chars
-              if (config.startsWith("{") && !config.endsWith("}")) {
-                config = config + "}";
-              }
-            }
-
             PulsarConnectionFactory res = new PulsarConnectionFactory();
             res.setJsonConfiguration(config);
             return res;
           } catch (JMSException err) {
-            log.error("Cannot start a connection factory with configuratiobn {}", config, err);
+            log.error("Cannot start a connection factory with configuration {}", config, err);
             throw new RuntimeException(err);
           }
         });
@@ -85,7 +82,6 @@ public class PulsarResourceAdapter implements ResourceAdapter {
       PulsarActivationSpec pulsarActivationSpec = (PulsarActivationSpec) activationSpec;
       PulsarConnectionFactory connectionFactory =
           getPulsarConnectionFactory(pulsarActivationSpec.getConfiguration());
-      connectionFactory.setJsonConfiguration(pulsarActivationSpec.getConfiguration());
       PulsarMessageEndpoint endpoint =
           new PulsarMessageEndpoint(
               connectionFactory, messageEndpointFactory, pulsarActivationSpec);
@@ -99,15 +95,17 @@ public class PulsarResourceAdapter implements ResourceAdapter {
   @Override
   public void endpointDeactivation(
       MessageEndpointFactory messageEndpointFactory, ActivationSpec activationSpec) {
-    for (Iterator<PulsarMessageEndpoint> it = endpoints.iterator(); it.hasNext(); ) {
-      PulsarMessageEndpoint end = it.next();
+    PulsarMessageEndpoint found = null;
+    for (PulsarMessageEndpoint end : endpoints) {
       if (end.matches(messageEndpointFactory, activationSpec)) {
         log.info(
             "endpointDeactivation {} {} endpoint {}", messageEndpointFactory, activationSpec, end);
         end.stop();
-        it.remove();
-        ;
+        found = end;
       }
+    }
+    if (found != null) {
+      endpoints.remove(found);
     }
   }
 

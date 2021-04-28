@@ -34,9 +34,7 @@ import javax.jms.Session;
 import javax.jms.Topic;
 import javax.jms.TopicSubscriber;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.pulsar.client.admin.PulsarAdminException;
 import org.apache.pulsar.client.api.Consumer;
-import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.api.PulsarClientException;
 import org.apache.pulsar.client.api.SubscriptionMode;
 import org.apache.pulsar.client.api.SubscriptionType;
@@ -106,29 +104,14 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
   }
 
   public PulsarMessageConsumer subscribe() throws JMSException {
-    session.registerConsumer(this);
     if (destination.isQueue()) {
-      try {
-        session
-            .getFactory()
-            .getPulsarAdmin()
-            .topics()
-            .createSubscription(
-                destination.topicName,
-                session.getFactory().getQueueSubscriptionName(),
-                MessageId.earliest);
-      } catch (PulsarAdminException.ConflictException exists) {
-        log.debug(
-            "Subscription {} already exists for {}",
-            session.getFactory().getQueueSubscriptionName(),
-            destination.topicName);
-      } catch (PulsarAdminException err) {
-        throw Utils.handleException(err);
-      }
       // to not create eagerly the Consumer for Queues
+      // but create the shared subscription
+      session.getFactory().ensureQueueSubscription(destination);
     } else {
       getConsumer();
     }
+    session.registerConsumer(this);
     return this;
   }
 
