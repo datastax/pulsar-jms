@@ -16,6 +16,7 @@
 package examples;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Resource;
@@ -34,8 +35,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ArquillianExtension.class)
 public class ArquillianTest {
+
   @Deployment
-  public static Archive<?> createDeployment() {
+  public static Archive<?> createDeployment() throws Exception {
     return ShrinkWrap.create(WebArchive.class, "test.war")
         .addPackage(SendJMSMessage.class.getPackage())
         .addAsWebInfResource(EmptyAsset.INSTANCE, "beans.xml");
@@ -56,18 +58,21 @@ public class ArquillianTest {
     assertEquals("com.datastax.oss.pulsar.jms.PulsarConnectionFactory", cf.getClass().getName());
     assertEquals("com.datastax.oss.pulsar.jms.PulsarQueue", queue.getClass().getName());
 
-    int numMessages = 10;
-    for (int i = 0; i < numMessages; i++) {
+    int numMessagesFromTest = 10;
+    for (int i = 0; i < numMessagesFromTest; i++) {
       cf.createContext().createProducer().send(queue, "test" + i);
     }
 
+    int numMessagesFromTimer = 10;
+
     while (true) {
       System.out.println("Received: " + receivedMessages.getMessages());
-      if (receivedMessages.getMessages().size() == numMessages) {
+      if (receivedMessages.getMessages().size() >= numMessagesFromTest + numMessagesFromTimer) {
         break;
       }
       Thread.sleep(100);
     }
-    assertEquals(numMessages, receivedMessages.getMessages().size());
+    assertTrue(receivedMessages.getMessages().size() >= numMessagesFromTest + numMessagesFromTimer);
   }
+
 }

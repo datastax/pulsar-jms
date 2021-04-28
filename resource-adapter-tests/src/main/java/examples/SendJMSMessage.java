@@ -38,8 +38,8 @@ public class SendJMSMessage {
   @Schedule(
     hour = "*",
     minute = "*",
-    second = "*/5",
-    info = "Every 5 second timer",
+    second = "*/1",
+    info = "Every 1 second timer",
     timezone = "UTC",
     persistent = false
   )

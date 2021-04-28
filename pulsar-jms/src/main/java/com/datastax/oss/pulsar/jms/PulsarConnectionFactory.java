@@ -706,7 +706,8 @@ public class PulsarConnectionFactory
             "Subscription {} already exists for {}",
             getQueueSubscriptionName(),
             destination.topicName);
-      } catch (PulsarAdminException.NotFoundException err) {
+        break;
+      } catch (PulsarAdminException err) {
         // special handling for server startup
         // it mitigates problems in tests
         // but also it is useful in order to let
@@ -719,10 +720,14 @@ public class PulsarConnectionFactory
               "Got {} error while setting up subscription for queue {}, maybe the namespace/broker is still starting",
               err.toString(),
               destination);
-        }
 
-      } catch (PulsarAdminException err) {
-        throw Utils.handleException(err);
+          try {
+            Thread.sleep(1000);
+          } catch (InterruptedException interruptedException) {
+            Thread.currentThread().interrupt();
+            throw Utils.handleException(err);
+          }
+        }
       }
     }
   }
