@@ -76,7 +76,7 @@ public class PulsarConnectionFactory
   private String systemNamespace = "public/default";
   private String defaultClientId = null;
   private boolean enableTransaction = false;
-  private boolean enableClientSideFeatures = false;
+  private boolean enableClientSideEmulation = false;
   private boolean forceDeleteTemporaryDestinations = false;
   private boolean useExclusiveSubscriptionsForSimpleConsumers = false;
   private String tckUsername = null;
@@ -93,6 +93,11 @@ public class PulsarConnectionFactory
 
   public PulsarConnectionFactory(Map<String, Object> properties) throws JMSException {
     this.configuration = new HashMap(properties);
+  }
+
+  public PulsarConnectionFactory(String configuration) throws JMSException {
+    this();
+    setJsonConfiguration(configuration);
   }
 
   /**
@@ -162,15 +167,16 @@ public class PulsarConnectionFactory
 
       this.defaultClientId = getAndRemoveString("jms.clientId", null, configuration);
 
-      this.queueSubscriptionName = getAndRemoveString("jms.queueName", "jms-queue", configuration);
+      this.queueSubscriptionName =
+          getAndRemoveString("jms.queueSubscriptionName", "jms-queue", configuration);
 
       this.waitForServerStartupTimeout =
           Long.parseLong(
               getAndRemoveString("jms.waitForServerStartupTimeout", "60000", configuration));
 
-      this.enableClientSideFeatures =
+      this.enableClientSideEmulation =
           Boolean.parseBoolean(
-              getAndRemoveString("jms.enableClientSideFeatures", "false", configuration));
+              getAndRemoveString("jms.enableClientSideEmulation", "false", configuration));
 
       // in Exclusive mode Pulsar does not support delayed messages
       // with this flag you force to not use Exclusive subscription and so to support
@@ -277,8 +283,8 @@ public class PulsarConnectionFactory
     return value != null ? value.toString() : defaultValue;
   }
 
-  public synchronized boolean isEnableClientSideFeatures() {
-    return enableClientSideFeatures;
+  public synchronized boolean isEnableClientSideEmulation() {
+    return enableClientSideEmulation;
   }
 
   synchronized String getDefaultClientId() {

@@ -91,15 +91,15 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
         SelectorSupport.build(
             selector,
             subscriptionType == SubscriptionType.Exclusive
-                || session.getFactory().isEnableClientSideFeatures());
+                || session.getFactory().isEnableClientSideEmulation());
     this.unregisterSubscriptionOnClose = unregisterSubscriptionOnClose;
     if (noLocal
         && subscriptionType != SubscriptionType.Exclusive
-        && !session.getFactory().isEnableClientSideFeatures()) {
+        && !session.getFactory().isEnableClientSideEmulation()) {
       throw new IllegalStateException(
           "noLocal is not enabled by default with subscriptionType "
               + subscriptionType
-              + ", please set jms.EnableClientSideFeatures=true");
+              + ", please set jms.enableClientSideEmulation=true");
     }
   }
 

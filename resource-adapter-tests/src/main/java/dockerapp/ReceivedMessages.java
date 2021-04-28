@@ -32,6 +32,6 @@ public class ReceivedMessages {
     System.out.println("onMessage " + onJmsMessage);
     messages.add(onJmsMessage.getMessage());
     // this output is checked by the test case, do not change
-    System.out.println("TOTAL MESSAGES -" + messages.size()+"-");
+    System.out.println("TOTAL MESSAGES -" + messages.size() + "-");
   }
 }

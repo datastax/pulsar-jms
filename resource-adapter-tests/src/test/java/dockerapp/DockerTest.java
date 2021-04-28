@@ -32,19 +32,19 @@ import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.utility.MountableFile;
 
-
 public class DockerTest {
 
   @TempDir public Path temporaryDir;
 
   public Path createDeployment() throws Exception {
-      Path path = temporaryDir.resolve("test.war");
-      // create a test WebApplication that contains our JMS/JavaEE code
-      Archive<?> war =  ShrinkWrap.create(WebArchive.class, path.getFileName().toString())
-        .addPackage(SendJMSMessage.class.getPackage())
-        .addAsWebInfResource(EmptyAsset.INSTANCE, "beans.xml");
-      war.as(ZipExporter.class).exportTo(path.toFile());
-      return path;
+    Path path = temporaryDir.resolve("test.war");
+    // create a test WebApplication that contains our JMS/JavaEE code
+    Archive<?> war =
+        ShrinkWrap.create(WebArchive.class, path.getFileName().toString())
+            .addPackage(SendJMSMessage.class.getPackage())
+            .addAsWebInfResource(EmptyAsset.INSTANCE, "beans.xml");
+    war.as(ZipExporter.class).exportTo(path.toFile());
+    return path;
   }
 
   @Test
@@ -65,8 +65,8 @@ public class DockerTest {
 
     // create a docker network
     try (Network network = Network.newNetwork(); ) {
-        // start Pulsar and wait for it to be ready to accept requests
-      try (PulsarContainer pulsarContainer = new PulsarContainer(network);) {
+      // start Pulsar and wait for it to be ready to accept requests
+      try (PulsarContainer pulsarContainer = new PulsarContainer(network); ) {
         pulsarContainer.start();
 
         // start TomEE
@@ -89,10 +89,10 @@ public class DockerTest {
                     MountableFile.forHostPath(applicationFile), "/usr/local/tomee/webapps/test.war")
                 .withLogConsumer(
                     (f) -> {
-                        String text = f.getUtf8String().trim();
-                        if (text.contains("TOTAL MESSAGES -"+numMessages+"-")) {
-                            allMessagesReceived.countDown();
-                        }
+                      String text = f.getUtf8String().trim();
+                      if (text.contains("TOTAL MESSAGES -" + numMessages + "-")) {
+                        allMessagesReceived.countDown();
+                      }
                       System.out.println(text);
                     })) {
           container.start();

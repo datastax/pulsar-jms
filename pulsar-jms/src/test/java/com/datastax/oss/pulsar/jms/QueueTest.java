@@ -154,7 +154,7 @@ public class QueueTest {
     int numMessages = 20;
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
-    properties.put("jms.enableClientSideFeatures", "false");
+    properties.put("jms.enableClientSideEmulation", "false");
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
         connection.start();

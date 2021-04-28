@@ -37,7 +37,7 @@ public final class SelectorSupport {
     }
     if (!enabled) {
       throw new InvalidSelectorException(
-          "Client-Side selectors are not enabled, please set enableClientSideFeatures=true");
+          "Client-Side selectors are not enabled, please set enableClientSideEmulation=true");
     }
     BooleanExpression parse = SelectorParser.parse(selector);
     return new SelectorSupport(parse, selector);

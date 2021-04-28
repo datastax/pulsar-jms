@@ -33,6 +33,7 @@ This is how you access them for Pulsar
 ```
    Map<String, Object> configuration = new HashMap<>();
    configuration.put("webServiceUrl", "http://localhost:8080"); 
+   configuration.put("brokerServiceUrl", "pulsar://localhost:6650"); 
    PulsarConnectionFactory factory = new PulsarConnectionFactory(configuration);
    
    try (JMSContext context = factory.createContext()) {
@@ -53,11 +54,19 @@ You can for instance run Pulsar Standalone using docker
 docker run --name pulsar-jms-runner -d -p 8080:8080 -p 6650:6650 apachepulsar/pulsar:2.7.1 /pulsar/bin/pulsar standalone
 ```
 
+## JakartaEE® Resource Adapter
+
+In order to use this JMS Client inside a JakartaEE® or JavaEE® application you can use the ResourceAdapter.
+
+The source code of the resource adapter is in this repository, in this [directory](resource-adapter).
+
 ## Examples
 
 In this repository you can find examples about how to run the client:
 
-- with [Spring](examples/spring)
+- with [Spring Boot]®(examples/spring)
+- with [Payara Micro®](examples/payara-micro)
+- with [Apache TomEE®](resource-adapter-tests)
 
 ## Building from the sources
 
@@ -84,7 +93,7 @@ With this command you build the package, run unit tests and then you run the TCK
 
 In order to only run the TCK
 
-       mvn clean install -Prun-tck -pl tck-executor
+       mvn clean install -Prun-tck -am -DskipTests -pl tck-executor
 
 This library, when you run it using Apache Pulsar 2.7.x passes most of the TCK, except from the few tests around the need
 of supporting globally unique subscription names, those tests are skipped by the configuration applied to the TCK runner.
@@ -130,7 +139,7 @@ This is the mapping between JMS Consumer/Subscriptions and Apache Pulsar Consume
 | Consumer | Shared Durable subscription with name 'jms-queue' |
 | QueueBrowser | Pulsar Reader on the topic, beginning from the next message on 'jms-queue' subscription |
 
-You can change the name of the shared subscription using `jms.queueName` configuration parameter but you must ensure that you change 
+You can change the name of the shared subscription using `jms.queueSubscriptionName` configuration parameter, but you must ensure that you change 
 this configuration on every client.
 
 In order to implement QueueBrowser we use the Pulsar Reader API, starting from the next message available on the 'jms-queue' subscription.
@@ -208,7 +217,7 @@ open an issue in order to request an improvement, that will have to be implement
 | NoLocal subscriptions | Not supported by Pulsar | Emulated by JMS Client |
 | Per message Time To Live | Pulsar supports TTL at topic level, not per-message | Emulated by JMS Client |
 | Global registry of clientId  | Not supported by Pulsar | Partially emulated by JSM Client |
-| Global unique subscription names  | In Pulsar the subcription name is unique per topic | Partially emulated by JSM Client |
+| Global unique subscription names  | In Pulsar the subscription name is unique per topic | Partially emulated by JSM Client |
 | Temporary destinations (auto deleted when Connection is closed) | Not supported by Pulsar | Partially emulated by JSM Client |
 | Creation of subscriptions from client | Supported, but it requires relevant privileges granted to the client | |
 | Delayed messages | It does not work for Exclusive subscriptions | There is an option to use Shared subscriptions even in cases there an Exclusive subscription would be preferred |
@@ -293,18 +302,33 @@ The configuration is passed to the PulsarConnectionFactory constructor.
     factory.close();
 ```
 
+You can also pass it as a JSON encoded string
+```
+    String configuration = "{.....}";
+    ConnectionFactory factory = new PulsarConnectionFactory();
+    factory.setJsonConfiguration(configuration);
+    ....
+    factory.close();
+```
+
+Once you start using the ConnectionFactory, you are no more allowed to change the configuration.
+
+Configuration reference:
+
 | Configuration Entry  | Required | Type | Default value | Meaning | Notes |
 | ------------- | ------------- | -------------| ------------- | ------------- | ------------- |
 | webServiceUrl | yes | String | http://localhost:8080 | Main Pulsar HTTP endpoint | Configure this in order to access to your cluster |
 | brokerServiceUrl | no | String | same value as webServiceUrl | The URL to connect to the Pulsar broker or proxy | |
 | enableTransaction | no | boolean | false | Enable transactions | It defaults to false because Transaction support is not enabled by default in Pulsar 2.7 and the client won't be able to connect to a cluster that does not enable transactions |
-| jms.clientId | no | String | empty string | Administratively assigned clientId (see JMS specs) | It is the default value assigned to every Connection |
+| jms.enableClientSideEmulation | no | boolean | false | Enable emulated features | Enable features that are not supported directly by the Pulsar Broker but they are emulated on the client side. |
+| jms.clientId | no | String | empty string | Administratively assigned clientId (see JMS specs) | It is the default value assigned to every Connection. |
 | producerConfig | no | Map<String, Object> | Empty Map | Additional configuration to be set on every Pulsar Producer | |
 | consumerConfig | no | Map<String, Object> | Empty Map | Additional configuration to be set on every Pulsar Consumer | |
-| jms.systemNamespace | no | String | public/default | Pulsar namespace in which create TemporaryDestinations | |
-| jms.queueName | no | String | jms-queue | Name of the system subscription used to emulate JMS Queues | |
+| jms.systemNamespace | no | String | public/default | Default Pulsar namespace in which create TemporaryDestinations and destinations without an explicit namespace| |
+| jms.queueSubscriptionName | no | String | jms-queue | Name of the system subscription used to emulate JMS Queues | |
 | jms.useExclusiveSubscriptionsForSimpleConsumers | no | boolean | true | Use Exclusive subscription for Topic consumers | Set this to 'false' to make Delayed Messages work properly |
 | jms.forceDeleteTemporaryDestinations | no | boolean | false | Force the deletion of Temporary Destinations | Use Pulsar API to force the deletion even in case of active subscriptions (as 'jms-queue' for instance) |
+| jms.waitForServerStartupTimeout | no | number | 60000 | Grace period to wait for the Pulsar broker to be available | Currently used to wait for Queue subscriptions to be ready |
 | jms.tckUsername | no | String | empty string | Username for running the TCK | Not used in production |
 | jms.tckPassword | no | String | empty string | Password for running the TCK | Not used in production |
 
