@@ -17,6 +17,9 @@ package dockerapp;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+
 import org.jboss.shrinkwrap.api.Archive;
 import org.jboss.shrinkwrap.api.ShrinkWrap;
 import org.jboss.shrinkwrap.api.asset.EmptyAsset;
@@ -27,6 +30,8 @@ import org.junit.jupiter.api.io.TempDir;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.utility.MountableFile;
+
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class DockerTest {
 
@@ -48,17 +53,24 @@ public class DockerTest {
     Path pulsarraFile = Paths.get("target/pulsarra.rar");
     Path tomeeFile = Paths.get("src/main/resources/tomee.xml");
     Path systemPropertiesFile = Paths.get("src/main/resources/system.properties");
-
+    CountDownLatch pulsarReady = new CountDownLatch(1);
     try (Network network = Network.newNetwork(); ) {
       try (GenericContainer<?> pulsarContainer =
           new GenericContainer<>("apachepulsar/pulsar:2.7.1")
               .withNetwork(network)
               .withNetworkAliases("pulsar")
-              .withCommand("bin/pulsar", "standalone")
+              .withCommand("bin/pulsar", "standalone","--advertised-address", "pulsar")
               .withLogConsumer(
                   (f) -> {
-                    System.out.println(f.getUtf8String());
+                    String text = f.getUtf8String().trim();
+                    if (text.contains("messaging service is ready")) {
+                      pulsarReady.countDown();
+                    }
+                    System.out.println(text);
                   })) {
+        pulsarContainer.start();
+        assertTrue(pulsarReady.await(1, TimeUnit.MINUTES));
+
         try (GenericContainer<?> container =
             new GenericContainer<>("tomee:11-jre-8.0.6-plus")
                 .withNetwork(network)
@@ -75,7 +87,7 @@ public class DockerTest {
                     (f) -> {
                       System.out.println(f.getUtf8String());
                     })) {
-          pulsarContainer.start();
+
           Thread.sleep(10000);
           container.start();
           Thread.sleep(Integer.MAX_VALUE);
