@@ -322,13 +322,13 @@ Configuration reference:
 | enableTransaction | no | boolean | false | Enable transactions | It defaults to false because Transaction support is not enabled by default in Pulsar 2.7 and the client won't be able to connect to a cluster that does not enable transactions |
 | jms.enableClientSideEmulation | no | boolean | false | Enable emulated features | Enable features that are not supported directly by the Pulsar Broker but they are emulated on the client side. |
 | jms.clientId | no | String | empty string | Administratively assigned clientId (see JMS specs) | It is the default value assigned to every Connection. |
-| producerConfig | no | Map<String, Object> | Empty Map | Additional configuration to be set on every Pulsar Producer | |
-| consumerConfig | no | Map<String, Object> | Empty Map | Additional configuration to be set on every Pulsar Consumer | |
+| producerConfig | no | Map<String,Object> | Empty Map | Additional configuration to be set on every Pulsar Producer | |
+| consumerConfig | no | Map<String,Object> | Empty Map | Additional configuration to be set on every Pulsar Consumer | |
 | jms.systemNamespace | no | String | public/default | Default Pulsar namespace in which create TemporaryDestinations and destinations without an explicit namespace| |
 | jms.queueSubscriptionName | no | String | jms-queue | Name of the system subscription used to emulate JMS Queues | |
 | jms.useExclusiveSubscriptionsForSimpleConsumers | no | boolean | true | Use Exclusive subscription for Topic consumers | Set this to 'false' to make Delayed Messages work properly |
 | jms.forceDeleteTemporaryDestinations | no | boolean | false | Force the deletion of Temporary Destinations | Use Pulsar API to force the deletion even in case of active subscriptions (as 'jms-queue' for instance) |
-| jms.waitForServerStartupTimeout | no | number | 60000 | Grace period to wait for the Pulsar broker to be available | Currently used to wait for Queue subscriptions to be ready |
+| jms.waitForServerStartupTimeout | no | number | 60000 | Grace period to wait for the Pulsar broker to be available in milliseconds| Currently used to wait for Queue subscriptions to be ready |
 | jms.tckUsername | no | String | empty string | Username for running the TCK | Not used in production |
 | jms.tckPassword | no | String | empty string | Password for running the TCK | Not used in production |
 
