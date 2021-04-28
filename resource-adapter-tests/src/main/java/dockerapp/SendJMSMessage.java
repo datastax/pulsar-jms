@@ -16,8 +16,6 @@
 package dockerapp;
 
 import java.util.Date;
-import javax.annotation.Resource;
-import javax.ejb.Schedule;
 import javax.ejb.Stateless;
 import javax.jms.ConnectionFactory;
 import javax.jms.JMSContext;
@@ -29,20 +27,20 @@ import javax.jms.Queue;
 @Stateless
 public class SendJMSMessage {
 
-//  @Resource(name = "pulsar-javax.jms.ConnectionFactory")
+  //  @Resource(name = "pulsar-javax.jms.ConnectionFactory")
   ConnectionFactory factory;
 
-//  @Resource(name = "pulsar-javax.jms.Queue")
+  //  @Resource(name = "pulsar-javax.jms.Queue")
   private Queue queue;
 
-//  @Schedule(
-//    hour = "*",
-//    minute = "*",
-//    second = "*/5",
-//    info = "Every 5 second timer",
-//    timezone = "UTC",
-//    persistent = false
-//  )
+  //  @Schedule(
+  //    hour = "*",
+  //    minute = "*",
+  //    second = "*/5",
+  //    info = "Every 5 second timer",
+  //    timezone = "UTC",
+  //    persistent = false
+  //  )
   public void doSend() {
     System.out.println("factory " + factory + " queue " + queue + " " + queue.getClass());
     if (factory == null) {

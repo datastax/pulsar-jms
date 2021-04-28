@@ -76,5 +76,4 @@ public class ArquillianTest {
     }
     assertTrue(receivedMessages.getMessages().size() >= numMessagesFromTest + numMessagesFromTimer);
   }
-
 }

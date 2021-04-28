@@ -227,37 +227,6 @@ limitations under the License.]]></inlineHeader>
           </executions>
         </plugin>
         <plugin>
-          <groupId>org.jacoco</groupId>
-          <artifactId>jacoco-maven-plugin</artifactId>
-          <version>0.8.6</version>
-          <executions>
-            <execution>
-              <id>unit-tests-coverage</id>
-              <goals>
-                <goal>prepare-agent</goal>
-              </goals>
-            </execution>
-            <execution>
-              <id>integration-tests-coverage</id>
-              <goals>
-                <goal>prepare-agent-integration</goal>
-              </goals>
-            </execution>
-            <execution>
-              <id>report-unit-tests-coverage</id>
-              <goals>
-                <goal>report</goal>
-              </goals>
-            </execution>
-            <execution>
-              <id>report-integration-tests-coverage</id>
-              <goals>
-                <goal>report-integration</goal>
-              </goals>
-            </execution>
-          </executions>
-        </plugin>
-        <plugin>
           <artifactId>maven-surefire-plugin</artifactId>
           <version>${surefire.version}</version>
           <configuration>
@@ -314,6 +283,9 @@ limitations under the License.]]></inlineHeader>
             <exclude>perf/**</exclude>
             <exclude>**/target/**</exclude>
             <exclude>**/dependency-reduced-pom.xml</exclude>
+            <exclude>**/arquillian.xml</exclude>
+            <exclude>**/ra.xml</exclude>
+            <exclude>**/tomee.xml</exclude>
             <exclude>**/.flattened-pom.xml</exclude>
           </excludes>
         </configuration>
@@ -321,11 +293,6 @@ limitations under the License.]]></inlineHeader>
       <plugin>
         <groupId>com.coveo</groupId>
         <artifactId>fmt-maven-plugin</artifactId>
-        <configuration>
-          <additionalSourceDirectories>
-            <additionalSourceDirectory>src/it/java</additionalSourceDirectory>
-          </additionalSourceDirectories>
-        </configuration>
       </plugin>
       <plugin>
         <groupId>com.mycila</groupId>
