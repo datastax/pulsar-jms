@@ -16,7 +16,8 @@ cp ts.* $TS_HOME/bin
 
 # move to the directory that contains the test you want to run
 cd $TS_HOME/src/com/sun/ts/tests/jms
-cd $TS_HOME/src/com/sun/ts/tests/jms/core/exceptionQueue
+
+#cd $TS_HOME/src/com/sun/ts/tests/jms/core/appclient/txtopictests
 #cd $TS_HOME/src/com/sun/ts/tests/jms/core20/appclient/jmscontexttopictests
 #cd $TS_HOME/src/com/sun/ts/tests/jms/core20/sessiontests
 #cd $TS_HOME/src/com/sun/ts/tests/jms/core

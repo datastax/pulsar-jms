@@ -1128,7 +1128,7 @@ public abstract class PulsarMessage implements Message {
       boolean disableMessageTimestamp)
       throws JMSException {
     prepareForSend(message);
-    fillSystemPropertiesBeforeSend(message, disableMessageTimestamp);
+    fillSystemPropertiesBeforeSend(message, disableMessageTimestamp, session);
 
     message
         .sendAsync()
@@ -1151,7 +1151,7 @@ public abstract class PulsarMessage implements Message {
   }
 
   private void fillSystemPropertiesBeforeSend(
-      TypedMessageBuilder<byte[]> message, boolean disableMessageTimestamp)
+      TypedMessageBuilder<byte[]> message, boolean disableMessageTimestamp, PulsarSession session)
       throws MessageNotWriteableException {
     //    if (!writable) {
     //      throw new MessageNotWriteableException("Message is not writable");
@@ -1169,7 +1169,9 @@ public abstract class PulsarMessage implements Message {
       message.property("JMSMessageId", messageId);
     }
     if (jmsReplyTo != null) {
-      message.property("JMSReplyTo", ((PulsarDestination) jmsReplyTo).topicName);
+      message.property(
+          "JMSReplyTo",
+          session.getFactory().applySystemNamespace(((PulsarDestination) jmsReplyTo).topicName));
       if (((PulsarDestination) jmsReplyTo).isTopic()) {
         message.property("JMSReplyToType", "topic");
       }
@@ -1207,10 +1209,11 @@ public abstract class PulsarMessage implements Message {
     }
   }
 
-  final void send(TypedMessageBuilder<byte[]> producer, boolean disableMessageTimestamp)
+  final void send(
+      TypedMessageBuilder<byte[]> producer, boolean disableMessageTimestamp, PulsarSession session)
       throws JMSException {
     prepareForSend(producer);
-    fillSystemPropertiesBeforeSend(producer, disableMessageTimestamp);
+    fillSystemPropertiesBeforeSend(producer, disableMessageTimestamp, session);
 
     MessageId messageIdFromServer = Utils.invoke(() -> producer.send());
     assignSystemMessageId(messageIdFromServer);

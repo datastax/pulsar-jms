@@ -87,7 +87,8 @@ public class TemporaryDestinationsTest {
           try (MessageProducer producerClient = session.createProducer(serverAddress); ) {
 
             Destination clientAddress = temporaryDestinationMaker.apply(session);
-            temporaryDestinationName = ((PulsarDestination) clientAddress).topicName;
+            temporaryDestinationName =
+                factory.applySystemNamespace(((PulsarDestination) clientAddress).topicName);
 
             // verify topic exists
             assertTrue(

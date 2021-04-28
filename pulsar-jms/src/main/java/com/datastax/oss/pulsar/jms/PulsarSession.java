@@ -888,7 +888,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    * @throws JMSException if a Queue object cannot be created due to some internal error
    */
   @Override
-  public Queue createQueue(String queueName) throws JMSException {
+  public PulsarQueue createQueue(String queueName) throws JMSException {
     checkNotClosed();
     checkQueueOperationEnabled();
     return new PulsarQueue(queueName);
@@ -914,7 +914,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    * @throws JMSException if a Topic object cannot be created due to some internal error
    */
   @Override
-  public Topic createTopic(String topicName) throws JMSException {
+  public PulsarTopic createTopic(String topicName) throws JMSException {
     checkNotClosed();
     checkTopicOperationEnabled();
     return new PulsarTopic(topicName);

@@ -526,4 +526,43 @@ public class SimpleTest {
       }
     }
   }
+
+  @Test
+  public void systemNameSpaceTest() throws Exception {
+
+    String simpleName = "test-" + UUID.randomUUID().toString();
+    Map<String, Object> properties = new HashMap<>();
+    properties.put("webServiceUrl", cluster.getAddress());
+    properties.put("jms.systemNamespace", "pulsar/system");
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+      try (PulsarConnection connection = factory.createConnection()) {
+        connection.start();
+        try (PulsarSession session = connection.createSession(); ) {
+          PulsarDestination destination =
+              session.createQueue("persistent://pulsar/system/" + simpleName);
+
+          PulsarDestination destinationWithSimpleName = session.createQueue(simpleName);
+
+          assertEquals(destination.getName(), factory.applySystemNamespace(destination.getName()));
+
+          try (MessageProducer producer = session.createProducer(destination); ) {
+            TextMessage textMsg = session.createTextMessage("foo1");
+            producer.send(textMsg);
+          }
+
+          try (MessageProducer producer = session.createProducer(destinationWithSimpleName); ) {
+            TextMessage textMsg = session.createTextMessage("foo2");
+            producer.send(textMsg);
+          }
+
+          try (MessageConsumer consumer = session.createConsumer(destination); ) {
+            TextMessage msg1 = (TextMessage) consumer.receive();
+            assertEquals("foo1", msg1.getText());
+            TextMessage msg2 = (TextMessage) consumer.receive();
+            assertEquals("foo2", msg2.getText());
+          }
+        }
+      }
+    }
+  }
 }

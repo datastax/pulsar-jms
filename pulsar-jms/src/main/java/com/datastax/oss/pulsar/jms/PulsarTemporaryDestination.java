@@ -36,8 +36,9 @@ abstract class PulsarTemporaryDestination extends PulsarDestination {
   public final void delete() throws JMSException {
     try {
       log.info("Deleting {}", this);
-
-      TopicStats stats = session.getFactory().getPulsarAdmin().topics().getStats(topicName);
+      String fullQualifiedTopicName = session.getFactory().applySystemNamespace(topicName);
+      TopicStats stats =
+          session.getFactory().getPulsarAdmin().topics().getStats(fullQualifiedTopicName);
       log.info("Stats {}", stats);
 
       int numConsumers =
@@ -50,7 +51,10 @@ abstract class PulsarTemporaryDestination extends PulsarDestination {
           .getFactory()
           .getPulsarAdmin()
           .topics()
-          .delete(topicName, session.getFactory().isForceDeleteTemporaryDestinations(), true);
+          .delete(
+              fullQualifiedTopicName,
+              session.getFactory().isForceDeleteTemporaryDestinations(),
+              true);
     } catch (Exception err) {
       throw Utils.handleException(err);
     } finally {

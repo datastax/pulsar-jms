@@ -313,7 +313,7 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
    * @since JMS 2.0
    */
   @Override
-  public Session createSession() throws JMSException {
+  public PulsarSession createSession() throws JMSException {
     allowSetClientId = false;
     return createSession(Session.AUTO_ACKNOWLEDGE);
   }

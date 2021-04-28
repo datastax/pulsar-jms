@@ -79,8 +79,8 @@ public class PulsarConnectionFactory
   private boolean enableClientSideEmulation = false;
   private boolean forceDeleteTemporaryDestinations = false;
   private boolean useExclusiveSubscriptionsForSimpleConsumers = false;
-  private String tckUsername = null;
-  private String tckPassword = null;
+  private String tckUsername = "";
+  private String tckPassword = "";
   private String queueSubscriptionName = "jms-queue";
   private long waitForServerStartupTimeout = 60000;
   private boolean initialized;
@@ -349,7 +349,11 @@ public class PulsarConnectionFactory
 
   private synchronized void validateDummyUserNamePassword(String userName, String password)
       throws JMSSecurityException {
-    if (!tckUsername.isEmpty() && !tckUsername.equals(userName) && !tckPassword.equals(password)) {
+    if (tckUsername != null
+        && !tckUsername.isEmpty()
+        && !tckUsername.equals(userName)
+        && tckPassword != null
+        && !tckPassword.equals(password)) {
       // this verification is here only for the TCK, Pulsar does not support username/password
       // authentication
       // therefore we are using only one single PulsarClient per factory
@@ -550,6 +554,7 @@ public class PulsarConnectionFactory
    */
   @Override
   public JMSContext createContext(String userName, String password, int sessionMode) {
+    Utils.runtimeException(this::ensureInitialized);
     Utils.runtimeException(() -> validateDummyUserNamePassword(userName, password));
     return createContext(sessionMode);
   }
@@ -676,8 +681,10 @@ public class PulsarConnectionFactory
   Producer<byte[]> getProducerForDestination(
       PulsarDestination defaultDestination, boolean transactions) throws JMSException {
     try {
+      String fullQualifiedTopicName = applySystemNamespace(defaultDestination.topicName);
+      String key = transactions ? fullQualifiedTopicName + "-tx" : fullQualifiedTopicName;
       return producers.computeIfAbsent(
-          defaultDestination.topicName + "-" + transactions,
+          key,
           d -> {
             try {
               return Utils.invoke(
@@ -685,7 +692,7 @@ public class PulsarConnectionFactory
                     ProducerBuilder<byte[]> producerBuilder =
                         pulsarClient
                             .newProducer()
-                            .topic(defaultDestination.topicName)
+                            .topic(applySystemNamespace(fullQualifiedTopicName))
                             .loadConf(getProducerConfiguration());
                     if (transactions) {
                       // this is a limitation of Pulsar transaction support
@@ -704,18 +711,19 @@ public class PulsarConnectionFactory
 
   public void ensureQueueSubscription(PulsarDestination destination) throws JMSException {
     long start = System.currentTimeMillis();
+    String fullQualifiedTopicName = applySystemNamespace(destination.topicName);
     while (true) {
       try {
         getPulsarAdmin()
             .topics()
             .createSubscription(
-                destination.topicName, getQueueSubscriptionName(), MessageId.earliest);
+                fullQualifiedTopicName, getQueueSubscriptionName(), MessageId.earliest);
         break;
       } catch (PulsarAdminException.ConflictException exists) {
         log.debug(
             "Subscription {} already exists for {}",
             getQueueSubscriptionName(),
-            destination.topicName);
+            fullQualifiedTopicName);
         break;
       } catch (PulsarAdminException err) {
         // special handling for server startup
@@ -729,7 +737,7 @@ public class PulsarConnectionFactory
           log.info(
               "Got {} error while setting up subscription for queue {}, maybe the namespace/broker is still starting",
               err.toString(),
-              destination);
+              fullQualifiedTopicName);
 
           try {
             Thread.sleep(1000);
@@ -745,12 +753,14 @@ public class PulsarConnectionFactory
   public void ensureSubscription(PulsarDestination destination, String consumerName)
       throws JMSException {
     // for queues we have a single shared subscription
+    String fullQualifiedTopicName = applySystemNamespace(destination.topicName);
     String subscriptionName = destination.isQueue() ? queueSubscriptionName : consumerName;
-    log.info("Creating subscription {} for destination {}", subscriptionName, destination);
+    log.info(
+        "Creating subscription {} for destination {}", subscriptionName, fullQualifiedTopicName);
     try {
       pulsarAdmin
           .topics()
-          .createSubscription(destination.topicName, subscriptionName, MessageId.latest);
+          .createSubscription(fullQualifiedTopicName, subscriptionName, MessageId.latest);
     } catch (PulsarAdminException.ConflictException alreadyExists) {
       log.info("Subscription {} already exists, this is usually not a problem", subscriptionName);
     } catch (Exception err) {
@@ -765,6 +775,7 @@ public class PulsarConnectionFactory
       SubscriptionMode subscriptionMode,
       SubscriptionType subscriptionType)
       throws JMSException {
+    String fullQualifiedTopicName = applySystemNamespace(destination.topicName);
     // for queues we have a single shared subscription
     String subscriptionName = destination.isQueue() ? queueSubscriptionName : consumerName;
     SubscriptionInitialPosition initialPosition =
@@ -781,7 +792,7 @@ public class PulsarConnectionFactory
 
     log.debug(
         "createConsumer {} {} {}",
-        destination.topicName,
+        fullQualifiedTopicName,
         consumerName,
         subscriptionMode,
         subscriptionType);
@@ -798,7 +809,7 @@ public class PulsarConnectionFactory
               .subscriptionMode(subscriptionMode)
               .subscriptionType(subscriptionType)
               .subscriptionName(subscriptionName)
-              .topic(destination.topicName);
+              .topic(fullQualifiedTopicName);
       Consumer<byte[]> newConsumer = builder.subscribe();
       consumers.add(newConsumer);
       return newConsumer;
@@ -808,10 +819,10 @@ public class PulsarConnectionFactory
   }
 
   public Reader<byte[]> createReaderForBrowser(PulsarQueue destination) throws JMSException {
-
+    String fullQualifiedTopicName = applySystemNamespace(destination.topicName);
     try {
       List<Message<byte[]>> messages =
-          getPulsarAdmin().topics().peekMessages(destination.topicName, queueSubscriptionName, 1);
+          getPulsarAdmin().topics().peekMessages(fullQualifiedTopicName, queueSubscriptionName, 1);
 
       MessageId seekMessageId;
       if (messages.isEmpty()) {
@@ -821,7 +832,7 @@ public class PulsarConnectionFactory
         seekMessageId = messages.get(0).getMessageId();
       }
       ;
-      log.info("createBrowser {} at {}", destination.topicName, seekMessageId);
+      log.info("createBrowser {} at {}", fullQualifiedTopicName, seekMessageId);
 
       ReaderBuilder<byte[]> builder =
           pulsarClient
@@ -832,7 +843,7 @@ public class PulsarConnectionFactory
               .readerName("jms-queue-browser-" + UUID.randomUUID())
               .startMessageId(seekMessageId)
               .startMessageIdInclusive()
-              .topic(destination.topicName);
+              .topic(fullQualifiedTopicName);
       Reader<byte[]> newReader = builder.create();
       readers.add(newReader);
       return newReader;
@@ -856,11 +867,15 @@ public class PulsarConnectionFactory
     try {
 
       if (destination != null) {
-        log.info("deleteSubscription topic {} name {}", destination.topicName, name);
-        pulsarAdmin.topics().deleteSubscription(destination.topicName, name, true);
-        somethingDone = true;
+        String fullQualifiedTopicName = applySystemNamespace(destination.topicName);
+        log.info("deleteSubscription topic {} name {}", fullQualifiedTopicName, name);
+        try {
+          pulsarAdmin.topics().deleteSubscription(fullQualifiedTopicName, name, true);
+          somethingDone = true;
+        } catch (PulsarAdminException.NotFoundException notFound) {
+          log.error("Cannot unsubscribe {} from {}: not found", name, fullQualifiedTopicName);
+        }
       }
-
       if (!somethingDone) {
         // required for TCK, scan for all subscriptions
         List<String> allTopics = pulsarAdmin.topics().getList(systemNamespace);
@@ -878,8 +893,6 @@ public class PulsarConnectionFactory
           }
         }
       }
-    } catch (PulsarAdminException.NotFoundException notFound) {
-      log.error("Cannot unsubscribe {} from {}: not found", name, destination.topicName);
     } catch (Exception err) {
       throw Utils.handleException(err);
     }
@@ -938,5 +951,15 @@ public class PulsarConnectionFactory
     return useExclusiveSubscriptionsForSimpleConsumers
         ? SubscriptionType.Exclusive
         : SubscriptionType.Shared;
+  }
+
+  public String applySystemNamespace(String destination) {
+    if (destination == null) {
+      return null;
+    }
+    if (destination.startsWith("persistent://") || destination.startsWith("non-persistent://")) {
+      return destination;
+    }
+    return "persistent://" + getSystemNamespace() + "/" + destination;
   }
 }

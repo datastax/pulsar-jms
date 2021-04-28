@@ -1212,7 +1212,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
     if (defaultDeliveryDelay > 0) {
       typedMessageBuilder.deliverAfter(defaultDeliveryDelay, TimeUnit.MILLISECONDS);
     }
-    pulsarMessage.send(typedMessageBuilder, disableMessageTimestamp);
+    pulsarMessage.send(typedMessageBuilder, disableMessageTimestamp, session);
     if (message != pulsarMessage) {
       applyBackMessageProperties(message, pulsarMessage);
     }
