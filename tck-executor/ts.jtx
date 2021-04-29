@@ -36,4 +36,4 @@ com/sun/ts/tests/jms/core20/appclient/jmscontexttopictests/Client.java#messageFo
 
 
 # Flaky test on CI (QueueBrowser + Selector "ERROR: Found 0 messages in browser expected 1", sometimes peekMessage does not return the right value)
-#com/sun/ts/tests/jms/core20/jmscontextqueuetests/Client.java#createQueueBrowserTest_from_standalone
+com/sun/ts/tests/jms/core20/jmscontextqueuetests/Client.java#createQueueBrowserTest_from_standalone
