@@ -15,21 +15,17 @@
  */
 package com.datastax.oss.pulsar.jms.rar;
 
-import com.datastax.oss.pulsar.jms.PulsarConnectionFactory;
-import lombok.extern.slf4j.Slf4j;
-import org.junit.jupiter.api.Test;
-
-import javax.resource.spi.InvalidPropertyException;
-
-import java.io.PrintWriter;
-import java.io.StringWriter;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+
+import com.datastax.oss.pulsar.jms.PulsarConnectionFactory;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import lombok.extern.slf4j.Slf4j;
+import org.junit.jupiter.api.Test;
 
 @Slf4j
 public class PulsarManagedConnectionFactoryTest {
@@ -98,5 +94,4 @@ public class PulsarManagedConnectionFactoryTest {
     spec.setConfiguration(null);
     assertSame(factory0, spec.createConnectionFactory());
   }
-
 }

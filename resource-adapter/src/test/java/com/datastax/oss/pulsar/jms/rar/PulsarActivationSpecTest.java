@@ -15,13 +15,12 @@
  */
 package com.datastax.oss.pulsar.jms.rar;
 
-import lombok.extern.slf4j.Slf4j;
-import org.junit.jupiter.api.Test;
-
-import javax.resource.spi.InvalidPropertyException;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+
+import javax.resource.spi.InvalidPropertyException;
+import lombok.extern.slf4j.Slf4j;
+import org.junit.jupiter.api.Test;
 
 @Slf4j
 public class PulsarActivationSpecTest {
@@ -89,6 +88,4 @@ public class PulsarActivationSpecTest {
     assertEquals("bar", spec.getMergedConfiguration("bar"));
     assertEquals(null, spec.getConfiguration());
   }
-
-
 }
