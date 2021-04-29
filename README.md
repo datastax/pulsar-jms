@@ -16,7 +16,7 @@ In order to use this library just add this dependency:
 ```
 <dependency>
    <artifactId>pulsar-jms</artifactId>
-   <groupId>com.datastax.oss.pulsar.jms</groupId>
+   <groupId>com.datastax.oss</groupId>
    <version>VERSION</version>
 </dependency>
 ```
