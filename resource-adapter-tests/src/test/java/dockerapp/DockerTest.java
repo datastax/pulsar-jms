@@ -49,7 +49,7 @@ public class DockerTest {
 
   @Test
   public void test() throws Exception {
-    int numMessages = 10;
+    int numMessages = 20; // more then 10 please
     CountDownLatch allMessagesReceived = new CountDownLatch(1);
 
     Path applicationFile = createDeployment();

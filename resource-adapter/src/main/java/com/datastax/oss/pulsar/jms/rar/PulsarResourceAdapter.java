@@ -26,6 +26,7 @@ import javax.resource.spi.ActivationSpec;
 import javax.resource.spi.BootstrapContext;
 import javax.resource.spi.ResourceAdapter;
 import javax.resource.spi.ResourceAdapterInternalException;
+import javax.resource.spi.UnavailableException;
 import javax.resource.spi.endpoint.MessageEndpointFactory;
 import javax.transaction.xa.XAResource;
 import lombok.extern.slf4j.Slf4j;
@@ -51,26 +52,29 @@ public class PulsarResourceAdapter implements ResourceAdapter {
   public void start(BootstrapContext bootstrapContext) throws ResourceAdapterInternalException {}
 
   public PulsarConnectionFactory getPulsarConnectionFactory(String configuration) {
-    return outboundConnections.computeIfAbsent(
-        configuration,
-        (config) -> {
-          if (config != null) {
-            config = config.trim();
-            // workaround TomEE bug, it blindly remove all '}' chars
-            if (config.startsWith("{") && !config.endsWith("}")) {
-              config = config + "}";
-            }
-          }
-          log.info("startPulsarConnectionFactory {}", config);
-          try {
-            PulsarConnectionFactory res = new PulsarConnectionFactory();
-            res.setJsonConfiguration(config);
-            return res;
-          } catch (JMSException err) {
-            log.error("Cannot start a connection factory with configuration {}", config, err);
-            throw new RuntimeException(err);
-          }
-        });
+    if (configuration == null) {
+      configuration = "";
+    }
+    return outboundConnections.computeIfAbsent(configuration, this::buildConnectionFactory);
+  }
+
+  protected PulsarConnectionFactory buildConnectionFactory(String config) {
+    if (config != null) {
+      config = config.trim();
+      // workaround TomEE bug, it blindly remove all '}' chars
+      if (config.startsWith("{") && !config.endsWith("}")) {
+        config = config + "}";
+      }
+    }
+    log.info("startPulsarConnectionFactory {}", config);
+    try {
+      PulsarConnectionFactory res = new PulsarConnectionFactory();
+      res.setJsonConfiguration(config);
+      return res;
+    } catch (JMSException err) {
+      log.error("Cannot start a connection factory with configuration {}", config, err);
+      throw new RuntimeException(err);
+    }
   }
 
   @Override
@@ -93,13 +97,25 @@ public class PulsarResourceAdapter implements ResourceAdapter {
       PulsarConnectionFactory connectionFactory =
           getPulsarConnectionFactory(pulsarActivationSpec.getMergedConfiguration(configuration));
       PulsarMessageEndpoint endpoint =
-          new PulsarMessageEndpoint(
-              connectionFactory, messageEndpointFactory, pulsarActivationSpec);
+          buildMessageEndpoint(messageEndpointFactory, pulsarActivationSpec, connectionFactory);
       endpoints.add(endpoint);
       endpoint.start();
     } catch (Throwable t) {
       throw new ResourceException(t);
     }
+  }
+
+  protected PulsarMessageEndpoint buildMessageEndpoint(
+      MessageEndpointFactory messageEndpointFactory,
+      PulsarActivationSpec pulsarActivationSpec,
+      PulsarConnectionFactory connectionFactory)
+      throws UnavailableException {
+    return new PulsarMessageEndpoint(
+        connectionFactory, messageEndpointFactory, pulsarActivationSpec);
+  }
+
+  Set<PulsarMessageEndpoint> getEndpoints() {
+    return endpoints;
   }
 
   @Override

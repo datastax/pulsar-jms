@@ -44,7 +44,7 @@ public class PulsarActivationSpec implements ActivationSpec, ResourceAdapterAsso
   }
 
   public PulsarDestination getPulsarDestination() {
-    if (destinationType == null || destination.toLowerCase().contains("queue")) {
+    if (destinationType == null || destinationType.toLowerCase().contains("queue")) {
       return new PulsarQueue(destination);
     } else {
       return new PulsarTopic(destination);

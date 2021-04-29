@@ -61,6 +61,12 @@ This adapter does not implement any integration with the Security mechanisms of 
 The ResourceAdapter simply creates PulsarConnectionFactories depending on the `Configuration`, and this configuration 
 deal with the Authentication and Encryption facilities of the Pulsar Client. 
 
+## Transaction Management and Message Listeners
+
+This adapter does not implement support for Container Managed Transactions in Message Listeners.
+In case of RuntimeException thrown by the MessageListener the message is simply `negatively acknowledged ` in order
+to tell Pulsar Broker to resend the message again later.
+
 ## Examples
 
 You can find [here](../resource-adapter-tests) and example about how to configure Apache TomEE® with the ResourceAdapter.

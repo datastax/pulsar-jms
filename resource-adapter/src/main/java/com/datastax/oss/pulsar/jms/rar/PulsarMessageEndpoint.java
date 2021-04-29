@@ -17,12 +17,14 @@ package com.datastax.oss.pulsar.jms.rar;
 
 import com.datastax.oss.pulsar.jms.PulsarConnectionFactory;
 import com.datastax.oss.pulsar.jms.PulsarMessage;
+import java.lang.reflect.Method;
 import javax.jms.JMSContext;
 import javax.jms.JMSException;
 import javax.jms.Message;
 import javax.jms.MessageListener;
 import javax.resource.spi.ActivationSpec;
 import javax.resource.spi.UnavailableException;
+import javax.resource.spi.endpoint.MessageEndpoint;
 import javax.resource.spi.endpoint.MessageEndpointFactory;
 import javax.transaction.xa.XAException;
 import javax.transaction.xa.XAResource;
@@ -36,8 +38,16 @@ public class PulsarMessageEndpoint implements MessageListener {
   private final MessageEndpointFactory messageEndpointFactory;
   private final PulsarActivationSpec activationSpec;
   private final JMSContext context;
-  private final javax.jms.MessageListener endpoint;
-  private final TransactionControlHandle handle;
+
+  private static final Method ON_MESSAGE;
+
+  static {
+    try {
+      ON_MESSAGE = MessageListener.class.getMethod("onMessage", Message.class);
+    } catch (Throwable t) {
+      throw new RuntimeException(t);
+    }
+  }
 
   public PulsarMessageEndpoint(
       PulsarConnectionFactory pulsarConnectionFactory,
@@ -48,8 +58,14 @@ public class PulsarMessageEndpoint implements MessageListener {
     this.messageEndpointFactory = messageEndpointFactory;
     this.activationSpec = activationSpec;
     this.context = pulsarConnectionFactory.createContext(JMSContext.CLIENT_ACKNOWLEDGE);
-    this.handle = new TransactionControlHandle();
-    this.endpoint = (MessageListener) messageEndpointFactory.createEndpoint(handle);
+  }
+
+  public MessageEndpointFactory getMessageEndpointFactory() {
+    return messageEndpointFactory;
+  }
+
+  public PulsarActivationSpec getActivationSpec() {
+    return activationSpec;
   }
 
   public void start() {
@@ -63,14 +79,26 @@ public class PulsarMessageEndpoint implements MessageListener {
   @Override
   public void onMessage(Message message) {
     PulsarMessage pulsarMessage = (PulsarMessage) message;
+    MessageEndpoint handle;
     try {
-      handle.bindToMessage(pulsarMessage);
-      endpoint.onMessage(message);
+      handle = messageEndpointFactory.createEndpoint(new TransactionControlHandle(pulsarMessage));
+    } catch (Exception err) {
+      log.error("Cannot deliver message " + message + " - cannot create endpoint", err);
+      throw new RuntimeException(err);
+    }
+    try {
+      MessageListener endpoint = (MessageListener) handle;
+      handle.beforeDelivery(ON_MESSAGE);
+      try {
+        endpoint.onMessage(message);
+      } finally {
+        handle.afterDelivery();
+      }
     } catch (Throwable err) {
       log.error("Cannot deliver message " + message + " to endpoint " + handle);
       throw new RuntimeException(err);
     } finally {
-      handle.bindToMessage(null);
+      handle.release();
     }
   }
 
@@ -81,23 +109,17 @@ public class PulsarMessageEndpoint implements MessageListener {
   }
 
   private static class TransactionControlHandle implements XAResource {
-    private PulsarMessage message;
+    private final PulsarMessage message;
 
-    public TransactionControlHandle() {}
-
-    public void bindToMessage(PulsarMessage message) {
+    public TransactionControlHandle(PulsarMessage message) {
       this.message = message;
     }
 
     @Override
     public void commit(Xid xid, boolean onePhase) throws XAException {
-      if (message == null) {
-        throw new XAException("no current message");
-      }
       // we do not support XA transactions, simply acknowledge the message
       try {
         message.acknowledge();
-        message = null;
       } catch (JMSException err) {
         throw new XAException(err + "");
       }
@@ -133,12 +155,8 @@ public class PulsarMessageEndpoint implements MessageListener {
 
     @Override
     public void rollback(Xid xid) throws XAException {
-      if (message == null) {
-        throw new XAException("no current message");
-      }
       try {
         message.negativeAck();
-        message = null;
       } catch (JMSException err) {
         throw new XAException(err + "");
       }
