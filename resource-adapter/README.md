@@ -54,6 +54,13 @@ If you do not set a configuration, or set an empty value, then the general confi
 The ResourceAdapter is responsible for managing a pool of PulsarConnectionFactory, that in turn contains a Pulsar Java Client.
 The ResourceAdapter will try to share the Pulsar Client as much as possible, by keeping only one client per each different Configuration.
 
+## Integration with Container Managed Security
+
+This adapter does not implement any integration with the Security mechanisms of the Appserver (for instance javax.security.auth.Subject).
+
+The ResourceAdapter simply creates PulsarConnectionFactories depending on the `Configuration`, and this configuration 
+deal with the Authentication and Encryption facilities of the Pulsar Client. 
+
 ## Examples
 
 You can find [here](../resource-adapter-tests) and example about how to configure Apache TomEE® with the ResourceAdapter.

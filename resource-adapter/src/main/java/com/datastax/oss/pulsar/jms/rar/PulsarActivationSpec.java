@@ -31,7 +31,7 @@ public class PulsarActivationSpec implements ActivationSpec, ResourceAdapterAsso
 
   private ResourceAdapter resourceAdapter;
   private String destination;
-  private String destinationType;
+  private String destinationType = "queue";
   private String configuration = "{}";
 
   public String getConfiguration() {
@@ -68,7 +68,25 @@ public class PulsarActivationSpec implements ActivationSpec, ResourceAdapterAsso
   }
 
   @Override
-  public void validate() throws InvalidPropertyException {}
+  public void validate() throws InvalidPropertyException {
+    if (destinationType == null) {
+      throw new InvalidPropertyException("invalid null destinationType");
+    }
+    switch (destinationType) {
+        case "queue":
+        case "Queue":
+        case "topic":
+        case "Topic":
+        case "javax.jms.Queue":
+        case "javax.jms.Topic":
+          break;
+        default:
+          throw new InvalidPropertyException("Invalid destinationType '"+destinationType+"', only 'queue','topic','javax.jms.Queue','javax.jms.Topic'");
+      }
+      if (destination == null || destination.isEmpty()) {
+        throw new InvalidPropertyException("Invalid '"+destination+"' destination, it must be non empty");
+      }
+  }
 
   @Override
   public ResourceAdapter getResourceAdapter() {

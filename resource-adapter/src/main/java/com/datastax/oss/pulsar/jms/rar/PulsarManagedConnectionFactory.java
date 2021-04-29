@@ -59,7 +59,7 @@ public class PulsarManagedConnectionFactory
     this.resourceAdapter = (PulsarResourceAdapter) resourceAdapter;
   }
 
-  private String getMergedConfiguration() {
+  String getMergedConfiguration() {
     if (this.configuration == null || this.configuration.trim().isEmpty()) {
       return resourceAdapter.getConfiguration();
     } else {
