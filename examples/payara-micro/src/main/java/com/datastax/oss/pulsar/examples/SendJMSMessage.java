@@ -15,7 +15,6 @@
  */
 package com.datastax.oss.pulsar.examples;
 
-import java.util.Date;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.annotation.Resource;
@@ -55,15 +54,21 @@ public class SendJMSMessage {
   @Schedule(
     hour = "*",
     minute = "*",
-    second = "*/5",
+    second = "*/2",
     info = "Every 5 second timer",
     timezone = "UTC",
     persistent = false
   )
   public void myTimer() {
     try (JMSContext context = factory.createContext()) {
-      System.out.println("Sending a message...");
-      context.createProducer().send(queue, "This is a test at " + new Date());
+      System.out.println("Sending a message...(factory: " + factory + ")");
+      if (!factory
+          .getClass()
+          .getName()
+          .equals("com.datastax.oss.pulsar.jms.PulsarConnectionFactory")) {
+        throw new RuntimeException("Unexpected Factory type " + factory.getClass());
+      }
+      context.createProducer().send(queue, "This is a test");
     } catch (JMSRuntimeException ex) {
       Logger.getLogger(SendJMSMessage.class.getName()).log(Level.SEVERE, null, ex);
     }

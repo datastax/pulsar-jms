@@ -15,6 +15,7 @@
  */
 package com.datastax.oss.pulsar.examples;
 
+import java.util.concurrent.atomic.AtomicInteger;
 import javax.ejb.ActivationConfigProperty;
 import javax.ejb.MessageDriven;
 import javax.jms.Message;
@@ -37,8 +38,16 @@ import javax.jms.MessageListener;
 )
 public class ReceiveMessage implements MessageListener {
 
+  private static AtomicInteger count = new AtomicInteger();
+
   @Override
   public void onMessage(Message message) {
-    System.out.println("Got message " + message);
+
+    System.out.println("RECEIVED #" + count + " MESSAGE " + message);
+
+    if (count.incrementAndGet() == 5) {
+      System.out.println("RECEIVED ENOUGH MESSAGES. Shutting down");
+      Runtime.getRuntime().halt(0);
+    }
   }
 }
