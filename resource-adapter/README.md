@@ -46,8 +46,13 @@ When you define a MessageListener you define a PulsarActivationSpec, that holds 
 - Configuration: this is the configuration for the underlying PulsarConnectionFactory, in JSON encoding
 - Destination: the Name of the destination
 - DestinationType: the type of destination, it defaults to javax.jms.Queue, use javax.jms.Topic in order to use the Pulsar Topic as a topic
+  
+For Topic connections:
+- SubscriptionType: allowed values: Durable or NonDurable
+- SubscriptionMode: allowed values: Exclusive or Shared
+- SubscriptionName: the name of the subscription
 
-If you do not set a configuration, or set an empty value, then the general configuration of the ResourceAdapter is applied
+If you do not set a value for `Configuration`, or in case you set an empty value, then the general configuration of the ResourceAdapter is applied
 
 ## Mapping ResourceAdapter managed resources
 
