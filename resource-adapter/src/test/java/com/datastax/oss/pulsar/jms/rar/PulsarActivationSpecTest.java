@@ -44,7 +44,8 @@ public class PulsarActivationSpecTest {
     PulsarActivationSpec spec = new PulsarActivationSpec();
     String configuration = "{}";
     spec.setConfiguration(configuration);
-    spec.setDestination("topicNames");
+    spec.setDestination("ttt");
+    spec.setSubscriptionName("subname");
     spec.setDestinationType(type);
 
     if (expectError) {
@@ -109,7 +110,7 @@ public class PulsarActivationSpecTest {
     PulsarActivationSpec spec = new PulsarActivationSpec();
     String configuration = "{}";
     spec.setConfiguration(configuration);
-    spec.setDestination("topicNames");
+    spec.setDestination("queue");
     spec.validate();
 
     spec.setDestination(null);

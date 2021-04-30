@@ -22,6 +22,7 @@ import javax.ejb.Schedule;
 import javax.ejb.Stateless;
 import javax.jms.*;
 import javax.resource.AdministeredObjectDefinition;
+import javax.resource.AdministeredObjectDefinitions;
 import javax.resource.ConnectionFactoryDefinition;
 
 /**
@@ -36,17 +37,29 @@ import javax.resource.ConnectionFactoryDefinition;
   resourceAdapter = "pulsarra",
   properties = {"configuration=${MPCONFIG=pulsar.config}"}
 )
-@AdministeredObjectDefinition(
-  resourceAdapter = "pulsarra",
-  interfaceName = "javax.jms.Queue",
-  className = "com.datastax.oss.pulsar.jms.PulsarQueue",
-  name = "java:app/jms/MyQueue",
-  properties = {"Name=${MPCONFIG=queue.name}"}
-)
+@AdministeredObjectDefinitions({
+  @AdministeredObjectDefinition(
+    resourceAdapter = "pulsarra",
+    interfaceName = "javax.jms.Queue",
+    className = "com.datastax.oss.pulsar.jms.PulsarQueue",
+    name = "java:app/jms/MyQueue",
+    properties = {"Name=${MPCONFIG=queue.name}"}
+  ),
+  @AdministeredObjectDefinition(
+    resourceAdapter = "pulsarra",
+    interfaceName = "javax.jms.Topic",
+    className = "com.datastax.oss.pulsar.jms.PulsarTopic",
+    name = "java:app/jms/MyTopic",
+    properties = {"Name=${MPCONFIG=topic.name}"}
+  )
+})
 public class SendJMSMessage {
 
   @Resource(lookup = "java:app/jms/MyQueue")
   Queue queue;
+
+  @Resource(lookup = "java:app/jms/MyTopic")
+  Topic topic;
 
   @Resource(lookup = "java:app/jms/SendJMS")
   ConnectionFactory factory;
@@ -69,6 +82,7 @@ public class SendJMSMessage {
         throw new RuntimeException("Unexpected Factory type " + factory.getClass());
       }
       context.createProducer().send(queue, "This is a test");
+      context.createProducer().send(topic, "This is a test");
     } catch (JMSRuntimeException ex) {
       Logger.getLogger(SendJMSMessage.class.getName()).log(Level.SEVERE, null, ex);
     }

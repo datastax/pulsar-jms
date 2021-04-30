@@ -302,8 +302,7 @@ public class PulsarMessageEndpointTest {
         });
   }
 
-  @Test
-  public void testCreateConsumer(
+  private void testCreateConsumer(
       String destinationType,
       String subscriptionType,
       String subscriptionMode,

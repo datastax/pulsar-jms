@@ -15,14 +15,16 @@
  */
 package com.datastax.oss.pulsar.examples;
 
-import java.util.concurrent.atomic.AtomicInteger;
+import static com.datastax.oss.pulsar.examples.ReceiveMessageFromTopic.countQueue;
+import static com.datastax.oss.pulsar.examples.ReceiveMessageFromTopic.countTopic;
+
 import javax.ejb.ActivationConfigProperty;
 import javax.ejb.MessageDriven;
 import javax.jms.Message;
 import javax.jms.MessageListener;
 
 @MessageDriven(
-  name = "testmdb",
+  name = "testmdbqueue",
   activationConfig = {
     @ActivationConfigProperty(propertyName = "resourceAdapter", propertyValue = "pulsarra"),
     @ActivationConfigProperty(propertyName = "destinationType", propertyValue = "javax.jms.Queue"),
@@ -36,16 +38,15 @@ import javax.jms.MessageListener;
     )
   }
 )
-public class ReceiveMessage implements MessageListener {
-
-  private static AtomicInteger count = new AtomicInteger();
+public class ReceiveMessageFromQueue implements MessageListener {
 
   @Override
   public void onMessage(Message message) {
 
-    System.out.println("RECEIVED #" + count + " MESSAGE " + message);
+    int current = countQueue.incrementAndGet();
+    System.out.println("QUEUE RECEIVED #" + countTopic + "+" + countQueue + " MESSAGE " + message);
 
-    if (count.incrementAndGet() == 5) {
+    if (current == 10 && countTopic.get() == 10) {
       System.out.println("RECEIVED ENOUGH MESSAGES. Shutting down");
       Runtime.getRuntime().halt(0);
     }

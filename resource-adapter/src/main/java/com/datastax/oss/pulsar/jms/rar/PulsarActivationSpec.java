@@ -99,11 +99,12 @@ public class PulsarActivationSpec implements ActivationSpec, ResourceAdapterAsso
     if (destinationType == null) {
       throw new InvalidPropertyException("invalid null destinationType");
     }
-    boolean isTopic = false;
+    boolean isTopic;
     switch (destinationType) {
       case "queue":
       case "javax.jms.Queue":
       case "Queue":
+        isTopic = false;
         break;
       case "topic":
       case "Topic":
@@ -139,12 +140,16 @@ public class PulsarActivationSpec implements ActivationSpec, ResourceAdapterAsso
             "Invalid '" + subscriptionMode + "' subscriptionMode, it must be Exclusive or Shared");
     }
     boolean requireSubscriptionName =
-        !isTopic
-            && !(subscriptionMode.equals("Exclusive") && subscriptionType.equals("NonDurable"));
+        isTopic && !(subscriptionMode.equals("Exclusive") && subscriptionType.equals("NonDurable"));
 
-    if (requireSubscriptionName && subscriptionName == null || subscriptionName.isEmpty()) {
+    if (requireSubscriptionName && (subscriptionName == null || subscriptionName.isEmpty())) {
       throw new InvalidPropertyException(
-          "Invalid '" + subscriptionName + "' subscriptionName, it must be non empty");
+          "Invalid '"
+              + subscriptionName
+              + "' subscriptionName, it must be non empty with subscriptionMode "
+              + subscriptionMode
+              + " and subscriptionType "
+              + subscriptionType);
     }
   }
 
@@ -159,6 +164,30 @@ public class PulsarActivationSpec implements ActivationSpec, ResourceAdapterAsso
   }
 
   @Override
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (o == null || getClass() != o.getClass()) return false;
+    PulsarActivationSpec that = (PulsarActivationSpec) o;
+    return Objects.equals(destination, that.destination)
+        && Objects.equals(destinationType, that.destinationType)
+        && Objects.equals(configuration, that.configuration)
+        && Objects.equals(subscriptionType, that.subscriptionType)
+        && Objects.equals(subscriptionMode, that.subscriptionMode)
+        && Objects.equals(subscriptionName, that.subscriptionName);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(
+        destination,
+        destinationType,
+        configuration,
+        subscriptionType,
+        subscriptionMode,
+        subscriptionName);
+  }
+
+  @Override
   public String toString() {
     return "PulsarActivationSpec{"
         + "destination='"
@@ -170,21 +199,16 @@ public class PulsarActivationSpec implements ActivationSpec, ResourceAdapterAsso
         + ", configuration='"
         + configuration
         + '\''
+        + ", subscriptionType='"
+        + subscriptionType
+        + '\''
+        + ", subscriptionMode='"
+        + subscriptionMode
+        + '\''
+        + ", subscriptionName='"
+        + subscriptionName
+        + '\''
         + '}';
-  }
-
-  @Override
-  public boolean equals(Object o) {
-    if (this == o) return true;
-    if (o == null || getClass() != o.getClass()) return false;
-    PulsarActivationSpec that = (PulsarActivationSpec) o;
-    return Objects.equals(destination, that.destination)
-        && Objects.equals(destinationType, that.destinationType);
-  }
-
-  @Override
-  public int hashCode() {
-    return Objects.hash(destination, destinationType);
   }
 
   public String getMergedConfiguration(String configuration) {
