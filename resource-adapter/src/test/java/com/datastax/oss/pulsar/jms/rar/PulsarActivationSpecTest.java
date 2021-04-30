@@ -55,6 +55,56 @@ public class PulsarActivationSpecTest {
   }
 
   @Test
+  public void testSubscriptionType() throws Exception {
+
+    validateSubscriptionType("Durable", false);
+    validateSubscriptionType("NonDurable", false);
+    validateSubscriptionType("", true);
+    validateSubscriptionType(null, true);
+    validateSubscriptionType("somethingelse", true);
+  }
+
+  private static void validateSubscriptionType(String type, boolean expectError) throws Exception {
+    PulsarActivationSpec spec = new PulsarActivationSpec();
+    String configuration = "{}";
+    spec.setConfiguration(configuration);
+    spec.setDestination("topicNames");
+    spec.setDestinationType("queue");
+    spec.setSubscriptionType(type);
+
+    if (expectError) {
+      assertThrows(InvalidPropertyException.class, spec::validate);
+    } else {
+      spec.validate();
+    }
+  }
+
+  @Test
+  public void testSubscriptionMode() throws Exception {
+
+    validateSubscriptionMode("Exclusive", false);
+    validateSubscriptionMode("Shared", false);
+    validateSubscriptionMode("", true);
+    validateSubscriptionMode(null, true);
+    validateSubscriptionMode("somethingelse", true);
+  }
+
+  private static void validateSubscriptionMode(String type, boolean expectError) throws Exception {
+    PulsarActivationSpec spec = new PulsarActivationSpec();
+    String configuration = "{}";
+    spec.setConfiguration(configuration);
+    spec.setDestination("topicNames");
+    spec.setDestinationType("queue");
+    spec.setSubscriptionMode(type);
+
+    if (expectError) {
+      assertThrows(InvalidPropertyException.class, spec::validate);
+    } else {
+      spec.validate();
+    }
+  }
+
+  @Test
   public void testDestination() throws Exception {
     PulsarActivationSpec spec = new PulsarActivationSpec();
     String configuration = "{}";

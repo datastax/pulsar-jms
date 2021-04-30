@@ -22,8 +22,8 @@ import javax.jms.JMSContext;
 import javax.jms.JMSException;
 import javax.jms.Message;
 import javax.jms.MessageListener;
+import javax.jms.Topic;
 import javax.resource.spi.ActivationSpec;
-import javax.resource.spi.UnavailableException;
 import javax.resource.spi.endpoint.MessageEndpoint;
 import javax.resource.spi.endpoint.MessageEndpointFactory;
 import javax.transaction.xa.XAException;
@@ -52,8 +52,7 @@ public class PulsarMessageEndpoint implements MessageListener {
   public PulsarMessageEndpoint(
       PulsarConnectionFactory pulsarConnectionFactory,
       MessageEndpointFactory messageEndpointFactory,
-      PulsarActivationSpec activationSpec)
-      throws UnavailableException {
+      PulsarActivationSpec activationSpec) {
     this.pulsarConnectionFactory = pulsarConnectionFactory;
     this.messageEndpointFactory = messageEndpointFactory;
     this.activationSpec = activationSpec;
@@ -69,7 +68,49 @@ public class PulsarMessageEndpoint implements MessageListener {
   }
 
   public void start() {
-    context.createConsumer(activationSpec.getPulsarDestination()).setMessageListener(this);
+    if (activationSpec.getPulsarDestination().isQueue()) {
+      context.createConsumer(activationSpec.getPulsarDestination()).setMessageListener(this);
+    } else {
+      switch (activationSpec.getSubscriptionType()) {
+        case "NonDurable":
+          {
+            switch (activationSpec.getSubscriptionMode()) {
+              case "Exclusive":
+                context
+                    .createConsumer(activationSpec.getPulsarDestination())
+                    .setMessageListener(this);
+                return;
+              case "Shared":
+              default:
+                context
+                    .createSharedConsumer(
+                        (Topic) activationSpec.getPulsarDestination(),
+                        activationSpec.getSubscriptionName())
+                    .setMessageListener(this);
+                return;
+            }
+          }
+        case "Durable":
+        default:
+          switch (activationSpec.getSubscriptionMode()) {
+            case "Exclusive":
+              context
+                  .createDurableConsumer(
+                      (Topic) activationSpec.getPulsarDestination(),
+                      activationSpec.getSubscriptionName())
+                  .setMessageListener(this);
+              return;
+            case "Shared":
+            default:
+              context
+                  .createSharedDurableConsumer(
+                      (Topic) activationSpec.getPulsarDestination(),
+                      activationSpec.getSubscriptionName())
+                  .setMessageListener(this);
+              return;
+          }
+      }
+    }
   }
 
   public void stop() {

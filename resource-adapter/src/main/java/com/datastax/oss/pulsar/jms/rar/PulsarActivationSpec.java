@@ -33,6 +33,9 @@ public class PulsarActivationSpec implements ActivationSpec, ResourceAdapterAsso
   private String destination;
   private String destinationType = "queue";
   private String configuration = "{}";
+  private String subscriptionType = "Durable";
+  private String subscriptionMode = "Shared";
+  private String subscriptionName = "";
 
   public String getConfiguration() {
     return configuration;
@@ -67,18 +70,45 @@ public class PulsarActivationSpec implements ActivationSpec, ResourceAdapterAsso
     this.destinationType = destinationType;
   }
 
+  public String getSubscriptionName() {
+    return subscriptionName;
+  }
+
+  public void setSubscriptionName(String subscriptionName) {
+    this.subscriptionName = subscriptionName;
+  }
+
+  public String getSubscriptionType() {
+    return subscriptionType;
+  }
+
+  public void setSubscriptionType(String destinationType) {
+    this.subscriptionType = destinationType;
+  }
+
+  public String getSubscriptionMode() {
+    return subscriptionMode;
+  }
+
+  public void setSubscriptionMode(String subscriptionMode) {
+    this.subscriptionMode = subscriptionMode;
+  }
+
   @Override
   public void validate() throws InvalidPropertyException {
     if (destinationType == null) {
       throw new InvalidPropertyException("invalid null destinationType");
     }
+    boolean isTopic = false;
     switch (destinationType) {
       case "queue":
+      case "javax.jms.Queue":
       case "Queue":
+        break;
       case "topic":
       case "Topic":
-      case "javax.jms.Queue":
       case "javax.jms.Topic":
+        isTopic = true;
         break;
       default:
         throw new InvalidPropertyException(
@@ -89,6 +119,32 @@ public class PulsarActivationSpec implements ActivationSpec, ResourceAdapterAsso
     if (destination == null || destination.isEmpty()) {
       throw new InvalidPropertyException(
           "Invalid '" + destination + "' destination, it must be non empty");
+    }
+    switch (subscriptionType + "") {
+      case "Durable":
+      case "NonDurable":
+        break;
+      default:
+        throw new InvalidPropertyException(
+            "Invalid '"
+                + subscriptionType
+                + "' subscriptionType, it must be Durable or NonDurable");
+    }
+    switch (subscriptionMode + "") {
+      case "Exclusive":
+      case "Shared":
+        break;
+      default:
+        throw new InvalidPropertyException(
+            "Invalid '" + subscriptionMode + "' subscriptionMode, it must be Exclusive or Shared");
+    }
+    boolean requireSubscriptionName =
+        !isTopic
+            && !(subscriptionMode.equals("Exclusive") && subscriptionType.equals("NonDurable"));
+
+    if (requireSubscriptionName && subscriptionName == null || subscriptionName.isEmpty()) {
+      throw new InvalidPropertyException(
+          "Invalid '" + subscriptionName + "' subscriptionName, it must be non empty");
     }
   }
 

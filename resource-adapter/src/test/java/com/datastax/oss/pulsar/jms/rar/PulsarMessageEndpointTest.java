@@ -34,11 +34,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import javax.jms.Destination;
 import javax.jms.JMSConsumer;
 import javax.jms.JMSContext;
 import javax.jms.Message;
 import javax.jms.MessageListener;
+import javax.jms.Topic;
 import javax.resource.ResourceException;
 import javax.resource.spi.endpoint.MessageEndpoint;
 import javax.resource.spi.endpoint.MessageEndpointFactory;
@@ -255,5 +257,80 @@ public class PulsarMessageEndpointTest {
     } catch (Throwable error) {
       errorCatcher.accept(error);
     }
+  }
+
+  @Test
+  public void testCreateConsumer() throws Exception {
+    testCreateConsumer(
+        "queue",
+        "Durable",
+        "Shared",
+        context -> {
+          verify(context, times(1)).createConsumer(any());
+        });
+
+    testCreateConsumer(
+        "topic",
+        "Durable",
+        "Shared",
+        context -> {
+          verify(context, times(1)).createSharedDurableConsumer(any(), eq("subname"));
+        });
+
+    testCreateConsumer(
+        "topic",
+        "Durable",
+        "Exclusive",
+        context -> {
+          verify(context, times(1)).createDurableConsumer(any(), eq("subname"));
+        });
+
+    testCreateConsumer(
+        "topic",
+        "NonDurable",
+        "Exclusive",
+        context -> {
+          verify(context, times(1)).createConsumer(any());
+        });
+
+    testCreateConsumer(
+        "topic",
+        "NonDurable",
+        "Shared",
+        context -> {
+          verify(context, times(1)).createSharedConsumer(any(), eq("subname"));
+        });
+  }
+
+  @Test
+  public void testCreateConsumer(
+      String destinationType,
+      String subscriptionType,
+      String subscriptionMode,
+      Consumer<JMSContext> verifier)
+      throws Exception {
+    DummyEndpoint listener = new DummyEndpoint();
+    PulsarConnectionFactory pulsarConnectionFactory = mock(PulsarConnectionFactory.class);
+    MessageEndpointFactory messageEndpointFactory = mock(MessageEndpointFactory.class);
+    JMSContext context = mock(JMSContext.class);
+    when(pulsarConnectionFactory.createContext(eq(JMSContext.CLIENT_ACKNOWLEDGE)))
+        .thenReturn(context);
+    when(context.createConsumer(any(Destination.class))).thenReturn(mock(JMSConsumer.class));
+    when(context.createDurableConsumer(any(Topic.class), any()))
+        .thenReturn(mock(JMSConsumer.class));
+    when(context.createSharedDurableConsumer(any(Topic.class), any()))
+        .thenReturn(mock(JMSConsumer.class));
+    when(context.createSharedConsumer(any(Topic.class), any())).thenReturn(mock(JMSConsumer.class));
+    PulsarActivationSpec activationSpec = new PulsarActivationSpec();
+    activationSpec.setDestination("MyDest");
+    activationSpec.setSubscriptionName("subname");
+    activationSpec.setDestinationType(destinationType);
+    activationSpec.setSubscriptionType(subscriptionType);
+    activationSpec.setSubscriptionMode(subscriptionMode);
+
+    PulsarMessageEndpoint endpoint =
+        new PulsarMessageEndpoint(pulsarConnectionFactory, messageEndpointFactory, activationSpec);
+    endpoint.start();
+    verifier.accept(context);
   }
 }

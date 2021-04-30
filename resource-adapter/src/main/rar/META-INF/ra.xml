@@ -63,6 +63,12 @@
               <config-property-name>DestinationType</config-property-name>
             </required-config-property>
             <required-config-property>
+              <config-property-name>SubscriptionType</config-property-name>
+            </required-config-property>
+            <required-config-property>
+              <config-property-name>SubscriptionMode</config-property-name>
+            </required-config-property>
+            <required-config-property>
               <!-- JSON configuration -->
               <config-property-name>Configuration</config-property-name>
             </required-config-property>
