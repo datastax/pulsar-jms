@@ -188,7 +188,7 @@ that is used and to a special JMSPulsarMessageType property.
 
 JMS specs require that on the consumer side you receive a message of the same type that has been sent by the producer: TextMessage,BytesMessage,StreamMessage,MapMessage,ObjectMessage.
 
-When the JMS consumer receives a message that has not been produced bu the JMS client itself and lacks the JMSPulsarMessageType property it converts it to a BytesMessage
+When the JMS consumer receives a message that has not been produced by the JMS client itself and lacks the JMSPulsarMessageType property it converts it to a BytesMessage
 in order to allow the access of the Message.
 
 The Key of the Pulsar message is always mapped to the JMSXGroupID message property.
@@ -216,9 +216,9 @@ open an issue in order to request an improvement, that will have to be implement
 | Message selectors | Not supported by Pulsar | Emulated on Client |
 | NoLocal subscriptions | Not supported by Pulsar | Emulated by JMS Client |
 | Per message Time To Live | Pulsar supports TTL at topic level, not per-message | Emulated by JMS Client |
-| Global registry of clientId  | Not supported by Pulsar | Partially emulated by JSM Client |
-| Global unique subscription names  | In Pulsar the subscription name is unique per topic | Partially emulated by JSM Client |
-| Temporary destinations (auto deleted when Connection is closed) | Not supported by Pulsar | Partially emulated by JSM Client |
+| Global registry of clientId  | Not supported by Pulsar | Partially emulated by JMS Client |
+| Global unique subscription names  | In Pulsar the subscription name is unique per topic | Partially emulated by JMS Client |
+| Temporary destinations (auto deleted when Connection is closed) | Not supported by Pulsar | Partially emulated by JMS Client |
 | Creation of subscriptions from client | Supported, but it requires relevant privileges granted to the client | |
 | Delayed messages | It does not work for Exclusive subscriptions | There is an option to use Shared subscriptions even in cases there an Exclusive subscription would be preferred |
 | Message Priority | Unsupported | Priority is stored as property and delivered to the consumer, but ignored|
