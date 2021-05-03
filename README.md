@@ -186,7 +186,7 @@ by Java specifications.
 The Pulsar JMS Client do not deal with Schema, and it treats every message as a raw array of bytes, interpreting the content of the message according to the JMS API
 that is used and to a special JMSPulsarMessageType property.
 
-JMS specs require that on the consumer side you receive a message of the same type that has been sent by the producer: TextMessage,BytesMessage,StreamMessage,MapMessage.
+JMS specs require that on the consumer side you receive a message of the same type that has been sent by the producer: TextMessage,BytesMessage,StreamMessage,MapMessage,ObjectMessage.
 
 When the JMS consumer receives a message that has not been produced bu the JMS client itself and lacks the JMSPulsarMessageType property it converts it to a BytesMessage
 in order to allow the access of the Message.
