@@ -266,19 +266,18 @@ public class NoLocalTest {
             }
             // no message
             assertNull(consumerNoLocal.receive(3000));
-
-            if (!acknowledgeRejectedMessages) {
-              try (MessageConsumer consumerAllowLocal =
-                  session.createConsumer(destination, null, false); ) {
-                for (int i = 0; i < 10; i++) {
-                  assertNotNull(consumerAllowLocal.receive(1000));
-                }
+          }
+          if (!acknowledgeRejectedMessages) {
+            try (MessageConsumer consumerAllowLocal =
+                session.createConsumer(destination, null, false); ) {
+              for (int i = 0; i < 10; i++) {
+                assertNotNull(consumerAllowLocal.receive());
               }
-            } else {
-              try (MessageConsumer consumerAllowLocal =
-                  session.createConsumer(destination, null, false); ) {
-                assertNull(consumerAllowLocal.receive(1000));
-              }
+            }
+          } else {
+            try (MessageConsumer consumerAllowLocal =
+                session.createConsumer(destination, null, false); ) {
+              assertNull(consumerAllowLocal.receive(1000));
             }
           }
         }

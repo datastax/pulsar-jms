@@ -309,10 +309,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
         consumer.acknowledgeAsync(message.getMessageId());
       }
     } else {
-      log.info(
-          "negativeAcknowledge for message {} that does not match filter {}",
-          message,
-          selectorSupport);
+      log.info("nAck filtered msg {}", message.getMessageId());
       consumer.negativeAcknowledge(message);
     }
   }
