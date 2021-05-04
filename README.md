@@ -11,11 +11,22 @@ You can find [here](https://pulsar.apache.org) the official Apache Pulsar docume
 
 ## Installation
 
-In order to use this library just add this dependency:
+In order to use this library just add this dependency to your Maven pom:
 
 ```
 <dependency>
    <artifactId>pulsar-jms</artifactId>
+   <groupId>com.datastax.oss</groupId>
+   <version>VERSION</version>
+</dependency>
+```
+This file contains only DataStax Pulsar JMS code and imports transitively the Apache Pulsar Client and the
+Jakarta JMS 2.0 Specifications JAR.
+
+If you want a fat jar that contains all the third party dependencies you can use:
+```
+<dependency>
+   <artifactId>pulsar-jms-all</artifactId>
    <groupId>com.datastax.oss</groupId>
    <version>VERSION</version>
 </dependency>
