@@ -208,8 +208,6 @@ Configuration reference:
 | jms.useExclusiveSubscriptionsForSimpleConsumers | no | boolean | true | Use Exclusive subscription for Topic consumers | Set this to 'false' to make Delayed Messages work properly |
 | jms.forceDeleteTemporaryDestinations | no | boolean | false | Force the deletion of Temporary Destinations | Use Pulsar API to force the deletion even in case of active subscriptions (as 'jms-queue' for instance) |
 | jms.waitForServerStartupTimeout | no | number | 60000 | Grace period to wait for the Pulsar broker to be available in milliseconds| Currently used to wait for Queue subscriptions to be ready |
-| jms.tckUsername | no | String | empty string | Username for running the TCK | Not used in production |
-| jms.tckPassword | no | String | empty string | Password for running the TCK | Not used in production |
 
 Every other option is passed as configuration to the Pulsar Client and to the Pulsar Admin client, this way
 you can configure additional Pulsar features, like [security](https://pulsar.apache.org/docs/en/security-tls-keystore/#configuring-clients).
