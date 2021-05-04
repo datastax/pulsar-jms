@@ -115,7 +115,8 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
     return this;
   }
 
-  private synchronized Consumer<byte[]> getConsumer() throws JMSException {
+  // Visible for testing
+  synchronized Consumer<byte[]> getConsumer() throws JMSException {
     if (closed) {
       throw new IllegalStateException("Consumer is closed");
     }
