@@ -299,7 +299,8 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
 
   private void skipMessage(org.apache.pulsar.client.api.Message<byte[]> message)
       throws JMSException {
-    if (subscriptionType == SubscriptionType.Exclusive) {
+    if (subscriptionType == SubscriptionType.Exclusive
+        || session.getFactory().isAcknowledgeRejectedMessages()) {
       // we are the only one that will ever receive this message
       // we can acknowledge it
       if (session.getTransaction() != null) {

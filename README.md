@@ -321,6 +321,7 @@ Configuration reference:
 | brokerServiceUrl | no | String | same value as webServiceUrl | The URL to connect to the Pulsar broker or proxy | |
 | enableTransaction | no | boolean | false | Enable transactions | It defaults to false because Transaction support is not enabled by default in Pulsar 2.7 and the client won't be able to connect to a cluster that does not enable transactions |
 | jms.enableClientSideEmulation | no | boolean | false | Enable emulated features | Enable features that are not supported directly by the Pulsar Broker but they are emulated on the client side. |
+| jms.acknowledgeRejectedMessages | no | boolean | false | Force acknowledgment of filtered messages on Shared subscriptions | By default filtered out messages are negatively acknowledged on Shared subscriptions, with this flag they are acknowledged in order to skip them definitively |
 | jms.clientId | no | String | empty string | Administratively assigned clientId (see JMS specs) | It is the default value assigned to every Connection. |
 | producerConfig | no | Map<String,Object> | Empty Map | Additional configuration to be set on every Pulsar Producer | |
 | consumerConfig | no | Map<String,Object> | Empty Map | Additional configuration to be set on every Pulsar Consumer | |

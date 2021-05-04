@@ -16,6 +16,7 @@
 package com.datastax.oss.pulsar.jms;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -219,6 +220,66 @@ public class NoLocalTest {
             // we must be able to receive the message from the second connection
             TextMessage textMessage = (TextMessage) consumer1.receive();
             assertEquals("test", textMessage.getText());
+          }
+        }
+      }
+    }
+  }
+
+  @Test
+  public void enableAcknowledgeRejectedMessagesTest() throws Exception {
+    acknowledgeRejectedMessagesTest(true);
+  }
+
+  @Test
+  public void disableAcknowledgeRejectedMessagesTest() throws Exception {
+    acknowledgeRejectedMessagesTest(false);
+  }
+
+  private void acknowledgeRejectedMessagesTest(boolean acknowledgeRejectedMessages)
+      throws Exception {
+
+    Map<String, Object> properties = new HashMap<>();
+    properties.put("webServiceUrl", cluster.getAddress());
+    properties.put("jms.enableClientSideEmulation", "true");
+    properties.put("jms.acknowledgeRejectedMessages", acknowledgeRejectedMessages);
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+      try (Connection connection = factory.createConnection()) {
+        connection.setClientID("clientId1");
+        connection.start();
+        try (Session session = connection.createSession(); ) {
+          Queue destination =
+              session.createQueue("persistent://public/default/test-" + UUID.randomUUID());
+
+          try (MessageConsumer consumerNoLocal =
+              session.createConsumer(destination, null, true); ) {
+            assertEquals(
+                SubscriptionType.Shared, // this is a Queue, so the subscription is always shared
+                ((PulsarMessageConsumer) consumerNoLocal).getSubscriptionType());
+            assertTrue(((PulsarMessageConsumer) consumerNoLocal).getNoLocal());
+
+            try (MessageProducer producer = session.createProducer(destination); ) {
+              for (int i = 0; i < 10; i++) {
+                TextMessage textMessage = session.createTextMessage("foo-" + i);
+                producer.send(textMessage);
+              }
+            }
+            // no message
+            assertNull(consumerNoLocal.receive(3000));
+
+            if (!acknowledgeRejectedMessages) {
+              try (MessageConsumer consumerAllowLocal =
+                  session.createConsumer(destination, null, false); ) {
+                for (int i = 0; i < 10; i++) {
+                  assertNotNull(consumerAllowLocal.receive(1000));
+                }
+              }
+            } else {
+              try (MessageConsumer consumerAllowLocal =
+                  session.createConsumer(destination, null, false); ) {
+                assertNull(consumerAllowLocal.receive(1000));
+              }
+            }
           }
         }
       }

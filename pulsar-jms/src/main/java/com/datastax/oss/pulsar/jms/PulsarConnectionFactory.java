@@ -79,6 +79,7 @@ public class PulsarConnectionFactory
   private boolean enableClientSideEmulation = false;
   private boolean forceDeleteTemporaryDestinations = false;
   private boolean useExclusiveSubscriptionsForSimpleConsumers = false;
+  private boolean acknowledgeRejectedMessages = false;
   private String tckUsername = "";
   private String tckPassword = "";
   private String queueSubscriptionName = "jms-queue";
@@ -186,6 +187,16 @@ public class PulsarConnectionFactory
               getAndRemoveString(
                   "jms.useExclusiveSubscriptionsForSimpleConsumers", "true", configuration));
 
+      // This flag is to force acknowledgement for messages that are rejected due to
+      // client side filtering in case of Shared subscription.
+      // If you have a shared subscription on a topic (Topic or Queue) and a message
+      // is filtered out, by default we negatively acknowledge the message in order to
+      // let another consumer on the same subscription to receive it.
+      // with this flag turned to "true" when a Consumer receives a message and it filters
+      // it out, we acknowledge the message, this way it won't be consumed anymore.
+      this.acknowledgeRejectedMessages =
+          Boolean.parseBoolean(
+              getAndRemoveString("jms.acknowledgeRejectedMessages", "false", configuration));
       // default is false
       this.forceDeleteTemporaryDestinations =
           Boolean.parseBoolean(
@@ -961,5 +972,9 @@ public class PulsarConnectionFactory
       return destination;
     }
     return "persistent://" + getSystemNamespace() + "/" + destination;
+  }
+
+  public boolean isAcknowledgeRejectedMessages() {
+    return acknowledgeRejectedMessages;
   }
 }
