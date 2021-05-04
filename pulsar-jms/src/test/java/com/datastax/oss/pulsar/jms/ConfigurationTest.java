@@ -55,7 +55,8 @@ public class ConfigurationTest {
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
     properties.put("producerConfig", producerConfig);
-    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties);
+        PulsarConnection connection = factory.createConnection(); ) {
       PulsarDestination destination = new PulsarQueue("test-" + UUID.randomUUID());
       Producer<byte[]> producer = factory.getProducerForDestination(destination, false);
       assertEquals("the-name", producer.getProducerName());
