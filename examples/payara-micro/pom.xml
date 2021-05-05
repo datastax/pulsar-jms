@@ -94,6 +94,9 @@
               <value>${basedir}/src/main/resources/META-INF/microprofile-config.properties</value>
             </option>
             <option>
+              <key>--autoBindHttp</key>
+            </option>
+            <option>
               <key>--noCluster</key>
             </option>
             <option>

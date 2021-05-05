@@ -47,6 +47,32 @@
         <connection-interface>javax.jms.Connection</connection-interface>
         <connection-impl-class>com.datastax.oss.pulsar.jms.PulsarConnection</connection-impl-class>
       </connection-definition>
+      <connection-definition>
+        <managedconnectionfactory-class>com.datastax.oss.pulsar.jms.rar.PulsarManagedConnectionFactory</managedconnectionfactory-class>
+        <config-property>
+          <!-- JSON configuration -->
+          <config-property-name>Configuration</config-property-name>
+          <config-property-type>java.lang.String</config-property-type>
+          <config-property-value></config-property-value>
+        </config-property>
+        <connectionfactory-interface>javax.jms.QueueConnectionFactory</connectionfactory-interface>
+        <connectionfactory-impl-class>com.datastax.oss.pulsar.jms.PulsarConnectionFactory</connectionfactory-impl-class>
+        <connection-interface>javax.jms.QueueConnection</connection-interface>
+        <connection-impl-class>com.datastax.oss.pulsar.jms.PulsarConnection</connection-impl-class>
+      </connection-definition>
+      <connection-definition>
+        <managedconnectionfactory-class>com.datastax.oss.pulsar.jms.rar.PulsarManagedConnectionFactory</managedconnectionfactory-class>
+        <config-property>
+          <!-- JSON configuration -->
+          <config-property-name>Configuration</config-property-name>
+          <config-property-type>java.lang.String</config-property-type>
+          <config-property-value></config-property-value>
+        </config-property>
+        <connectionfactory-interface>javax.jms.TopicConnectionFactory</connectionfactory-interface>
+        <connectionfactory-impl-class>com.datastax.oss.pulsar.jms.PulsarConnectionFactory</connectionfactory-impl-class>
+        <connection-interface>javax.jms.TopicConnection</connection-interface>
+        <connection-impl-class>com.datastax.oss.pulsar.jms.PulsarConnection</connection-impl-class>
+      </connection-definition>
       <transaction-support>NoTransaction</transaction-support>
       <reauthentication-support>false</reauthentication-support>
     </outbound-resourceadapter>
