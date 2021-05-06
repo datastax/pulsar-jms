@@ -343,20 +343,20 @@ limitations under the License.]]></inlineHeader>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>animal-sniffer-maven-plugin</artifactId>
       </plugin>
+      <plugin>
+        <groupId>org.sonatype.plugins</groupId>
+        <artifactId>nexus-staging-maven-plugin</artifactId>
+        <version>1.6.8</version>
+        <extensions>true</extensions>
+        <configuration>
+          <serverId>ossrh</serverId>
+          <nexusUrl>https://oss.sonatype.org/</nexusUrl>
+          <autoReleaseAfterClose>false</autoReleaseAfterClose>
+          <skipLocalStaging>true</skipLocalStaging>
+        </configuration>
+      </plugin>
     </plugins>
   </build>
-  <distributionManagement>
-    <repository>
-      <id>datastax-releases-local</id>
-      <name>DataStax Local Releases</name>
-      <url>https://repo.sjc.dsinternal.org/artifactory/datastax-releases-local/</url>
-    </repository>
-    <snapshotRepository>
-      <id>datastax-snapshots-local</id>
-      <name>DataStax Local Snapshots</name>
-      <url>https://repo.sjc.dsinternal.org/artifactory/datastax-snapshots-local/</url>
-    </snapshotRepository>
-  </distributionManagement>
   <licenses>
     <license>
       <name>Apache 2</name>
@@ -366,9 +366,9 @@ limitations under the License.]]></inlineHeader>
     </license>
   </licenses>
   <scm>
-    <connection>scm:git:git@github.com:riptano/pulsar-jms.git</connection>
-    <developerConnection>scm:git:git@github.com:riptano/pulsar-jms.git</developerConnection>
-    <url>https://github.com/riptano/pulsar-jms</url>
+    <connection>scm:git:git@github.com:datastax/pulsar-jms.git</connection>
+    <developerConnection>scm:git:git@github.com:datastax/pulsar-jms.git</developerConnection>
+    <url>https://github.com/datastax/pulsar-jms</url>
     <tag>HEAD</tag>
   </scm>
   <developers>
@@ -377,4 +377,67 @@ limitations under the License.]]></inlineHeader>
       <organization>DataStax</organization>
     </developer>
   </developers>
+  <profiles>
+    <!--
+  Profile activated when releasing. See:
+  http://central.sonatype.org/pages/apache-maven.html
+  -->
+    <profile>
+      <id>release</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-javadoc-plugin</artifactId>
+            <version>3.2.0</version>
+            <executions>
+              <execution>
+                <id>attach-javadocs</id>
+                <goals>
+                  <goal>jar</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-source-plugin</artifactId>
+            <version>3.2.1</version>
+            <executions>
+              <execution>
+                <id>attach-sources</id>
+                <goals>
+                  <goal>jar-no-fork</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <artifactId>maven-gpg-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>sign-artifacts</id>
+                <phase>verify</phase>
+                <goals>
+                  <goal>sign</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+  <distributionManagement>
+    <!-- releases go to Maven central -->
+    <repository>
+      <id>ossrh</id>
+      <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
+    </repository>
+    <snapshotRepository>
+      <id>datastax-snapshots-local</id>
+      <name>DataStax Local Snapshots</name>
+      <url>https://repo.sjc.dsinternal.org/artifactory/datastax-snapshots-local/</url>
+    </snapshotRepository>
+  </distributionManagement>
 </project>
