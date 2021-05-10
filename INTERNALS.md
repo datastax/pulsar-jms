@@ -27,11 +27,36 @@ In Pulsar properties are always of type String, but JMS specs require to support
 
 In order to emulate this behaviour for every custom property set on the message we set an additional property that describes the original type of the property.
 
-For instance if you set a message property foo=1234 (integer) we add a property foo_type=integer in order to reconstruct properly 
+For instance if you set a message property foo=1234 (integer) we add a property foo_jmstype=integer in order to reconstruct properly 
 the value when the receiver calls `getObjectProperty`.
 
 The value is always serialized as string, and for floating point numbers we are using Double.toString/parseString and Float.toString/parseString, with the behaviour mandated
 by Java specifications.
+
+### System properties and fields:
+
+These properties are used by the JMS Client is a special way:
+- All property whose name ends with `_jsmtype`: they are additional properties that hold the original data type
+- `JMSType`: value for the standard field JMSType
+- `JMSCorrelationID`: base64 representation of the standard JMSCorrelationID field
+- `JMSPulsarMessageType`: type of message
+- `JMSMessageId`: logical id of the message
+- `JMSReplyTo`: fully qualified name of the topic referred by the JMSReplyTo field
+- `JMSReplyToType`: JMS type for the JMSReplyTo topic. Allowed values are "topic" or "queue" (default is "topic")
+- `JMSDeliveryMode`: integer value of the JMSDeliveryMode standard field, if is set in case of a value different from DeliveryMode.PERSISTENT
+- `JMSPriority`: integer value of the priority requested for the message, it is set in case of a value different from Message.DEFAULT_PRIORITY
+- `JMSDeliveryTime`: representation in milliseconds since the UNIX epoch of the "JMSDeliveryTime" field
+- `JMSXGroupID`: this property is mapped to the "key" of the Pulsar Message, and it is not represented by a Message property
+- `JMSXGroupSeq`: this is mapped to Pulsar Message "sequenceId" in case it is not overridden with a custom value
+
+Mapping of special fields of the Message:
+- property `JMSXDeliveryCount`: this is mapped to 1 + Pulsar Message RedeliveryCount field
+- field `JMSExpiration`: this is the representation in milliseconds since the UNIX epoch of the expiration date of the message, used to emulate "time to live"
+- field `JMSRedelivered`: this is mapped to "true" in case of JMSXDeliveryCount > 1
+
+The properties `JMSXUserID`,`JMSXAppID`,`JMSXProducerTXID`,`JMSXConsumerTXID`,`JMSXRcvTimestamp`,`JMSXState` are ignored.
+
+Please refer to section "3.5.9. JMS defined properties" of the JMS 2.0 specifications.
 
 ## Client identifiers
 
