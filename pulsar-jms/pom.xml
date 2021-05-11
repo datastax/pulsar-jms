@@ -25,7 +25,7 @@
   <modelVersion>4.0.0</modelVersion>
   <artifactId>pulsar-jms</artifactId>
   <packaging>jar</packaging>
-  <name>DataStax Apache Pulsar (R) Java Messaging System API client</name>
+  <name>DataStax Fast JMS for Apache Pulsar (R)</name>
   <properties>
     <build.dir>${project.build.directory}</build.dir>
   </properties>

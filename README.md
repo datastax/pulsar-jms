@@ -1,4 +1,4 @@
-# DataStax Apache Pulsar JMS Client
+# DataStax Fast JMS for Apache Pulsar
 
 This is a Java library that implements the JMS 2.0 (Java Messaging Service ®) over the Apache Pulsar® Java Client.
 
