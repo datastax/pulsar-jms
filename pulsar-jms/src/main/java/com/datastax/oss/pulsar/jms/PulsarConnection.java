@@ -52,7 +52,7 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
   private final List<PulsarSession> sessions = new CopyOnWriteArrayList<>();
   private final List<PulsarTemporaryDestination> temporaryDestinations =
       new CopyOnWriteArrayList<>();
-  private final String connectionId = UUID.randomUUID().toString();
+  private final String connectionId;
   private volatile boolean closed = false;
   String clientId;
   private volatile boolean allowSetClientId = true;
@@ -65,6 +65,9 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
     this.clientId = factory.getDefaultClientId();
     if (this.clientId != null) {
       factory.registerClientId(this.clientId);
+      connectionId = clientId + "_" + UUID.randomUUID().toString();
+    } else {
+      connectionId = UUID.randomUUID().toString();
     }
   }
 

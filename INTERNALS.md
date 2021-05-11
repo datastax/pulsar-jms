@@ -48,6 +48,7 @@ These properties are used by the JMS Client is a special way:
 - `JMSDeliveryTime`: representation in milliseconds since the UNIX epoch of the "JMSDeliveryTime" field
 - `JMSXGroupID`: this property is mapped to the "key" of the Pulsar Message, and it is not represented by a Message property
 - `JMSXGroupSeq`: this is mapped to Pulsar Message "sequenceId" in case it is not overridden with a custom value
+- `JMSConnectionID`: id of the Connection 
 
 Mapping of special fields of the Message:
 - property `JMSXDeliveryCount`: this is mapped to 1 + Pulsar Message RedeliveryCount field
