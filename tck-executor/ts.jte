@@ -46,7 +46,7 @@
 # Standalone JMS RI implementations. The JMS TCK has been run against both.
 ####################################################################################
 jms.home=/Users/enrico.olivelli/dev/pulsar-jms/tck-executor
-jms.classes=/Users/enrico.olivelli/.m2/repository/jakarta/jms/jakarta.jms-api/2.0.3/jakarta.jms-api-2.0.3.jar:${jms.home}/target/tck-executor-1.0.0-SNAPSHOT.jar
+jms.classes=/Users/enrico.olivelli/.m2/repository/jakarta/jms/jakarta.jms-api/2.0.3/jakarta.jms-api-2.0.3.jar:${jms.home}/target/tck-executor-1.0.0.jar
 
 ####################################################################################
 # The jars/classes for the TS harness/javatest and the test classes

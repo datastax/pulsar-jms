@@ -14,6 +14,10 @@ PATH=$PATH:$TS_HOME/tools/ant/bin
 # Copy configuration files
 cp ts.* $TS_HOME/bin
 
+VERSION=$(mvn org.apache.maven.plugins:maven-help-plugin:3.2.0:evaluate -Dexpression=project.version -q -DforceStdout)
+echo "jms.home=$HERE" >> $TS_HOME/bin/ts.jte
+echo "jms.classes=\${jms.home}/target/tck-executor-$VERSION.jar" >> $TS_HOME/bin/ts.jte
+
 # move to the directory that contains the test you want to run
 cd $TS_HOME/src/com/sun/ts/tests/jms
 

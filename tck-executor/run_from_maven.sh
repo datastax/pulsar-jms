@@ -8,9 +8,10 @@ unzip -o $HERE/jakarta-messaging-tck-2.0.0.zip -d $HERE/target
 
 TS_HOME=target/messaging-tck
 
+VERSION=$(mvn org.apache.maven.plugins:maven-help-plugin:3.2.0:evaluate -Dexpression=project.version -q -DforceStdout)
 cp ts.* $TS_HOME/bin
 echo "jms.home=$HERE" >> $TS_HOME/bin/ts.jte
-echo "jms.classes=\${jms.home}/target/tck-executor-1.0.0-SNAPSHOT.jar" >> $TS_HOME/bin/ts.jte
+echo "jms.classes=\${jms.home}/target/tck-executor-$VERSION.jar" >> $TS_HOME/bin/ts.jte
 
 # start Pulsar with docker
 $HERE/start_pulsar.sh
