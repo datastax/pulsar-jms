@@ -118,7 +118,7 @@ To run only the TCK:
 mvn clean install -Prun-tck -am -DskipTests -pl tck-executor
 ```
 
-> :important: Globally unique subscription names are not supported so the corresponding tests are skipped.
+> :warning: Globally unique subscription names are not supported so the corresponding tests are skipped.
 
 ## Configuration reference
 
