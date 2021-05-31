@@ -35,6 +35,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import javax.jms.BytesMessage;
 import javax.jms.CompletionListener;
 import javax.jms.Connection;
@@ -55,8 +56,10 @@ import javax.jms.TextMessage;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.io.TempDir;
 
+@Timeout(value = 1, unit = TimeUnit.MINUTES)
 public class SimpleTest {
 
   @TempDir public static Path tempDir;
