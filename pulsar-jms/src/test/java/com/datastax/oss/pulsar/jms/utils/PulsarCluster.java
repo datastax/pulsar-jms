@@ -65,13 +65,16 @@ public class PulsarCluster implements AutoCloseable {
   public void start() throws Exception {
     bookKeeperCluster.startBookie();
     service.start();
-    service.getAdminClient().clusters().createCluster("localhost", new ClusterData());
+    service.getAdminClient().clusters().createCluster("localhost", ClusterData.builder().build());
     service
         .getAdminClient()
         .tenants()
         .createTenant(
             "public",
-            new TenantInfo(Collections.singleton("admin"), Collections.singleton("localhost")));
+            TenantInfo.builder()
+                .adminRoles(Collections.singleton("admin"))
+                .allowedClusters(Collections.singleton("localhost"))
+                .build());
     service.getAdminClient().namespaces().createNamespace("public/default");
 
     service
@@ -79,13 +82,21 @@ public class PulsarCluster implements AutoCloseable {
         .tenants()
         .createTenant(
             "pulsar",
-            new TenantInfo(Collections.singleton("admin"), Collections.singleton("localhost")));
+            TenantInfo.builder()
+                .adminRoles(Collections.singleton("admin"))
+                .allowedClusters(Collections.singleton("localhost"))
+                .build());
     service.getAdminClient().namespaces().createNamespace("pulsar/system");
 
     service
         .getAdminClient()
         .topics()
         .createPartitionedTopic("persistent://pulsar/system/transaction_coordinator_assign", 1);
+
+    service
+        .getAdminClient()
+        .topics()
+        .createNonPartitionedTopic("persistent://public/default/__transaction_buffer_snapshot");
   }
 
   public void close() throws Exception {

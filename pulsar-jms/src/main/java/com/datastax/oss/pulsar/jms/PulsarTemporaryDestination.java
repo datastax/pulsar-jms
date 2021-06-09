@@ -42,7 +42,7 @@ abstract class PulsarTemporaryDestination extends PulsarDestination {
       log.info("Stats {}", stats);
 
       int numConsumers =
-          stats.subscriptions.values().stream().mapToInt(s -> s.consumers.size()).sum();
+          stats.getSubscriptions().values().stream().mapToInt(s -> s.getConsumers().size()).sum();
       if (numConsumers > 0) {
         throw new JMSException("Cannot delete a temporary destination with active consumers");
       }
