@@ -310,7 +310,9 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
         consumer.acknowledgeAsync(message.getMessageId());
       }
     } else {
-      log.info("nAck filtered msg {}", message.getMessageId());
+      if (log.isDebugEnabled()) {
+        log.debug("nAck filtered msg {}", message.getMessageId());
+      }
       consumer.negativeAcknowledge(message);
     }
   }
@@ -324,10 +326,12 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
     PulsarMessage result = PulsarMessage.decode(this, message);
     Consumer<byte[]> consumer = getConsumer();
     if (expectedType != null && !result.isBodyAssignableTo(expectedType)) {
-      log.info(
-          "negativeAcknowledge for message {} that cannot be converted to {}",
-          message,
-          expectedType);
+      if (log.isDebugEnabled()) {
+        log.debug(
+            "negativeAcknowledge for message {} that cannot be converted to {}",
+            message,
+            expectedType);
+      }
       consumer.negativeAcknowledge(message);
       throw new MessageFormatException(
           "The message ("
@@ -338,7 +342,9 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
               + expectedType);
     }
     if (selectorSupport != null && !selectorSupport.matches(result)) {
-      log.info("msg {} does not match selector {}", result, selectorSupport.getSelector());
+      if (log.isDebugEnabled()) {
+        log.debug("msg {} does not match selector {}", result, selectorSupport.getSelector());
+      }
       skipMessage(message);
       return null;
     }
@@ -346,13 +352,17 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
       String senderConnectionID = result.getStringProperty("JMSConnectionID");
       if (senderConnectionID != null
           && senderConnectionID.equals(session.getConnection().getConnectionId())) {
-        log.info("msg {} was generated from this connection {}", result, senderConnectionID);
+        if (log.isDebugEnabled()) {
+          log.debug("msg {} was generated from this connection {}", result, senderConnectionID);
+        }
         skipMessage(message);
         return null;
       }
     }
     if (result.getJMSExpiration() > 0 && System.currentTimeMillis() >= result.getJMSExpiration()) {
-      log.info("msg {} expired at {}", result, Instant.ofEpochMilli(result.getJMSExpiration()));
+      if (log.isDebugEnabled()) {
+        log.debug("msg {} expired at {}", result, Instant.ofEpochMilli(result.getJMSExpiration()));
+      }
       skipMessage(message);
       return null;
     }

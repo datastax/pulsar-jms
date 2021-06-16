@@ -28,6 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 import javax.jms.ConnectionFactory;
 import javax.jms.IllegalStateException;
 import javax.jms.InvalidClientIDException;
@@ -83,6 +84,7 @@ public class PulsarConnectionFactory
   private String tckUsername = "";
   private String tckPassword = "";
   private String queueSubscriptionName = "jms-queue";
+  private SubscriptionType topicSharedSubscriptionType = SubscriptionType.Shared;
   private long waitForServerStartupTimeout = 60000;
   private boolean initialized;
 
@@ -170,6 +172,29 @@ public class PulsarConnectionFactory
 
       this.queueSubscriptionName =
           getAndRemoveString("jms.queueSubscriptionName", "jms-queue", configuration);
+
+      final String rawTopicSharedSubscriptionType =
+          getAndRemoveString(
+              "jms.topicSharedSubscriptionType", SubscriptionType.Shared.name(), configuration);
+      this.topicSharedSubscriptionType =
+          Stream.of(SubscriptionType.values())
+              .filter(
+                  t ->
+                      t.name().equalsIgnoreCase(rawTopicSharedSubscriptionType)
+                          && t != SubscriptionType.Exclusive)
+              .findFirst()
+              .orElseThrow(
+                  () ->
+                      new IllegalArgumentException(
+                          "Invalid jms.topicSubscriptionType: "
+                              + rawTopicSharedSubscriptionType
+                              + ", only "
+                              + SubscriptionType.Shared
+                              + ", "
+                              + SubscriptionType.Key_Shared
+                              + " and "
+                              + SubscriptionType.Failover
+                              + " "));
 
       this.waitForServerStartupTimeout =
           Long.parseLong(
@@ -962,6 +987,10 @@ public class PulsarConnectionFactory
     return useExclusiveSubscriptionsForSimpleConsumers
         ? SubscriptionType.Exclusive
         : SubscriptionType.Shared;
+  }
+
+  public synchronized SubscriptionType getTopicSharedSubscriptionType() {
+    return topicSharedSubscriptionType;
   }
 
   public String applySystemNamespace(String destination) {

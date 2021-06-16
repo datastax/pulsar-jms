@@ -861,7 +861,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
             (PulsarDestination) topic,
             this,
             SubscriptionMode.NonDurable,
-            SubscriptionType.Shared,
+            getFactory().getTopicSharedSubscriptionType(),
             messageSelector,
             true,
             false)
@@ -1410,7 +1410,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
             (PulsarDestination) topic,
             this,
             SubscriptionMode.Durable,
-            SubscriptionType.Shared,
+            getFactory().getTopicSharedSubscriptionType(),
             messageSelector,
             true,
             false)

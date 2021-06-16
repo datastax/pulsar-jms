@@ -45,6 +45,7 @@ import org.apache.bookkeeper.versioning.LongVersion;
 import org.apache.bookkeeper.versioning.Version;
 import org.apache.bookkeeper.versioning.Versioned;
 import org.apache.bookkeeper.zookeeper.ZooKeeperClient;
+import org.apache.curator.test.InstanceSpec;
 import org.apache.curator.test.TestingServer;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.WatchedEvent;
@@ -61,7 +62,9 @@ public final class BookKeeperCluster implements AutoCloseable {
   Path path;
 
   public BookKeeperCluster(Path path, int zkPort) throws Exception {
-    zkServer = new TestingServer(zkPort, path.toFile(), true);
+    InstanceSpec spec = new InstanceSpec(path.toFile(), zkPort, -1, -1, true, -1,
+            4000, -1);
+    zkServer = new TestingServer(spec, true);
     // waiting for ZK to be reachable
     CountDownLatch latch = new CountDownLatch(1);
     ZooKeeper zk =

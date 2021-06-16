@@ -43,6 +43,7 @@ import javax.jms.Topic;
 import javax.jms.TopicSubscriber;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.api.PulsarClientException;
+import org.apache.pulsar.client.api.SubscriptionType;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -218,9 +219,18 @@ public class TopicTest {
 
   @Test
   public void testSharedDurableConsumer() throws Exception {
+    testSharedDurableConsumer(SubscriptionType.Shared);
+  }
 
+  @Test
+  public void testKeySharedDurableConsumer() throws Exception {
+    testSharedDurableConsumer(SubscriptionType.Key_Shared);
+  }
+
+  private void testSharedDurableConsumer(SubscriptionType subscriptionType) throws Exception {
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
+    properties.put("jms.topicSharedSubscriptionType", subscriptionType.name());
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
         connection.start();
@@ -238,6 +248,10 @@ public class TopicTest {
                   session.createSharedDurableConsumer(destination, "subscription2");
               MessageConsumer consumer3 =
                   session2.createSharedDurableConsumer(destination, "subscription3"); ) {
+
+            assertEquals(
+                subscriptionType, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
+
             try (MessageProducer producer = session.createProducer(destination); ) {
               for (int i = 0; i < 10; i++) {
                 producer.send(session.createTextMessage("foo-" + i));
@@ -296,9 +310,19 @@ public class TopicTest {
 
   @Test
   public void testSharedNonDurableConsumer() throws Exception {
+    testSharedNonDurableConsumer(SubscriptionType.Shared);
+  }
 
+  @Test
+  public void testKeySharedNonDurableConsumer() throws Exception {
+    testSharedNonDurableConsumer(SubscriptionType.Key_Shared);
+  }
+
+  @Test
+  private void testSharedNonDurableConsumer(SubscriptionType subscriptionType) throws Exception {
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
+    properties.put("jms.topicSharedSubscriptionType", subscriptionType.name());
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
         connection.start();
@@ -316,6 +340,10 @@ public class TopicTest {
                   session2.createSharedConsumer(destination, "subscription2");
               MessageConsumer consumer3 =
                   session.createSharedConsumer(destination, "subscription3"); ) {
+
+            assertEquals(
+                subscriptionType, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
+
             try (MessageProducer producer = session.createProducer(destination); ) {
               for (int i = 0; i < 10; i++) {
                 producer.send(session.createTextMessage("foo-" + i));
