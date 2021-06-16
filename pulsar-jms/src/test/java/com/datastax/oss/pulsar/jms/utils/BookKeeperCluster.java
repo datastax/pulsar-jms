@@ -62,8 +62,7 @@ public final class BookKeeperCluster implements AutoCloseable {
   Path path;
 
   public BookKeeperCluster(Path path, int zkPort) throws Exception {
-    InstanceSpec spec = new InstanceSpec(path.toFile(), zkPort, -1, -1, true, -1,
-            4000, -1);
+    InstanceSpec spec = new InstanceSpec(path.toFile(), zkPort, -1, -1, true, -1, 4000, -1);
     zkServer = new TestingServer(spec, true);
     // waiting for ZK to be reachable
     CountDownLatch latch = new CountDownLatch(1);
