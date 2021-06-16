@@ -34,7 +34,7 @@ public class PulsarContainer implements AutoCloseable {
   public void start() throws Exception {
     CountDownLatch pulsarReady = new CountDownLatch(1);
     pulsarContainer =
-        new GenericContainer<>("eolivelli/pulsar-all:280rc2")
+        new GenericContainer<>("apachepulsar/pulsar:2.8.0")
             .withNetwork(network)
             .withNetworkAliases("pulsar")
             .withCommand("bin/pulsar", "standalone", "--advertised-address", "pulsar")
