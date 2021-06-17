@@ -1,4 +1,4 @@
 #/bin/bash
 
-
-java -jar payara.jar ../../../../pulsar-jms/resource-adapter/target/pulsarra.jar target/jms-client-openmq-example.jar --port 8081
+echo "Running Payara Micro, please ensure the Pulsar Standalone is started on localhost"
+mvn fish.payara.maven.plugins:payara-micro-maven-plugin:start
