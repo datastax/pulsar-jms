@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package dockerapp;
+package com.datastax.oss.pulsar.jms.tests;
 
 public class ReceivedMessage {
   private final String message;

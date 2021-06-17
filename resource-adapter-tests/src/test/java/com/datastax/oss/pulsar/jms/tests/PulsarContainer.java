@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package dockerapp;
+package com.datastax.oss.pulsar.jms.tests;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -37,7 +37,13 @@ public class PulsarContainer implements AutoCloseable {
         new GenericContainer<>("apachepulsar/pulsar:2.8.0")
             .withNetwork(network)
             .withNetworkAliases("pulsar")
-            .withCommand("bin/pulsar", "standalone", "--advertised-address", "pulsar")
+            .withCommand(
+                "bin/pulsar",
+                "standalone",
+                "--advertised-address",
+                "pulsar",
+                "--no-functions-worker",
+                "-nss")
             .withLogConsumer(
                 (f) -> {
                   String text = f.getUtf8String().trim();

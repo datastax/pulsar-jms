@@ -38,6 +38,7 @@
     <module>examples/spring</module>
     <module>examples/payara-micro</module>
     <module>pulsar-jms-all</module>
+    <module>pulsar-jms-integration-tests</module>
   </modules>
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
