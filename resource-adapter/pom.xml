@@ -44,7 +44,7 @@
     <dependency>
       <groupId>javax.resource</groupId>
       <artifactId>javax.resource-api</artifactId>
-      <version>1.7-b01</version>
+      <version>1.7.1</version>
     </dependency>
     <dependency>
       <groupId>org.projectlombok</groupId>
@@ -107,32 +107,6 @@
           </execution>
         </executions>
       </plugin>
-      <!--      <plugin>-->
-      <!--        <groupId>org.apache.maven.plugins</groupId>-->
-      <!--        <artifactId>maven-shade-plugin</artifactId>-->
-      <!--        <version>3.2.4</version>-->
-      <!--        <configuration>-->
-      <!--          <filters>-->
-      <!--            <filter>-->
-      <!--              <artifact>*:*</artifact>-->
-      <!--              <excludes>-->
-      <!--                <exclude>META-INF/*.SF</exclude>-->
-      <!--                <exclude>META-INF/*.DSA</exclude>-->
-      <!--                <exclude>META-INF/*.RSA</exclude>-->
-      <!--                <exclude>META-INF/license/*</exclude>-->
-      <!--              </excludes>-->
-      <!--            </filter>-->
-      <!--          </filters>-->
-      <!--        </configuration>-->
-      <!--        <executions>-->
-      <!--          <execution>-->
-      <!--            <phase>package</phase>-->
-      <!--            <goals>-->
-      <!--              <goal>shade</goal>-->
-      <!--            </goals>-->
-      <!--          </execution>-->
-      <!--        </executions>-->
-      <!--      </plugin>-->
     </plugins>
   </build>
 </project>
