@@ -104,7 +104,7 @@ sigTestClasspath=${jms.classes}${pathsep}${JAVA_HOME}/lib/rt.jar
 ############################################################################
 harness.temp.directory=${ts.home}/tmp
 harness.log.port=2001
-harness.log.traceflag=false
+harness.log.traceflag=true
 harness.log.delayseconds=1 
 harness.executeMode=2
 harness.socket.retry.count=10
@@ -170,9 +170,10 @@ command.testExecute=com.sun.ts.lib.harness.ExecTSTestCmd \
 		-Djava.security.policy="${bin.dir}/harness.policy" \
 		-Djava.security.manager \
 		-Dlog4j2.debug=true \
-		-Dorg.slf4j.simpleLogger.defaultLogLevel=warn \
+		-Dorg.slf4j.simpleLotgger.defaultLogLevel=warn \
 		-Djava.naming.factory.initial=${java.naming.factory.initial} \
 		-Ddeliverable.class=${deliverable.class} \
+                -Dcts.harness.debug=true \
                 -Djava.endorsed.dirs=${endorsed.dirs} \
         $testExecuteClass $testExecuteArgs
 
