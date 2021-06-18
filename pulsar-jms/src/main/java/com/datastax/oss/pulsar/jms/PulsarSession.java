@@ -753,7 +753,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
             (PulsarDestination) destination,
             this,
             SubscriptionMode.NonDurable,
-            getFactory().getExclusiveSubscriptionTypeForSimpleConsumers(),
+            getFactory().getExclusiveSubscriptionTypeForSimpleConsumers(destination),
             messageSelector,
             false,
             noLocal)

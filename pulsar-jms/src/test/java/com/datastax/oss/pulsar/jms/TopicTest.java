@@ -318,7 +318,6 @@ public class TopicTest {
     testSharedNonDurableConsumer(SubscriptionType.Key_Shared);
   }
 
-  @Test
   private void testSharedNonDurableConsumer(SubscriptionType subscriptionType) throws Exception {
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
@@ -340,7 +339,6 @@ public class TopicTest {
                   session2.createSharedConsumer(destination, "subscription2");
               MessageConsumer consumer3 =
                   session.createSharedConsumer(destination, "subscription3"); ) {
-
             assertEquals(
                 subscriptionType, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
 
@@ -390,6 +388,43 @@ public class TopicTest {
             assertNull(consumer1.receiveNoWait());
             assertNull(consumer2a.receiveNoWait());
             assertNull(consumer2b.receiveNoWait());
+          }
+        }
+      }
+    }
+  }
+
+  @Test
+  public void testUseKeySharedSubscriptionTypeforTopicConsumer() throws Exception {
+    Map<String, Object> properties = new HashMap<>();
+    properties.put("webServiceUrl", cluster.getAddress());
+    properties.put("jms.useExclusiveSubscriptionsForSimpleConsumers", "false");
+    properties.put("jms.topicSharedSubscriptionType", SubscriptionType.Key_Shared);
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+      try (Connection connection = factory.createConnection()) {
+        connection.start();
+        try (Session session = connection.createSession();
+            Session session2 = connection.createSession(); ) {
+          Topic destination =
+              session.createTopic("persistent://public/default/test-" + UUID.randomUUID());
+
+          try (MessageConsumer consumer1 = session.createConsumer(destination); ) {
+            assertEquals(
+                SubscriptionType.Key_Shared,
+                ((PulsarMessageConsumer) consumer1).getSubscriptionType());
+
+            try (MessageProducer producer = session.createProducer(destination); ) {
+              for (int i = 0; i < 10; i++) {
+                producer.send(session.createTextMessage("foo-" + i));
+              }
+            }
+
+            // consumer1 receives all messages, in order
+            for (int i = 0; i < 10; i++) {
+              TextMessage msg = (TextMessage) consumer1.receive();
+              log.info("consumer {} received {}", consumer1, msg.getText());
+              assertEquals("foo-" + i, msg.getText());
+            }
           }
         }
       }

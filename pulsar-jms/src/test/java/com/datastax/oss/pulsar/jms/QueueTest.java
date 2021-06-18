@@ -286,4 +286,40 @@ public class QueueTest {
       }
     }
   }
+
+  @Test
+  public void useQueueWithoutPulsarAdmin() throws Exception {
+
+    Map<String, Object> properties = new HashMap<>();
+    properties.put("webServiceUrl", cluster.getAddress());
+    properties.put("jms.usePulsarAdmin", "false");
+
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+      try (Connection connection = factory.createConnection()) {
+        assertFalse(factory.isUsePulsarAdmin());
+        connection.start();
+        try (Session session = connection.createSession(); ) {
+          Queue destination =
+              session.createQueue("persistent://public/default/test-" + UUID.randomUUID());
+
+          try (MessageProducer producer = session.createProducer(destination); ) {
+            for (int i = 0; i < 10; i++) {
+              producer.send(session.createTextMessage("foo-" + i));
+            }
+          }
+
+          // verify that we can catch up from the beginning of the queue
+          // even without using PulsarAdmin
+          try (MessageConsumer consumer1 = session.createConsumer(destination); ) {
+            for (int i = 0; i < 10; i++) {
+              assertEquals("foo-" + i, consumer1.receive().getBody(String.class));
+            }
+
+            // no more messages
+            assertNull(consumer1.receiveNoWait());
+          }
+        }
+      }
+    }
+  }
 }

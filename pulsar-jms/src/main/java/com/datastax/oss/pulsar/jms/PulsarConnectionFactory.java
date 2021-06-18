@@ -30,6 +30,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 import javax.jms.ConnectionFactory;
+import javax.jms.Destination;
 import javax.jms.IllegalStateException;
 import javax.jms.InvalidClientIDException;
 import javax.jms.JMSContext;
@@ -37,6 +38,7 @@ import javax.jms.JMSException;
 import javax.jms.JMSRuntimeException;
 import javax.jms.JMSSecurityException;
 import javax.jms.JMSSecurityRuntimeException;
+import javax.jms.Queue;
 import javax.jms.QueueConnection;
 import javax.jms.QueueConnectionFactory;
 import javax.jms.TopicConnection;
@@ -86,6 +88,7 @@ public class PulsarConnectionFactory
   private String queueSubscriptionName = "jms-queue";
   private SubscriptionType topicSharedSubscriptionType = SubscriptionType.Shared;
   private long waitForServerStartupTimeout = 60000;
+  private boolean usePulsarAdmin = true;
   private boolean initialized;
 
   private Map<String, Object> configuration;
@@ -172,6 +175,9 @@ public class PulsarConnectionFactory
 
       this.queueSubscriptionName =
           getAndRemoveString("jms.queueSubscriptionName", "jms-queue", configuration);
+
+      this.usePulsarAdmin =
+          Boolean.parseBoolean(getAndRemoveString("jms.usePulsarAdmin", "true", configuration));
 
       final String rawTopicSharedSubscriptionType =
           getAndRemoveString(
@@ -335,7 +341,11 @@ public class PulsarConnectionFactory
     return pulsarClient;
   }
 
-  public synchronized PulsarAdmin getPulsarAdmin() {
+  public synchronized PulsarAdmin getPulsarAdmin() throws javax.jms.IllegalStateException {
+    if (!usePulsarAdmin) {
+      throw new javax.jms.IllegalStateException(
+          "jms.usePulsarAdmin is set to false, this feature is not available");
+    }
     return pulsarAdmin;
   }
 
@@ -745,15 +755,33 @@ public class PulsarConnectionFactory
     }
   }
 
+  synchronized boolean isUsePulsarAdmin() {
+    return usePulsarAdmin;
+  }
+
   public void ensureQueueSubscription(PulsarDestination destination) throws JMSException {
     long start = System.currentTimeMillis();
     String fullQualifiedTopicName = applySystemNamespace(destination.topicName);
     while (true) {
       try {
-        getPulsarAdmin()
-            .topics()
-            .createSubscription(
-                fullQualifiedTopicName, getQueueSubscriptionName(), MessageId.earliest);
+        if (isUsePulsarAdmin()) {
+          getPulsarAdmin()
+              .topics()
+              .createSubscription(
+                  fullQualifiedTopicName, getQueueSubscriptionName(), MessageId.earliest);
+        } else {
+          // if we cannot use PulsarAdmin,
+          // let's try to create a consumer with zero queue
+          getPulsarClient()
+              .newConsumer()
+              .subscriptionType(getTopicSharedSubscriptionType())
+              .subscriptionName(getQueueSubscriptionName())
+              .subscriptionInitialPosition(SubscriptionInitialPosition.Earliest)
+              .receiverQueueSize(0)
+              .topic(fullQualifiedTopicName)
+              .subscribe()
+              .close();
+        }
         break;
       } catch (PulsarAdminException.ConflictException exists) {
         log.debug(
@@ -761,7 +789,7 @@ public class PulsarConnectionFactory
             getQueueSubscriptionName(),
             fullQualifiedTopicName);
         break;
-      } catch (PulsarAdminException err) {
+      } catch (PulsarAdminException | PulsarClientException err) {
         // special handling for server startup
         // it mitigates problems in tests
         // but also it is useful in order to let
@@ -786,24 +814,6 @@ public class PulsarConnectionFactory
     }
   }
 
-  public void ensureSubscription(PulsarDestination destination, String consumerName)
-      throws JMSException {
-    // for queues we have a single shared subscription
-    String fullQualifiedTopicName = applySystemNamespace(destination.topicName);
-    String subscriptionName = destination.isQueue() ? queueSubscriptionName : consumerName;
-    log.info(
-        "Creating subscription {} for destination {}", subscriptionName, fullQualifiedTopicName);
-    try {
-      pulsarAdmin
-          .topics()
-          .createSubscription(fullQualifiedTopicName, subscriptionName, MessageId.latest);
-    } catch (PulsarAdminException.ConflictException alreadyExists) {
-      log.info("Subscription {} already exists, this is usually not a problem", subscriptionName);
-    } catch (Exception err) {
-      throw Utils.handleException(err);
-    }
-  }
-
   public Consumer<byte[]> createConsumer(
       PulsarDestination destination,
       String consumerName,
@@ -813,7 +823,7 @@ public class PulsarConnectionFactory
       throws JMSException {
     String fullQualifiedTopicName = applySystemNamespace(destination.topicName);
     // for queues we have a single shared subscription
-    String subscriptionName = destination.isQueue() ? queueSubscriptionName : consumerName;
+    String subscriptionName = destination.isQueue() ? getQueueSubscriptionName() : consumerName;
     SubscriptionInitialPosition initialPosition =
         destination.isTopic()
             ? SubscriptionInitialPosition.Latest
@@ -822,7 +832,7 @@ public class PulsarConnectionFactory
     if (destination.isQueue() && subscriptionMode != SubscriptionMode.Durable) {
       throw new IllegalStateException("only durable mode for queues");
     }
-    if (destination.isQueue() && subscriptionType != SubscriptionType.Shared) {
+    if (destination.isQueue() && subscriptionType == SubscriptionType.Exclusive) {
       throw new IllegalStateException("only Shared SubscriptionType for queues");
     }
 
@@ -858,7 +868,9 @@ public class PulsarConnectionFactory
     String fullQualifiedTopicName = applySystemNamespace(destination.topicName);
     try {
       List<Message<byte[]>> messages =
-          getPulsarAdmin().topics().peekMessages(fullQualifiedTopicName, queueSubscriptionName, 1);
+          getPulsarAdmin()
+              .topics()
+              .peekMessages(fullQualifiedTopicName, getQueueSubscriptionName(), 1);
 
       MessageId seekMessageId;
       if (messages.isEmpty()) {
@@ -983,10 +995,11 @@ public class PulsarConnectionFactory
     return waitForServerStartupTimeout;
   }
 
-  public synchronized SubscriptionType getExclusiveSubscriptionTypeForSimpleConsumers() {
+  public synchronized SubscriptionType getExclusiveSubscriptionTypeForSimpleConsumers(
+      Destination destination) {
     return useExclusiveSubscriptionsForSimpleConsumers
         ? SubscriptionType.Exclusive
-        : SubscriptionType.Shared;
+        : destination instanceof Queue ? SubscriptionType.Shared : getTopicSharedSubscriptionType();
   }
 
   public synchronized SubscriptionType getTopicSharedSubscriptionType() {
