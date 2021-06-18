@@ -58,6 +58,16 @@ public class JNDIInitialContextFactory implements InitialContextFactory {
     }
   }
 
+  private PulsarConnectionFactory adminConnectionFactory;
+
+  private synchronized PulsarConnectionFactory getAdminConnectionFactory() throws Exception {
+    if (adminConnectionFactory == null) {
+      adminConnectionFactory = buildConnectionFactory("tck-jndi-admin");
+      adminConnectionFactory.createConnection().close();
+    }
+    return adminConnectionFactory;
+  }
+
   private static PulsarConnectionFactory buildConnectionFactory(String name) throws Exception {
     Map<String, Object> configuration = new HashMap<>();
     configuration.put("enableTransaction", true);
@@ -86,7 +96,7 @@ public class JNDIInitialContextFactory implements InitialContextFactory {
   }
 
   public Object lookup(String name) throws Exception {
-    System.out.println("lookup " + name);
+    System.out.println(this.getClass() + " Lookup " + name);
     switch (name) {
       case "MyQueueConnectionFactory":
       case "MyTopicConnectionFactory":
@@ -100,13 +110,22 @@ public class JNDIInitialContextFactory implements InitialContextFactory {
       case "testQ2":
       case "testQueue2":
       case "Q2":
-        return new PulsarQueue("persistent://public/default/" + name);
+        {
+          String topicName = "persistent://public/default/" + name;
+          PulsarConnectionFactory tmp = getAdminConnectionFactory();
+          System.out.println(this.getClass() + " Cleaning up QUEUE " + topicName);
+          tmp.getPulsarAdmin().topics().delete(topicName, true, true);
+          return new PulsarQueue(topicName);
+        }
       case "MY_TOPIC":
       case "MY_TOPIC2":
       case "testT0":
       case "testT1":
       case "testT2":
-        return new PulsarTopic("persistent://public/default/" + name);
+        {
+          String topicName = "persistent://public/default/" + name;
+          return new PulsarTopic(topicName);
+        }
     }
     throw new RuntimeException("lookup " + name);
   }

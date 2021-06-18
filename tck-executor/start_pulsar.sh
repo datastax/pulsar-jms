@@ -11,7 +11,7 @@ docker run --name pulsar-jms-runner -v $HERE/conf:/pulsar/conf -d -p 8080:8080 -
 # Wait for pulsar to start
 echo "Waiting 15 seconds"
 
-wget http://localhost:8080/admin/v2/clusters
+wget -O - http://localhost:8080/admin/v2/clusters
 
 sleep 10
 

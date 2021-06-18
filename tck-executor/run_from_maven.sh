@@ -22,7 +22,7 @@ netstat -nlp
 
 set -e
 
-wget http://localhost:8080/lookup/v2/topic/persistent/pulsar/system/transaction_coordinator_assign-partition-0
+wget -O - http://localhost:8080/lookup/v2/topic/persistent/pulsar/system/transaction_coordinator_assign-partition-0
 
 # move to the directory that contains the test you want to run
 cd $TS_HOME/src/com/sun/ts/tests
