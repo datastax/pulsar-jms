@@ -112,9 +112,9 @@ public class JNDIInitialContextFactory implements InitialContextFactory {
       case "Q2":
         {
           String topicName = "persistent://public/default/" + name;
-          PulsarConnectionFactory tmp = getAdminConnectionFactory();
-          System.out.println(this.getClass() + " Cleaning up QUEUE " + topicName);
-          tmp.getPulsarAdmin().topics().delete(topicName, true, true);
+          //          PulsarConnectionFactory tmp = getAdminConnectionFactory();
+          //          System.out.println(this.getClass() + " Cleaning up QUEUE " + topicName);
+          //          tmp.getPulsarAdmin().topics().delete(topicName, true, true);
           return new PulsarQueue(topicName);
         }
       case "MY_TOPIC":
