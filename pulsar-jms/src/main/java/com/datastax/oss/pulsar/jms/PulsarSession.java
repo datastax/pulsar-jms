@@ -1455,7 +1455,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
       throw new InvalidDestinationException("invalid null queue");
     }
     checkQueueOperationEnabled();
-    PulsarQueueBrowser res =  new PulsarQueueBrowser(this, queue, messageSelector);
+    PulsarQueueBrowser res = new PulsarQueueBrowser(this, queue, messageSelector);
     browsers.add(res);
     return res;
   }
@@ -1589,7 +1589,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     return connection;
   }
 
-   void removeBrowser(PulsarQueueBrowser pulsarQueueBrowser) {
+  void removeBrowser(PulsarQueueBrowser pulsarQueueBrowser) {
     browsers.remove(pulsarQueueBrowser);
   }
 

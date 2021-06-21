@@ -260,12 +260,12 @@ public class TransactionsTest {
     properties.put("enableTransaction", "true");
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection();
-           Connection connection2 = factory.createConnection()) {
+          Connection connection2 = factory.createConnection()) {
         connection.start();
 
         try (Session producerSession = connection.createSession(); ) {
           Queue destination =
-                  producerSession.createQueue("persistent://public/default/test-" + UUID.randomUUID());
+              producerSession.createQueue("persistent://public/default/test-" + UUID.randomUUID());
 
           try (Session transaction = connection.createSession(Session.SESSION_TRANSACTED); ) {
 
@@ -273,7 +273,7 @@ public class TransactionsTest {
 
               try (MessageProducer producer = producerSession.createProducer(destination); ) {
                 for (int i = 0; i < numMessages; i++) {
-                  TextMessage textMsg = producerSession.createTextMessage("foo"+i);
+                  TextMessage textMsg = producerSession.createTextMessage("foo" + i);
                   producer.send(textMsg);
                 }
               }
@@ -282,7 +282,7 @@ public class TransactionsTest {
                 int count = 0;
                 for (Enumeration e = counter.getEnumeration(); e.hasMoreElements(); ) {
                   TextMessage msg = (TextMessage) e.nextElement();
-                  assertEquals("foo"+count, msg.getText());
+                  assertEquals("foo" + count, msg.getText());
                   count++;
                 }
                 assertEquals(numMessages, count);
@@ -292,27 +292,24 @@ public class TransactionsTest {
               Message receive = consumer.receive();
               assertEquals("foo0", receive.getBody(String.class));
 
-
               // the QueueBrowser still sees the message
               try (QueueBrowser counter = producerSession.createBrowser(destination)) {
                 int count = 0;
                 for (Enumeration e = counter.getEnumeration(); e.hasMoreElements(); ) {
                   TextMessage msg = (TextMessage) e.nextElement();
-                  assertEquals("foo"+count, msg.getText());
+                  assertEquals("foo" + count, msg.getText());
                   count++;
                 }
                 assertEquals(numMessages, count);
               }
-
             }
 
             connection.close();
 
-
             connection2.start();
 
             try (Session secondSession = connection2.createSession();
-                    MessageConsumer consumer = secondSession.createConsumer(destination); ) {
+                MessageConsumer consumer = secondSession.createConsumer(destination); ) {
               assertNotNull(consumer.receive());
 
               // it looks like peekMessage is not following the subscription in realtime
@@ -324,19 +321,17 @@ public class TransactionsTest {
                 int count = 1;
                 for (Enumeration e = counter.getEnumeration(); e.hasMoreElements(); ) {
                   TextMessage msg = (TextMessage) e.nextElement();
-                  assertEquals("foo"+count, msg.getText());
+                  assertEquals("foo" + count, msg.getText());
                   count++;
                 }
                 assertEquals(numMessages, count);
               }
             }
-
           }
         }
       }
     }
   }
-
 
   @Test
   public void consumeRollbackTransactionTestWithQueueBrowser() throws Exception {
@@ -347,12 +342,12 @@ public class TransactionsTest {
     properties.put("enableTransaction", "true");
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection();
-           Connection connection2 = factory.createConnection()) {
+          Connection connection2 = factory.createConnection()) {
         connection.start();
 
         try (Session producerSession = connection.createSession(); ) {
           Queue destination =
-                  producerSession.createQueue("persistent://public/default/test-" + UUID.randomUUID());
+              producerSession.createQueue("persistent://public/default/test-" + UUID.randomUUID());
 
           try (Session transaction = connection.createSession(Session.SESSION_TRANSACTED); ) {
 
@@ -360,7 +355,7 @@ public class TransactionsTest {
 
               try (MessageProducer producer = producerSession.createProducer(destination); ) {
                 for (int i = 0; i < numMessages; i++) {
-                  TextMessage textMsg = producerSession.createTextMessage("foo"+i);
+                  TextMessage textMsg = producerSession.createTextMessage("foo" + i);
                   producer.send(textMsg);
                 }
               }
@@ -369,7 +364,7 @@ public class TransactionsTest {
                 int count = 0;
                 for (Enumeration e = counter.getEnumeration(); e.hasMoreElements(); ) {
                   TextMessage msg = (TextMessage) e.nextElement();
-                  assertEquals("foo"+count, msg.getText());
+                  assertEquals("foo" + count, msg.getText());
                   count++;
                 }
                 assertEquals(numMessages, count);
@@ -379,27 +374,24 @@ public class TransactionsTest {
               Message receive = consumer.receive();
               assertEquals("foo0", receive.getBody(String.class));
 
-
               // the QueueBrowser still sees the message
               try (QueueBrowser counter = producerSession.createBrowser(destination)) {
                 int count = 0;
                 for (Enumeration e = counter.getEnumeration(); e.hasMoreElements(); ) {
                   TextMessage msg = (TextMessage) e.nextElement();
-                  assertEquals("foo"+count, msg.getText());
+                  assertEquals("foo" + count, msg.getText());
                   count++;
                 }
                 assertEquals(numMessages, count);
               }
-
             }
 
             transaction.rollback();
 
-
             connection2.start();
 
             try (Session secondSession = connection2.createSession();
-                 MessageConsumer consumer = secondSession.createConsumer(destination); ) {
+                MessageConsumer consumer = secondSession.createConsumer(destination); ) {
               assertNotNull(consumer.receive());
 
               // it looks like peekMessage is not following the subscription in realtime
@@ -411,13 +403,12 @@ public class TransactionsTest {
                 int count = 1;
                 for (Enumeration e = counter.getEnumeration(); e.hasMoreElements(); ) {
                   TextMessage msg = (TextMessage) e.nextElement();
-                  assertEquals("foo"+count, msg.getText());
+                  assertEquals("foo" + count, msg.getText());
                   count++;
                 }
                 assertEquals(numMessages, count);
               }
             }
-
           }
         }
       }
