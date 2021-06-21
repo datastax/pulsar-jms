@@ -21,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
 import java.nio.file.Path;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -31,6 +32,8 @@ import javax.jms.JMSContext;
 import javax.jms.Message;
 import javax.jms.MessageConsumer;
 import javax.jms.MessageProducer;
+import javax.jms.Queue;
+import javax.jms.QueueBrowser;
 import javax.jms.Session;
 import javax.jms.TextMessage;
 import lombok.extern.slf4j.Slf4j;
@@ -242,6 +245,179 @@ public class TransactionsTest {
             try (MessageConsumer consumer = producerSession.createConsumer(destination); ) {
               assertNotNull(consumer.receive());
             }
+          }
+        }
+      }
+    }
+  }
+
+  @Test
+  public void consumeAutoRollbackTransactionTestWithQueueBrowser() throws Exception {
+
+    int numMessages = 10;
+    Map<String, Object> properties = new HashMap<>();
+    properties.put("webServiceUrl", cluster.getAddress());
+    properties.put("enableTransaction", "true");
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+      try (Connection connection = factory.createConnection();
+           Connection connection2 = factory.createConnection()) {
+        connection.start();
+
+        try (Session producerSession = connection.createSession(); ) {
+          Queue destination =
+                  producerSession.createQueue("persistent://public/default/test-" + UUID.randomUUID());
+
+          try (Session transaction = connection.createSession(Session.SESSION_TRANSACTED); ) {
+
+            try (MessageConsumer consumer = transaction.createConsumer(destination); ) {
+
+              try (MessageProducer producer = producerSession.createProducer(destination); ) {
+                for (int i = 0; i < numMessages; i++) {
+                  TextMessage textMsg = producerSession.createTextMessage("foo"+i);
+                  producer.send(textMsg);
+                }
+              }
+
+              try (QueueBrowser counter = producerSession.createBrowser(destination)) {
+                int count = 0;
+                for (Enumeration e = counter.getEnumeration(); e.hasMoreElements(); ) {
+                  TextMessage msg = (TextMessage) e.nextElement();
+                  assertEquals("foo"+count, msg.getText());
+                  count++;
+                }
+                assertEquals(numMessages, count);
+              }
+
+              // transactional consumer, receives but it does not commit
+              Message receive = consumer.receive();
+              assertEquals("foo0", receive.getBody(String.class));
+
+
+              // the QueueBrowser still sees the message
+              try (QueueBrowser counter = producerSession.createBrowser(destination)) {
+                int count = 0;
+                for (Enumeration e = counter.getEnumeration(); e.hasMoreElements(); ) {
+                  TextMessage msg = (TextMessage) e.nextElement();
+                  assertEquals("foo"+count, msg.getText());
+                  count++;
+                }
+                assertEquals(numMessages, count);
+              }
+
+            }
+
+            connection.close();
+
+
+            connection2.start();
+
+            try (Session secondSession = connection2.createSession();
+                    MessageConsumer consumer = secondSession.createConsumer(destination); ) {
+              assertNotNull(consumer.receive());
+
+              // it looks like peekMessage is not following the subscription in realtime
+              Thread.sleep(2000);
+
+              // the QueueBrowser does not see the consumed message anymore
+              try (QueueBrowser counter = secondSession.createBrowser(destination)) {
+                // skip first message
+                int count = 1;
+                for (Enumeration e = counter.getEnumeration(); e.hasMoreElements(); ) {
+                  TextMessage msg = (TextMessage) e.nextElement();
+                  assertEquals("foo"+count, msg.getText());
+                  count++;
+                }
+                assertEquals(numMessages, count);
+              }
+            }
+
+          }
+        }
+      }
+    }
+  }
+
+
+  @Test
+  public void consumeRollbackTransactionTestWithQueueBrowser() throws Exception {
+
+    int numMessages = 10;
+    Map<String, Object> properties = new HashMap<>();
+    properties.put("webServiceUrl", cluster.getAddress());
+    properties.put("enableTransaction", "true");
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+      try (Connection connection = factory.createConnection();
+           Connection connection2 = factory.createConnection()) {
+        connection.start();
+
+        try (Session producerSession = connection.createSession(); ) {
+          Queue destination =
+                  producerSession.createQueue("persistent://public/default/test-" + UUID.randomUUID());
+
+          try (Session transaction = connection.createSession(Session.SESSION_TRANSACTED); ) {
+
+            try (MessageConsumer consumer = transaction.createConsumer(destination); ) {
+
+              try (MessageProducer producer = producerSession.createProducer(destination); ) {
+                for (int i = 0; i < numMessages; i++) {
+                  TextMessage textMsg = producerSession.createTextMessage("foo"+i);
+                  producer.send(textMsg);
+                }
+              }
+
+              try (QueueBrowser counter = producerSession.createBrowser(destination)) {
+                int count = 0;
+                for (Enumeration e = counter.getEnumeration(); e.hasMoreElements(); ) {
+                  TextMessage msg = (TextMessage) e.nextElement();
+                  assertEquals("foo"+count, msg.getText());
+                  count++;
+                }
+                assertEquals(numMessages, count);
+              }
+
+              // transactional consumer, receives but it does not commit
+              Message receive = consumer.receive();
+              assertEquals("foo0", receive.getBody(String.class));
+
+
+              // the QueueBrowser still sees the message
+              try (QueueBrowser counter = producerSession.createBrowser(destination)) {
+                int count = 0;
+                for (Enumeration e = counter.getEnumeration(); e.hasMoreElements(); ) {
+                  TextMessage msg = (TextMessage) e.nextElement();
+                  assertEquals("foo"+count, msg.getText());
+                  count++;
+                }
+                assertEquals(numMessages, count);
+              }
+
+            }
+
+            transaction.rollback();
+
+
+            connection2.start();
+
+            try (Session secondSession = connection2.createSession();
+                 MessageConsumer consumer = secondSession.createConsumer(destination); ) {
+              assertNotNull(consumer.receive());
+
+              // it looks like peekMessage is not following the subscription in realtime
+              Thread.sleep(2000);
+
+              // the QueueBrowser does not see the consumed message anymore
+              try (QueueBrowser counter = secondSession.createBrowser(destination)) {
+                // skip first message
+                int count = 1;
+                for (Enumeration e = counter.getEnumeration(); e.hasMoreElements(); ) {
+                  TextMessage msg = (TextMessage) e.nextElement();
+                  assertEquals("foo"+count, msg.getText());
+                  count++;
+                }
+                assertEquals(numMessages, count);
+              }
+            }
+
           }
         }
       }

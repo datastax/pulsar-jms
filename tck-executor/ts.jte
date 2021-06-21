@@ -104,7 +104,7 @@ sigTestClasspath=${jms.classes}${pathsep}${JAVA_HOME}/lib/rt.jar
 ############################################################################
 harness.temp.directory=${ts.home}/tmp
 harness.log.port=2001
-harness.log.traceflag=true
+harness.log.traceflag=false
 harness.log.delayseconds=1 
 harness.executeMode=2
 harness.socket.retry.count=10

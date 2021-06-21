@@ -89,6 +89,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   private volatile ListenerThread listenerThread;
   // this collection is accessed by the Listener thread
   private final List<PulsarMessageConsumer> consumers = new CopyOnWriteArrayList<>();
+  private final List<PulsarQueueBrowser> browsers = new CopyOnWriteArrayList<>();
 
   public PulsarSession(int sessionMode, PulsarConnection connection) throws JMSException {
     this.jms20 = false;
@@ -501,6 +502,9 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
       }
       for (PulsarMessageConsumer consumer : consumers) {
         consumer.closeInternal();
+      }
+      for (PulsarQueueBrowser browser : browsers) {
+        browser.close();
       }
     } finally {
       closeLock.writeLock().unlock();
@@ -1451,7 +1455,9 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
       throw new InvalidDestinationException("invalid null queue");
     }
     checkQueueOperationEnabled();
-    return new PulsarQueueBrowser(this, queue, messageSelector);
+    PulsarQueueBrowser res =  new PulsarQueueBrowser(this, queue, messageSelector);
+    browsers.add(res);
+    return res;
   }
 
   /**
@@ -1581,6 +1587,10 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
 
   public PulsarConnection getConnection() {
     return connection;
+  }
+
+   void removeBrowser(PulsarQueueBrowser pulsarQueueBrowser) {
+    browsers.remove(pulsarQueueBrowser);
   }
 
   interface BlockCLoseOperation<T> {
