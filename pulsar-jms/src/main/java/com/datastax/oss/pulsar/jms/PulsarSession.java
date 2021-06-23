@@ -396,6 +396,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
         }
         handles.add(transaction.commit());
         Utils.get(CompletableFuture.allOf(handles.toArray(new CompletableFuture<?>[0])));
+        unackedMessages.clear();
         transaction = null;
       }
     } finally {

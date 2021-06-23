@@ -213,6 +213,49 @@ public class TransactionsTest {
   }
 
   @Test
+  public void multiCommitTest() throws Exception {
+
+    Map<String, Object> properties = new HashMap<>();
+    properties.put("webServiceUrl", cluster.getAddress());
+    properties.put("enableTransaction", "true");
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+      try (Connection connection = factory.createConnection()) {
+        connection.start();
+
+        try (Session producerSession = connection.createSession(); ) {
+          Destination destination =
+                  producerSession.createQueue("persistent://public/default/test-" + UUID.randomUUID());
+
+          try (Session transaction = connection.createSession(Session.SESSION_TRANSACTED); ) {
+
+            try (MessageConsumer consumer = transaction.createConsumer(destination); ) {
+
+              try (MessageProducer producer = producerSession.createProducer(destination); ) {
+                producer.send(producerSession.createTextMessage("foo0"));
+                producer.send(producerSession.createTextMessage("foo1"));
+              }
+
+              Message receive = consumer.receive();
+              assertEquals("foo0", receive.getBody(String.class));
+              transaction.commit();
+
+              receive = consumer.receive();
+              assertEquals("foo1", receive.getBody(String.class));
+              transaction.commit();
+            }
+
+
+            // messages have been committed by the transacted session
+            try (MessageConsumer consumer = producerSession.createConsumer(destination); ) {
+              assertNull(consumer.receive(1000));
+            }
+          }
+        }
+      }
+    }
+  }
+
+  @Test
   public void consumeRollbackTransactionTest() throws Exception {
 
     Map<String, Object> properties = new HashMap<>();
@@ -342,9 +385,6 @@ public class TransactionsTest {
     properties.put("webServiceUrl", cluster.getAddress());
     properties.put("enableTransaction", "true");
 
-    Map<String, Object> consumerConfig = new HashMap<>();
-    consumerConfig.put("receiverQueueSize", 1);
-    properties.put("consumerConfig", consumerConfig);
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection();
           Connection connection2 = factory.createConnection()) {
