@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -388,7 +389,13 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     closeLock.readLock().lock();
     try {
       if (transaction != null) {
-        Utils.get(transaction.commit());
+        // we are postponing to this moment the acknowledgment
+        List<CompletableFuture<?>> handles = new ArrayList<>();
+        for (PulsarMessage msg : unackedMessages) {
+          handles.add(msg.acknowledgeInternalInTransaction(transaction));
+        }
+        handles.add(transaction.commit());
+        Utils.get(CompletableFuture.allOf(handles.toArray(new CompletableFuture<?>[0])));
         transaction = null;
       }
     } finally {
@@ -426,13 +433,21 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
       if (!transacted) {
         throw new IllegalStateException("session is not transacted");
       }
-      if (transaction != null) {
-        Utils.get(transaction.abort());
-      }
-      transaction = null;
+      rollbackInternal();
     } finally {
       closeLock.readLock().unlock();
     }
+  }
+
+  private void rollbackInternal() throws JMSException {
+    for (PulsarMessageConsumer consumer : consumers) {
+      consumer.redeliverUnacknowledgedMessages();
+    }
+    unackedMessages.clear();
+    if (transaction != null) {
+      Utils.get(transaction.abort());
+    }
+    transaction = null;
   }
 
   /**
@@ -495,17 +510,18 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
         return;
       }
       closed = true;
-      unackedMessages.clear();
       if (transacted && transaction != null) {
-        Utils.get(transaction.abort());
-        transaction = null;
+        rollbackInternal();
       }
+      unackedMessages.clear();
       for (PulsarMessageConsumer consumer : consumers) {
         consumer.closeInternal();
       }
       for (PulsarQueueBrowser browser : browsers) {
         browser.close();
       }
+      consumers.clear();
+      browsers.clear();
     } finally {
       closeLock.writeLock().unlock();
       connection.unregisterSession(this);
@@ -1591,6 +1607,10 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
 
   void removeBrowser(PulsarQueueBrowser pulsarQueueBrowser) {
     browsers.remove(pulsarQueueBrowser);
+  }
+
+  public boolean isTransactionStarted() {
+    return transaction != null;
   }
 
   interface BlockCLoseOperation<T> {

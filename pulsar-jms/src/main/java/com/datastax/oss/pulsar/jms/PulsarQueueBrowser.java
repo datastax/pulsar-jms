@@ -115,7 +115,6 @@ final class PulsarQueueBrowser implements QueueBrowser {
                     finished = true;
                     return;
                   }
-                  log.info("browser got message {} {}", nextMessage, nextMessage.getJMSMessageID());
                   if (selectorSupport != null && !selectorSupport.matches(nextMessage)) {
                     log.info("skip non matching message {}", nextMessage);
                     nextMessage = null;

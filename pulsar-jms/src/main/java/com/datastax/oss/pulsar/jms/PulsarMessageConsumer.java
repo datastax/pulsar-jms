@@ -386,7 +386,8 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
     }
 
     if (session.getTransacted()) {
-      Utils.get(consumer.acknowledgeAsync(message.getMessageId(), session.getTransaction()));
+      // open transaction now
+      session.getTransaction();
     } else if (session.getAcknowledgeMode() == Session.AUTO_ACKNOWLEDGE) {
       consumer.acknowledge(message);
     } else if (session.getAcknowledgeMode() == Session.DUPS_OK_ACKNOWLEDGE) {
@@ -399,7 +400,8 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
                 }
               });
     }
-    if (session.getAcknowledgeMode() != Session.CLIENT_ACKNOWLEDGE) {
+    if (session.getAcknowledgeMode() != Session.CLIENT_ACKNOWLEDGE
+        && session.getAcknowledgeMode() != Session.SESSION_TRANSACTED) {
       session.unregisterUnacknowledgedMessage(result);
     }
     if (requestClose) {
@@ -443,16 +445,18 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
     if (consumer == null) {
       return;
     }
-    session.executeCriticalOperation(
-        () -> {
-          try {
-            consumer.close();
-            session.removeConsumer(this);
-            return null;
-          } catch (Exception err) {
-            throw Utils.handleException(err);
-          }
-        });
+    if (!session.isTransactionStarted()) {
+      session.executeCriticalOperation(
+          () -> {
+            try {
+              consumer.close();
+              session.removeConsumer(this);
+              return null;
+            } catch (Exception err) {
+              throw Utils.handleException(err);
+            }
+          });
+    }
   }
 
   @Override
@@ -639,6 +643,12 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
   public void negativeAck(org.apache.pulsar.client.api.Message<byte[]> message) {
     if (consumer != null) {
       consumer.negativeAcknowledge(message);
+    }
+  }
+
+  void redeliverUnacknowledgedMessages() {
+    if (consumer != null) {
+      consumer.redeliverUnacknowledgedMessages();
     }
   }
 

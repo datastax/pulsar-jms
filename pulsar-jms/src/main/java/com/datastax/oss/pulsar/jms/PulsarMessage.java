@@ -29,6 +29,7 @@ import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import javax.jms.CompletionListener;
 import javax.jms.DeliveryMode;
@@ -45,6 +46,7 @@ import javax.jms.Session;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.api.TypedMessageBuilder;
+import org.apache.pulsar.client.api.transaction.Transaction;
 
 @Slf4j
 public abstract class PulsarMessage implements Message {
@@ -1370,5 +1372,11 @@ public abstract class PulsarMessage implements Message {
 
   public void setWritable(boolean b) {
     writable = b;
+  }
+
+  public CompletableFuture<?> acknowledgeInternalInTransaction(Transaction transaction) {
+    return consumer
+        .getInternalConsumer()
+        .acknowledgeAsync(receivedPulsarMessage.getMessageId(), transaction);
   }
 }

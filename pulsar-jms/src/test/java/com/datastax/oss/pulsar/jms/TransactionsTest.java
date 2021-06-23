@@ -29,6 +29,7 @@ import javax.jms.Connection;
 import javax.jms.Destination;
 import javax.jms.JMSConsumer;
 import javax.jms.JMSContext;
+import javax.jms.JMSException;
 import javax.jms.Message;
 import javax.jms.MessageConsumer;
 import javax.jms.MessageProducer;
@@ -331,6 +332,74 @@ public class TransactionsTest {
         }
       }
     }
+  }
+
+  @Test
+  public void rollbackReceivedMessages() throws Exception {
+
+    int numMessages = 10;
+    Map<String, Object> properties = new HashMap<>();
+    properties.put("webServiceUrl", cluster.getAddress());
+    properties.put("enableTransaction", "true");
+
+    Map<String, Object> consumerConfig = new HashMap<>();
+    consumerConfig.put("receiverQueueSize", 1);
+    properties.put("consumerConfig", consumerConfig);
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+      try (Connection connection = factory.createConnection();
+          Connection connection2 = factory.createConnection()) {
+        connection.start();
+
+        try (Session producerSession = connection.createSession(); ) {
+          Queue destination =
+              producerSession.createQueue("persistent://public/default/test-" + UUID.randomUUID());
+
+          try (Session transaction = connection.createSession(Session.SESSION_TRANSACTED); ) {
+
+            try (MessageConsumer consumer = transaction.createConsumer(destination); ) {
+
+              try (MessageProducer producer = producerSession.createProducer(destination); ) {
+                for (int i = 0; i < numMessages; i++) {
+                  TextMessage textMsg = producerSession.createTextMessage("foo" + i);
+                  producer.send(textMsg);
+                }
+              }
+
+              TextMessage receive = (TextMessage) consumer.receive();
+              log.info("receive and commit {}", receive.getText());
+              assertEquals(numMessages, countMessages(producerSession, destination));
+              transaction.commit();
+              assertEquals(numMessages - 1, countMessages(producerSession, destination));
+
+              receive = (TextMessage) consumer.receive();
+              log.info("receive and rollback {}", receive.getText());
+              transaction.rollback();
+              assertEquals(numMessages - 1, countMessages(producerSession, destination));
+
+              receive = (TextMessage) consumer.receive();
+
+              log.info("receive {}", receive.getText());
+              assertEquals(numMessages - 1, countMessages(producerSession, destination));
+              log.info("commit final");
+              transaction.commit();
+              assertEquals(numMessages - 2, countMessages(producerSession, destination));
+            }
+          }
+        }
+      }
+    }
+  }
+
+  private static int countMessages(Session producerSession, Queue destination) throws JMSException {
+    int count = 0;
+    try (QueueBrowser counter = producerSession.createBrowser(destination)) {
+      for (Enumeration e = counter.getEnumeration(); e.hasMoreElements(); ) {
+        TextMessage msg = (TextMessage) e.nextElement();
+        log.info("count {} msg {}", count, msg.getText());
+        count++;
+      }
+    }
+    return count;
   }
 
   @Test
