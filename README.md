@@ -9,7 +9,7 @@ This [website](https://javaee.github.io/jms-spec/) is useful as well as it conta
 
 You can find the official Apache Pulsar documentation [here](https://pulsar.apache.org).
 
-The documentation for this project is located [here](https://docs.datastax.com/en/fast-pulsar-jms/1.0/index.html).
+The documentation for this project is located [here](https://docs.datastax.com/en/fast-pulsar-jms/docs/1.1/).
 
 ## Installation
 
