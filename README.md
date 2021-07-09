@@ -78,8 +78,8 @@ The source code for the resource adapter is in this [directory](resource-adapter
 
 We have two example apps, one for Pulsar standalone, and one for Astra Streaming:
 
-- [Pulsar standalone](https://docs.datastax.com/en/fast-pulsar-jms/1.0/pulsar-jms-quickstart-sa.html)
-- [Astra Streaming](https://docs.datastax.com/en/fast-pulsar-jms/1.0/pulsar-jms-quickstart-astra.html)
+- [Pulsar standalone](https://docs.datastax.com/en/fast-pulsar-jms/docs/1.1/pulsar-jms-quickstart-sa.html)
+- [Astra Streaming](https://docs.datastax.com/en/fast-pulsar-jms/docs/1.1/pulsar-jms-quickstart-astra.html)
 
 In addition, we’ve provided the following integration examples:
 
@@ -122,11 +122,11 @@ mvn clean install -Prun-tck -am -DskipTests -pl tck-executor
 
 ## Configuration reference
 
-For a complete list of configuration options, see: https://docs.datastax.com/en/fast-pulsar-jms/1.0/pulsar-jms-reference.html
+For a complete list of configuration options, see: https://docs.datastax.com/en/fast-pulsar-jms/docs/1.1/pulsar-jms-reference.html
 
 ## Implementation details
 
 For general background as well as implementation details, see:
 
-- [Mapping Pulsar concepts to JMS specifications](https://docs.datastax.com/en/fast-pulsar-jms/1.0/pulsar-jms-mappings.html)
-- [DataStax Fast JMS for Apache Pulsar implementation details](https://docs.datastax.com/en/fast-pulsar-jms/1.0/pulsar-jms-implementation.html)
+- [Mapping Pulsar concepts to JMS specifications](https://docs.datastax.com/en/fast-pulsar-jms/docs/1.1/pulsar-jms-mappings.html)
+- [DataStax Fast JMS for Apache Pulsar implementation details](https://docs.datastax.com/en/fast-pulsar-jms/docs/1.1/pulsar-jms-implementation.html)
