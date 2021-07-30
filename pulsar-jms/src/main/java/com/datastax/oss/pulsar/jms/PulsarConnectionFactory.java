@@ -48,6 +48,7 @@ import org.apache.pulsar.client.admin.PulsarAdmin;
 import org.apache.pulsar.client.admin.PulsarAdminException;
 import org.apache.pulsar.client.api.Authentication;
 import org.apache.pulsar.client.api.AuthenticationFactory;
+import org.apache.pulsar.client.api.BatcherBuilder;
 import org.apache.pulsar.client.api.ClientBuilder;
 import org.apache.pulsar.client.api.Consumer;
 import org.apache.pulsar.client.api.ConsumerBuilder;
@@ -153,6 +154,25 @@ public class PulsarConnectionFactory
       Map<String, Object> producerConfiguration =
           (Map<String, Object>) configuration.remove("producerConfig");
       if (producerConfiguration != null) {
+        Object batcherBuilder = producerConfiguration.get("batcherBuilder");
+        if (batcherBuilder != null) {
+          if (batcherBuilder instanceof String) {
+            String batcherBuilderString = (String) batcherBuilder;
+            BatcherBuilder builder = BatcherBuilder.DEFAULT;
+            switch (batcherBuilderString) {
+              case "KEY_BASED":
+                builder = BatcherBuilder.KEY_BASED;
+                break;
+              case "DEFAULT":
+                builder = BatcherBuilder.DEFAULT;
+                break;
+              default:
+                throw new IllegalArgumentException(
+                    "Unsupported batcherBuilder " + batcherBuilderString);
+            }
+            producerConfiguration.put("batcherBuilder", builder);
+          }
+        }
         this.producerConfiguration = new HashMap(producerConfiguration);
       } else {
         this.producerConfiguration = Collections.emptyMap();
@@ -735,11 +755,16 @@ public class PulsarConnectionFactory
             try {
               return Utils.invoke(
                   () -> {
+                    Map<String, Object> producerConfiguration = getProducerConfiguration();
                     ProducerBuilder<byte[]> producerBuilder =
                         pulsarClient
                             .newProducer()
                             .topic(applySystemNamespace(fullQualifiedTopicName))
-                            .loadConf(getProducerConfiguration());
+                            .loadConf(producerConfiguration);
+                    if (producerConfiguration.containsKey("batcherBuilder")) {
+                      producerBuilder.batcherBuilder(
+                          (BatcherBuilder) producerConfiguration.get("batcherBuilder"));
+                    }
                     if (transactions) {
                       // this is a limitation of Pulsar transaction support
                       producerBuilder.sendTimeout(0, TimeUnit.MILLISECONDS);

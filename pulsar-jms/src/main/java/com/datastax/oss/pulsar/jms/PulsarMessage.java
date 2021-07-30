@@ -1379,4 +1379,8 @@ public abstract class PulsarMessage implements Message {
         .getInternalConsumer()
         .acknowledgeAsync(receivedPulsarMessage.getMessageId(), transaction);
   }
+
+  public org.apache.pulsar.client.api.Message<byte[]> getReceivedPulsarMessage() {
+    return receivedPulsarMessage;
+  }
 }

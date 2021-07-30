@@ -224,7 +224,7 @@ public class TransactionsTest {
 
         try (Session producerSession = connection.createSession(); ) {
           Destination destination =
-                  producerSession.createQueue("persistent://public/default/test-" + UUID.randomUUID());
+              producerSession.createQueue("persistent://public/default/test-" + UUID.randomUUID());
 
           try (Session transaction = connection.createSession(Session.SESSION_TRANSACTED); ) {
 
@@ -243,7 +243,6 @@ public class TransactionsTest {
               assertEquals("foo1", receive.getBody(String.class));
               transaction.commit();
             }
-
 
             // messages have been committed by the transacted session
             try (MessageConsumer consumer = producerSession.createConsumer(destination); ) {
