@@ -104,7 +104,7 @@ In the tck-executor module you'll find:
 - The Java Code needed to initialize the TCK, `JNDIInitialContextFactory.java`.
 - The configuration file for the TCK runner, `ts.jte`.
 - A file that contains the excluded tests that cannot pass with this client, `ts.jtx`
-- Scripts to run Apache Pulsar 2.7.1, configure the Transaction Coordinator, and prepare for the execution of the TCK.
+- Scripts to run Apache Pulsar, configure the Transaction Coordinator, and prepare for the execution of the TCK.
 
 To build the package, run unit tests, and run the TCK:
 
