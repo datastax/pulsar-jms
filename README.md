@@ -113,7 +113,7 @@ In order to run th TCK tests, please make sure the following prerequisites are m
 
 Also, when running the TCK tests on one machine, please make sure that there is **NO** existing Pulsar server running on the same machine. The execution of the TCK tests will launch a standalone Pulsar server running in a docker container. It will run into port conflicts if a Pulsar server is already running. 
 
-### 
+### Build and run TCK
 
 To build the package, run unit tests, and run the TCK:
 
