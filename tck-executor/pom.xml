@@ -20,7 +20,7 @@
   <parent>
     <artifactId>pulsar-jms-parent</artifactId>
     <groupId>com.datastax.oss</groupId>
-    <version>1.2.0</version>
+    <version>1.2.1-SNAPSHOT</version>
   </parent>
   <modelVersion>4.0.0</modelVersion>
   <artifactId>tck-executor</artifactId>
