@@ -1,4 +1,4 @@
-# DataStax Fast JMS for Apache Pulsar
+# DataStax Fast JMS for Apache Pulsar (Fast JMS)
 
 This is a Java library that implements the JMS 2.0 (Java Messaging Service ®) over the Apache Pulsar® Java Client.
 
@@ -87,15 +87,7 @@ In addition, we’ve provided the following integration examples:
 - with [Payara Micro®](examples/payara-micro)
 - with [Apache TomEE®](resource-adapter-tests)
 
-## Building from source
-
-If you want to develop and test this library you need to build the jar from sources.
-
-This is a standard Maven project, so use the default commands:
-
-       mvn clean install
-
-## Running the TCK
+## JMS TCK (Technology Compatibility Kit) Verification
 
 You can download the TCK [here](https://jakarta.ee/specifications/messaging/2.0/). The repository contains a copy of the TCK that automates the execution of the tests.
 
@@ -105,6 +97,23 @@ In the tck-executor module you'll find:
 - The configuration file for the TCK runner, `ts.jte`.
 - A file that contains the excluded tests that cannot pass with this client, `ts.jtx`
 - Scripts to run Apache Pulsar, configure the Transaction Coordinator, and prepare for the execution of the TCK.
+
+Please **NOTE**: 
+1. Regarding the TCK configuration file, `ts.jte`, you don't need to configure it manually. The maven process (as described below) will configure it automatically.
+2. Regarding the test exclusion file, 'ts.jtx', you don't need to make any changes. This file contains a minimum list of TCK tests that are not applicable when using Pulsar as the JMS provider. For example, globally unique subscription names are not supported so the corresponding tests are skipped.
+
+### Build Prerequisite
+
+In order to run th TCK tests, please make sure the following prerequisites are met:
+
+* JDK 8 (Note that this is only needed to run TCK test. Fast JMS itself can run on newer java versions)
+* docker
+* ant
+* maven
+
+Also, when running the TCK tests on one machine, please make sure that there is **NO** existing Pulsar server running on the same machine. The execution of the TCK tests will launch a standalone Pulsar server running in a docker container. It will run into port conflicts if a Pulsar server is already running. 
+
+### 
 
 To build the package, run unit tests, and run the TCK:
 
@@ -118,11 +127,17 @@ To run only the TCK:
 mvn clean install -Prun-tck -am -DskipTests -pl tck-executor
 ```
 
-> :warning: Globally unique subscription names are not supported so the corresponding tests are skipped.
+## Building from source
+
+If you want to develop and test this library you need to build the jar from sources.
+
+This is a standard Maven project, so use the default commands:
+
+       mvn clean install
 
 ## Configuration reference
 
-For a complete list of configuration options, see: https://docs.datastax.com/en/fast-pulsar-jms/docs/1.1/pulsar-jms-reference.html
+For a complete list of configuration options, please see [Fast JMS Configration Reference](https://docs.datastax.com/en/fast-pulsar-jms/docs/1.1/pulsar-jms-reference.html#_configuration_options)
 
 ## Implementation details
 
