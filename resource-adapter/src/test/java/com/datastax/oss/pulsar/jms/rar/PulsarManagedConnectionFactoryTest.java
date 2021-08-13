@@ -50,6 +50,14 @@ public class PulsarManagedConnectionFactoryTest {
     assertEquals("bar", spec.getMergedConfiguration());
     assertEquals(null, spec.getConfiguration());
 
+    spec.setConfiguration("{}");
+    assertEquals("bar", spec.getMergedConfiguration());
+    assertEquals("{}", spec.getConfiguration());
+
+    spec.setConfiguration("{   }");
+    assertEquals("bar", spec.getMergedConfiguration());
+    assertEquals("{   }", spec.getConfiguration());
+
     PrintWriter useless = new PrintWriter(new StringWriter());
     spec.setLogWriter(useless);
     assertSame(useless, spec.getLogWriter());

@@ -138,5 +138,13 @@ public class PulsarActivationSpecTest {
     spec.setConfiguration(null);
     assertEquals("bar", spec.getMergedConfiguration("bar"));
     assertEquals(null, spec.getConfiguration());
+
+    spec.setConfiguration("{}");
+    assertEquals("bar", spec.getMergedConfiguration("bar"));
+    assertEquals("{}", spec.getConfiguration());
+
+    spec.setConfiguration("{   }");
+    assertEquals("bar", spec.getMergedConfiguration("bar"));
+    assertEquals("{   }", spec.getConfiguration());
   }
 }

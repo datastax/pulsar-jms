@@ -92,10 +92,14 @@ public class PulsarResourceAdapter implements ResourceAdapter {
       MessageEndpointFactory messageEndpointFactory, ActivationSpec activationSpec)
       throws ResourceException {
     try {
-      log.info("Activate endpoint {} {}", activationSpec, messageEndpointFactory);
       PulsarActivationSpec pulsarActivationSpec = (PulsarActivationSpec) activationSpec;
-      PulsarConnectionFactory connectionFactory =
-          getPulsarConnectionFactory(pulsarActivationSpec.getMergedConfiguration(configuration));
+      String mergedConfiguration = pulsarActivationSpec.getMergedConfiguration(configuration);
+      log.info(
+          "Activate endpoint {} {} configuration {}",
+          activationSpec,
+          messageEndpointFactory,
+          mergedConfiguration);
+      PulsarConnectionFactory connectionFactory = getPulsarConnectionFactory(mergedConfiguration);
       PulsarMessageEndpoint endpoint =
           buildMessageEndpoint(messageEndpointFactory, pulsarActivationSpec, connectionFactory);
       endpoints.add(endpoint);

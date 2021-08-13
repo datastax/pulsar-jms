@@ -212,7 +212,9 @@ public class PulsarActivationSpec implements ActivationSpec, ResourceAdapterAsso
   }
 
   public String getMergedConfiguration(String configuration) {
-    if (this.configuration == null || this.configuration.trim().isEmpty()) {
+    if (this.configuration == null
+        || this.configuration.trim().isEmpty()
+        || this.configuration.replace(" ", "").equals("{}")) { // empty "{}"
       return configuration;
     } else {
       return this.configuration;

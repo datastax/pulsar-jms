@@ -60,7 +60,9 @@ public class PulsarManagedConnectionFactory
   }
 
   String getMergedConfiguration() {
-    if (this.configuration == null || this.configuration.trim().isEmpty()) {
+    if (this.configuration == null
+        || this.configuration.trim().isEmpty()
+        || this.configuration.replace(" ", "").equals("{}")) { // empty "{}") {
       return resourceAdapter.getConfiguration();
     } else {
       return configuration;
