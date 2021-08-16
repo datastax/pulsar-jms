@@ -1532,6 +1532,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   @Override
   public void unsubscribe(String name) throws JMSException {
     checkNotClosed();
+    checkTopicOperationEnabled();
     name = connection.prependClientId(name, true);
     PulsarDestination destination = destinationBySubscription.remove(name);
     if (destination == null) {
