@@ -27,11 +27,10 @@ com/sun/ts/tests/jms/core/topictests/TopicTests.java#durableSubscriberTopicNoLoc
 com/sun/ts/tests/jms/core20/jmscontexttopictests/Client.java#durableConsumerChangeSelectorTest2_from_standalone
 com/sun/ts/tests/jms/core20/jmscontexttopictests/Client.java#durableConsumerTopicNoLocalTest_from_standalone
 
-#global subscriptions
+# These tests requires fails after "Create second shared consumer with same name but different topic"
+# it expects that the consumer name is unique across topics using "createSharedConsumer"
 com/sun/ts/tests/jms/core20/sessiontests/Client.java#jMSExceptionTests_from_standalone
-com/sun/ts/tests/jms/core20/jmscontexttopictests/Client.java#invalidDestinationRuntimeExceptionTests_from_standalone
 com/sun/ts/tests/jms/core20/jmscontexttopictests/Client.java#jMSRuntimeExceptionTests_from_standalone
-com/sun/ts/tests/jms/core/exceptionQueue/ExceptionQueueTests.java#xIllegalStateExceptionTestTopicMethodsQ_from_standalone
 
 # Buggy TCK test (line 1629, "exception" variable is never assigned)
 com/sun/ts/tests/jms/core20/appclient/jmscontexttopictests/Client.java#messageFormatRuntimeExceptionTests_from_standalone
