@@ -20,14 +20,14 @@
   <parent>
     <artifactId>pulsar-jms-parent</artifactId>
     <groupId>com.datastax.oss</groupId>
-    <version>1.2.1</version>
+    <version>1.2.2-SNAPSHOT</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
   <modelVersion>4.0.0</modelVersion>
   <artifactId>pulsar-jms-resource-adapter-tests</artifactId>
   <packaging>jar</packaging>
   <name>Pulsar JMS Resource Adapter Tests for Jakarta EE Containers</name>
-  <properties/>
+  <properties />
   <dependencies>
     <dependency>
       <groupId>org.apache.tomee</groupId>
