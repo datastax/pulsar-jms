@@ -769,9 +769,10 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     if (destination == null) {
       throw new InvalidDestinationException("null destination");
     }
+    PulsarDestination pulsarDestination = PulsarConnectionFactory.toPulsarDestination(destination);
     return new PulsarMessageConsumer(
             UUID.randomUUID().toString(),
-            (PulsarDestination) destination,
+            pulsarDestination,
             this,
             SubscriptionMode.NonDurable,
             getFactory().getExclusiveSubscriptionTypeForSimpleConsumers(destination),
@@ -876,10 +877,11 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     }
     checkTopicOperationEnabled();
     sharedSubscriptionName = connection.prependClientId(sharedSubscriptionName, true);
-    registerSubscriptionName(topic, sharedSubscriptionName, true);
+    PulsarDestination pulsarDestination = PulsarConnectionFactory.toPulsarDestination(topic);
+    registerSubscriptionName(pulsarDestination, sharedSubscriptionName, true);
     return new PulsarMessageConsumer(
             sharedSubscriptionName,
-            (PulsarDestination) topic,
+            pulsarDestination,
             this,
             SubscriptionMode.NonDurable,
             getFactory().getTopicSharedSubscriptionType(),
@@ -1100,12 +1102,13 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     if (topic == null) {
       throw new InvalidDestinationException("null destination");
     }
+    PulsarTopic pulsarTopic = (PulsarTopic) PulsarConnectionFactory.toPulsarDestination(topic);
     name = connection.prependClientId(name, allowUnsetClientId);
-    registerSubscriptionName(topic, name, false);
+    registerSubscriptionName(pulsarTopic, name, false);
 
     return new PulsarMessageConsumer(
             name,
-            (PulsarDestination) topic,
+            pulsarTopic,
             this,
             SubscriptionMode.Durable,
             SubscriptionType.Exclusive,
@@ -1115,10 +1118,9 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
         .subscribe();
   }
 
-  private void registerSubscriptionName(Topic topic, String name, boolean shared)
+  private void registerSubscriptionName(PulsarDestination topic, String name, boolean shared)
       throws JMSException {
-    PulsarDestination alreadyExists =
-        destinationBySubscription.put(name, (PulsarDestination) topic);
+    PulsarDestination alreadyExists = destinationBySubscription.put(name, topic);
     if (alreadyExists != null && alreadyExists.equals(topic) && !shared) {
       // we cannot perform a cluster wide check
       throw new IllegalStateException(
@@ -1424,11 +1426,12 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
       throw new InvalidDestinationException("null destination");
     }
     checkTopicOperationEnabled();
+    PulsarTopic pulsarTopic = (PulsarTopic) PulsarConnectionFactory.toPulsarDestination(topic);
     name = connection.prependClientId(name, true);
-    registerSubscriptionName(topic, name, true);
+    registerSubscriptionName(pulsarTopic, name, true);
     return new PulsarMessageConsumer(
             name,
-            (PulsarDestination) topic,
+            pulsarTopic,
             this,
             SubscriptionMode.Durable,
             getFactory().getTopicSharedSubscriptionType(),

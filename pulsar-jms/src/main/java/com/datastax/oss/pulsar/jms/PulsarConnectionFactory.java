@@ -41,6 +41,7 @@ import javax.jms.JMSSecurityRuntimeException;
 import javax.jms.Queue;
 import javax.jms.QueueConnection;
 import javax.jms.QueueConnectionFactory;
+import javax.jms.Topic;
 import javax.jms.TopicConnection;
 import javax.jms.TopicConnectionFactory;
 import lombok.extern.slf4j.Slf4j;
@@ -744,10 +745,23 @@ public class PulsarConnectionFactory
     }
   }
 
-  Producer<byte[]> getProducerForDestination(
-      PulsarDestination defaultDestination, boolean transactions) throws JMSException {
+  public static PulsarDestination toPulsarDestination(Destination destination) throws JMSException {
+    if (destination instanceof PulsarDestination) {
+      return (PulsarDestination) destination;
+    } else if (destination instanceof Queue) {
+      return new PulsarQueue(((Queue) destination).getQueueName());
+    } else if (destination instanceof Topic) {
+      return new PulsarTopic(((Topic) destination).getTopicName());
+    } else {
+      throw new IllegalStateException("Cannot convert " + destination + " to a PulsarDestination");
+    }
+  }
+
+  Producer<byte[]> getProducerForDestination(Destination defaultDestination, boolean transactions)
+      throws JMSException {
     try {
-      String fullQualifiedTopicName = applySystemNamespace(defaultDestination.topicName);
+      PulsarDestination destination = toPulsarDestination(defaultDestination);
+      String fullQualifiedTopicName = applySystemNamespace(destination.topicName);
       String key = transactions ? fullQualifiedTopicName + "-tx" : fullQualifiedTopicName;
       return producers.computeIfAbsent(
           key,

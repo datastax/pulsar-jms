@@ -16,13 +16,20 @@
 package com.datastax.oss.pulsar.jms.rar;
 
 import com.datastax.oss.pulsar.jms.PulsarConnectionFactory;
+import com.datastax.oss.pulsar.jms.PulsarDestination;
 import com.datastax.oss.pulsar.jms.PulsarMessage;
+import com.datastax.oss.pulsar.jms.PulsarQueue;
+import com.datastax.oss.pulsar.jms.PulsarTopic;
 import java.lang.reflect.Method;
+import java.util.Hashtable;
+import javax.jms.Destination;
 import javax.jms.JMSContext;
 import javax.jms.JMSException;
 import javax.jms.Message;
 import javax.jms.MessageListener;
 import javax.jms.Topic;
+import javax.naming.InitialContext;
+import javax.naming.NamingException;
 import javax.resource.spi.ActivationSpec;
 import javax.resource.spi.endpoint.MessageEndpoint;
 import javax.resource.spi.endpoint.MessageEndpointFactory;
@@ -67,25 +74,44 @@ public class PulsarMessageEndpoint implements MessageListener {
     return activationSpec;
   }
 
+  public PulsarDestination getPulsarDestination(String destinationType, String destination) {
+    if (destination != null && destination.startsWith("lookup://")) {
+      try {
+        String lookup = destination.substring(9);
+        log.info("Lookup Destination from JNDI: '{}'", lookup);
+        InitialContext contenxt = new InitialContext(new Hashtable<>());
+        Destination destinationFromContext = (Destination) contenxt.lookup(lookup);
+        log.info("Destination from JNDI: '{}': {}", lookup, destinationFromContext);
+        return PulsarConnectionFactory.toPulsarDestination(destinationFromContext);
+      } catch (NamingException | JMSException err) {
+        throw new RuntimeException(err);
+      }
+    }
+    if (destinationType == null || destinationType.toLowerCase().contains("queue")) {
+      return new PulsarQueue(destination);
+    } else {
+      return new PulsarTopic(destination);
+    }
+  }
+
   public void start() {
-    if (activationSpec.getPulsarDestination().isQueue()) {
-      context.createConsumer(activationSpec.getPulsarDestination()).setMessageListener(this);
+    PulsarDestination pulsarDestination =
+        getPulsarDestination(activationSpec.getDestinationType(), activationSpec.getDestination());
+    if (pulsarDestination.isQueue()) {
+      context.createConsumer(pulsarDestination).setMessageListener(this);
     } else {
       switch (activationSpec.getSubscriptionType()) {
         case "NonDurable":
           {
             switch (activationSpec.getSubscriptionMode()) {
               case "Exclusive":
-                context
-                    .createConsumer(activationSpec.getPulsarDestination())
-                    .setMessageListener(this);
+                context.createConsumer(pulsarDestination).setMessageListener(this);
                 return;
               case "Shared":
               default:
                 context
                     .createSharedConsumer(
-                        (Topic) activationSpec.getPulsarDestination(),
-                        activationSpec.getSubscriptionName())
+                        (Topic) pulsarDestination, activationSpec.getSubscriptionName())
                     .setMessageListener(this);
                 return;
             }
@@ -96,16 +122,14 @@ public class PulsarMessageEndpoint implements MessageListener {
             case "Exclusive":
               context
                   .createDurableConsumer(
-                      (Topic) activationSpec.getPulsarDestination(),
-                      activationSpec.getSubscriptionName())
+                      (Topic) pulsarDestination, activationSpec.getSubscriptionName())
                   .setMessageListener(this);
               return;
             case "Shared":
             default:
               context
                   .createSharedDurableConsumer(
-                      (Topic) activationSpec.getPulsarDestination(),
-                      activationSpec.getSubscriptionName())
+                      (Topic) pulsarDestination, activationSpec.getSubscriptionName())
                   .setMessageListener(this);
               return;
           }

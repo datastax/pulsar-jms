@@ -1197,10 +1197,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
       throw new MessageFormatException("null message");
     }
     Producer<byte[]> producer =
-        session
-            .getFactory()
-            .getProducerForDestination(
-                (PulsarDestination) defaultDestination, session.getTransacted());
+        session.getFactory().getProducerForDestination(defaultDestination, session.getTransacted());
     message.setJMSDestination(defaultDestination);
     PulsarMessage pulsarMessage = prepareMessageForSend(message);
     final TypedMessageBuilder<byte[]> typedMessageBuilder;
