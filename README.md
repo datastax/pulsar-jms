@@ -137,7 +137,7 @@ This is a standard Maven project, so use the default commands:
 
 ## Configuration reference
 
-For a complete list of configuration options, please see [Fast JMS Configration Reference](https://docs.datastax.com/en/fast-pulsar-jms/docs/1.1/pulsar-jms-reference.html#_configuration_options)
+For a complete list of configuration options, please see [Fast JMS Configuration Reference](https://docs.datastax.com/en/fast-pulsar-jms/docs/1.1/pulsar-jms-reference.html#_configuration_options)
 
 ## Implementation details
 
