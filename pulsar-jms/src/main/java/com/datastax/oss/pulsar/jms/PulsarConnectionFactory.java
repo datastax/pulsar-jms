@@ -92,6 +92,7 @@ public class PulsarConnectionFactory
   private long waitForServerStartupTimeout = 60000;
   private boolean usePulsarAdmin = true;
   private boolean initialized;
+  private boolean closed;
 
   private Map<String, Object> configuration;
 
@@ -99,7 +100,7 @@ public class PulsarConnectionFactory
     this(new HashMap<>());
   }
 
-  public PulsarConnectionFactory(Map<String, Object> properties) throws JMSException {
+  public PulsarConnectionFactory(Map<String, Object> properties) {
     this.configuration = new HashMap(properties);
   }
 
@@ -149,6 +150,9 @@ public class PulsarConnectionFactory
   private synchronized void ensureInitialized() throws JMSException {
     if (initialized) {
       return;
+    }
+    if (closed) {
+      throw new IllegalStateException("This ConnectionFactory is closed");
     }
     try {
 
@@ -712,6 +716,7 @@ public class PulsarConnectionFactory
 
   public void close() {
     synchronized (this) {
+      closed = true;
       if (!initialized) {
         return;
       }
@@ -1057,5 +1062,9 @@ public class PulsarConnectionFactory
 
   public boolean isAcknowledgeRejectedMessages() {
     return acknowledgeRejectedMessages;
+  }
+
+  public synchronized boolean isClosed() {
+    return closed;
   }
 }

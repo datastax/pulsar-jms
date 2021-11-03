@@ -27,7 +27,6 @@
   <artifactId>pulsar-jms-resource-adapter-tests</artifactId>
   <packaging>jar</packaging>
   <name>Pulsar JMS Resource Adapter Tests for Jakarta EE Containers</name>
-  <properties />
   <dependencies>
     <dependency>
       <groupId>org.apache.tomee</groupId>

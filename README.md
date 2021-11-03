@@ -74,6 +74,41 @@ In order to use this JMS Client inside a JakartaEE® or JavaEE® application you
 
 The source code for the resource adapter is in this [directory](resource-adapter).
 
+## Using JNDI to Connect to Pulsar
+
+You can use the JNDI API to build the ConnectionFactory and the Destination references.
+
+Steps:
+* Use `com.datastax.oss.pulsar.jms.jndi.PulsarInitialContextFactory` as `Context.INITIAL_CONTEXT_FACTORY`
+* Pass the configuration (authentication, broker address...) using the `Properties` object
+* Lookup the ConnectionFactory using the system name `ConnectionFactory`
+* Lookup destinations using `queues/` or `topics/` prefix
+
+```
+Properties properties = new Properties();
+properties.setProperty(Context.INITIAL_CONTEXT_FACTORY, "com.datastax.oss.pulsar.jms.jndi.PulsarInitialContextFactory");
+properties.setProperty(Context.PROVIDER_URL, "pulsar://localhost:6650");
+properties.setProperty("webServiceUrl", "http://localhost:8080");
+properties.setProperty("jms.systemNamespace", "public/default");
+
+// add here the rest of your configuration
+// properties.setProperty("jms.clientId", "my-id");
+
+javax.naming.Context jndiContext = new InitialContext(properties);
+
+// get access to the ConnectionFactory
+ConnectionFactory factory = (ConnectionFactory) jndiContext.lookup("ConnectionFactory");
+Queue queue = (Queue) jndiContext.lookup("queues/MyQueue");
+Topic topic = (Topic) jndiContext.lookup("topics/MyQueue");
+
+// use fully qualified Pulsar topic name
+Queue queue = (Queue) jndiContext.lookup("queues/persistent://tenant/namespace/MyQueue");
+
+// disposing the InitialContext closes the ConnectionFactory
+jndiContext.close();
+```
+
+
 ## Examples
 
 We have two example apps, one for Pulsar standalone, and one for Astra Streaming:
