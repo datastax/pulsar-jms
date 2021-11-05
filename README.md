@@ -1,6 +1,6 @@
-# DataStax Fast JMS for Apache Pulsar (Fast JMS)
+# Starlight for JMS
 
-This is a Java library that implements the JMS 2.0 (Java Messaging Service ®) over the Apache Pulsar® Java Client.
+Starlight for JMS implements the JMS 2.0 (Java Messaging Service ®) API over the Apache Pulsar® Java Client.
 
 This library is Open Source Software, Apache 2 licensed.
 
@@ -23,7 +23,7 @@ In order to use this library just add this dependency to your Maven pom:
 </dependency>
 ```
 
-That file contains only Fast JMS for Pulsar code and transitively imports the Apache Pulsar client and the Jakarta JMS 2.0 specifications JAR.
+That file contains only Starlight for JMS code, and transitively imports the Apache Pulsar client and the Jakarta JMS 2.0 specifications JAR.
 
 You can also use a "fat" JAR that includes all dependencies:
 
@@ -42,7 +42,7 @@ In JMS you need these three concepts to get started:
 - a Queue: use com.datastax.oss.pulsar.jms.PulsarQueue (or better Session#createQueue)
 - a Topic: use com.datastax.oss.pulsar.jms.PulsarTopic (or better Session#createTopic)
 
-This is how you access them for Pulsar
+This is how you access them with Starlight for JMS:
 
 ```
    Map<String, Object> configuration = new HashMap<>();
@@ -62,7 +62,7 @@ This is how you access them for Pulsar
 
 Ensure you have a Pulsar service running at http://localhost:8080 before trying out the example.
 
-You can for instance run Pulsar Standalone using docker
+You can for instance run Pulsar Standalone using docker like this:
 
 ```
 docker run --name pulsar-jms-runner -d -p 8080:8080 -p 6650:6650 apachepulsar/pulsar:2.7.1 /pulsar/bin/pulsar standalone
@@ -179,4 +179,4 @@ For a complete list of configuration options, please see [Fast JMS Configuration
 For general background as well as implementation details, see:
 
 - [Mapping Pulsar concepts to JMS specifications](https://docs.datastax.com/en/fast-pulsar-jms/docs/1.1/pulsar-jms-mappings.html)
-- [DataStax Fast JMS for Apache Pulsar implementation details](https://docs.datastax.com/en/fast-pulsar-jms/docs/1.1/pulsar-jms-implementation.html)
+- [Starlight for JMS implementation details](https://docs.datastax.com/en/fast-pulsar-jms/docs/1.1/pulsar-jms-implementation.html)
