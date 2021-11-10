@@ -141,7 +141,7 @@ Please **NOTE**:
 
 In order to run th TCK tests, please make sure the following prerequisites are met:
 
-* JDK 8 (Note that this is only needed to run TCK test. Fast JMS itself can run on newer java versions)
+* JDK 8 (Note that this is only needed to run TCK test. Starlight for JMS itself can run on newer java versions)
 * docker
 * ant
 * maven
@@ -172,7 +172,7 @@ This is a standard Maven project, so use the default commands:
 
 ## Configuration reference
 
-For a complete list of configuration options, please see [Fast JMS Configuration Reference](https://docs.datastax.com/en/fast-pulsar-jms/docs/1.1/pulsar-jms-reference.html#_configuration_options)
+For a complete list of configuration options, please see [Starlight for JMS Configuration Reference](https://docs.datastax.com/en/fast-pulsar-jms/docs/1.1/pulsar-jms-reference.html#_configuration_options)
 
 ## Implementation details
 

@@ -25,7 +25,7 @@
   <modelVersion>4.0.0</modelVersion>
   <artifactId>pulsar-jms</artifactId>
   <packaging>jar</packaging>
-  <name>DataStax Fast JMS for Apache Pulsar (R)</name>
+  <name>DataStax Starlight for JMS</name>
   <properties>
     <build.dir>${project.build.directory}</build.dir>
   </properties>
