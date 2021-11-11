@@ -47,7 +47,7 @@ public class TemporaryDestinationsTest {
 
   @BeforeAll
   public static void before() throws Exception {
-    cluster = new PulsarCluster(tempDir, false);
+    cluster = new PulsarCluster(tempDir, false, false);
     cluster.start();
   }
 
