@@ -37,8 +37,10 @@ import javax.jms.TextMessage;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.io.TempDir;
 
+@Timeout(30)
 public class AcknowledgementModeTest {
 
   @TempDir public static Path tempDir;
@@ -117,7 +119,7 @@ public class AcknowledgementModeTest {
     }
   }
 
-  @Test
+  @Test()
   public void testACLIENT_ACKNOWLEDGE() throws Exception {
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
