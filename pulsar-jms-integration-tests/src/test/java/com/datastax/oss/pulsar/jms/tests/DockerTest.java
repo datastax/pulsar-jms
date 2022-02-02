@@ -45,16 +45,6 @@ public class DockerTest {
     test("apachepulsar/pulsar:2.8.1", true);
   }
 
-  @Test
-  public void testPulsar291() throws Exception {
-    test("apachepulsar/pulsar:2.9.1", false);
-  }
-
-  @Test
-  public void testPulsar291Transactions() throws Exception {
-    test("apachepulsar/pulsar:2.9.1", true);
-  }
-
   private void test(String image, boolean transactions) throws Exception {
     try (PulsarContainer pulsarContainer = new PulsarContainer(image, transactions); ) {
       pulsarContainer.start();
