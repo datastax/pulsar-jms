@@ -36,13 +36,13 @@ public class DockerTest {
   }
 
   @Test
-  public void testPulsar281() throws Exception {
-    test("apachepulsar/pulsar:2.8.1", false);
+  public void testPulsar282() throws Exception {
+    test("apachepulsar/pulsar:2.8.2", false);
   }
 
   @Test
-  public void testPulsar281Transactions() throws Exception {
-    test("apachepulsar/pulsar:2.8.1", true);
+  public void testPulsar282Transactions() throws Exception {
+    test("apachepulsar/pulsar:2.8.2", true);
   }
 
   private void test(String image, boolean transactions) throws Exception {
