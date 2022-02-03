@@ -336,6 +336,8 @@ limitations under the License.]]></inlineHeader>
           <configuration>
             <autoVersionSubmodules>true</autoVersionSubmodules>
             <releaseProfiles>release</releaseProfiles>
+            <arguments>-DskipTests</arguments>
+            <tagNameFormat>@{project.version}</tagNameFormat>
           </configuration>
         </plugin>
       </plugins>
