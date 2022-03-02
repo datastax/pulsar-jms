@@ -24,3 +24,7 @@ jobs:
 
       - name: Build and test
         run: mvn -B clean verify
+
+      - name: TCK tests
+        run: mvn -B verify -Prun-tck
+
