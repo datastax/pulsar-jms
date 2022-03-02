@@ -15,20 +15,19 @@
  */
 package com.datastax.oss.pulsar.jms.tests;
 
+import static org.junit.Assume.assumeTrue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.datastax.oss.pulsar.jms.PulsarConnectionFactory;
-import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 import javax.jms.Destination;
 import javax.jms.JMSContext;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
 public class DockerTest {
 
-  @TempDir public Path temporaryDir;
+  private static final String TEST_PULSAR_DOCKER_IMAGE_NAME = System.getProperty("testPulsarDockerImageName");
 
   @Test
   public void testPulsar272() throws Exception {
@@ -43,6 +42,18 @@ public class DockerTest {
   @Test
   public void testPulsar282Transactions() throws Exception {
     test("apachepulsar/pulsar:2.8.2", true);
+  }
+
+  @Test
+  public void testGenericPulsar() throws Exception {
+    assumeTrue(TEST_PULSAR_DOCKER_IMAGE_NAME != null && !TEST_PULSAR_DOCKER_IMAGE_NAME.isEmpty());
+    test(TEST_PULSAR_DOCKER_IMAGE_NAME, false);
+  }
+
+  @Test
+  public void testGenericPulsarTransactions() throws Exception {
+    assumeTrue(TEST_PULSAR_DOCKER_IMAGE_NAME != null && !TEST_PULSAR_DOCKER_IMAGE_NAME.isEmpty());
+    test(TEST_PULSAR_DOCKER_IMAGE_NAME, true);
   }
 
   private void test(String image, boolean transactions) throws Exception {

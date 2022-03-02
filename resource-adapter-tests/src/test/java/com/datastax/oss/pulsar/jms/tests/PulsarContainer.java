@@ -24,6 +24,9 @@ import org.testcontainers.containers.Network;
 
 public class PulsarContainer implements AutoCloseable {
 
+   private static final String TEST_PULSAR_DOCKER_IMAGE_NAME = System
+            .getProperty("testResourceAdapterPulsarDockerImageName", "apachepulsar/pulsar:2.8.2");
+
   private GenericContainer<?> pulsarContainer;
   private final Network network;
 
@@ -34,7 +37,7 @@ public class PulsarContainer implements AutoCloseable {
   public void start() throws Exception {
     CountDownLatch pulsarReady = new CountDownLatch(1);
     pulsarContainer =
-        new GenericContainer<>("apachepulsar/pulsar:2.8.2")
+        new GenericContainer<>(TEST_PULSAR_DOCKER_IMAGE_NAME)
             .withNetwork(network)
             .withNetworkAliases("pulsar")
             .withCommand(
