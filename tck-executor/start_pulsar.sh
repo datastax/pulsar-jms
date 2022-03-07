@@ -2,7 +2,7 @@
 
 set -x -e
 
-IMAGENAME=apachepulsar/pulsar:2.8.1
+IMAGENAME=apachepulsar/pulsar:2.8.3
 
 HERE=$(dirname $0)
 HERE=$(realpath "$HERE")

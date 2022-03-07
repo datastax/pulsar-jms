@@ -30,19 +30,18 @@ public class DockerTest {
 
   @TempDir public Path temporaryDir;
 
-  @Test
   public void testPulsar272() throws Exception {
     test("apachepulsar/pulsar:2.7.2", false);
   }
 
   @Test
   public void testPulsar282() throws Exception {
-    test("apachepulsar/pulsar:2.8.2", false);
+    test("apachepulsar/pulsar:2.8.3", false);
   }
 
   @Test
   public void testPulsar282Transactions() throws Exception {
-    test("apachepulsar/pulsar:2.8.2", true);
+    test("apachepulsar/pulsar:2.8.3", true);
   }
 
   private void test(String image, boolean transactions) throws Exception {
