@@ -24,8 +24,8 @@ import org.testcontainers.containers.Network;
 
 public class PulsarContainer implements AutoCloseable {
 
-   private static final String TEST_PULSAR_DOCKER_IMAGE_NAME = System
-            .getProperty("testResourceAdapterPulsarDockerImageName", "apachepulsar/pulsar:2.8.2");
+  private static final String TEST_PULSAR_DOCKER_IMAGE_NAME =
+      System.getProperty("testResourceAdapterPulsarDockerImageName", "apachepulsar/pulsar:2.8.2");
 
   private GenericContainer<?> pulsarContainer;
   private final Network network;

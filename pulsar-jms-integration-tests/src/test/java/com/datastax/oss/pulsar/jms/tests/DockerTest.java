@@ -27,7 +27,8 @@ import org.junit.jupiter.api.Test;
 
 public class DockerTest {
 
-  private static final String TEST_PULSAR_DOCKER_IMAGE_NAME = System.getProperty("testPulsarDockerImageName");
+  private static final String TEST_PULSAR_DOCKER_IMAGE_NAME =
+      System.getProperty("testPulsarDockerImageName");
 
   @Test
   public void testPulsar272() throws Exception {
