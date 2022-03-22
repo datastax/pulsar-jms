@@ -17,13 +17,17 @@ package com.datastax.oss.pulsar.jms.tests;
 
 import static org.junit.Assume.assumeTrue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.datastax.oss.pulsar.jms.PulsarConnectionFactory;
+import com.datastax.oss.pulsar.jms.shaded.org.apache.pulsar.client.impl.auth.AuthenticationToken;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import javax.jms.Destination;
 import javax.jms.JMSContext;
 import org.junit.jupiter.api.Test;
+import org.testcontainers.shaded.org.apache.commons.io.IOUtils;
 
 public class DockerTest {
 
@@ -64,6 +68,17 @@ public class DockerTest {
       properties.put("brokerServiceUrl", pulsarContainer.getPulsarBrokerUrl());
       properties.put("webServiceUrl", pulsarContainer.getHttpServiceUrl());
       properties.put("enableTransaction", transactions);
+
+      // here we are using the repackaged Pulsar client and actually the class name is
+      assertTrue(
+          AuthenticationToken.class.getName().startsWith("com.datastax.oss.pulsar.jms.shaded"));
+
+      properties.put("authPlugin", "org.apache.pulsar.client.impl.auth.AuthenticationToken");
+      String token =
+          IOUtils.toString(
+              DockerTest.class.getResourceAsStream("/token.jwt"), StandardCharsets.UTF_8);
+      properties.put("authParams", "token:" + token.trim());
+
       try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties);
           JMSContext context =
               factory.createContext(
