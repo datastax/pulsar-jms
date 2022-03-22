@@ -34,6 +34,26 @@
       <groupId>${project.groupId}</groupId>
       <artifactId>pulsar-jms</artifactId>
       <version>${project.version}</version>
+      <exclusions>
+        <exclusion>
+          <groupId>org.apache.pulsar</groupId>
+          <artifactId>pulsar-client-original</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>org.apache.pulsar</groupId>
+          <artifactId>pulsar-client-admin-original</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.pulsar</groupId>
+      <artifactId>pulsar-client</artifactId>
+      <version>${pulsar.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.pulsar</groupId>
+      <artifactId>pulsar-client-admin</artifactId>
+      <version>${pulsar.version}</version>
     </dependency>
     <dependency>
       <groupId>org.slf4j</groupId>
@@ -72,12 +92,11 @@
           </filters>
           <relocations>
             <relocation>
-              <pattern>org.apache</pattern>
-              <shadedPattern>com.datastax.oss.pulsar.jms.shaded.org.apache</shadedPattern>
-            </relocation>
-            <relocation>
-              <pattern>io.netty</pattern>
-              <shadedPattern>com.datastax.oss.pulsar.jms.shaded.io.netty</shadedPattern>
+              <pattern>org.apache.pulsar.</pattern>
+              <shadedPattern>com.datastax.oss.pulsar.jms.shaded.org.apache.pulsar.</shadedPattern>
+              <excludes>
+                <exclude>org.apache.pulsar.shade.**</exclude>
+              </excludes>
             </relocation>
           </relocations>
         </configuration>

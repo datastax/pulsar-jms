@@ -57,8 +57,9 @@ public class PulsarConnectionFactory
     implements ConnectionFactory, QueueConnectionFactory, TopicConnectionFactory, AutoCloseable {
 
   private static final String PENDING_ACK_STORE_SUFFIX = "__transaction_pending_ack";
-  private static final String SHADED_PREFIX = "com.datastax.oss.pulsar.jms.shaded";
-  private static final boolean NEEDS_RELOCATION = PulsarClient.class.getPackageName().startsWith(SHADED_PREFIX);
+  private static final String SHADED_PREFIX = "com.datastax.oss.pulsar.jms.shaded.";
+  private static final boolean NEEDS_RELOCATION =
+      PulsarClient.class.getName().startsWith(SHADED_PREFIX);
 
   private static final Set<String> clientIdentifiers = new ConcurrentSkipListSet<>();
 
@@ -93,7 +94,7 @@ public class PulsarConnectionFactory
   }
 
   public PulsarConnectionFactory(Map<String, Object> properties) {
-    this.configuration = new HashMap(properties);
+    setConfiguration(properties);
   }
 
   public PulsarConnectionFactory(String configuration) throws JMSException {
@@ -132,28 +133,37 @@ public class PulsarConnectionFactory
   }
 
   private static Map<String, Object> copyAndApplyShadedPrefix(Map<String, Object> configuration) {
-      if (configuration == null ) {
-          return null;
-      }
-      if (!NEEDS_RELOCATION) {
-        return new HashMap<>(configuration);
-      }
-      Map<String, Object> copy = new HashMap<>();
-      configuration.forEach((key, value) -> {
-        if (value instanceof Map) {
+    if (configuration == null) {
+      return null;
+    }
+    if (!NEEDS_RELOCATION) {
+      return new HashMap<>(configuration);
+    }
+    Map<String, Object> copy = new HashMap<>();
+    configuration.forEach(
+        (key, value) -> {
+          if (value instanceof Map) {
             copy.put(key, copyAndApplyShadedPrefix((Map) value));
             return;
-        }
-        if (value instanceof String) {
-          if (value.startsWith("org.apache.pulsar")) {
-            value = SHADED_PREFIX + value;
           }
-          copy.put(key,value);
-          return;
-        }
-        copy.put(key,value);
-      });
-      return copy;
+          if (value instanceof String) {
+            String result = (String) value;
+            if (result.length() > 17
+                && result
+                    .substring(1)
+                    .startsWith("rg.apache.pulsar") // hack to deal with the Maven Shade plugin
+            ) {
+              result = SHADED_PREFIX + value;
+            }
+            if (log.isDebugEnabled()) {
+              log.debug("Relocating {} = {} -> {}", key, value, result);
+            }
+            copy.put(key, result);
+            return;
+          }
+          copy.put(key, value);
+        });
+    return copy;
   }
 
   private synchronized Map<String, Object> getConsumerConfiguration() {

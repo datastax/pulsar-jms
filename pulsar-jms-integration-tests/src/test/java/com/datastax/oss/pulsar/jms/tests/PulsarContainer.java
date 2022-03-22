@@ -27,7 +27,6 @@ public class PulsarContainer implements AutoCloseable {
   private GenericContainer<?> pulsarContainer;
   private final String dockerImageVersion;
   private boolean transactions;
-
   public static final int BROKER_PORT = 6650;
   public static final int BROKER_HTTP_PORT = 8080;
 
@@ -38,6 +37,7 @@ public class PulsarContainer implements AutoCloseable {
 
   public void start() throws Exception {
     CountDownLatch pulsarReady = new CountDownLatch(1);
+
     pulsarContainer =
         new GenericContainer<>(dockerImageVersion)
             .withExposedPorts(BROKER_PORT, BROKER_HTTP_PORT)
@@ -54,6 +54,15 @@ public class PulsarContainer implements AutoCloseable {
         transactions ? "standalone_transactions.conf" : "standalone.conf",
         "/pulsar/conf/standalone.conf",
         BindMode.READ_ONLY);
+
+    pulsarContainer.withClasspathResourceMapping(
+        "secret-key.key", "/pulsar/conf/secret-key.key", BindMode.READ_ONLY);
+
+    pulsarContainer.withClasspathResourceMapping(
+        "admin-token.jwt", "/pulsar/conf/admin-token.jwt", BindMode.READ_ONLY);
+
+    pulsarContainer.withClasspathResourceMapping(
+        "client.conf", "/pulsar/conf/client.conf", BindMode.READ_ONLY);
 
     pulsarContainer.start();
 
