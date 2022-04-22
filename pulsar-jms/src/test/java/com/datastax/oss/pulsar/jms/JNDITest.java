@@ -15,9 +15,11 @@
  */
 package com.datastax.oss.pulsar.jms;
 
-import static org.junit.Assert.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import com.datastax.oss.pulsar.jms.jndi.PulsarInitialContextFactory;
 import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
@@ -35,8 +37,9 @@ import javax.naming.Name;
 import org.apache.pulsar.client.api.Producer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class JNDITest {
 
@@ -56,13 +59,18 @@ public class JNDITest {
     }
   }
 
-  @Test
-  public void basicJDNITest() throws Exception {
+  @ParameterizedTest
+  @ValueSource(strings = {"true", "false", ""})
+  public void basicJDNITest(String autoCloseConnectionFactory) throws Exception {
 
     Properties properties = new Properties();
     properties.setProperty(
         Context.INITIAL_CONTEXT_FACTORY, PulsarInitialContextFactory.class.getName());
     properties.setProperty(Context.PROVIDER_URL, cluster.getAddress());
+
+    if (!autoCloseConnectionFactory.isEmpty()) {
+      properties.setProperty("autoCloseConnectionFactory", autoCloseConnectionFactory);
+    }
 
     Map<String, Object> producerConfig = new HashMap<>();
     producerConfig.put("producerName", "the-name");
@@ -116,6 +124,16 @@ public class JNDITest {
     } finally {
       jndiContext.close();
     }
-    assertTrue(factory != null && factory.isClosed());
+
+    if (autoCloseConnectionFactory.isEmpty()) {
+      // default value
+      assertTrue(factory != null && factory.isClosed());
+    } else if (autoCloseConnectionFactory.equals("true")) {
+      assertTrue(factory != null && factory.isClosed());
+    } else if (autoCloseConnectionFactory.equals("false")) {
+      assertFalse(factory != null && factory.isClosed());
+    } else {
+      fail();
+    }
   }
 }

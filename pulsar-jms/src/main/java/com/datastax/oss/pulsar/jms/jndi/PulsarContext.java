@@ -38,9 +38,18 @@ public class PulsarContext implements Context {
 
   private final Hashtable environment;
   private PulsarConnectionFactory connectionFactory;
+  private final boolean ownConnectionFactory;
 
   PulsarContext(Hashtable environment) {
     this.environment = environment;
+    Object autoCloseConnectionFactory = environment.remove("autoCloseConnectionFactory");
+    final boolean ownConnectionFactory;
+    if (autoCloseConnectionFactory == null) {
+      ownConnectionFactory = true;
+    } else {
+      ownConnectionFactory = Boolean.parseBoolean(autoCloseConnectionFactory + "");
+    }
+    this.ownConnectionFactory = ownConnectionFactory;
   }
 
   private synchronized PulsarConnectionFactory getConnectionFactory() {
@@ -222,7 +231,9 @@ public class PulsarContext implements Context {
   @Override
   public synchronized void close() throws NamingException {
     if (connectionFactory != null) {
-      connectionFactory.close();
+      if (ownConnectionFactory) {
+        connectionFactory.close();
+      }
       connectionFactory = null;
     }
   }
