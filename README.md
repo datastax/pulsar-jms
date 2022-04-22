@@ -89,6 +89,8 @@ Properties properties = new Properties();
 properties.setProperty(Context.INITIAL_CONTEXT_FACTORY, "com.datastax.oss.pulsar.jms.jndi.PulsarInitialContextFactory");
 properties.setProperty(Context.PROVIDER_URL, "pulsar://localhost:6650");
 properties.setProperty("webServiceUrl", "http://localhost:8080");
+// automatically close the ConnectionFactory when closing the JDNI context
+properties.setProperty("autoCloseConnectionFactory", "true");
 properties.setProperty("jms.systemNamespace", "public/default");
 
 // add here the rest of your configuration

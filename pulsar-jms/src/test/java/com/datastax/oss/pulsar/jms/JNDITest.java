@@ -127,7 +127,7 @@ public class JNDITest {
 
     if (autoCloseConnectionFactory.isEmpty()) {
       // default value
-      assertTrue(factory != null && factory.isClosed());
+      assertFalse(factory != null && factory.isClosed());
     } else if (autoCloseConnectionFactory.equals("true")) {
       assertTrue(factory != null && factory.isClosed());
     } else if (autoCloseConnectionFactory.equals("false")) {
