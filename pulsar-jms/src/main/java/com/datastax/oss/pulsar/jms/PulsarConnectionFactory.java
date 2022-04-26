@@ -264,8 +264,8 @@ public class PulsarConnectionFactory
               getAndRemoveString("jms.enableClientSideEmulation", "false", configuration));
 
       this.useServerSideSelectors =
-              Boolean.parseBoolean(
-                      getAndRemoveString("jms.useServerSideSelectors", "false", configuration));
+          Boolean.parseBoolean(
+              getAndRemoveString("jms.useServerSideSelectors", "false", configuration));
 
       // in Exclusive mode Pulsar does not support delayed messages
       // with this flag you force to not use Exclusive subscription and so to support
@@ -839,15 +839,14 @@ public class PulsarConnectionFactory
     return usePulsarAdmin;
   }
 
-  public void ensureQueueSubscription(PulsarDestination destination,
-                                      String serverSideSelector) throws JMSException {
-    boolean requireServerSideSelector = serverSideSelector != null && useServerSideSelectors;
+  public void ensureQueueSubscription(PulsarDestination destination, String serverSideSelector)
+      throws JMSException {
+    boolean requireServerSideSelector = serverSideSelector != null && isUseServerSideSelectors();
     long start = System.currentTimeMillis();
     String fullQualifiedTopicName = applySystemNamespace(destination.topicName);
     while (true) {
       try {
-        if (isUsePulsarAdmin()
-                && !requireServerSideSelector) {
+        if (isUsePulsarAdmin() && !requireServerSideSelector) {
           getPulsarAdmin()
               .topics()
               .createSubscription(
@@ -933,7 +932,7 @@ public class PulsarConnectionFactory
         subscriptionType,
         messageSelector);
     Map<String, String> subscriptionProperties = new HashMap<>();
-    if (messageSelector != null && useServerSideSelectors) {
+    if (messageSelector != null && isUseServerSideSelectors()) {
       subscriptionProperties.put("jms.selector", messageSelector);
     }
     try {

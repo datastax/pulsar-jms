@@ -108,8 +108,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
     if (destination.isQueue()) {
       // to not create eagerly the Consumer for Queues
       // but create the shared subscription
-      session.getFactory().ensureQueueSubscription(destination,
-              getMessageSelector());
+      session.getFactory().ensureQueueSubscription(destination, getMessageSelector());
     } else {
       getConsumer();
     }
@@ -345,8 +344,8 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
               + expectedType);
     }
     if (selectorSupport != null
-            && !session.getFactory().isUseServerSideSelectors()
-            && !selectorSupport.matches(result)) {
+        && !session.getFactory().isUseServerSideSelectors()
+        && !selectorSupport.matches(result)) {
       if (log.isDebugEnabled()) {
         log.debug("msg {} does not match selector {}", result, selectorSupport.getSelector());
       }

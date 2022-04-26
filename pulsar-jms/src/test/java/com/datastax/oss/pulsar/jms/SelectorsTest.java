@@ -66,8 +66,9 @@ public class SelectorsTest {
     sendMessageReceiveFromQueueWithSelector(true);
   }
 
-  private void sendMessageReceiveFromQueueWithSelector(boolean serverSideSelectors) throws Exception {
-      Map<String, Object> properties = new HashMap<>();
+  private void sendMessageReceiveFromQueueWithSelector(boolean serverSideSelectors)
+      throws Exception {
+    Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
     properties.put("jms.useServerSideSelectors", serverSideSelectors);
     properties.put("jms.enableClientSideEmulation", !serverSideSelectors);

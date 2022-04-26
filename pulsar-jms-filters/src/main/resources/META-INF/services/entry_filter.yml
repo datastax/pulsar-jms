@@ -1,0 +1,3 @@
+entryFilterClass: com.datastax.oss.pulsar.jms.selectors.JMSFilter
+name: jms
+description: Startlight for JMS - support for server side filters

@@ -16,6 +16,7 @@
 package com.datastax.oss.pulsar.jms.utils;
 
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Optional;
 import org.apache.bookkeeper.util.PortManager;
@@ -56,6 +57,8 @@ public class PulsarCluster implements AutoCloseable {
     config.setBookkeeperMetadataServiceUri(bookKeeperCluster.getBookKeeperMetadataURI());
     config.setWebServicePort(Optional.of(PortManager.nextFreePort()));
     config.setBookkeeperUseV2WireProtocol(false);
+    config.setEntryFilterNames(Arrays.asList("jms"));
+    config.setEntryFiltersDirectory("target/classes/filters");
     service = new PulsarService(config);
   }
 
