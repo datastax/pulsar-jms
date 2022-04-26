@@ -57,11 +57,20 @@ public class SelectorsTest {
   }
 
   @Test
-  public void sendMessageReceiveFromQueueWithSelector() throws Exception {
+  public void sendMessageReceiveFromQueueWithClientSelector() throws Exception {
+    sendMessageReceiveFromQueueWithSelector(false);
+  }
 
-    Map<String, Object> properties = new HashMap<>();
+  @Test
+  public void sendMessageReceiveFromQueueWithServerSelector() throws Exception {
+    sendMessageReceiveFromQueueWithSelector(true);
+  }
+
+  private void sendMessageReceiveFromQueueWithSelector(boolean serverSideSelectors) throws Exception {
+      Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
-    properties.put("jms.enableClientSideEmulation", "true");
+    properties.put("jms.useServerSideSelectors", serverSideSelectors);
+    properties.put("jms.enableClientSideEmulation", !serverSideSelectors);
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
         connection.start();

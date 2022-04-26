@@ -91,7 +91,8 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
         SelectorSupport.build(
             selector,
             subscriptionType == SubscriptionType.Exclusive
-                || session.getFactory().isEnableClientSideEmulation());
+                || session.getFactory().isEnableClientSideEmulation()
+                || session.getFactory().isUseServerSideSelectors());
     this.unregisterSubscriptionOnClose = unregisterSubscriptionOnClose;
     if (noLocal
         && subscriptionType != SubscriptionType.Exclusive
@@ -107,7 +108,8 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
     if (destination.isQueue()) {
       // to not create eagerly the Consumer for Queues
       // but create the shared subscription
-      session.getFactory().ensureQueueSubscription(destination);
+      session.getFactory().ensureQueueSubscription(destination,
+              getMessageSelector());
     } else {
       getConsumer();
     }
@@ -129,7 +131,8 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
                   subscriptionName,
                   session.getAcknowledgeMode(),
                   subscriptionMode,
-                  subscriptionType);
+                  subscriptionType,
+                  getMessageSelector());
     }
     return consumer;
   }
@@ -341,7 +344,9 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
               + ",) cannot be converted to a "
               + expectedType);
     }
-    if (selectorSupport != null && !selectorSupport.matches(result)) {
+    if (selectorSupport != null
+            && !session.getFactory().isUseServerSideSelectors()
+            && !selectorSupport.matches(result)) {
       if (log.isDebugEnabled()) {
         log.debug("msg {} does not match selector {}", result, selectorSupport.getSelector());
       }
