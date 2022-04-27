@@ -94,17 +94,21 @@ public class PulsarCluster implements AutoCloseable {
                 .adminRoles(Collections.singleton("admin"))
                 .allowedClusters(Collections.singleton("localhost"))
                 .build());
-    service.getAdminClient().namespaces().createNamespace("pulsar/system");
 
-    service
-        .getAdminClient()
-        .topics()
-        .createPartitionedTopic("persistent://pulsar/system/transaction_coordinator_assign", 1);
+    if (service.getConfiguration().isTransactionCoordinatorEnabled()) {
 
-    service
-        .getAdminClient()
-        .topics()
-        .createNonPartitionedTopic("persistent://public/default/__transaction_buffer_snapshot");
+      service.getAdminClient().namespaces().createNamespace("pulsar/system");
+
+      service
+          .getAdminClient()
+          .topics()
+          .createPartitionedTopic("persistent://pulsar/system/transaction_coordinator_assign", 1);
+
+      service
+          .getAdminClient()
+          .topics()
+          .createNonPartitionedTopic("persistent://public/default/__transaction_buffer_snapshot");
+    }
   }
 
   public void close() throws Exception {

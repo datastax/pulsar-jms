@@ -839,30 +839,26 @@ public class PulsarConnectionFactory
     return usePulsarAdmin;
   }
 
-  public void ensureQueueSubscription(PulsarDestination destination, String serverSideSelector)
-      throws JMSException {
-    boolean requireServerSideSelector = serverSideSelector != null && isUseServerSideSelectors();
+  public void ensureQueueSubscription(PulsarDestination destination) throws JMSException {
     long start = System.currentTimeMillis();
+
+    // please note that in the special jms-queue subscription we cannot
+    // set a selector, because it is shared among all the Consumers of the Queue
     String fullQualifiedTopicName = applySystemNamespace(destination.topicName);
     while (true) {
       try {
-        if (isUsePulsarAdmin() && !requireServerSideSelector) {
+        if (isUsePulsarAdmin()) {
           getPulsarAdmin()
               .topics()
               .createSubscription(
                   fullQualifiedTopicName, getQueueSubscriptionName(), MessageId.earliest);
         } else {
-          Map<String, String> subscriptionProperties = new HashMap<>();
-          if (requireServerSideSelector) {
-            subscriptionProperties.put("jms.selector", serverSideSelector);
-          }
           // if we cannot use PulsarAdmin or we want to set a selector,
           // let's try to create a consumer with zero queue
           getPulsarClient()
               .newConsumer()
               .subscriptionType(getTopicSharedSubscriptionType())
               .subscriptionName(getQueueSubscriptionName())
-              .subscriptionProperties(subscriptionProperties)
               .subscriptionInitialPosition(SubscriptionInitialPosition.Earliest)
               .receiverQueueSize(0)
               .topic(fullQualifiedTopicName)

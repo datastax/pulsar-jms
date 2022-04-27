@@ -15,6 +15,7 @@
  */
 package com.datastax.oss.pulsar.jms.selectors;
 
+import java.util.Map;
 import javax.jms.InvalidSelectorException;
 import javax.jms.JMSException;
 import javax.jms.Message;
@@ -41,6 +42,14 @@ public final class SelectorSupport {
     }
     BooleanExpression parse = SelectorParser.parse(selector);
     return new SelectorSupport(parse, selector);
+  }
+
+  public boolean matches(Map<String, Object> messageProperties) throws JMSException {
+    MessageEvaluationContext context = new MessageEvaluationContext();
+    ActiveMQMessage activeMQMessage = new ActiveMQMessage();
+    activeMQMessage.setProperties(messageProperties);
+    context.setMessageReference(activeMQMessage);
+    return expression.matches(context);
   }
 
   public boolean matches(Message message) throws JMSException {

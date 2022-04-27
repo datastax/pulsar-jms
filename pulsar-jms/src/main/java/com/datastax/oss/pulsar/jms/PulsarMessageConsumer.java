@@ -18,6 +18,7 @@ package com.datastax.oss.pulsar.jms;
 import com.datastax.oss.pulsar.jms.selectors.SelectorSupport;
 import java.time.Instant;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import javax.jms.Destination;
 import javax.jms.IllegalStateException;
 import javax.jms.InvalidDestinationException;
@@ -38,6 +39,7 @@ import org.apache.pulsar.client.api.Consumer;
 import org.apache.pulsar.client.api.PulsarClientException;
 import org.apache.pulsar.client.api.SubscriptionMode;
 import org.apache.pulsar.client.api.SubscriptionType;
+import org.apache.pulsar.client.impl.BatchMessageIdImpl;
 
 @Slf4j
 public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, QueueReceiver {
@@ -54,6 +56,8 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
   final boolean unregisterSubscriptionOnClose;
   private boolean closed;
   private boolean requestClose;
+  final AtomicLong receivedMessages = new AtomicLong();
+  final AtomicLong skippedMessages = new AtomicLong();
 
   public PulsarMessageConsumer(
       String subscriptionName,
@@ -108,7 +112,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
     if (destination.isQueue()) {
       // to not create eagerly the Consumer for Queues
       // but create the shared subscription
-      session.getFactory().ensureQueueSubscription(destination, getMessageSelector());
+      session.getFactory().ensureQueueSubscription(destination);
     } else {
       getConsumer();
     }
@@ -302,6 +306,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
 
   private void skipMessage(org.apache.pulsar.client.api.Message<byte[]> message)
       throws JMSException {
+    skippedMessages.incrementAndGet();
     if (subscriptionType == SubscriptionType.Exclusive
         || session.getFactory().isAcknowledgeRejectedMessages()) {
       // we are the only one that will ever receive this message
@@ -325,6 +330,9 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
       java.util.function.Consumer<PulsarMessage> listenerCode,
       boolean noLocalFilter)
       throws JMSException, org.apache.pulsar.client.api.PulsarClientException {
+
+    receivedMessages.incrementAndGet();
+
     PulsarMessage result = PulsarMessage.decode(this, message);
     Consumer<byte[]> consumer = getConsumer();
     if (expectedType != null && !result.isBodyAssignableTo(expectedType)) {
@@ -344,7 +352,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
               + expectedType);
     }
     if (selectorSupport != null
-        && !session.getFactory().isUseServerSideSelectors()
+        && requiresClientSideFiltering(message)
         && !selectorSupport.matches(result)) {
       if (log.isDebugEnabled()) {
         log.debug("msg {} does not match selector {}", result, selectorSupport.getSelector());
@@ -412,6 +420,14 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
       closeInternal();
     }
     return result;
+  }
+
+  private boolean requiresClientSideFiltering(org.apache.pulsar.client.api.Message<?> message) {
+    // for batch messages we have to verify the condition locally
+    // because the broker can only ACCEPT or REJECT whole batches.
+    // the broker will send the batch (Entry) if at least one message matches the selector
+    boolean isBatch = (message.getMessageId() instanceof BatchMessageIdImpl);
+    return isBatch || !session.getFactory().isUseServerSideSelectors();
   }
 
   /**
@@ -670,5 +686,13 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
 
   public SubscriptionType getSubscriptionType() {
     return subscriptionType;
+  }
+
+  public long getReceivedMessages() {
+    return receivedMessages.get();
+  }
+
+  public long getSkippedMessages() {
+    return skippedMessages.get();
   }
 }
