@@ -17,7 +17,6 @@ package com.datastax.oss.pulsar.jms;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.datastax.oss.pulsar.jms.messages.PulsarTextMessage;
 import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
@@ -352,7 +351,10 @@ public abstract class SelectorsTestsBase {
               assertEquals(text, textMessage.getText());
 
               // ensure that it is a batch message
-              assertEquals(enableBatching, textMessage.getReceivedPulsarMessage().getMessageId() instanceof BatchMessageIdImpl);
+              assertEquals(
+                  enableBatching,
+                  textMessage.getReceivedPulsarMessage().getMessageId()
+                      instanceof BatchMessageIdImpl);
             }
 
             // no more messages (this also drains some remaining messages to be skipped)
@@ -379,7 +381,6 @@ public abstract class SelectorsTestsBase {
     }
   }
 
-
   @Test
   public void sendBatchWithAllMessagesFullyMatchingFilter() throws Exception {
     Map<String, Object> properties = buildProperties();
@@ -400,12 +401,12 @@ public abstract class SelectorsTestsBase {
         connection.start();
         try (PulsarSession session = connection.createSession(); ) {
           Topic destination =
-                  session.createTopic("persistent://public/default/test-" + UUID.randomUUID());
+              session.createTopic("persistent://public/default/test-" + UUID.randomUUID());
 
           try (PulsarMessageConsumer consumer1 =
-                       session.createSharedDurableConsumer(destination, "sub1", "keepMessage=TRUE"); ) {
+              session.createSharedDurableConsumer(destination, "sub1", "keepMessage=TRUE"); ) {
             assertEquals(
-                    SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
+                SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
             assertEquals("keepMessage=TRUE", consumer1.getMessageSelector());
             List<CompletableFuture<Message>> handles = new ArrayList<>();
             List<String> expected = new ArrayList<>();
@@ -419,18 +420,18 @@ public abstract class SelectorsTestsBase {
                 }
                 CompletableFuture<Message> handle = new CompletableFuture<>();
                 producer.send(
-                        textMessage,
-                        new CompletionListener() {
-                          @Override
-                          public void onCompletion(Message message) {
-                            handle.complete(message);
-                          }
+                    textMessage,
+                    new CompletionListener() {
+                      @Override
+                      public void onCompletion(Message message) {
+                        handle.complete(message);
+                      }
 
-                          @Override
-                          public void onException(Message message, Exception e) {
-                            handle.completeExceptionally(e);
-                          }
-                        });
+                      @Override
+                      public void onException(Message message, Exception e) {
+                        handle.completeExceptionally(e);
+                      }
+                    });
                 handles.add(handle);
               }
             }
@@ -442,17 +443,20 @@ public abstract class SelectorsTestsBase {
               assertEquals(text, textMessage.getText());
 
               // ensure that it is a batch message
-              assertEquals(enableBatching, textMessage.getReceivedPulsarMessage().getMessageId() instanceof BatchMessageIdImpl);
+              assertEquals(
+                  enableBatching,
+                  textMessage.getReceivedPulsarMessage().getMessageId()
+                      instanceof BatchMessageIdImpl);
             }
 
             // no more messages (this also drains some remaining messages to be skipped)
             assertNull(consumer1.receive(1000));
 
             if (serverSideSelectors) {
-                // even with batching the client
-                // receives exactly only the messages that match the filter
-                assertEquals(expected.size(), consumer1.getReceivedMessages());
-                assertEquals(0, consumer1.getSkippedMessages());
+              // even with batching the client
+              // receives exactly only the messages that match the filter
+              assertEquals(expected.size(), consumer1.getReceivedMessages());
+              assertEquals(0, consumer1.getSkippedMessages());
             } else {
               assertEquals(100, consumer1.getReceivedMessages());
               assertEquals(100 - expected.size(), consumer1.getSkippedMessages());

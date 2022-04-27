@@ -20,6 +20,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Optional;
 import org.apache.bookkeeper.util.PortManager;
+import org.apache.pulsar.PulsarTransactionCoordinatorMetadataSetup;
 import org.apache.pulsar.broker.PulsarService;
 import org.apache.pulsar.broker.ServiceConfiguration;
 import org.apache.pulsar.common.policies.data.ClusterData;
@@ -97,13 +98,11 @@ public class PulsarCluster implements AutoCloseable {
 
     if (service.getConfiguration().isTransactionCoordinatorEnabled()) {
 
-      service.getAdminClient().namespaces().createNamespace("pulsar/system");
+      // run initialize-transaction-coordinator-metadata
+      PulsarTransactionCoordinatorMetadataSetup.main(new String[] {"-c", "localhost",
+              "-cs", bookKeeperCluster.getZooKeeperAddress()});
 
-      service
-          .getAdminClient()
-          .topics()
-          .createPartitionedTopic("persistent://pulsar/system/transaction_coordinator_assign", 1);
-
+      // pre-create __transaction_buffer_snapshot for public/default namespace
       service
           .getAdminClient()
           .topics()
