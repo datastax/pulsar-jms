@@ -99,8 +99,8 @@ public class PulsarCluster implements AutoCloseable {
     if (service.getConfiguration().isTransactionCoordinatorEnabled()) {
 
       // run initialize-transaction-coordinator-metadata
-      PulsarTransactionCoordinatorMetadataSetup.main(new String[] {"-c", "localhost",
-              "-cs", bookKeeperCluster.getZooKeeperAddress()});
+      PulsarTransactionCoordinatorMetadataSetup.main(
+          new String[] {"-c", "localhost", "-cs", bookKeeperCluster.getZooKeeperAddress()});
 
       // pre-create __transaction_buffer_snapshot for public/default namespace
       service
