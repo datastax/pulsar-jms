@@ -75,6 +75,25 @@
           <skipNexusStagingDeployMojo>true</skipNexusStagingDeployMojo>
         </configuration>
       </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-antrun-plugin</artifactId>
+        <executions>
+          <execution>
+            <phase>process-test-resources</phase>
+            <goals>
+              <goal>run</goal>
+            </goals>
+            <configuration>
+              <tasks>
+                <echo>copy filters</echo>
+                <mkdir dir="${project.build.outputDirectory}/filters"/>
+                <copy verbose="true" file="${basedir}/../pulsar-jms-filters/target/pulsar-jms-filters-${project.version}.jar" tofile="${project.build.outputDirectory}/filters/jms-filter.nar"/>
+              </tasks>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
     </plugins>
   </build>
 </project>

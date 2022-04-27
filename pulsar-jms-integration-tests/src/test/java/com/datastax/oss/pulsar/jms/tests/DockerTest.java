@@ -20,11 +20,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.datastax.oss.pulsar.jms.PulsarConnectionFactory;
+import com.datastax.oss.pulsar.jms.PulsarMessageConsumer;
 import com.datastax.oss.pulsar.jms.shaded.org.apache.pulsar.client.impl.auth.AuthenticationToken;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import javax.jms.Destination;
+import javax.jms.JMSConsumer;
 import javax.jms.JMSContext;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.shaded.org.apache.commons.io.IOUtils;
@@ -50,6 +52,11 @@ public class DockerTest {
   }
 
   @Test
+  public void testPulsar211() throws Exception {
+    test("eolivelli/pulsar:2.11.0-SNAPSHOT-1", false);
+  }
+
+  @Test
   public void testPulsar292Transactions() throws Exception {
     test("apachepulsar/pulsar:2.9.2", true);
   }
@@ -57,6 +64,16 @@ public class DockerTest {
   @Test
   public void testPulsar210Transactions() throws Exception {
     test("apachepulsar/pulsar:2.10.0", true);
+  }
+
+  @Test
+  public void testPulsar211Transactions() throws Exception {
+    test("eolivelli/pulsar:2.11.0-SNAPSHOT-1", true);
+  }
+
+  @Test
+  public void testPulsar211ServerSideSelectors() throws Exception {
+    test("eolivelli/pulsar:2.11.0-SNAPSHOT-1", false, true);
   }
 
   @Test
@@ -72,12 +89,21 @@ public class DockerTest {
   }
 
   private void test(String image, boolean transactions) throws Exception {
-    try (PulsarContainer pulsarContainer = new PulsarContainer(image, transactions); ) {
+    test(image, transactions, false);
+  }
+
+  private void test(String image, boolean transactions, boolean serverSideSelectors)
+      throws Exception {
+    try (PulsarContainer pulsarContainer =
+        new PulsarContainer(image, transactions, serverSideSelectors); ) {
       pulsarContainer.start();
       Map<String, Object> properties = new HashMap<>();
       properties.put("brokerServiceUrl", pulsarContainer.getPulsarBrokerUrl());
       properties.put("webServiceUrl", pulsarContainer.getHttpServiceUrl());
       properties.put("enableTransaction", transactions);
+      if (serverSideSelectors) {
+        properties.put("jms.useServerSideSelectors", true);
+      }
 
       // here we are using the repackaged Pulsar client and actually the class name is
       assertTrue(
@@ -95,7 +121,8 @@ public class DockerTest {
                   transactions ? JMSContext.SESSION_TRANSACTED : JMSContext.CLIENT_ACKNOWLEDGE);
           JMSContext context2 =
               factory.createContext(
-                  transactions ? JMSContext.SESSION_TRANSACTED : JMSContext.CLIENT_ACKNOWLEDGE)) {
+                  transactions ? JMSContext.SESSION_TRANSACTED : JMSContext.CLIENT_ACKNOWLEDGE);
+          JMSContext context3 = factory.createContext(JMSContext.CLIENT_ACKNOWLEDGE)) {
         Destination queue = context.createQueue("test");
         context.createProducer().send(queue, "foo");
         if (transactions) {
@@ -104,6 +131,29 @@ public class DockerTest {
         assertEquals("foo", context2.createConsumer(queue).receiveBody(String.class));
         if (transactions) {
           context2.commit();
+        }
+
+        // test selectors
+        Destination topic = context3.createQueue("testTopic");
+        try (JMSConsumer consumerWithSelector =
+            context3.createConsumer(topic, "keepMessage=TRUE")) {
+          context3.createProducer().setProperty("keepMessage", false).send(topic, "skipMe");
+          context3.createProducer().setProperty("keepMessage", true).send(topic, "keepMe");
+
+          assertEquals("keepMe", consumerWithSelector.receiveBody(String.class));
+          PulsarMessageConsumer.PulsarJMSConsumer pulsarJMSConsumer =
+              (PulsarMessageConsumer.PulsarJMSConsumer) consumerWithSelector;
+          PulsarMessageConsumer inner = pulsarJMSConsumer.asPulsarMessageConsumer();
+
+          if (serverSideSelectors) {
+            // the message is not sent to the client at all
+            assertEquals(1, inner.getReceivedMessages());
+            assertEquals(0, inner.getSkippedMessages());
+          } else {
+            // the client actually received both the messages and then skipped one
+            assertEquals(2, inner.getReceivedMessages());
+            assertEquals(1, inner.getSkippedMessages());
+          }
         }
       }
     }
