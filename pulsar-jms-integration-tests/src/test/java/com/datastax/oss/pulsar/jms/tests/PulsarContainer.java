@@ -26,7 +26,6 @@ import java.nio.file.Paths;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-
 import lombok.extern.slf4j.Slf4j;
 import org.testcontainers.containers.BindMode;
 import org.testcontainers.containers.GenericContainer;
@@ -93,9 +92,7 @@ public class PulsarContainer implements AutoCloseable {
       Path files = Paths.get("target/classes/filters");
       // verify that the .nar file has been copied
       assertTrue(
-          Files.list(files).anyMatch(p ->
-            p.getFileName().toString().endsWith(".nar")
-          ),
+          Files.list(files).anyMatch(p -> p.getFileName().toString().endsWith(".nar")),
           "Cannot find the .nar file in " + files.toAbsolutePath());
       pulsarContainer.withFileSystemBind(
           "target/classes/filters", "/pulsar/filters", BindMode.READ_ONLY);
