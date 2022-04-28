@@ -505,7 +505,7 @@ limitations under the License.]]></inlineHeader>
   </distributionManagement>
 
 
-  <!-- to use 2.10.1-SNAPSHOT ->
+  <!-- to use 2.10.1-SNAPSHOT -->
   <repositories>
     <repository>
       <id>apache-snapshots</id>

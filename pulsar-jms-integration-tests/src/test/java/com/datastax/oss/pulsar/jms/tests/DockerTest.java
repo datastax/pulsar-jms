@@ -52,8 +52,8 @@ public class DockerTest {
   }
 
   @Test
-  public void testPulsar211() throws Exception {
-    test("eolivelli/pulsar:2.11.0-SNAPSHOT-1", false);
+  public void testPulsar2101() throws Exception {
+    test("eolivelli/pulsar:latest-branch-2.10", false);
   }
 
   @Test
@@ -67,13 +67,13 @@ public class DockerTest {
   }
 
   @Test
-  public void testPulsar211Transactions() throws Exception {
-    test("eolivelli/pulsar:2.11.0-SNAPSHOT-1", true);
+  public void testPulsar2101Transactions() throws Exception {
+    test("eolivelli/pulsar:latest-branch-2.10", true);
   }
 
   @Test
-  public void testPulsar211ServerSideSelectors() throws Exception {
-    test("eolivelli/pulsar:2.11.0-SNAPSHOT-1", false, true);
+  public void testPulsar2101ServerSideSelectors() throws Exception {
+    test("eolivelli/pulsar:latest-branch-2.10", false, true);
   }
 
   @Test

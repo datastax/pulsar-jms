@@ -2,7 +2,7 @@
 
 set -x -e
 
-IMAGENAME=${PULSAR_IMAGE_NAME:-eolivelli/pulsar:2.11.0-SNAPSHOT-1}
+IMAGENAME=${PULSAR_IMAGE_NAME:-eolivelli/pulsar:latest-branch-2.10}
 
 HERE=$(dirname $0)
 HERE=$(realpath "$HERE")
