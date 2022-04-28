@@ -83,7 +83,7 @@ public class PulsarContainer implements AutoCloseable {
     Files.write(tmpFile, content.getBytes(StandardCharsets.UTF_8));
 
     pulsarContainer.withFileSystemBind(
-        tmpFile.toFile().getAbsolutePath(), "/pulsar/conf/standalone.conf");
+        tmpFile.toFile().getAbsolutePath(), "/pulsar/conf/standalone.conf", BindMode.READ_ONLY);
 
     pulsarContainer.withClasspathResourceMapping(
         "secret-key.key", "/pulsar/conf/secret-key.key", BindMode.READ_ONLY);
