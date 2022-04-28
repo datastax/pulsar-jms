@@ -16,9 +16,11 @@
 package com.datastax.oss.pulsar.jms.utils;
 
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Optional;
 import org.apache.bookkeeper.util.PortManager;
+import org.apache.pulsar.PulsarTransactionCoordinatorMetadataSetup;
 import org.apache.pulsar.broker.PulsarService;
 import org.apache.pulsar.broker.ServiceConfiguration;
 import org.apache.pulsar.common.policies.data.ClusterData;
@@ -56,6 +58,8 @@ public class PulsarCluster implements AutoCloseable {
     config.setBookkeeperMetadataServiceUri(bookKeeperCluster.getBookKeeperMetadataURI());
     config.setWebServicePort(Optional.of(PortManager.nextFreePort()));
     config.setBookkeeperUseV2WireProtocol(false);
+    config.setEntryFilterNames(Arrays.asList("jms"));
+    config.setEntryFiltersDirectory("target/classes/filters");
     service = new PulsarService(config);
   }
 
@@ -91,17 +95,19 @@ public class PulsarCluster implements AutoCloseable {
                 .adminRoles(Collections.singleton("admin"))
                 .allowedClusters(Collections.singleton("localhost"))
                 .build());
-    service.getAdminClient().namespaces().createNamespace("pulsar/system");
 
-    service
-        .getAdminClient()
-        .topics()
-        .createPartitionedTopic("persistent://pulsar/system/transaction_coordinator_assign", 1);
+    if (service.getConfiguration().isTransactionCoordinatorEnabled()) {
 
-    service
-        .getAdminClient()
-        .topics()
-        .createNonPartitionedTopic("persistent://public/default/__transaction_buffer_snapshot");
+      // run initialize-transaction-coordinator-metadata
+      PulsarTransactionCoordinatorMetadataSetup.main(
+          new String[] {"-c", "localhost", "-cs", bookKeeperCluster.getZooKeeperAddress()});
+
+      // pre-create __transaction_buffer_snapshot for public/default namespace
+      service
+          .getAdminClient()
+          .topics()
+          .createNonPartitionedTopic("persistent://public/default/__transaction_buffer_snapshot");
+    }
   }
 
   public void close() throws Exception {

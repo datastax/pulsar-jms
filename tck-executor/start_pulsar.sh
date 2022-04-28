@@ -2,12 +2,13 @@
 
 set -x -e
 
-IMAGENAME=${PULSAR_IMAGE_NAME:-apachepulsar/pulsar:2.8.1}
+IMAGENAME=${PULSAR_IMAGE_NAME:-eolivelli/pulsar:latest-branch-2.10}
 
 HERE=$(dirname $0)
 HERE=$(realpath "$HERE")
+FILTERSDIRECTORY=$HERE/../pulsar-jms-filters/target
 docker rm -f pulsar-jms-runner
-docker run --name pulsar-jms-runner -v $HERE/conf:/pulsar/conf -d -p 8080:8080 -p 6650:6650 $IMAGENAME /pulsar/bin/pulsar standalone 
+docker run --name pulsar-jms-runner -v $FILTERSDIRECTORY:/pulsar/filters -v $HERE/conf:/pulsar/conf -d -p 8080:8080 -p 6650:6650 $IMAGENAME /pulsar/bin/pulsar standalone
 # Wait for pulsar to start
 echo "Waiting 15 seconds"
 

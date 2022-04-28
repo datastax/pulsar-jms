@@ -17,22 +17,37 @@ package com.datastax.oss.pulsar.jms.tests;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
+import org.junit.jupiter.api.io.TempDir;
 import org.testcontainers.containers.BindMode;
 import org.testcontainers.containers.GenericContainer;
 
+@Slf4j
 public class PulsarContainer implements AutoCloseable {
 
   private GenericContainer<?> pulsarContainer;
   private final String dockerImageVersion;
   private boolean transactions;
+  private boolean serverSideSelectors;
+  private final Path tempDir;
   public static final int BROKER_PORT = 6650;
   public static final int BROKER_HTTP_PORT = 8080;
 
-  public PulsarContainer(String dockerImageVersion, boolean transactions) {
+  public PulsarContainer(
+      String dockerImageVersion, boolean transactions, boolean serverSideSelectors, Path tempDir) {
     this.dockerImageVersion = dockerImageVersion;
     this.transactions = transactions;
+    this.serverSideSelectors = serverSideSelectors;
+    this.tempDir = tempDir;
   }
 
   public void start() throws Exception {
@@ -50,13 +65,40 @@ public class PulsarContainer implements AutoCloseable {
                   }
                   System.out.println(text);
                 });
-    pulsarContainer.withClasspathResourceMapping(
-        transactions ? "standalone_transactions.conf" : "standalone.conf",
-        "/pulsar/conf/standalone.conf",
-        BindMode.READ_ONLY);
+
+    String filename = "/standalone.conf";
+    String content =
+        new BufferedReader(
+                new InputStreamReader(PulsarContainer.class.getResourceAsStream(filename)))
+            .lines()
+            .collect(Collectors.joining("\n"));
+    if (transactions) {
+      content = content + "\ntransactionCoordinatorEnabled=true\n";
+    }
+
+    if (serverSideSelectors) {
+      content = content + "\nentryFilterNames=jms\n";
+      content = content + "\nentryFiltersDirectory=/pulsar/filters\n";
+    }
+
+    Path tmpFile = tempDir.resolve("standalone.conf");
+    Files.write(tmpFile, content.getBytes(StandardCharsets.UTF_8));
+
+    pulsarContainer.withFileSystemBind(
+        tmpFile.toFile().getAbsolutePath(), "/pulsar/conf/standalone.conf", BindMode.READ_ONLY);
 
     pulsarContainer.withClasspathResourceMapping(
         "secret-key.key", "/pulsar/conf/secret-key.key", BindMode.READ_ONLY);
+
+    if (serverSideSelectors) {
+      Path files = Paths.get("target/classes/filters");
+      // verify that the .nar file has been copied
+      assertTrue(
+          Files.list(files).anyMatch(p -> p.getFileName().toString().endsWith(".nar")),
+          "Cannot find the .nar file in " + files.toAbsolutePath());
+      pulsarContainer.withFileSystemBind(
+          "target/classes/filters", "/pulsar/filters", BindMode.READ_ONLY);
+    }
 
     pulsarContainer.withClasspathResourceMapping(
         "admin-token.jwt", "/pulsar/conf/admin-token.jwt", BindMode.READ_ONLY);
@@ -85,7 +127,7 @@ public class PulsarContainer implements AutoCloseable {
   }
 
   @Override
-  public void close() {
+  public void close() throws Exception {
     if (pulsarContainer != null) {
       pulsarContainer.stop();
     }

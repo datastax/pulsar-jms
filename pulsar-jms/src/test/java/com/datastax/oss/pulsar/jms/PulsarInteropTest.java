@@ -15,8 +15,8 @@
  */
 package com.datastax.oss.pulsar.jms;
 
-import static org.junit.Assert.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
 import java.nio.charset.StandardCharsets;

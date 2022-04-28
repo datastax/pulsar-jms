@@ -18,6 +18,7 @@ package com.datastax.oss.pulsar.jms;
 import com.datastax.oss.pulsar.jms.selectors.SelectorSupport;
 import java.time.Instant;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import javax.jms.Destination;
 import javax.jms.IllegalStateException;
 import javax.jms.InvalidDestinationException;
@@ -38,6 +39,7 @@ import org.apache.pulsar.client.api.Consumer;
 import org.apache.pulsar.client.api.PulsarClientException;
 import org.apache.pulsar.client.api.SubscriptionMode;
 import org.apache.pulsar.client.api.SubscriptionType;
+import org.apache.pulsar.client.impl.BatchMessageIdImpl;
 
 @Slf4j
 public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, QueueReceiver {
@@ -54,6 +56,8 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
   final boolean unregisterSubscriptionOnClose;
   private boolean closed;
   private boolean requestClose;
+  final AtomicLong receivedMessages = new AtomicLong();
+  final AtomicLong skippedMessages = new AtomicLong();
 
   public PulsarMessageConsumer(
       String subscriptionName,
@@ -91,7 +95,8 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
         SelectorSupport.build(
             selector,
             subscriptionType == SubscriptionType.Exclusive
-                || session.getFactory().isEnableClientSideEmulation());
+                || session.getFactory().isEnableClientSideEmulation()
+                || session.getFactory().isUseServerSideSelectors());
     this.unregisterSubscriptionOnClose = unregisterSubscriptionOnClose;
     if (noLocal
         && subscriptionType != SubscriptionType.Exclusive
@@ -129,7 +134,8 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
                   subscriptionName,
                   session.getAcknowledgeMode(),
                   subscriptionMode,
-                  subscriptionType);
+                  subscriptionType,
+                  getMessageSelector());
     }
     return consumer;
   }
@@ -300,6 +306,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
 
   private void skipMessage(org.apache.pulsar.client.api.Message<byte[]> message)
       throws JMSException {
+    skippedMessages.incrementAndGet();
     if (subscriptionType == SubscriptionType.Exclusive
         || session.getFactory().isAcknowledgeRejectedMessages()) {
       // we are the only one that will ever receive this message
@@ -323,6 +330,9 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
       java.util.function.Consumer<PulsarMessage> listenerCode,
       boolean noLocalFilter)
       throws JMSException, org.apache.pulsar.client.api.PulsarClientException {
+
+    receivedMessages.incrementAndGet();
+
     PulsarMessage result = PulsarMessage.decode(this, message);
     Consumer<byte[]> consumer = getConsumer();
     if (expectedType != null && !result.isBodyAssignableTo(expectedType)) {
@@ -341,7 +351,9 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
               + ",) cannot be converted to a "
               + expectedType);
     }
-    if (selectorSupport != null && !selectorSupport.matches(result)) {
+    if (selectorSupport != null
+        && requiresClientSideFiltering(message)
+        && !selectorSupport.matches(result)) {
       if (log.isDebugEnabled()) {
         log.debug("msg {} does not match selector {}", result, selectorSupport.getSelector());
       }
@@ -408,6 +420,14 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
       closeInternal();
     }
     return result;
+  }
+
+  private boolean requiresClientSideFiltering(org.apache.pulsar.client.api.Message<?> message) {
+    // for batch messages we have to verify the condition locally
+    // because the broker can only ACCEPT or REJECT whole batches.
+    // the broker will send the batch (Entry) if at least one message matches the selector
+    boolean isBatch = (message.getMessageId() instanceof BatchMessageIdImpl);
+    return isBatch || !session.getFactory().isUseServerSideSelectors();
   }
 
   /**
@@ -508,71 +528,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
   }
 
   public JMSConsumer asJMSConsumer() {
-    return new JMSConsumer() {
-      @Override
-      public String getMessageSelector() {
-        return Utils.runtimeException(() -> PulsarMessageConsumer.this.getMessageSelector());
-      }
-
-      @Override
-      public MessageListener getMessageListener() throws JMSRuntimeException {
-        return Utils.runtimeException(() -> PulsarMessageConsumer.this.getMessageListener());
-      }
-
-      @Override
-      public void setMessageListener(MessageListener listener) throws JMSRuntimeException {
-        Utils.runtimeException(() -> PulsarMessageConsumer.this.setMessageListener(listener));
-      }
-
-      @Override
-      public Message receive() {
-        return Utils.runtimeException(() -> PulsarMessageConsumer.this.receive());
-      }
-
-      @Override
-      public Message receive(long timeout) {
-        return Utils.runtimeException(() -> PulsarMessageConsumer.this.receive(timeout));
-      }
-
-      @Override
-      public Message receiveNoWait() {
-        return Utils.runtimeException(() -> PulsarMessageConsumer.this.receiveNoWait());
-      }
-
-      @Override
-      public void close() {
-        Utils.runtimeException(() -> PulsarMessageConsumer.this.close());
-      }
-
-      @Override
-      public <T> T receiveBody(Class<T> c) {
-        return Utils.runtimeException(
-            () -> {
-              Message msg =
-                  PulsarMessageConsumer.this.receiveWithTimeoutAndValidateType(Long.MAX_VALUE, c);
-              return msg == null ? null : msg.getBody(c);
-            });
-      }
-
-      @Override
-      public <T> T receiveBody(Class<T> c, long timeout) {
-        return Utils.runtimeException(
-            () -> {
-              Message msg =
-                  PulsarMessageConsumer.this.receiveWithTimeoutAndValidateType(timeout, c);
-              return msg == null ? null : msg.getBody(c);
-            });
-      }
-
-      @Override
-      public <T> T receiveBodyNoWait(Class<T> c) {
-        return Utils.runtimeException(
-            () -> {
-              Message msg = PulsarMessageConsumer.this.receiveWithTimeoutAndValidateType(1, c);
-              return msg == null ? null : msg.getBody(c);
-            });
-      }
-    };
+    return new PulsarJMSConsumer();
   }
 
   synchronized void acknowledge(
@@ -666,5 +622,83 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
 
   public SubscriptionType getSubscriptionType() {
     return subscriptionType;
+  }
+
+  public long getReceivedMessages() {
+    return receivedMessages.get();
+  }
+
+  public long getSkippedMessages() {
+    return skippedMessages.get();
+  }
+
+  public class PulsarJMSConsumer implements JMSConsumer {
+
+    public PulsarMessageConsumer asPulsarMessageConsumer() {
+      return PulsarMessageConsumer.this;
+    }
+
+    @Override
+    public String getMessageSelector() {
+      return Utils.runtimeException(() -> PulsarMessageConsumer.this.getMessageSelector());
+    }
+
+    @Override
+    public MessageListener getMessageListener() throws JMSRuntimeException {
+      return Utils.runtimeException(() -> PulsarMessageConsumer.this.getMessageListener());
+    }
+
+    @Override
+    public void setMessageListener(MessageListener listener) throws JMSRuntimeException {
+      Utils.runtimeException(() -> PulsarMessageConsumer.this.setMessageListener(listener));
+    }
+
+    @Override
+    public Message receive() {
+      return Utils.runtimeException(() -> PulsarMessageConsumer.this.receive());
+    }
+
+    @Override
+    public Message receive(long timeout) {
+      return Utils.runtimeException(() -> PulsarMessageConsumer.this.receive(timeout));
+    }
+
+    @Override
+    public Message receiveNoWait() {
+      return Utils.runtimeException(() -> PulsarMessageConsumer.this.receiveNoWait());
+    }
+
+    @Override
+    public void close() {
+      Utils.runtimeException(() -> PulsarMessageConsumer.this.close());
+    }
+
+    @Override
+    public <T> T receiveBody(Class<T> c) {
+      return Utils.runtimeException(
+          () -> {
+            Message msg =
+                PulsarMessageConsumer.this.receiveWithTimeoutAndValidateType(Long.MAX_VALUE, c);
+            return msg == null ? null : msg.getBody(c);
+          });
+    }
+
+    @Override
+    public <T> T receiveBody(Class<T> c, long timeout) {
+      return Utils.runtimeException(
+          () -> {
+            Message msg = PulsarMessageConsumer.this.receiveWithTimeoutAndValidateType(timeout, c);
+            return msg == null ? null : msg.getBody(c);
+          });
+    }
+
+    @Override
+    public <T> T receiveBodyNoWait(Class<T> c) {
+      return Utils.runtimeException(
+          () -> {
+            Message msg = PulsarMessageConsumer.this.receiveWithTimeoutAndValidateType(1, c);
+            return msg == null ? null : msg.getBody(c);
+          });
+    }
   }
 }

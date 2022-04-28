@@ -75,6 +75,7 @@ public class PulsarConnectionFactory
   private String defaultClientId = null;
   private boolean enableTransaction = false;
   private boolean enableClientSideEmulation = false;
+  private boolean useServerSideSelectors = false;
   private boolean forceDeleteTemporaryDestinations = false;
   private boolean useExclusiveSubscriptionsForSimpleConsumers = false;
   private boolean acknowledgeRejectedMessages = false;
@@ -262,6 +263,10 @@ public class PulsarConnectionFactory
           Boolean.parseBoolean(
               getAndRemoveString("jms.enableClientSideEmulation", "false", configuration));
 
+      this.useServerSideSelectors =
+          Boolean.parseBoolean(
+              getAndRemoveString("jms.useServerSideSelectors", "false", configuration));
+
       // in Exclusive mode Pulsar does not support delayed messages
       // with this flag you force to not use Exclusive subscription and so to support
       // delayed messages are well
@@ -379,6 +384,10 @@ public class PulsarConnectionFactory
 
   public synchronized boolean isEnableClientSideEmulation() {
     return enableClientSideEmulation;
+  }
+
+  public synchronized boolean isUseServerSideSelectors() {
+    return useServerSideSelectors;
   }
 
   synchronized String getDefaultClientId() {
@@ -832,6 +841,9 @@ public class PulsarConnectionFactory
 
   public void ensureQueueSubscription(PulsarDestination destination) throws JMSException {
     long start = System.currentTimeMillis();
+
+    // please note that in the special jms-queue subscription we cannot
+    // set a selector, because it is shared among all the Consumers of the Queue
     String fullQualifiedTopicName = applySystemNamespace(destination.topicName);
     while (true) {
       try {
@@ -841,7 +853,7 @@ public class PulsarConnectionFactory
               .createSubscription(
                   fullQualifiedTopicName, getQueueSubscriptionName(), MessageId.earliest);
         } else {
-          // if we cannot use PulsarAdmin,
+          // if we cannot use PulsarAdmin or we want to set a selector,
           // let's try to create a consumer with zero queue
           getPulsarClient()
               .newConsumer()
@@ -890,7 +902,8 @@ public class PulsarConnectionFactory
       String consumerName,
       int sessionMode,
       SubscriptionMode subscriptionMode,
-      SubscriptionType subscriptionType)
+      SubscriptionType subscriptionType,
+      String messageSelector)
       throws JMSException {
     String fullQualifiedTopicName = applySystemNamespace(destination.topicName);
     // for queues we have a single shared subscription
@@ -908,12 +921,16 @@ public class PulsarConnectionFactory
     }
 
     log.debug(
-        "createConsumer {} {} {}",
+        "createConsumer {} {} {} {}",
         fullQualifiedTopicName,
         consumerName,
         subscriptionMode,
-        subscriptionType);
-
+        subscriptionType,
+        messageSelector);
+    Map<String, String> subscriptionProperties = new HashMap<>();
+    if (messageSelector != null && isUseServerSideSelectors()) {
+      subscriptionProperties.put("jms.selector", messageSelector);
+    }
     try {
       ConsumerBuilder<byte[]> builder =
           pulsarClient
@@ -924,6 +941,7 @@ public class PulsarConnectionFactory
               // these properties cannot be overwritten by the configuration
               .subscriptionInitialPosition(initialPosition)
               .subscriptionMode(subscriptionMode)
+              .subscriptionProperties(subscriptionProperties)
               .subscriptionType(subscriptionType)
               .subscriptionName(subscriptionName)
               .topic(fullQualifiedTopicName);

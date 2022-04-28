@@ -15,10 +15,11 @@
  */
 package com.datastax.oss.pulsar.jms;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -474,9 +475,10 @@ public class TopicTest {
 
             CountDownLatch counter = new CountDownLatch(10);
             try (MessageProducer producer = session.createProducer(destination); ) {
-              for (int i = 0; i < 10; i++) {
+              for (int i = 0; i < 100; i++) {
                 TextMessage textMessage = session.createTextMessage("foo-" + i);
-                textMessage.setStringProperty("JMSXGroupID", "key" + (i % 2));
+                textMessage.setStringProperty("JMSXGroupID", "key" + (i % 10));
+                textMessage.setIntProperty("ordinal", i);
                 producer.send(
                     textMessage,
                     new CompletionListener() {
@@ -492,63 +494,83 @@ public class TopicTest {
             }
             assertTrue(counter.await(10, TimeUnit.SECONDS));
 
-            List<Message> received = new ArrayList<>();
+            Map<String, List<PulsarTextMessage>> receivedByKey = new HashMap<>();
+            Map<String, MessageConsumer> consumerByKey = new HashMap<>();
 
-            int count1 = 0;
-            int count2 = 0;
-            String keyFromConsumer1 = null;
-            String keyFromConsumer2 = null;
-            while (received.size() < 10) {
-              log.info("total " + received.size());
+            int totalReceived = 0;
+            while (totalReceived < 100) {
+              log.info("total {}", totalReceived);
               PulsarTextMessage msg = (PulsarTextMessage) consumer1.receive(100);
               if (msg != null) {
-                log.info(
-                    "consumer1 {} received {} {} {}",
-                    consumer1,
-                    msg,
-                    msg.getReceivedPulsarMessage().getKey(),
-                    msg.getReceivedPulsarMessage().getMessageId());
-                assertTrue(
-                    msg.getReceivedPulsarMessage().getMessageId() instanceof BatchMessageIdImpl);
-                received.add(msg);
-                assertNotNull(msg.getReceivedPulsarMessage().getKey());
-                if (keyFromConsumer1 == null) {
-                  keyFromConsumer1 = msg.getReceivedPulsarMessage().getKey();
-                } else {
-                  assertEquals(keyFromConsumer1, msg.getReceivedPulsarMessage().getKey());
-                }
-                count1++;
+                handleReceivedMessage(msg, consumer1, receivedByKey, consumerByKey);
+                totalReceived++;
               }
               msg = (PulsarTextMessage) consumer2.receive(100);
               if (msg != null) {
-                log.info(
-                    "consumer2 {} received {} {} {}",
-                    consumer2,
-                    msg,
-                    msg.getReceivedPulsarMessage().getKey(),
-                    msg.getReceivedPulsarMessage().getMessageId());
-                assertTrue(
-                    msg.getReceivedPulsarMessage().getMessageId() instanceof BatchMessageIdImpl);
-                received.add(msg);
-                assertNotNull(msg.getReceivedPulsarMessage().getKey());
-                if (keyFromConsumer2 == null) {
-                  keyFromConsumer2 = msg.getReceivedPulsarMessage().getKey();
-                } else {
-                  assertEquals(keyFromConsumer2, msg.getReceivedPulsarMessage().getKey());
-                }
-                count2++;
+                handleReceivedMessage(msg, consumer2, receivedByKey, consumerByKey);
+                totalReceived++;
               }
             }
 
             // no more messages
             assertNull(consumer1.receiveNoWait());
             assertNull(consumer2.receiveNoWait());
-            assertEquals(10, received.size());
-            assertTrue(count1 > 0);
-            assertTrue(count2 > 0);
+            assertEquals(100, totalReceived);
+
+            // verify per-key ordering
+            receivedByKey.forEach(
+                (k, messages) -> {
+                  int last = -1;
+                  for (PulsarTextMessage msg : messages) {
+                    try {
+                      int ordinal = msg.getIntProperty("ordinal");
+                      assertEquals(msg.getReceivedPulsarMessage().getKey(), k);
+                      log.info("key {} ordinal {}", k, ordinal);
+                      assertTrue(ordinal > last);
+                      last = ordinal;
+                    } catch (JMSException e) {
+                      throw new RuntimeException(e);
+                    }
+                  }
+                });
           }
         }
       }
     }
+  }
+
+  private void handleReceivedMessage(
+      PulsarTextMessage msg,
+      MessageConsumer consumer,
+      Map<String, List<PulsarTextMessage>> receivedByKey,
+      Map<String, MessageConsumer> consumerByKey) {
+    log.info(
+        "consumer {} received {} {} {}",
+        consumer,
+        msg,
+        msg.getReceivedPulsarMessage().getKey(),
+        msg.getReceivedPulsarMessage().getMessageId());
+    assertTrue(msg.getReceivedPulsarMessage().getMessageId() instanceof BatchMessageIdImpl);
+    String key = msg.getReceivedPulsarMessage().getKey();
+    receivedByKey.compute(
+        key,
+        (k, v) -> {
+          if (v == null) {
+            v = new ArrayList<>();
+          }
+          v.add(msg);
+          return v;
+        });
+    assertNotNull(msg.getReceivedPulsarMessage().getKey());
+    consumerByKey.compute(
+        key,
+        (k, v) -> {
+          if (v == null) {
+            return consumer;
+          }
+          // verify that each key is received always by the same consumer
+          assertSame(consumer, v);
+          return consumer;
+        });
   }
 }
