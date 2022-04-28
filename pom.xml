@@ -503,8 +503,6 @@ limitations under the License.]]></inlineHeader>
       <url>https://repo.sjc.dsinternal.org/artifactory/datastax-snapshots-local/</url>
     </snapshotRepository>
   </distributionManagement>
-
-
   <!-- to use 2.10.1-SNAPSHOT -->
   <repositories>
     <repository>
@@ -515,7 +513,7 @@ limitations under the License.]]></inlineHeader>
       </snapshots>
       <releases>
         <enabled>false</enabled>
-       </releases>
+      </releases>
     </repository>
   </repositories>
 </project>
