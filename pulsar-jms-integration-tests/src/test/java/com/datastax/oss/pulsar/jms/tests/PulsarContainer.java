@@ -27,6 +27,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
+import org.junit.jupiter.api.io.TempDir;
 import org.testcontainers.containers.BindMode;
 import org.testcontainers.containers.GenericContainer;
 
@@ -37,15 +38,16 @@ public class PulsarContainer implements AutoCloseable {
   private final String dockerImageVersion;
   private boolean transactions;
   private boolean serverSideSelectors;
-  private Path tmpFile;
+  private final Path tempDir;
   public static final int BROKER_PORT = 6650;
   public static final int BROKER_HTTP_PORT = 8080;
 
   public PulsarContainer(
-      String dockerImageVersion, boolean transactions, boolean serverSideSelectors) {
+      String dockerImageVersion, boolean transactions, boolean serverSideSelectors, Path tempDir) {
     this.dockerImageVersion = dockerImageVersion;
     this.transactions = transactions;
     this.serverSideSelectors = serverSideSelectors;
+    this.tempDir = tempDir;
   }
 
   public void start() throws Exception {
@@ -79,7 +81,7 @@ public class PulsarContainer implements AutoCloseable {
       content = content + "\nentryFiltersDirectory=/pulsar/filters\n";
     }
 
-    tmpFile = Files.createTempFile("jms_standalone_test", ".conf");
+    Path tmpFile = tempDir.resolve("standalone.conf");
     Files.write(tmpFile, content.getBytes(StandardCharsets.UTF_8));
 
     pulsarContainer.withFileSystemBind(
@@ -128,9 +130,6 @@ public class PulsarContainer implements AutoCloseable {
   public void close() throws Exception {
     if (pulsarContainer != null) {
       pulsarContainer.stop();
-    }
-    if (tmpFile != null) {
-      Files.deleteIfExists(tmpFile);
     }
   }
 }

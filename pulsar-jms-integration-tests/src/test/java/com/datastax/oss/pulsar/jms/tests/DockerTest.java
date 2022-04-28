@@ -23,18 +23,23 @@ import com.datastax.oss.pulsar.jms.PulsarConnectionFactory;
 import com.datastax.oss.pulsar.jms.PulsarMessageConsumer;
 import com.datastax.oss.pulsar.jms.shaded.org.apache.pulsar.client.impl.auth.AuthenticationToken;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 import javax.jms.Destination;
 import javax.jms.JMSConsumer;
 import javax.jms.JMSContext;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.testcontainers.shaded.org.apache.commons.io.IOUtils;
 
 public class DockerTest {
 
   private static final String TEST_PULSAR_DOCKER_IMAGE_NAME =
       System.getProperty("testPulsarDockerImageName");
+
+  @TempDir
+  Path tempDir;
 
   @Test
   public void testPulsar272() throws Exception {
@@ -95,7 +100,7 @@ public class DockerTest {
   private void test(String image, boolean transactions, boolean serverSideSelectors)
       throws Exception {
     try (PulsarContainer pulsarContainer =
-        new PulsarContainer(image, transactions, serverSideSelectors); ) {
+        new PulsarContainer(image, transactions, serverSideSelectors, tempDir); ) {
       pulsarContainer.start();
       Map<String, Object> properties = new HashMap<>();
       properties.put("brokerServiceUrl", pulsarContainer.getPulsarBrokerUrl());
