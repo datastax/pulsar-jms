@@ -16,12 +16,18 @@
 package com.datastax.oss.pulsar.jms.selectors;
 
 import io.netty.buffer.ByteBuf;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import javax.jms.Destination;
 import javax.jms.JMSException;
+import javax.jms.Message;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.activemq.command.ActiveMQQueue;
+import org.apache.activemq.command.ActiveMQTopic;
 import org.apache.bookkeeper.mledger.Entry;
 import org.apache.pulsar.broker.service.Subscription;
 import org.apache.pulsar.broker.service.persistent.PersistentSubscription;
@@ -89,22 +95,14 @@ public class JMSFilter implements EntryFilter {
             final ByteBuf singleMessagePayload =
                 Commands.deSerializeSingleMessageInBatch(
                     uncompressedPayload, singleMessageMetadata, i, numMessages);
-            final long timestamp =
-                (metadata.getEventTime() > 0) ? metadata.getEventTime() : metadata.getPublishTime();
 
-            String key = metadata.hasPartitionKey() ? metadata.getPartitionKey() : null;
             Map<String, Object> typedProperties =
                 buildProperties(
                     singleMessageMetadata.getPropertiesCount(),
                     singleMessageMetadata.getPropertiesList());
-            boolean matches = selector.matches(typedProperties);
-            log.info(
-                "filterBatchEntry {} " + "{} {} {} {} matches {}",
-                key,
-                entry,
-                subscriptionProperties,
-                typedProperties,
-                matches);
+            boolean matches =
+                matches(
+                    typedProperties, singleMessageMetadata, null, persistentSubscription, selector);
             oneAccepted = oneAccepted || matches;
             singleMessagePayload.release();
           }
@@ -113,17 +111,10 @@ public class JMSFilter implements EntryFilter {
           uncompressedPayload.release();
         }
       } else {
-        String key = metadata.hasPartitionKey() ? metadata.getPartitionKey() : null;
         Map<String, Object> typedProperties =
             buildProperties(metadata.getPropertiesCount(), metadata.getPropertiesList());
-        boolean matches = selector.matches(typedProperties);
-        log.info(
-            "filterEntry {} {} {} {} matches {}",
-            key,
-            entry,
-            subscriptionProperties,
-            typedProperties,
-            matches);
+        boolean matches =
+            matches(typedProperties, null, metadata, persistentSubscription, selector);
         return matches ? FilterResult.ACCEPT : FilterResult.REJECT;
       }
 
@@ -188,5 +179,128 @@ public class JMSFilter implements EntryFilter {
         // string
         return value;
     }
+  }
+
+  private static String safeString(Object value) {
+    return value == null ? null : value.toString();
+  }
+
+  private static boolean matches(
+      Map<String, Object> typedProperties,
+      SingleMessageMetadata singleMessageMetadata,
+      MessageMetadata metadata,
+      PersistentSubscription subscription,
+      SelectorSupport selector)
+      throws JMSException {
+    String _jmsReplyTo = safeString(typedProperties.get("JMSReplyTo"));
+    Destination jmsReplyTo = null;
+    if (_jmsReplyTo != null) {
+      String jmsReplyToType = typedProperties.get("JMSReplyToType") + "";
+      switch (jmsReplyToType) {
+        case "topic":
+          jmsReplyTo = new ActiveMQTopic(_jmsReplyTo);
+          break;
+        default:
+          jmsReplyTo = new ActiveMQQueue(_jmsReplyTo);
+      }
+    }
+
+    // on the broker we don't know if we are on a topic or a queue, because
+    // it is a client-side view
+    Destination destination = new ActiveMQQueue(subscription.getTopicName());
+
+    String jmsType = safeString(typedProperties.get("JMSType"));
+    String messageId = safeString(typedProperties.get("JMSMessageId"));
+    String correlationId = null;
+    String _correlationId = safeString(typedProperties.get("JMSCorrelationID"));
+    if (_correlationId != null) {
+      correlationId = new String(Base64.getDecoder().decode(correlationId), StandardCharsets.UTF_8);
+    }
+    int jmsPriority = Message.DEFAULT_PRIORITY;
+    if (typedProperties.containsKey("JMSPriority")) {
+      try {
+        jmsPriority = Integer.parseInt(typedProperties.get("JMSPriority") + "");
+      } catch (NumberFormatException err) {
+        // cannot decode priority, not a big deal as it is not supported in Pulsar
+      }
+    }
+    int deliveryMode = Message.DEFAULT_DELIVERY_MODE;
+    if (typedProperties.containsKey("JMSDeliveryMode")) {
+      try {
+        deliveryMode = Integer.parseInt(typedProperties.get("JMSDeliveryMode") + "");
+      } catch (NumberFormatException err) {
+        // cannot decode deliveryMode, not a big deal as it is not supported in Pulsar
+      }
+    }
+    long jmsExpiration = 0;
+    if (typedProperties.containsKey("JMSExpiration")) {
+      try {
+        jmsExpiration = Long.parseLong(typedProperties.get("JMSExpiration") + "");
+      } catch (NumberFormatException err) {
+        // cannot decode JMSExpiration
+      }
+    }
+
+    // this is optional
+    long jmsTimestamp = 0;
+
+    if (singleMessageMetadata != null) {
+
+      if (singleMessageMetadata.hasEventTime()) {
+        jmsTimestamp = singleMessageMetadata.getEventTime();
+      }
+
+      // JMSXDeliveryCount not supported here
+      // typedProperties.put("JMSXDeliveryCount", (singleMessageMetadata.getRedeliveryCount() + 1) +
+      // "");
+
+      if (singleMessageMetadata.hasPartitionKey()) {
+        typedProperties.put("JMSXGroupID", singleMessageMetadata.getPartitionKey());
+      } else {
+        typedProperties.put("JMSXGroupID", "");
+      }
+
+      if (!typedProperties.containsKey("JMSXGroupSeq")) {
+        if (singleMessageMetadata.hasSequenceId()) {
+          typedProperties.put("JMSXGroupSeq", singleMessageMetadata.getSequenceId() + "");
+        } else {
+          typedProperties.put("JMSXGroupSeq", "0");
+        }
+      }
+
+    } else {
+      if (metadata.hasEventTime()) {
+        jmsTimestamp = metadata.getEventTime();
+      }
+
+      // JMSXDeliveryCount not supported here
+      // typedProperties.put("JMSXDeliveryCount", (metadata.getRedeliveryCount() + 1) + "");
+
+      if (metadata.hasPartitionKey()) {
+        typedProperties.put("JMSXGroupID", metadata.getPartitionKey());
+      } else {
+        typedProperties.put("JMSXGroupID", "");
+      }
+
+      if (!typedProperties.containsKey("JMSXGroupSeq")) {
+        if (metadata.hasSequenceId()) {
+          typedProperties.put("JMSXGroupSeq", metadata.getSequenceId() + "");
+        } else {
+          typedProperties.put("JMSXGroupSeq", "0");
+        }
+      }
+    }
+
+    return selector.matches(
+        typedProperties,
+        messageId,
+        correlationId,
+        jmsReplyTo,
+        destination,
+        deliveryMode,
+        jmsType,
+        jmsExpiration,
+        jmsPriority,
+        jmsTimestamp);
   }
 }

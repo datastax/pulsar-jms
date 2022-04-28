@@ -50,7 +50,7 @@
     <maven.compiler.target>8</maven.compiler.target>
     <jms.version>2.0.3</jms.version>
     <pulsar.groupId>org.apache.pulsar</pulsar.groupId>
-    <pulsar.version>2.11.0-SNAPSHOT</pulsar.version>
+    <pulsar.version>2.10.1-SNAPSHOT</pulsar.version>
     <activemq.version>5.16.1</activemq.version>
     <hawtbuf.version>1.11</hawtbuf.version>
     <curator.version>5.1.0</curator.version>
@@ -503,4 +503,19 @@ limitations under the License.]]></inlineHeader>
       <url>https://repo.sjc.dsinternal.org/artifactory/datastax-snapshots-local/</url>
     </snapshotRepository>
   </distributionManagement>
+
+
+  <!-- to use 2.10.1-SNAPSHOT ->
+  <repositories>
+    <repository>
+      <id>apache-snapshots</id>
+      <url>https://repository.apache.org</url>
+      <snapshots>
+        <enabled>true</enabled>
+      </snapshots>
+      <releases>
+        <enabled>false</enabled>
+       </releases>
+    </repository>
+  </repositories>
 </project>

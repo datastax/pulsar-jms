@@ -70,6 +70,25 @@
   <build>
     <plugins>
       <plugin>
+        <groupId>org.apache.nifi</groupId>
+        <artifactId>nifi-nar-maven-plugin</artifactId>
+        <version>1.3.2</version>
+        <extensions>true</extensions>
+        <configuration>
+          <finalName>pulsar-jms-${project.version}</finalName>
+          <classifier>nar</classifier>
+        </configuration>
+        <executions>
+          <execution>
+            <id>default-nar</id>
+            <phase>package</phase>
+            <goals>
+              <goal>nar</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-shade-plugin</artifactId>
         <configuration>

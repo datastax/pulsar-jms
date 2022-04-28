@@ -15,12 +15,15 @@
  */
 package com.datastax.oss.pulsar.jms.selectors;
 
+import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.Map;
+import javax.jms.Destination;
 import javax.jms.InvalidSelectorException;
 import javax.jms.JMSException;
 import javax.jms.Message;
 import lombok.AllArgsConstructor;
-import org.apache.activemq.ActiveMQMessageTransformation;
+import org.apache.activemq.command.ActiveMQDestination;
 import org.apache.activemq.command.ActiveMQMessage;
 import org.apache.activemq.filter.BooleanExpression;
 import org.apache.activemq.filter.MessageEvaluationContext;
@@ -44,19 +47,66 @@ public final class SelectorSupport {
     return new SelectorSupport(parse, selector);
   }
 
-  public boolean matches(Map<String, Object> messageProperties) throws JMSException {
+  public boolean matches(
+      Map<String, Object> messageProperties,
+      String jmsMessageId,
+      String jmsCorrelationId,
+      Destination jmsReplyTo,
+      Destination jmsDestination,
+      int jmsDeliveryMode,
+      String jmsType,
+      long jmsExpiration,
+      int jmsPriority,
+      long jmsTimestamp)
+      throws JMSException {
+    // convert anything that can be used by the selector
+    // https://github.com/apache/activemq/blob/d54d046b8a8f2e9e5c0a28e1f8c7634b3c8b18e4/activemq-client/src/main/java/org/apache/activemq/filter/PropertyExpression.java#L35
+
+    // check the docs at https://docs.oracle.com/javaee/1.4/api/javax/jms/Message.html
+
+    // in particular:
+    // Message header field references are restricted to JMSDeliveryMode, JMSPriority, JMSMessageID,
+    // JMSTimestamp,
+    // JMSCorrelationID, and JMSType. JMSMessageID, JMSCorrelationID, and JMSType values may be null
+    // and if so are treated as a NULL value.
     MessageEvaluationContext context = new MessageEvaluationContext();
-    ActiveMQMessage activeMQMessage = new ActiveMQMessage();
-    activeMQMessage.setProperties(messageProperties);
-    context.setMessageReference(activeMQMessage);
+    ActiveMQMessage toMessage = new ActiveMQMessage();
+    toMessage.setProperties(messageProperties);
+    toMessage.setJMSMessageID(jmsMessageId);
+    toMessage.setJMSCorrelationID(jmsCorrelationId);
+    toMessage.setJMSReplyTo(ActiveMQDestination.transform(jmsReplyTo));
+    toMessage.setJMSDestination(ActiveMQDestination.transform(jmsDestination));
+    toMessage.setJMSDeliveryMode(jmsDeliveryMode);
+    toMessage.setJMSType(jmsType);
+    toMessage.setJMSExpiration(jmsExpiration);
+    toMessage.setJMSPriority(jmsPriority);
+    toMessage.setJMSTimestamp(jmsTimestamp);
+    context.setMessageReference(toMessage);
     return expression.matches(context);
   }
 
-  public boolean matches(Message message) throws JMSException {
-    MessageEvaluationContext context = new MessageEvaluationContext();
-    ActiveMQMessage activeMQMessage = ActiveMQMessageTransformation.transformMessage(message, null);
-    context.setMessageReference(activeMQMessage);
-    return expression.matches(context);
+  public boolean matches(Message fromMessage) throws JMSException {
+    // do not use ActiveMQMessageTransformation.transformMessage because it would copy the contents
+    // of the message
+    // selectors apply only to properties and headers
+    Enumeration propertyNames = fromMessage.getPropertyNames();
+    Map<String, Object> properties = new HashMap<>();
+    while (propertyNames.hasMoreElements()) {
+      String name = propertyNames.nextElement().toString();
+      Object obj = fromMessage.getObjectProperty(name);
+      properties.put(name, obj);
+    }
+    return matches(
+        properties,
+        fromMessage.getJMSMessageID(),
+        fromMessage.getJMSCorrelationID(),
+        fromMessage.getJMSReplyTo(),
+        fromMessage.getJMSDestination(),
+        fromMessage.getJMSDeliveryMode(),
+        fromMessage.getJMSType(),
+        fromMessage.getJMSExpiration(),
+        fromMessage.getJMSPriority(),
+        fromMessage.getJMSTimestamp());
   }
 
   @Override
