@@ -60,24 +60,20 @@ public class JMSFilter implements EntryFilter {
     String jmsSelectorOnConsumer = consumerMetadata.get("jms.selector");
     String jmsSelectorOnSubscription = subscriptionProperties.get("jms.selector");
     String destinationTypeForTheClient = consumerMetadata.get("jms.destination.type");
+    String jmsRejectAction = consumerMetadata.get("jms.reject.action");
     final FilterResult rejectResult;
     final String jmsSelector;
-    final boolean selectorIsOnConsumer;
-    if (jmsSelectorOnConsumer != null) {
-      selectorIsOnConsumer = true;
-      jmsSelector = jmsSelectorOnConsumer;
-      String jmsRejectAction = consumerMetadata.get("jms.reject.action");
-      if ("drop".equals(jmsRejectAction)) {
-        rejectResult = FilterResult.REJECT;
-      } else {
-        // this is the common behaviour for a Queue
-        rejectResult = FilterResult.RESCHEDULE;
-      }
-    } else {
-      // this is the common behaviour for a Topic
-      selectorIsOnConsumer = false;
-      jmsSelector = jmsSelectorOnSubscription;
+    if ("drop".equals(jmsRejectAction)) {
+      // this is the common behaviour for a Topics
       rejectResult = FilterResult.REJECT;
+    } else {
+      // this is the common behaviour for a Queue
+      rejectResult = FilterResult.RESCHEDULE;
+    }
+    if (jmsSelectorOnConsumer != null) {
+      jmsSelector = jmsSelectorOnConsumer;
+    } else {
+      jmsSelector = jmsSelectorOnSubscription;
     }
     if (jmsSelector == null || jmsSelector.isEmpty()) {
       return FilterResult.ACCEPT;
@@ -157,11 +153,7 @@ public class JMSFilter implements EntryFilter {
         if (matches) {
           return FilterResult.ACCEPT;
         }
-        if (selectorIsOnConsumer) {
-          return FilterResult.RESCHEDULE;
-        } else {
-          return FilterResult.REJECT;
-        }
+        return rejectResult;
       }
 
     } catch (Throwable err) {

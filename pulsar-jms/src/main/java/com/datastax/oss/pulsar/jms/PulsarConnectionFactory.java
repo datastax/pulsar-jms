@@ -930,22 +930,20 @@ public class PulsarConnectionFactory
     Map<String, String> subscriptionProperties = new HashMap<>();
     Map<String, String> consumerMetadata = new HashMap<>();
     consumerMetadata.put("jms.destination.type", destination.isQueue() ? "queue" : "topic");
-    if (isAcknowledgeRejectedMessages()) {
-      consumerMetadata.put("jms.reject.action", "drop");
-    } else {
-      consumerMetadata.put("jms.reject.action", "reschedule");
-    }
     if (isUseServerSideSelectors()) {
       subscriptionProperties.put("jms.destination.type", destination.isQueue() ? "queue" : "topic");
     }
     if (messageSelector != null && isUseServerSideSelectors()) {
+      consumerMetadata.put("jms.selector", messageSelector);
       if (destination.isTopic()) {
-        // for Topic Consumers we set the selector on the Subscription
-        subscriptionProperties.put("jms.selector", messageSelector);
+        consumerMetadata.put("jms.reject.action", "drop");
       } else {
         // for Queue is it on the Consumer
-        consumerMetadata.put("jms.selector", messageSelector);
+        consumerMetadata.put("jms.reject.action", "reschedule");
       }
+    }
+    if (isAcknowledgeRejectedMessages()) {
+      consumerMetadata.put("jms.reject.action", "drop");
     }
 
     try {
