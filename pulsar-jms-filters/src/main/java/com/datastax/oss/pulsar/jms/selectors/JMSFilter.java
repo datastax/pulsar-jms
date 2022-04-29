@@ -29,6 +29,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.activemq.command.ActiveMQQueue;
 import org.apache.activemq.command.ActiveMQTopic;
 import org.apache.bookkeeper.mledger.Entry;
+import org.apache.pulsar.broker.service.Consumer;
 import org.apache.pulsar.broker.service.Subscription;
 import org.apache.pulsar.broker.service.persistent.PersistentSubscription;
 import org.apache.pulsar.broker.service.plugin.EntryFilter;
@@ -53,7 +54,31 @@ public class JMSFilter implements EntryFilter {
     }
     PersistentSubscription persistentSubscription = (PersistentSubscription) subscription;
     Map<String, String> subscriptionProperties = persistentSubscription.getSubscriptionProperties();
-    String jmsSelector = subscriptionProperties.get("jms.selector");
+
+    Consumer consumer = context.getConsumer();
+    Map<String, String> consumerMetadata = consumer.getMetadata();
+    String jmsSelectorOnConsumer = consumerMetadata.get("jms.selector");
+    String jmsSelectorOnSubscription = subscriptionProperties.get("jms.selector");
+    String destinationTypeForTheClient = consumerMetadata.get("jms.destination.type");
+    final FilterResult rejectResult;
+    final String jmsSelector;
+    final boolean selectorIsOnConsumer;
+    if (jmsSelectorOnConsumer != null) {
+      selectorIsOnConsumer = true;
+      jmsSelector = jmsSelectorOnConsumer;
+      String jmsRejectAction = consumerMetadata.get("jms.reject.action");
+      if ("drop".equals(jmsRejectAction)) {
+        rejectResult = FilterResult.REJECT;
+      } else {
+        // this is the common behaviour for a Queue
+        rejectResult = FilterResult.RESCHEDULE;
+      }
+    } else {
+      // this is the common behaviour for a Topic
+      selectorIsOnConsumer = false;
+      jmsSelector = jmsSelectorOnSubscription;
+      rejectResult = FilterResult.REJECT;
+    }
     if (jmsSelector == null || jmsSelector.isEmpty()) {
       return FilterResult.ACCEPT;
     }
@@ -75,7 +100,7 @@ public class JMSFilter implements EntryFilter {
               }
             });
     if (selector == null) {
-      return FilterResult.REJECT;
+      return rejectResult;
     }
     try {
       if (metadata.hasNumMessagesInBatch()) {
@@ -102,11 +127,19 @@ public class JMSFilter implements EntryFilter {
                     singleMessageMetadata.getPropertiesList());
             boolean matches =
                 matches(
-                    typedProperties, singleMessageMetadata, null, persistentSubscription, selector);
+                    typedProperties,
+                    singleMessageMetadata,
+                    null,
+                    persistentSubscription,
+                    selector,
+                    destinationTypeForTheClient);
             oneAccepted = oneAccepted || matches;
             singleMessagePayload.release();
           }
-          return oneAccepted ? FilterResult.ACCEPT : FilterResult.REJECT;
+          if (oneAccepted) {
+            return FilterResult.ACCEPT;
+          }
+          return rejectResult;
         } finally {
           uncompressedPayload.release();
         }
@@ -114,8 +147,21 @@ public class JMSFilter implements EntryFilter {
         Map<String, Object> typedProperties =
             buildProperties(metadata.getPropertiesCount(), metadata.getPropertiesList());
         boolean matches =
-            matches(typedProperties, null, metadata, persistentSubscription, selector);
-        return matches ? FilterResult.ACCEPT : FilterResult.REJECT;
+            matches(
+                typedProperties,
+                null,
+                metadata,
+                persistentSubscription,
+                selector,
+                destinationTypeForTheClient);
+        if (matches) {
+          return FilterResult.ACCEPT;
+        }
+        if (selectorIsOnConsumer) {
+          return FilterResult.RESCHEDULE;
+        } else {
+          return FilterResult.REJECT;
+        }
       }
 
     } catch (Throwable err) {
@@ -190,7 +236,8 @@ public class JMSFilter implements EntryFilter {
       SingleMessageMetadata singleMessageMetadata,
       MessageMetadata metadata,
       PersistentSubscription subscription,
-      SelectorSupport selector)
+      SelectorSupport selector,
+      String destinationTypeForTheClient)
       throws JMSException {
     String _jmsReplyTo = safeString(typedProperties.get("JMSReplyTo"));
     Destination jmsReplyTo = null;
@@ -205,9 +252,10 @@ public class JMSFilter implements EntryFilter {
       }
     }
 
-    // on the broker we don't know if we are on a topic or a queue, because
-    // it is a client-side view
-    Destination destination = new ActiveMQQueue(subscription.getTopicName());
+    Destination destination =
+        "queue".equalsIgnoreCase(destinationTypeForTheClient)
+            ? new ActiveMQQueue(subscription.getTopicName())
+            : new ActiveMQTopic(subscription.getTopicName());
 
     String jmsType = safeString(typedProperties.get("JMSType"));
     String messageId = safeString(typedProperties.get("JMSMessageId"));

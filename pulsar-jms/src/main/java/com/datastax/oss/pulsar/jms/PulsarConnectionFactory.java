@@ -928,9 +928,26 @@ public class PulsarConnectionFactory
         subscriptionType,
         messageSelector);
     Map<String, String> subscriptionProperties = new HashMap<>();
-    if (messageSelector != null && isUseServerSideSelectors()) {
-      subscriptionProperties.put("jms.selector", messageSelector);
+    Map<String, String> consumerMetadata = new HashMap<>();
+    consumerMetadata.put("jms.destination.type", destination.isQueue() ? "queue" : "topic");
+    if (isAcknowledgeRejectedMessages()) {
+      consumerMetadata.put("jms.reject.action", "drop");
+    } else {
+      consumerMetadata.put("jms.reject.action", "reschedule");
     }
+    if (isUseServerSideSelectors()) {
+      subscriptionProperties.put("jms.destination.type", destination.isQueue() ? "queue" : "topic");
+    }
+    if (messageSelector != null && isUseServerSideSelectors()) {
+      if (destination.isTopic()) {
+        // for Topic Consumers we set the selector on the Subscription
+        subscriptionProperties.put("jms.selector", messageSelector);
+      } else {
+        // for Queue is it on the Consumer
+        consumerMetadata.put("jms.selector", messageSelector);
+      }
+    }
+
     try {
       ConsumerBuilder<byte[]> builder =
           pulsarClient
@@ -938,6 +955,7 @@ public class PulsarConnectionFactory
               // these properties can be overridden by the configuration
               .negativeAckRedeliveryDelay(1, TimeUnit.SECONDS)
               .loadConf(getConsumerConfiguration())
+              .properties(consumerMetadata)
               // these properties cannot be overwritten by the configuration
               .subscriptionInitialPosition(initialPosition)
               .subscriptionMode(subscriptionMode)
@@ -968,9 +986,9 @@ public class PulsarConnectionFactory
       } else {
         seekMessageId = messages.get(0).getMessageId();
       }
-      ;
-      log.info("createBrowser {} at {}", fullQualifiedTopicName, seekMessageId);
-
+      if (log.isDebugEnabled()) {
+        log.debug("createBrowser {} at {}", fullQualifiedTopicName, seekMessageId);
+      }
       ReaderBuilder<byte[]> builder =
           pulsarClient
               .newReader()
