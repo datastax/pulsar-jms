@@ -1,4 +1,4 @@
-name: Build and test
+name: Run TCK with Client Side Filters
 
 on:
   push:
@@ -27,8 +27,7 @@ jobs:
             ${{ runner.os }}-maven-
 
       - name: Build and test
-        run: mvn -B clean verify
+        run: mvn -B clean intall -DskipTests -Dspotbugs.skip=true
 
-      - name: TCK tests
-        run: mvn -B verify -Prun-tck
-
+      - name: TCK tests - client side filters
+        run: mvn -B verify -DskipTests -Prun-tck

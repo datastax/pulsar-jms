@@ -44,6 +44,13 @@
   <build>
     <plugins>
       <plugin>
+        <groupId>com.github.spotbugs</groupId>
+        <artifactId>spotbugs-maven-plugin</artifactId>
+        <configuration>
+          <skip>true</skip>
+        </configuration>
+      </plugin>
+      <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-shade-plugin</artifactId>
         <configuration>
@@ -102,6 +109,35 @@
             </executions>
             <configuration>
               <executable>${basedir}/run_from_maven.sh</executable>
+              <arguments>
+                <argument>ts.jte</argument>
+              </arguments>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+    <profile>
+      <id>run-tck-server-side-filters</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>exec-maven-plugin</artifactId>
+            <version>3.0.0</version>
+            <executions>
+              <execution>
+                <phase>verify</phase>
+                <goals>
+                  <goal>exec</goal>
+                </goals>
+              </execution>
+            </executions>
+            <configuration>
+              <executable>${basedir}/run_from_maven.sh</executable>
+              <arguments>
+                <argument>ts.serverSideFilters.jte</argument>
+              </arguments>
             </configuration>
           </plugin>
         </plugins>

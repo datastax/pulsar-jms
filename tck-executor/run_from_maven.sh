@@ -4,12 +4,17 @@ set -x
 HERE=$(dirname $0)
 HERE=$(realpath "$HERE")
 
+CONFIGURATION_FILE=${1:-ts.jte}
+echo "CONFIGURATION_FILE is $CONFIGURATION_FILE"
+
 unzip -o $HERE/jakarta-messaging-tck-2.0.0.zip -d $HERE/target
 
 TS_HOME=target/messaging-tck
 
 VERSION=$(mvn org.apache.maven.plugins:maven-help-plugin:3.2.0:evaluate -Dexpression=project.version -q -DforceStdout)
 cp ts.* $TS_HOME/bin
+# overwrite ts.jte
+cp $CONFIGURATION_FILE $TS_HOME/bin/ts.jte
 echo "jms.home=$HERE" >> $TS_HOME/bin/ts.jte
 echo "jms.classes=\${jms.home}/target/tck-executor-$VERSION.jar" >> $TS_HOME/bin/ts.jte
 
@@ -26,6 +31,7 @@ wget -O - http://localhost:8080/lookup/v2/topic/persistent/pulsar/system/transac
 
 # move to the directory that contains the test you want to run
 cd $TS_HOME/src/com/sun/ts/tests
+
 
 ant runclient
 ANTEXITCODE=$?

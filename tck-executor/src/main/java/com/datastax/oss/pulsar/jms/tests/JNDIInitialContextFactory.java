@@ -92,6 +92,16 @@ public class JNDIInitialContextFactory implements InitialContextFactory {
       // com.sun.ts.tests.jms.core20.jmscontexttopictests.Client.verifyClientIDOnAdminConfiguredIDTest
       configuration.put("jms.clientId", "cts");
     }
+
+    System.getProperties()
+        .forEach(
+            (k, v) -> {
+              if (k.toString().startsWith("JMS_TCK_CLIENT_")) {
+                String key = k.toString().substring("JMS_TCK_CLIENT_".length()).replace("_", ".");
+                System.out.println("Found property " + k + ". Adding " + key + " = " + v);
+                configuration.put(key, v);
+              }
+            });
     return new PulsarConnectionFactory(configuration);
   }
 
