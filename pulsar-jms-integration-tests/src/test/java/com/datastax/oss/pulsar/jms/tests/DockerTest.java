@@ -57,7 +57,7 @@ public class DockerTest {
 
   @Test
   public void testPulsar2101() throws Exception {
-    test("eolivelli/pulsar:latest-branch-2.10", false);
+    test("eolivelli/pulsar:branch-2.10-pip105-enhanced", false);
   }
 
   @Test
@@ -72,12 +72,12 @@ public class DockerTest {
 
   @Test
   public void testPulsar2101Transactions() throws Exception {
-    test("eolivelli/pulsar:latest-branch-2.10", true);
+    test("eolivelli/pulsar:branch-2.10-pip105-enhanced", true);
   }
 
   @Test
   public void testPulsar2101ServerSideSelectors() throws Exception {
-    test("eolivelli/pulsar:latest-branch-2.10", false, true);
+    test("eolivelli/pulsar:branch-2.10-pip105-enhanced", false, true);
   }
 
   @Test
