@@ -170,7 +170,7 @@ command.testExecute=com.sun.ts.lib.harness.ExecTSTestCmd \
 		-Djava.security.policy="${bin.dir}/harness.policy" \
 		-Djava.security.manager \
 		-Dlog4j2.debug=true \
-                -DJMS_TCK_CLIENT_jms_useServerSideSelectors=true \
+                -DJMS_TCK_CLIENT_jms_useServerSideFiltering=true \
 		-Dorg.slf4j.simpleLogger.defaultLogLevel=warn \
 		-Djava.naming.factory.initial=${java.naming.factory.initial} \
 		-Ddeliverable.class=${deliverable.class} \

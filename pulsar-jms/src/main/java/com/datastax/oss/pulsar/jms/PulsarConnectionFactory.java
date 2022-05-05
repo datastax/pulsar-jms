@@ -75,7 +75,7 @@ public class PulsarConnectionFactory
   private String defaultClientId = null;
   private boolean enableTransaction = false;
   private boolean enableClientSideEmulation = false;
-  private boolean useServerSideSelectors = false;
+  private boolean useServerSideFiltering = false;
   private boolean forceDeleteTemporaryDestinations = false;
   private boolean useExclusiveSubscriptionsForSimpleConsumers = false;
   private boolean acknowledgeRejectedMessages = false;
@@ -263,9 +263,9 @@ public class PulsarConnectionFactory
           Boolean.parseBoolean(
               getAndRemoveString("jms.enableClientSideEmulation", "false", configuration));
 
-      this.useServerSideSelectors =
+      this.useServerSideFiltering =
           Boolean.parseBoolean(
-              getAndRemoveString("jms.useServerSideSelectors", "false", configuration));
+              getAndRemoveString("jms.useServerSideFiltering", "false", configuration));
 
       // in Exclusive mode Pulsar does not support delayed messages
       // with this flag you force to not use Exclusive subscription and so to support
@@ -386,8 +386,8 @@ public class PulsarConnectionFactory
     return enableClientSideEmulation;
   }
 
-  public synchronized boolean isUseServerSideSelectors() {
-    return useServerSideSelectors;
+  public synchronized boolean isUseServerSideFiltering() {
+    return useServerSideFiltering;
   }
 
   synchronized String getDefaultClientId() {
@@ -903,7 +903,9 @@ public class PulsarConnectionFactory
       int sessionMode,
       SubscriptionMode subscriptionMode,
       SubscriptionType subscriptionType,
-      String messageSelector)
+      String messageSelector,
+      boolean noLocal,
+      String jmsConnectionID)
       throws JMSException {
     String fullQualifiedTopicName = applySystemNamespace(destination.topicName);
     // for queues we have a single shared subscription
@@ -930,10 +932,17 @@ public class PulsarConnectionFactory
     Map<String, String> subscriptionProperties = new HashMap<>();
     Map<String, String> consumerMetadata = new HashMap<>();
     consumerMetadata.put("jms.destination.type", destination.isQueue() ? "queue" : "topic");
-    if (isUseServerSideSelectors()) {
+    if (isUseServerSideFiltering()) {
+      // this flag enables filtering on the subscription/consumer
+      // the plugin will apply filtering only on these subscriptions/consumers,
+      // in order to not impact on other subscriptions
+      consumerMetadata.put("jms.filtering", "true");
       subscriptionProperties.put("jms.destination.type", destination.isQueue() ? "queue" : "topic");
+      if (noLocal) {
+        consumerMetadata.put("jms.filter.JMSConnectionID", jmsConnectionID);
+      }
     }
-    if (messageSelector != null && isUseServerSideSelectors()) {
+    if (messageSelector != null && isUseServerSideFiltering()) {
       consumerMetadata.put("jms.selector", messageSelector);
       if (destination.isTopic()) {
         consumerMetadata.put("jms.reject.action", "drop");

@@ -49,11 +49,11 @@ public abstract class SelectorsTestsBase {
   @TempDir public static Path tempDir;
   private static PulsarCluster cluster;
 
-  private final boolean serverSideSelectors;
+  private final boolean useServerSideFiltering;
   private final boolean enableBatching;
 
-  public SelectorsTestsBase(boolean serverSideSelectors, boolean enableBatching) {
-    this.serverSideSelectors = serverSideSelectors;
+  public SelectorsTestsBase(boolean useServerSideFiltering, boolean enableBatching) {
+    this.useServerSideFiltering = useServerSideFiltering;
     this.enableBatching = enableBatching;
   }
 
@@ -74,8 +74,8 @@ public abstract class SelectorsTestsBase {
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
 
-    properties.put("jms.useServerSideSelectors", serverSideSelectors);
-    properties.put("jms.enableClientSideEmulation", !serverSideSelectors);
+    properties.put("jms.useServerSideFiltering", useServerSideFiltering);
+    properties.put("jms.enableClientSideEmulation", !useServerSideFiltering);
 
     Map<String, Object> producerConfig = new HashMap<>();
     producerConfig.put("batchingEnabled", enableBatching);
@@ -88,7 +88,7 @@ public abstract class SelectorsTestsBase {
     Map<String, Object> properties = buildProperties();
 
     // ensure that we don't ask for enableClientSideEmulation in this case
-    properties.put("jms.enableClientSideEmulation", !serverSideSelectors);
+    properties.put("jms.enableClientSideEmulation", !useServerSideFiltering);
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (PulsarConnection connection = factory.createConnection()) {
         connection.start();
@@ -115,7 +115,7 @@ public abstract class SelectorsTestsBase {
             TextMessage textMessage = (TextMessage) consumer1.receive();
             assertEquals("foo-9", textMessage.getText());
 
-            if (serverSideSelectors) {
+            if (useServerSideFiltering) {
               assertEquals(1, consumer1.getReceivedMessages());
               assertEquals(0, consumer1.getSkippedMessages());
             } else {
@@ -171,7 +171,7 @@ public abstract class SelectorsTestsBase {
             TextMessage textMessage = (TextMessage) consumer1.receive();
             assertEquals("foo-9", textMessage.getText());
 
-            if (serverSideSelectors) {
+            if (useServerSideFiltering) {
               assertEquals(1, consumer1.getReceivedMessages());
               assertEquals(0, consumer1.getSkippedMessages());
             } else {
@@ -223,7 +223,7 @@ public abstract class SelectorsTestsBase {
             TextMessage textMessage = (TextMessage) consumer1.receive();
             assertEquals("foo-9", textMessage.getText());
 
-            if (serverSideSelectors) {
+            if (useServerSideFiltering) {
               assertEquals(1, consumer1.getReceivedMessages());
               assertEquals(0, consumer1.getSkippedMessages());
             } else {
@@ -273,7 +273,7 @@ public abstract class SelectorsTestsBase {
             TextMessage textMessage = (TextMessage) consumer1.receive();
             assertEquals("foo-9", textMessage.getText());
 
-            if (serverSideSelectors) {
+            if (useServerSideFiltering) {
               assertEquals(1, consumer1.getReceivedMessages());
               assertEquals(0, consumer1.getSkippedMessages());
             } else {
@@ -360,7 +360,7 @@ public abstract class SelectorsTestsBase {
             // no more messages (this also drains some remaining messages to be skipped)
             assertNull(consumer1.receive(1000));
 
-            if (serverSideSelectors) {
+            if (useServerSideFiltering) {
               if (enableBatching) {
                 // unfortunately the server could not reject any batch
                 assertEquals(100, consumer1.getReceivedMessages());
@@ -452,7 +452,7 @@ public abstract class SelectorsTestsBase {
             // no more messages (this also drains some remaining messages to be skipped)
             assertNull(consumer1.receive(1000));
 
-            if (serverSideSelectors) {
+            if (useServerSideFiltering) {
               // even with batching the client
               // receives exactly only the messages that match the filter
               assertEquals(expected.size(), consumer1.getReceivedMessages());

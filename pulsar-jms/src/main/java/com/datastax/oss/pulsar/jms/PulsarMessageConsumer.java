@@ -96,7 +96,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
             selector,
             subscriptionType == SubscriptionType.Exclusive
                 || session.getFactory().isEnableClientSideEmulation()
-                || session.getFactory().isUseServerSideSelectors());
+                || session.getFactory().isUseServerSideFiltering());
     this.unregisterSubscriptionOnClose = unregisterSubscriptionOnClose;
     if (noLocal
         && subscriptionType != SubscriptionType.Exclusive
@@ -135,7 +135,9 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
                   session.getAcknowledgeMode(),
                   subscriptionMode,
                   subscriptionType,
-                  getMessageSelector());
+                  getMessageSelector(),
+                  noLocal,
+                  session.getConnection().getConnectionId());
     }
     return consumer;
   }
@@ -371,6 +373,8 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
         return null;
       }
     }
+    // in case of useServerSideFiltering this filter is also applied on the broker, is the Plugin is
+    // present
     if (result.getJMSExpiration() > 0 && System.currentTimeMillis() >= result.getJMSExpiration()) {
       if (log.isDebugEnabled()) {
         log.debug("msg {} expired at {}", result, Instant.ofEpochMilli(result.getJMSExpiration()));
@@ -427,7 +431,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
     // because the broker can only ACCEPT or REJECT whole batches.
     // the broker will send the batch (Entry) if at least one message matches the selector
     boolean isBatch = (message.getMessageId() instanceof BatchMessageIdImpl);
-    return isBatch || !session.getFactory().isUseServerSideSelectors();
+    return isBatch || !session.getFactory().isUseServerSideFiltering();
   }
 
   /**

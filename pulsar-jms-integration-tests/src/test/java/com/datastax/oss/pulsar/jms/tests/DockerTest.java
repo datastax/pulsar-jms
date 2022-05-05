@@ -96,17 +96,17 @@ public class DockerTest {
     test(image, transactions, false);
   }
 
-  private void test(String image, boolean transactions, boolean serverSideSelectors)
+  private void test(String image, boolean transactions, boolean useServerSideFiltering)
       throws Exception {
     try (PulsarContainer pulsarContainer =
-        new PulsarContainer(image, transactions, serverSideSelectors, tempDir); ) {
+        new PulsarContainer(image, transactions, useServerSideFiltering, tempDir); ) {
       pulsarContainer.start();
       Map<String, Object> properties = new HashMap<>();
       properties.put("brokerServiceUrl", pulsarContainer.getPulsarBrokerUrl());
       properties.put("webServiceUrl", pulsarContainer.getHttpServiceUrl());
       properties.put("enableTransaction", transactions);
-      if (serverSideSelectors) {
-        properties.put("jms.useServerSideSelectors", true);
+      if (useServerSideFiltering) {
+        properties.put("jms.useServerSideFiltering", true);
       }
 
       // here we are using the repackaged Pulsar client and actually the class name is
@@ -149,7 +149,7 @@ public class DockerTest {
               (PulsarMessageConsumer.PulsarJMSConsumer) consumerWithSelector;
           PulsarMessageConsumer inner = pulsarJMSConsumer.asPulsarMessageConsumer();
 
-          if (serverSideSelectors) {
+          if (useServerSideFiltering) {
             // the message is not sent to the client at all
             assertEquals(1, inner.getReceivedMessages());
             assertEquals(0, inner.getSkippedMessages());

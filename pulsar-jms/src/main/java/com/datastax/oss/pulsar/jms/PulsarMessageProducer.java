@@ -485,10 +485,6 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
         throw new InvalidDestinationException("destination is null");
       }
     }
-    if (timeToLive > 0 && !session.getFactory().isEnableClientSideEmulation()) {
-      throw new JMSException(
-          "timeToLive not enabled, please set jms.enableClientSideEmulation=true");
-    }
   }
 
   /**
