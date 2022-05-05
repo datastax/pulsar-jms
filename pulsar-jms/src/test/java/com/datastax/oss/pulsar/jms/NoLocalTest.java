@@ -38,7 +38,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.api.SubscriptionType;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -65,16 +64,16 @@ public class NoLocalTest {
 
   private static Stream<Arguments> combinations() {
     return Stream.of(
-            Arguments.of(true, true),
-            Arguments.of(false, true),
-            Arguments.of(true, false),
-            Arguments.of(false, false));
+        Arguments.of(true, true),
+        Arguments.of(false, true),
+        Arguments.of(true, false),
+        Arguments.of(false, false));
   }
-
 
   @ParameterizedTest(name = "{index} useServerSideFiltering {0} enableBatching {1}")
   @MethodSource("combinations")
-  public void sendMessageReceiveFromQueueWithNoLocal(boolean useServerSideFiltering, boolean enableBatching) throws Exception {
+  public void sendMessageReceiveFromQueueWithNoLocal(
+      boolean useServerSideFiltering, boolean enableBatching) throws Exception {
     useServerSideFiltering = false;
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
@@ -120,7 +119,8 @@ public class NoLocalTest {
 
   @ParameterizedTest(name = "{index} useServerSideFiltering {0} enableBatching {1}")
   @MethodSource("combinations")
-  public void sendMessageReceiveFromTopicWithNoLocal(boolean useServerSideFiltering, boolean enableBatching) throws Exception {
+  public void sendMessageReceiveFromTopicWithNoLocal(
+      boolean useServerSideFiltering, boolean enableBatching) throws Exception {
 
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
@@ -167,7 +167,8 @@ public class NoLocalTest {
 
   @ParameterizedTest(name = "{index} useServerSideFiltering {0} enableBatching {1}")
   @MethodSource("combinations")
-  public void sendMessageReceiveFromExclusiveSubscriptionWithSelector(boolean useServerSideFiltering, boolean enableBatching) throws Exception {
+  public void sendMessageReceiveFromExclusiveSubscriptionWithSelector(
+      boolean useServerSideFiltering, boolean enableBatching) throws Exception {
 
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
@@ -215,7 +216,8 @@ public class NoLocalTest {
 
   @ParameterizedTest(name = "{index} useServerSideFiltering {0} enableBatching {1}")
   @MethodSource("combinations")
-  public void sendMessageReceiveFromSharedSubscriptionWithNoLocal(boolean useServerSideFiltering, boolean enableBatching) throws Exception {
+  public void sendMessageReceiveFromSharedSubscriptionWithNoLocal(
+      boolean useServerSideFiltering, boolean enableBatching) throws Exception {
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
     properties.put("jms.enableClientSideEmulation", !useServerSideFiltering);
@@ -260,25 +262,25 @@ public class NoLocalTest {
     }
   }
 
-
   private static Stream<Arguments> acknowledgeRejectedMessagesTestCombinations() {
     return Stream.of(
-            Arguments.of(true, true, true),
-            Arguments.of(false, true, true),
-            Arguments.of(true, false, true),
-            Arguments.of(false, false, true),
-            Arguments.of(true, true, false),
-            Arguments.of(false, true, false),
-            Arguments.of(true, false, false),
-            Arguments.of(false, false, false)
-    );
+        Arguments.of(true, true, true),
+        Arguments.of(false, true, true),
+        Arguments.of(true, false, true),
+        Arguments.of(false, false, true),
+        Arguments.of(true, true, false),
+        Arguments.of(false, true, false),
+        Arguments.of(true, false, false),
+        Arguments.of(false, false, false));
   }
 
-  @ParameterizedTest(name = "{index} useServerSideFiltering {0} enableBatching {1} acknowledgeRejectedMessages {2}")
+  @ParameterizedTest(
+    name = "{index} useServerSideFiltering {0} enableBatching {1} acknowledgeRejectedMessages {2}"
+  )
   @MethodSource("acknowledgeRejectedMessagesTestCombinations")
-  public void acknowledgeRejectedMessagesTest(boolean useServerSideFiltering,
-                                              boolean enableBatching,
-                                              boolean acknowledgeRejectedMessages) throws Exception {
+  public void acknowledgeRejectedMessagesTest(
+      boolean useServerSideFiltering, boolean enableBatching, boolean acknowledgeRejectedMessages)
+      throws Exception {
 
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());

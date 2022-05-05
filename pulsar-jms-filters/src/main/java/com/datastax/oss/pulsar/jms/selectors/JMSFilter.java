@@ -70,7 +70,8 @@ public class JMSFilter implements EntryFilter {
     String jmsSelectorRejectAction = consumerMetadata.get("jms.selector.reject.action");
     // noLocal filter
     String filterJMSConnectionID = consumerMetadata.getOrDefault("jms.filter.JMSConnectionID", "");
-    boolean forceDropRejected = "true".equals(consumerMetadata.getOrDefault("jms.force.drop.rejected", "false"));
+    boolean forceDropRejected =
+        "true".equals(consumerMetadata.getOrDefault("jms.force.drop.rejected", "false"));
     final FilterResult rejectResultForSelector;
     if ("drop".equals(jmsSelectorRejectAction)) {
       // this is the common behaviour for a Topics
@@ -132,7 +133,7 @@ public class JMSFilter implements EntryFilter {
               // all the messages in the batch come from the Producer/Connection
               // so we can reject the whole batch immediately at the first entry
               if (!filterJMSConnectionID.isEmpty()
-                      && filterJMSConnectionID.equals(typedProperties.get("JMSConnectionID"))) {
+                  && filterJMSConnectionID.equals(typedProperties.get("JMSConnectionID"))) {
                 if (isExclusive || forceDropRejected) {
                   return FilterResult.REJECT;
                 } else {
@@ -218,8 +219,10 @@ public class JMSFilter implements EntryFilter {
         }
 
         if (matches) {
+          log.info("result {} {} {}", entry.getPosition(), FilterResult.ACCEPT, typedProperties);
           return FilterResult.ACCEPT;
         }
+        log.info("result {} {} {}", entry.getPosition(), rejectResultForSelector, typedProperties);
         return rejectResultForSelector;
       }
 
