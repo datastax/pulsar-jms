@@ -32,6 +32,7 @@ import org.apache.bookkeeper.mledger.Entry;
 import org.apache.pulsar.broker.service.Consumer;
 import org.apache.pulsar.broker.service.plugin.EntryFilter;
 import org.apache.pulsar.broker.service.plugin.FilterContext;
+import org.apache.pulsar.common.api.proto.CommandSubscribe;
 import org.apache.pulsar.common.api.proto.KeyValue;
 import org.apache.pulsar.common.api.proto.MessageMetadata;
 import org.apache.pulsar.common.api.proto.SingleMessageMetadata;
@@ -52,19 +53,31 @@ public class JMSFilter implements EntryFilter {
     if (!jmsFiltering) {
       return FilterResult.ACCEPT;
     }
+    CommandSubscribe.SubType subType = consumer.subType();
+    final boolean isExclusive;
+    switch (subType) {
+      case Exclusive:
+      case Failover:
+        isExclusive = true;
+        break;
+      default:
+        isExclusive = false;
+        break;
+    }
     String topicName = context.getSubscription().getTopicName();
     String jmsSelector = consumerMetadata.getOrDefault("jms.selector", "");
     String destinationTypeForTheClient = consumerMetadata.get("jms.destination.type");
-    String jmsRejectAction = consumerMetadata.get("jms.reject.action");
+    String jmsSelectorRejectAction = consumerMetadata.get("jms.selector.reject.action");
     // noLocal filter
     String filterJMSConnectionID = consumerMetadata.getOrDefault("jms.filter.JMSConnectionID", "");
-    final FilterResult rejectResult;
-    if ("drop".equals(jmsRejectAction)) {
+    boolean forceDropRejected = "true".equals(consumerMetadata.getOrDefault("jms.force.drop.rejected", "false"));
+    final FilterResult rejectResultForSelector;
+    if ("drop".equals(jmsSelectorRejectAction)) {
       // this is the common behaviour for a Topics
-      rejectResult = FilterResult.REJECT;
+      rejectResultForSelector = FilterResult.REJECT;
     } else {
       // this is the common behaviour for a Queue
-      rejectResult = FilterResult.RESCHEDULE;
+      rejectResultForSelector = FilterResult.RESCHEDULE;
     }
     MessageMetadata metadata = context.getMsgMetadata();
     if (metadata.hasMarkerType()) {
@@ -115,6 +128,18 @@ public class JMSFilter implements EntryFilter {
                       singleMessageMetadata.getPropertiesCount(),
                       singleMessageMetadata.getPropertiesList());
 
+              // noLocal filter
+              // all the messages in the batch come from the Producer/Connection
+              // so we can reject the whole batch immediately at the first entry
+              if (!filterJMSConnectionID.isEmpty()
+                      && filterJMSConnectionID.equals(typedProperties.get("JMSConnectionID"))) {
+                if (isExclusive || forceDropRejected) {
+                  return FilterResult.REJECT;
+                } else {
+                  return FilterResult.RESCHEDULE;
+                }
+              }
+
               // timeToLive filter
               long jmsExpiration = getJMSExpiration(typedProperties);
               if (jmsExpiration > 0 && System.currentTimeMillis() > jmsExpiration) {
@@ -127,14 +152,7 @@ public class JMSFilter implements EntryFilter {
 
               boolean matches = true;
 
-              // noLocal filter
-              if (!filterJMSConnectionID.isEmpty()
-                  && filterJMSConnectionID.equals(typedProperties.get("JMSConnectionID"))) {
-                matches = false;
-                log.info("nolocal JMSConnectionID ! {}", filterJMSConnectionID);
-              }
-
-              if (selector != null && matches) {
+              if (selector != null) {
                 matches =
                     matches(
                         typedProperties,
@@ -152,15 +170,12 @@ public class JMSFilter implements EntryFilter {
             }
           }
           if (allExpired) {
-            log.info("allExpired ! REJECT");
             return FilterResult.REJECT;
           }
           if (oneAccepted) {
-            log.info("ACCEPT");
             return FilterResult.ACCEPT;
           }
-          log.info("result {}", rejectResult);
-          return rejectResult;
+          return rejectResultForSelector;
         } finally {
           uncompressedPayload.release();
         }
@@ -195,13 +210,17 @@ public class JMSFilter implements EntryFilter {
 
         if (!filterJMSConnectionID.isEmpty()
             && filterJMSConnectionID.equals(typedProperties.get("JMSConnectionID"))) {
-          matches = false;
+          if (isExclusive || forceDropRejected) {
+            return FilterResult.REJECT;
+          } else {
+            return FilterResult.RESCHEDULE;
+          }
         }
 
         if (matches) {
           return FilterResult.ACCEPT;
         }
-        return rejectResult;
+        return rejectResultForSelector;
       }
 
     } catch (Throwable err) {
@@ -242,7 +261,7 @@ public class JMSFilter implements EntryFilter {
 
   @Override
   public void close() {
-    log.info("closing {}", this);
+    selectors.clear();
   }
 
   private static String propertyType(String name) {

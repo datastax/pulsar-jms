@@ -942,17 +942,19 @@ public class PulsarConnectionFactory
         consumerMetadata.put("jms.filter.JMSConnectionID", jmsConnectionID);
       }
     }
-    if (messageSelector != null && isUseServerSideFiltering()) {
-      consumerMetadata.put("jms.selector", messageSelector);
+    if (isUseServerSideFiltering()) {
+      if (messageSelector != null) {
+        consumerMetadata.put("jms.selector", messageSelector);
+      }
       if (destination.isTopic()) {
-        consumerMetadata.put("jms.reject.action", "drop");
+        consumerMetadata.put("jms.selector.reject.action", "drop");
       } else {
         // for Queue is it on the Consumer
-        consumerMetadata.put("jms.reject.action", "reschedule");
+        consumerMetadata.put("jms.selector.reject.action", "reschedule");
       }
     }
     if (isAcknowledgeRejectedMessages()) {
-      consumerMetadata.put("jms.reject.action", "drop");
+      consumerMetadata.put("jms.force.drop.rejected", "true");
     }
 
     try {

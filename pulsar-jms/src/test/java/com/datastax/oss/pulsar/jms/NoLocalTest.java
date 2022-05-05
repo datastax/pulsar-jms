@@ -25,6 +25,7 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Stream;
 import javax.jms.Connection;
 import javax.jms.JMSContext;
 import javax.jms.MessageConsumer;
@@ -39,6 +40,9 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 @Slf4j
 public class NoLocalTest {
@@ -59,12 +63,26 @@ public class NoLocalTest {
     }
   }
 
-  @Test
-  public void sendMessageReceiveFromQueueWithNoLocal() throws Exception {
+  private static Stream<Arguments> combinations() {
+    return Stream.of(
+            Arguments.of(true, true),
+            Arguments.of(false, true),
+            Arguments.of(true, false),
+            Arguments.of(false, false));
+  }
 
+
+  @ParameterizedTest(name = "{index} useServerSideFiltering {0} enableBatching {1}")
+  @MethodSource("combinations")
+  public void sendMessageReceiveFromQueueWithNoLocal(boolean useServerSideFiltering, boolean enableBatching) throws Exception {
+    useServerSideFiltering = false;
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
-    properties.put("jms.enableClientSideEmulation", "true");
+    properties.put("jms.enableClientSideEmulation", !useServerSideFiltering);
+    properties.put("jms.useServerSideFiltering", useServerSideFiltering);
+    Map<String, Object> producerConfig = new HashMap<>();
+    producerConfig.put("batchingEnabled", enableBatching);
+    properties.put("producerConfig", producerConfig);
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection(); ) {
         connection.start();
@@ -80,6 +98,7 @@ public class NoLocalTest {
             try (MessageProducer producer = session.createProducer(destination); ) {
               for (int i = 0; i < 10; i++) {
                 TextMessage textMessage = session.createTextMessage("foo-" + i);
+                textMessage.setStringProperty("aa", "foo-" + i);
                 producer.send(textMessage);
               }
             }
@@ -99,12 +118,17 @@ public class NoLocalTest {
     }
   }
 
-  @Test
-  public void sendMessageReceiveFromTopicWithNoLocal() throws Exception {
+  @ParameterizedTest(name = "{index} useServerSideFiltering {0} enableBatching {1}")
+  @MethodSource("combinations")
+  public void sendMessageReceiveFromTopicWithNoLocal(boolean useServerSideFiltering, boolean enableBatching) throws Exception {
 
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
-    properties.put("jms.enableClientSideEmulation", "false");
+    properties.put("jms.enableClientSideEmulation", !useServerSideFiltering);
+    properties.put("jms.useServerSideFiltering", useServerSideFiltering);
+    Map<String, Object> producerConfig = new HashMap<>();
+    producerConfig.put("batchingEnabled", enableBatching);
+    properties.put("producerConfig", producerConfig);
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection(); ) {
         connection.setClientID("clientId1");
@@ -141,12 +165,17 @@ public class NoLocalTest {
     }
   }
 
-  @Test
-  public void sendMessageReceiveFromExclusiveSubscriptionWithSelector() throws Exception {
+  @ParameterizedTest(name = "{index} useServerSideFiltering {0} enableBatching {1}")
+  @MethodSource("combinations")
+  public void sendMessageReceiveFromExclusiveSubscriptionWithSelector(boolean useServerSideFiltering, boolean enableBatching) throws Exception {
 
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
-    properties.put("jms.enableClientSideEmulation", "false");
+    properties.put("jms.enableClientSideEmulation", !useServerSideFiltering);
+    properties.put("jms.useServerSideFiltering", useServerSideFiltering);
+    Map<String, Object> producerConfig = new HashMap<>();
+    producerConfig.put("batchingEnabled", enableBatching);
+    properties.put("producerConfig", producerConfig);
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
         connection.setClientID("clientId1");
@@ -184,11 +213,16 @@ public class NoLocalTest {
     }
   }
 
-  @Test
-  public void sendMessageReceiveFromSharedSubscriptionWithNoLocal() throws Exception {
+  @ParameterizedTest(name = "{index} useServerSideFiltering {0} enableBatching {1}")
+  @MethodSource("combinations")
+  public void sendMessageReceiveFromSharedSubscriptionWithNoLocal(boolean useServerSideFiltering, boolean enableBatching) throws Exception {
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
-    properties.put("jms.enableClientSideEmulation", "false");
+    properties.put("jms.enableClientSideEmulation", !useServerSideFiltering);
+    properties.put("jms.useServerSideFiltering", useServerSideFiltering);
+    Map<String, Object> producerConfig = new HashMap<>();
+    producerConfig.put("batchingEnabled", enableBatching);
+    properties.put("producerConfig", producerConfig);
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
         connection.setClientID("clientId1");
@@ -226,22 +260,33 @@ public class NoLocalTest {
     }
   }
 
-  @Test
-  public void enableAcknowledgeRejectedMessagesTest() throws Exception {
-    acknowledgeRejectedMessagesTest(true);
+
+  private static Stream<Arguments> acknowledgeRejectedMessagesTestCombinations() {
+    return Stream.of(
+            Arguments.of(true, true, true),
+            Arguments.of(false, true, true),
+            Arguments.of(true, false, true),
+            Arguments.of(false, false, true),
+            Arguments.of(true, true, false),
+            Arguments.of(false, true, false),
+            Arguments.of(true, false, false),
+            Arguments.of(false, false, false)
+    );
   }
 
-  @Test
-  public void disableAcknowledgeRejectedMessagesTest() throws Exception {
-    acknowledgeRejectedMessagesTest(false);
-  }
-
-  private void acknowledgeRejectedMessagesTest(boolean acknowledgeRejectedMessages)
-      throws Exception {
+  @ParameterizedTest(name = "{index} useServerSideFiltering {0} enableBatching {1} acknowledgeRejectedMessages {2}")
+  @MethodSource("acknowledgeRejectedMessagesTestCombinations")
+  public void acknowledgeRejectedMessagesTest(boolean useServerSideFiltering,
+                                              boolean enableBatching,
+                                              boolean acknowledgeRejectedMessages) throws Exception {
 
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
-    properties.put("jms.enableClientSideEmulation", "true");
+    properties.put("jms.enableClientSideEmulation", !useServerSideFiltering);
+    properties.put("jms.useServerSideFiltering", useServerSideFiltering);
+    Map<String, Object> producerConfig = new HashMap<>();
+    producerConfig.put("batchingEnabled", enableBatching);
+    properties.put("producerConfig", producerConfig);
     properties.put("jms.acknowledgeRejectedMessages", acknowledgeRejectedMessages);
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
