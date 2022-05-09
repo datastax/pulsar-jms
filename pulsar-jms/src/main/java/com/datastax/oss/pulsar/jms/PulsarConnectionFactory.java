@@ -28,6 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import javax.jms.*;
 import javax.jms.IllegalStateException;
@@ -51,6 +52,7 @@ import org.apache.pulsar.client.api.ReaderBuilder;
 import org.apache.pulsar.client.api.SubscriptionInitialPosition;
 import org.apache.pulsar.client.api.SubscriptionMode;
 import org.apache.pulsar.client.api.SubscriptionType;
+import org.apache.pulsar.common.policies.data.SubscriptionStats;
 
 @Slf4j
 public class PulsarConnectionFactory
@@ -898,14 +900,15 @@ public class PulsarConnectionFactory
   }
 
   public Consumer<byte[]> createConsumer(
-      PulsarDestination destination,
-      String consumerName,
-      int sessionMode,
-      SubscriptionMode subscriptionMode,
-      SubscriptionType subscriptionType,
-      String messageSelector,
-      boolean noLocal,
-      String jmsConnectionID)
+          PulsarDestination destination,
+          String consumerName,
+          int sessionMode,
+          SubscriptionMode subscriptionMode,
+          SubscriptionType subscriptionType,
+          String messageSelector,
+          boolean noLocal,
+          String jmsConnectionID,
+          AtomicReference<String> selectorOnSubscriptionReceiver)
       throws JMSException {
     String fullQualifiedTopicName = applySystemNamespace(destination.topicName);
     // for queues we have a single shared subscription
@@ -914,7 +917,6 @@ public class PulsarConnectionFactory
         destination.isTopic()
             ? SubscriptionInitialPosition.Latest
             : SubscriptionInitialPosition.Earliest;
-    MessageId seekMessageId = null;
     if (destination.isQueue() && subscriptionMode != SubscriptionMode.Durable) {
       throw new IllegalStateException("only durable mode for queues");
     }
@@ -958,6 +960,31 @@ public class PulsarConnectionFactory
     }
 
     try {
+      if (isUseServerSideFiltering()
+              && subscriptionMode == SubscriptionMode.Durable) {
+        try {
+          Map<String, ? extends SubscriptionStats> subscriptions
+                  = pulsarAdmin.topics().getStats(fullQualifiedTopicName).getSubscriptions();
+          SubscriptionStats subscriptionStats = subscriptions.get(subscriptionName);
+          if (subscriptionStats != null) {
+            Map<String, String> subscriptionPropertiesFromBroker = subscriptionStats.getSubscriptionProperties();
+            log.info("subscriptionPropertiesFromBroker {}", subscriptionPropertiesFromBroker);
+            if (subscriptionPropertiesFromBroker != null) {
+              boolean filtering = "true".equals(subscriptionPropertiesFromBroker.get("jms.filtering"));
+              if (filtering) {
+                String selectorOnSubscription = subscriptionPropertiesFromBroker.getOrDefault("jms.selector", "");
+                if (!selectorOnSubscription.isEmpty()) {
+                  log.info("Detected selector {} on Subscription {} on topic {}", selectorOnSubscription,
+                          subscriptionName, fullQualifiedTopicName);
+                  selectorOnSubscriptionReceiver.set(selectorOnSubscription);
+                }
+              }
+            }
+          }
+        } catch (PulsarAdminException.NotFoundException notFoundException) {
+        }
+      }
+
       ConsumerBuilder<byte[]> builder =
           pulsarClient
               .newConsumer()
@@ -974,8 +1001,9 @@ public class PulsarConnectionFactory
               .topic(fullQualifiedTopicName);
       Consumer<byte[]> newConsumer = builder.subscribe();
       consumers.add(newConsumer);
+
       return newConsumer;
-    } catch (PulsarClientException err) {
+    } catch (PulsarClientException | PulsarAdminException err) {
       throw Utils.handleException(err);
     }
   }

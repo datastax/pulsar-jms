@@ -30,6 +30,8 @@ import org.apache.activemq.command.ActiveMQQueue;
 import org.apache.activemq.command.ActiveMQTopic;
 import org.apache.bookkeeper.mledger.Entry;
 import org.apache.pulsar.broker.service.Consumer;
+import org.apache.pulsar.broker.service.Subscription;
+import org.apache.pulsar.broker.service.persistent.PersistentSubscription;
 import org.apache.pulsar.broker.service.plugin.EntryFilter;
 import org.apache.pulsar.broker.service.plugin.FilterContext;
 import org.apache.pulsar.common.api.proto.CommandSubscribe;
@@ -49,20 +51,23 @@ public class JMSFilter implements EntryFilter {
   public FilterResult filterEntry(Entry entry, FilterContext context) {
     Consumer consumer = context.getConsumer();
     Map<String, String> consumerMetadata = consumer.getMetadata();
+    Subscription subscription = context.getSubscription();
     boolean jmsFiltering = "true".equals(consumerMetadata.get("jms.filtering"));
+    final String jmsSelectorOnSubscription;
+    if (subscription instanceof PersistentSubscription) {
+      // in 2.10 only PersistentSubscription has getSubscriptionProperties method
+      Map<String, String> subscriptionProperties = ((PersistentSubscription) subscription).getSubscriptionProperties();
+      if (subscriptionProperties != null) {
+        jmsSelectorOnSubscription = subscriptionProperties.getOrDefault("jms.selector", "");
+        jmsFiltering = jmsFiltering || "true".equals(subscriptionProperties.get("jms.filtering"));
+      } else {
+        jmsSelectorOnSubscription = "";
+      }
+    } else {
+      jmsSelectorOnSubscription = "";
+    }
     if (!jmsFiltering) {
       return FilterResult.ACCEPT;
-    }
-    CommandSubscribe.SubType subType = consumer.subType();
-    final boolean isExclusive;
-    switch (subType) {
-      case Exclusive:
-      case Failover:
-        isExclusive = true;
-        break;
-      default:
-        isExclusive = false;
-        break;
     }
     String topicName = context.getSubscription().getTopicName();
     String jmsSelector = consumerMetadata.getOrDefault("jms.selector", "");
@@ -101,6 +106,34 @@ public class JMSFilter implements EntryFilter {
       return FilterResult.RESCHEDULE;
     }
 
+    SelectorSupport selectorOnSubscription =
+            selectors.computeIfAbsent(
+                    jmsSelectorOnSubscription,
+                    s -> {
+                      try {
+                        return SelectorSupport.build(s, !jmsSelectorOnSubscription.isEmpty());
+                      } catch (JMSException err) {
+                        log.error("Cannot build subscription selector from '{}'", jmsSelectorOnSubscription, err);
+                        return null;
+                      }
+                    });
+    if (selectorOnSubscription == null && !jmsSelectorOnSubscription.isEmpty()) {
+      // error creating the selector. try again later
+      return FilterResult.RESCHEDULE;
+    }
+
+    CommandSubscribe.SubType subType = consumer.subType();
+    final boolean isExclusive;
+    switch (subType) {
+      case Exclusive:
+      case Failover:
+        isExclusive = true;
+        break;
+      default:
+        isExclusive = false;
+        break;
+    }
+
     try {
       if (metadata.hasNumMessagesInBatch()) {
 
@@ -118,6 +151,7 @@ public class JMSFilter implements EntryFilter {
           int numMessages = metadata.getNumMessagesInBatch();
           boolean oneAccepted = false;
           boolean allExpired = true;
+          boolean allFilteredBySubscriptionFilter = !jmsSelectorOnSubscription.isEmpty();
           for (int i = 0; i < numMessages; i++) {
             final SingleMessageMetadata singleMessageMetadata = new SingleMessageMetadata();
             final ByteBuf singleMessagePayload =
@@ -165,6 +199,21 @@ public class JMSFilter implements EntryFilter {
                         jmsExpiration);
               }
 
+              if (!jmsSelectorOnSubscription.isEmpty()) {
+                boolean matchesSubscriptionFilter = matches(
+                                typedProperties,
+                                null,
+                                metadata,
+                                topicName,
+                                selectorOnSubscription,
+                                destinationTypeForTheClient,
+                                jmsExpiration);
+                matches = matches && matchesSubscriptionFilter;
+                if (matchesSubscriptionFilter) {
+                  allFilteredBySubscriptionFilter = false;
+                }
+              }
+
               oneAccepted = oneAccepted || matches;
             } finally {
               singleMessagePayload.release();
@@ -173,9 +222,13 @@ public class JMSFilter implements EntryFilter {
           if (allExpired) {
             return FilterResult.REJECT;
           }
+          if (allFilteredBySubscriptionFilter && !jmsSelectorOnSubscription.isEmpty()) {
+            return FilterResult.REJECT;
+          }
           if (oneAccepted) {
             return FilterResult.ACCEPT;
           }
+          log.info("allFilteredBySubscriptionFilter {} ??? {}", allFilteredBySubscriptionFilter, rejectResultForSelector);
           return rejectResultForSelector;
         } finally {
           uncompressedPayload.release();
@@ -194,6 +247,21 @@ public class JMSFilter implements EntryFilter {
           // message expired, this does not depend on the Consumer
           // we can to REJECT it immediately
           return FilterResult.REJECT;
+        }
+
+        if (!jmsSelectorOnSubscription.isEmpty()) {
+          boolean matchesSubscriptionFilter = matches(
+                  typedProperties,
+                  null,
+                  metadata,
+                  topicName,
+                  selectorOnSubscription,
+                  destinationTypeForTheClient,
+                  jmsExpiration);
+          // the subscription filter always deletes the messages
+          if (!matchesSubscriptionFilter) {
+            return FilterResult.REJECT;
+          }
         }
 
         boolean matches = true;
