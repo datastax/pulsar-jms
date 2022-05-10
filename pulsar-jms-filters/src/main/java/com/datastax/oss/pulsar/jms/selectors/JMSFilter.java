@@ -56,7 +56,8 @@ public class JMSFilter implements EntryFilter {
     final String jmsSelectorOnSubscription;
     if (subscription instanceof PersistentSubscription) {
       // in 2.10 only PersistentSubscription has getSubscriptionProperties method
-      Map<String, String> subscriptionProperties = ((PersistentSubscription) subscription).getSubscriptionProperties();
+      Map<String, String> subscriptionProperties =
+          ((PersistentSubscription) subscription).getSubscriptionProperties();
       if (subscriptionProperties != null) {
         jmsSelectorOnSubscription = subscriptionProperties.getOrDefault("jms.selector", "");
         jmsFiltering = jmsFiltering || "true".equals(subscriptionProperties.get("jms.filtering"));
@@ -107,16 +108,17 @@ public class JMSFilter implements EntryFilter {
     }
 
     SelectorSupport selectorOnSubscription =
-            selectors.computeIfAbsent(
-                    jmsSelectorOnSubscription,
-                    s -> {
-                      try {
-                        return SelectorSupport.build(s, !jmsSelectorOnSubscription.isEmpty());
-                      } catch (JMSException err) {
-                        log.error("Cannot build subscription selector from '{}'", jmsSelectorOnSubscription, err);
-                        return null;
-                      }
-                    });
+        selectors.computeIfAbsent(
+            jmsSelectorOnSubscription,
+            s -> {
+              try {
+                return SelectorSupport.build(s, !jmsSelectorOnSubscription.isEmpty());
+              } catch (JMSException err) {
+                log.error(
+                    "Cannot build subscription selector from '{}'", jmsSelectorOnSubscription, err);
+                return null;
+              }
+            });
     if (selectorOnSubscription == null && !jmsSelectorOnSubscription.isEmpty()) {
       // error creating the selector. try again later
       return FilterResult.RESCHEDULE;
@@ -200,14 +202,15 @@ public class JMSFilter implements EntryFilter {
               }
 
               if (!jmsSelectorOnSubscription.isEmpty()) {
-                boolean matchesSubscriptionFilter = matches(
-                                typedProperties,
-                                null,
-                                metadata,
-                                topicName,
-                                selectorOnSubscription,
-                                destinationTypeForTheClient,
-                                jmsExpiration);
+                boolean matchesSubscriptionFilter =
+                    matches(
+                        typedProperties,
+                        null,
+                        metadata,
+                        topicName,
+                        selectorOnSubscription,
+                        destinationTypeForTheClient,
+                        jmsExpiration);
                 matches = matches && matchesSubscriptionFilter;
                 if (matchesSubscriptionFilter) {
                   allFilteredBySubscriptionFilter = false;
@@ -228,7 +231,10 @@ public class JMSFilter implements EntryFilter {
           if (oneAccepted) {
             return FilterResult.ACCEPT;
           }
-          log.info("allFilteredBySubscriptionFilter {} ??? {}", allFilteredBySubscriptionFilter, rejectResultForSelector);
+          log.info(
+              "allFilteredBySubscriptionFilter {} ??? {}",
+              allFilteredBySubscriptionFilter,
+              rejectResultForSelector);
           return rejectResultForSelector;
         } finally {
           uncompressedPayload.release();
@@ -250,7 +256,8 @@ public class JMSFilter implements EntryFilter {
         }
 
         if (!jmsSelectorOnSubscription.isEmpty()) {
-          boolean matchesSubscriptionFilter = matches(
+          boolean matchesSubscriptionFilter =
+              matches(
                   typedProperties,
                   null,
                   metadata,

@@ -900,15 +900,15 @@ public class PulsarConnectionFactory
   }
 
   public Consumer<byte[]> createConsumer(
-          PulsarDestination destination,
-          String consumerName,
-          int sessionMode,
-          SubscriptionMode subscriptionMode,
-          SubscriptionType subscriptionType,
-          String messageSelector,
-          boolean noLocal,
-          String jmsConnectionID,
-          AtomicReference<String> selectorOnSubscriptionReceiver)
+      PulsarDestination destination,
+      String consumerName,
+      int sessionMode,
+      SubscriptionMode subscriptionMode,
+      SubscriptionType subscriptionType,
+      String messageSelector,
+      boolean noLocal,
+      String jmsConnectionID,
+      AtomicReference<String> selectorOnSubscriptionReceiver)
       throws JMSException {
     String fullQualifiedTopicName = applySystemNamespace(destination.topicName);
     // for queues we have a single shared subscription
@@ -960,22 +960,27 @@ public class PulsarConnectionFactory
     }
 
     try {
-      if (isUseServerSideFiltering()
-              && subscriptionMode == SubscriptionMode.Durable) {
+      if (isUseServerSideFiltering() && subscriptionMode == SubscriptionMode.Durable) {
         try {
-          Map<String, ? extends SubscriptionStats> subscriptions
-                  = pulsarAdmin.topics().getStats(fullQualifiedTopicName).getSubscriptions();
+          Map<String, ? extends SubscriptionStats> subscriptions =
+              pulsarAdmin.topics().getStats(fullQualifiedTopicName).getSubscriptions();
           SubscriptionStats subscriptionStats = subscriptions.get(subscriptionName);
           if (subscriptionStats != null) {
-            Map<String, String> subscriptionPropertiesFromBroker = subscriptionStats.getSubscriptionProperties();
+            Map<String, String> subscriptionPropertiesFromBroker =
+                subscriptionStats.getSubscriptionProperties();
             log.info("subscriptionPropertiesFromBroker {}", subscriptionPropertiesFromBroker);
             if (subscriptionPropertiesFromBroker != null) {
-              boolean filtering = "true".equals(subscriptionPropertiesFromBroker.get("jms.filtering"));
+              boolean filtering =
+                  "true".equals(subscriptionPropertiesFromBroker.get("jms.filtering"));
               if (filtering) {
-                String selectorOnSubscription = subscriptionPropertiesFromBroker.getOrDefault("jms.selector", "");
+                String selectorOnSubscription =
+                    subscriptionPropertiesFromBroker.getOrDefault("jms.selector", "");
                 if (!selectorOnSubscription.isEmpty()) {
-                  log.info("Detected selector {} on Subscription {} on topic {}", selectorOnSubscription,
-                          subscriptionName, fullQualifiedTopicName);
+                  log.info(
+                      "Detected selector {} on Subscription {} on topic {}",
+                      selectorOnSubscription,
+                      subscriptionName,
+                      fullQualifiedTopicName);
                   selectorOnSubscriptionReceiver.set(selectorOnSubscription);
                 }
               }

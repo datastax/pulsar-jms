@@ -2,7 +2,8 @@
 
 set -x -e
 
-IMAGENAME=${PULSAR_IMAGE_NAME:-eolivelli/pulsar:branch-2.10-pip105-enhanced}
+# waiting for Apache Pulsar 2.10.1, in the meantime we use Luna Streaming 2.10.0.1
+IMAGENAME=${PULSAR_IMAGE_NAME:-datastax/pulsar:2.10.0.1}
 
 HERE=$(dirname $0)
 HERE=$(realpath "$HERE")

@@ -57,7 +57,8 @@ public class DockerTest {
 
   @Test
   public void testPulsar2101() throws Exception {
-    test("eolivelli/pulsar:branch-2.10-pip105-enhanced", false);
+    // waiting for Apache Pulsar 2.10.1, in the meantime we use Luna Streaming 2.10.0.1
+    test("datastax/lunastreaming:2.10.0.1", false);
   }
 
   @Test
@@ -72,12 +73,14 @@ public class DockerTest {
 
   @Test
   public void testPulsar2101Transactions() throws Exception {
-    test("eolivelli/pulsar:branch-2.10-pip105-enhanced", true);
+    // waiting for Apache Pulsar 2.10.1, in the meantime we use Luna Streaming 2.10.0.1
+    test("datastax/lunastreaming:2.10.0.1", true);
   }
 
   @Test
   public void testPulsar2101ServerSideSelectors() throws Exception {
-    test("eolivelli/pulsar:branch-2.10-pip105-enhanced", false, true);
+    // waiting for Apache Pulsar 2.10.1, in the meantime we use Luna Streaming 2.10.0.1
+    test("datastax/lunastreaming:2.10.0.1", false, true);
   }
 
   @Test

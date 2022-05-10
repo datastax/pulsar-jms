@@ -138,17 +138,19 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
                   session.getAcknowledgeMode(),
                   subscriptionMode,
                   subscriptionType,
-                      currentSelector,
+                  currentSelector,
                   noLocal,
                   session.getConnection().getConnectionId(),
                   selectorOnSubscriptionReceiver);
       String jmsSelectorOnSubscription = selectorOnSubscriptionReceiver.get();
       if (jmsSelectorOnSubscription != null && !jmsSelectorOnSubscription.isEmpty()) {
         if (currentSelector != null && !currentSelector.isEmpty()) {
-           if (!currentSelector.equals(jmsSelectorOnSubscription)) {
-             throw new javax.jms.InvalidSelectorException("If you set locally a selector it must match" +
-                     "  the selector set at subscription level, in this case it is " + jmsSelectorOnSubscription);
-           }
+          if (!currentSelector.equals(jmsSelectorOnSubscription)) {
+            throw new javax.jms.InvalidSelectorException(
+                "If you set locally a selector it must match"
+                    + "  the selector set at subscription level, in this case it is "
+                    + jmsSelectorOnSubscription);
+          }
         }
         selectorSupport = SelectorSupport.build(jmsSelectorOnSubscription, true);
       }
@@ -168,8 +170,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
   @Override
   public synchronized String getMessageSelector() throws JMSException {
     checkNotClosed();
-    if (destination.isQueue()
-            && session.getFactory().isUseServerSideFiltering()) {
+    if (destination.isQueue() && session.getFactory().isUseServerSideFiltering()) {
       // ensure we download properly the selector from the server
       getConsumer();
     }
@@ -376,6 +377,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
               + ",) cannot be converted to a "
               + expectedType);
     }
+    SelectorSupport selectorSupport = getSelectorSupport();
     if (selectorSupport != null
         && requiresClientSideFiltering(message)
         && !selectorSupport.matches(result)) {
@@ -637,6 +639,10 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
 
   PulsarSession getSession() {
     return session;
+  }
+
+  private synchronized SelectorSupport getSelectorSupport() {
+    return selectorSupport;
   }
 
   Consumer<byte[]> getInternalConsumer() {

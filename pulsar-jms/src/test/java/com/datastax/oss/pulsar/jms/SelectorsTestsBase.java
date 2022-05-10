@@ -492,7 +492,10 @@ public abstract class SelectorsTestsBase {
     subscriptionProperties.put("jms.filtering", "true");
 
     // create a Subscription with a selector
-    try (Consumer<byte[]> dummy = cluster.getService().getClient()
+    try (Consumer<byte[]> dummy =
+        cluster
+            .getService()
+            .getClient()
             .newConsumer()
             .subscriptionName(subscriptionName)
             .subscriptionType(SubscriptionType.Shared)
@@ -508,15 +511,13 @@ public abstract class SelectorsTestsBase {
       try (PulsarConnection connection = factory.createConnection()) {
         connection.start();
         try (PulsarSession session = connection.createSession(); ) {
-          Topic destination =
-                  session.createTopic(topicName);
+          Topic destination = session.createTopic(topicName);
 
           // do not set the selector, it will be loaded from the Subscription Properties
           try (PulsarMessageConsumer consumer1 =
-                       session.createSharedDurableConsumer(destination, subscriptionName, null); ) {
+              session.createSharedDurableConsumer(destination, subscriptionName, null); ) {
             assertEquals(
-                    SubscriptionType.Shared,
-                    ((PulsarMessageConsumer) consumer1).getSubscriptionType());
+                SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
 
             // this is downloaded from the server
             assertEquals(selector, consumer1.getMessageSelector());
@@ -537,7 +538,6 @@ public abstract class SelectorsTestsBase {
                 assertEquals("foo-" + i, textMessage.getText());
               }
             }
-
 
             assertEquals(5, consumer1.getReceivedMessages());
             assertEquals(0, consumer1.getSkippedMessages());
@@ -573,7 +573,10 @@ public abstract class SelectorsTestsBase {
     subscriptionProperties.put("jms.filtering", "true");
 
     // create a Subscription with a selector
-    try (Consumer<byte[]> dummy = cluster.getService().getClient()
+    try (Consumer<byte[]> dummy =
+        cluster
+            .getService()
+            .getClient()
             .newConsumer()
             .subscriptionName(subscriptionName)
             .subscriptionType(SubscriptionType.Shared)
@@ -589,15 +592,12 @@ public abstract class SelectorsTestsBase {
       try (PulsarConnection connection = factory.createConnection()) {
         connection.start();
         try (PulsarSession session = connection.createSession(); ) {
-          Queue destination =
-                  session.createQueue(topicName);
+          Queue destination = session.createQueue(topicName);
 
           // do not set the selector, it will be loaded from the Subscription Properties
-          try (PulsarMessageConsumer consumer1 =
-                       session.createConsumer(destination); ) {
+          try (PulsarMessageConsumer consumer1 = session.createConsumer(destination); ) {
             assertEquals(
-                    SubscriptionType.Shared,
-                    ((PulsarMessageConsumer) consumer1).getSubscriptionType());
+                SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
 
             // this is downloaded from the server
             assertEquals(selector, consumer1.getMessageSelector());
