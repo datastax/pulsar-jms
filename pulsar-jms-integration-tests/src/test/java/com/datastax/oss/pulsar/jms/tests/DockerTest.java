@@ -29,10 +29,12 @@ import java.util.Map;
 import javax.jms.Destination;
 import javax.jms.JMSConsumer;
 import javax.jms.JMSContext;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.testcontainers.shaded.org.apache.commons.io.IOUtils;
 
+@Slf4j
 public class DockerTest {
 
   private static final String TEST_PULSAR_DOCKER_IMAGE_NAME =
@@ -101,6 +103,7 @@ public class DockerTest {
 
   private void test(String image, boolean transactions, boolean useServerSideFiltering)
       throws Exception {
+    log.info("Classpath: {}", System.getProperty("java.class.path"));
     try (PulsarContainer pulsarContainer =
         new PulsarContainer(image, transactions, useServerSideFiltering, tempDir); ) {
       pulsarContainer.start();
