@@ -28,6 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import javax.jms.*;
 import javax.jms.IllegalStateException;
@@ -51,6 +52,7 @@ import org.apache.pulsar.client.api.ReaderBuilder;
 import org.apache.pulsar.client.api.SubscriptionInitialPosition;
 import org.apache.pulsar.client.api.SubscriptionMode;
 import org.apache.pulsar.client.api.SubscriptionType;
+import org.apache.pulsar.common.policies.data.SubscriptionStats;
 
 @Slf4j
 public class PulsarConnectionFactory
@@ -75,7 +77,7 @@ public class PulsarConnectionFactory
   private String defaultClientId = null;
   private boolean enableTransaction = false;
   private boolean enableClientSideEmulation = false;
-  private boolean useServerSideSelectors = false;
+  private boolean useServerSideFiltering = false;
   private boolean forceDeleteTemporaryDestinations = false;
   private boolean useExclusiveSubscriptionsForSimpleConsumers = false;
   private boolean acknowledgeRejectedMessages = false;
@@ -263,9 +265,9 @@ public class PulsarConnectionFactory
           Boolean.parseBoolean(
               getAndRemoveString("jms.enableClientSideEmulation", "false", configuration));
 
-      this.useServerSideSelectors =
+      this.useServerSideFiltering =
           Boolean.parseBoolean(
-              getAndRemoveString("jms.useServerSideSelectors", "false", configuration));
+              getAndRemoveString("jms.useServerSideFiltering", "false", configuration));
 
       // in Exclusive mode Pulsar does not support delayed messages
       // with this flag you force to not use Exclusive subscription and so to support
@@ -386,8 +388,8 @@ public class PulsarConnectionFactory
     return enableClientSideEmulation;
   }
 
-  public synchronized boolean isUseServerSideSelectors() {
-    return useServerSideSelectors;
+  public synchronized boolean isUseServerSideFiltering() {
+    return useServerSideFiltering;
   }
 
   synchronized String getDefaultClientId() {
@@ -903,7 +905,10 @@ public class PulsarConnectionFactory
       int sessionMode,
       SubscriptionMode subscriptionMode,
       SubscriptionType subscriptionType,
-      String messageSelector)
+      String messageSelector,
+      boolean noLocal,
+      String jmsConnectionID,
+      AtomicReference<String> selectorOnSubscriptionReceiver)
       throws JMSException {
     String fullQualifiedTopicName = applySystemNamespace(destination.topicName);
     // for queues we have a single shared subscription
@@ -912,7 +917,6 @@ public class PulsarConnectionFactory
         destination.isTopic()
             ? SubscriptionInitialPosition.Latest
             : SubscriptionInitialPosition.Earliest;
-    MessageId seekMessageId = null;
     if (destination.isQueue() && subscriptionMode != SubscriptionMode.Durable) {
       throw new IllegalStateException("only durable mode for queues");
     }
@@ -928,16 +932,71 @@ public class PulsarConnectionFactory
         subscriptionType,
         messageSelector);
     Map<String, String> subscriptionProperties = new HashMap<>();
-    if (messageSelector != null && isUseServerSideSelectors()) {
-      subscriptionProperties.put("jms.selector", messageSelector);
+    Map<String, String> consumerMetadata = new HashMap<>();
+    consumerMetadata.put("jms.destination.type", destination.isQueue() ? "queue" : "topic");
+    if (isUseServerSideFiltering()) {
+      // this flag enables filtering on the subscription/consumer
+      // the plugin will apply filtering only on these subscriptions/consumers,
+      // in order to not impact on other subscriptions
+      consumerMetadata.put("jms.filtering", "true");
+      subscriptionProperties.put("jms.destination.type", destination.isQueue() ? "queue" : "topic");
+      if (noLocal) {
+        consumerMetadata.put("jms.filter.JMSConnectionID", jmsConnectionID);
+      }
     }
+    if (isUseServerSideFiltering()) {
+      if (messageSelector != null) {
+        consumerMetadata.put("jms.selector", messageSelector);
+      }
+      if (destination.isTopic()) {
+        consumerMetadata.put("jms.selector.reject.action", "drop");
+      } else {
+        // for Queue is it on the Consumer
+        consumerMetadata.put("jms.selector.reject.action", "reschedule");
+      }
+    }
+    if (isAcknowledgeRejectedMessages()) {
+      consumerMetadata.put("jms.force.drop.rejected", "true");
+    }
+
     try {
+      if (isUseServerSideFiltering() && subscriptionMode == SubscriptionMode.Durable) {
+        try {
+          Map<String, ? extends SubscriptionStats> subscriptions =
+              pulsarAdmin.topics().getStats(fullQualifiedTopicName).getSubscriptions();
+          SubscriptionStats subscriptionStats = subscriptions.get(subscriptionName);
+          if (subscriptionStats != null) {
+            Map<String, String> subscriptionPropertiesFromBroker =
+                subscriptionStats.getSubscriptionProperties();
+            log.info("subscriptionPropertiesFromBroker {}", subscriptionPropertiesFromBroker);
+            if (subscriptionPropertiesFromBroker != null) {
+              boolean filtering =
+                  "true".equals(subscriptionPropertiesFromBroker.get("jms.filtering"));
+              if (filtering) {
+                String selectorOnSubscription =
+                    subscriptionPropertiesFromBroker.getOrDefault("jms.selector", "");
+                if (!selectorOnSubscription.isEmpty()) {
+                  log.info(
+                      "Detected selector {} on Subscription {} on topic {}",
+                      selectorOnSubscription,
+                      subscriptionName,
+                      fullQualifiedTopicName);
+                  selectorOnSubscriptionReceiver.set(selectorOnSubscription);
+                }
+              }
+            }
+          }
+        } catch (PulsarAdminException.NotFoundException notFoundException) {
+        }
+      }
+
       ConsumerBuilder<byte[]> builder =
           pulsarClient
               .newConsumer()
               // these properties can be overridden by the configuration
               .negativeAckRedeliveryDelay(1, TimeUnit.SECONDS)
               .loadConf(getConsumerConfiguration())
+              .properties(consumerMetadata)
               // these properties cannot be overwritten by the configuration
               .subscriptionInitialPosition(initialPosition)
               .subscriptionMode(subscriptionMode)
@@ -947,8 +1006,9 @@ public class PulsarConnectionFactory
               .topic(fullQualifiedTopicName);
       Consumer<byte[]> newConsumer = builder.subscribe();
       consumers.add(newConsumer);
+
       return newConsumer;
-    } catch (PulsarClientException err) {
+    } catch (PulsarClientException | PulsarAdminException err) {
       throw Utils.handleException(err);
     }
   }
@@ -968,9 +1028,9 @@ public class PulsarConnectionFactory
       } else {
         seekMessageId = messages.get(0).getMessageId();
       }
-      ;
-      log.info("createBrowser {} at {}", fullQualifiedTopicName, seekMessageId);
-
+      if (log.isDebugEnabled()) {
+        log.debug("createBrowser {} at {}", fullQualifiedTopicName, seekMessageId);
+      }
       ReaderBuilder<byte[]> builder =
           pulsarClient
               .newReader()

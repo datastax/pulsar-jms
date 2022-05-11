@@ -29,10 +29,12 @@ import java.util.Map;
 import javax.jms.Destination;
 import javax.jms.JMSConsumer;
 import javax.jms.JMSContext;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.testcontainers.shaded.org.apache.commons.io.IOUtils;
 
+@Slf4j
 public class DockerTest {
 
   private static final String TEST_PULSAR_DOCKER_IMAGE_NAME =
@@ -57,7 +59,8 @@ public class DockerTest {
 
   @Test
   public void testPulsar2101() throws Exception {
-    test("eolivelli/pulsar:latest-branch-2.10", false);
+    // waiting for Apache Pulsar 2.10.1, in the meantime we use Luna Streaming 2.10.0.1
+    test("datastax/lunastreaming:2.10_0.1", false);
   }
 
   @Test
@@ -72,12 +75,14 @@ public class DockerTest {
 
   @Test
   public void testPulsar2101Transactions() throws Exception {
-    test("eolivelli/pulsar:latest-branch-2.10", true);
+    // waiting for Apache Pulsar 2.10.1, in the meantime we use Luna Streaming 2.10.0.1
+    test("datastax/lunastreaming:2.10_0.1", true);
   }
 
   @Test
   public void testPulsar2101ServerSideSelectors() throws Exception {
-    test("eolivelli/pulsar:latest-branch-2.10", false, true);
+    // waiting for Apache Pulsar 2.10.1, in the meantime we use Luna Streaming 2.10.0.1
+    test("datastax/lunastreaming:2.10_0.1", false, true);
   }
 
   @Test
@@ -96,17 +101,18 @@ public class DockerTest {
     test(image, transactions, false);
   }
 
-  private void test(String image, boolean transactions, boolean serverSideSelectors)
+  private void test(String image, boolean transactions, boolean useServerSideFiltering)
       throws Exception {
+    log.info("Classpath: {}", System.getProperty("java.class.path"));
     try (PulsarContainer pulsarContainer =
-        new PulsarContainer(image, transactions, serverSideSelectors, tempDir); ) {
+        new PulsarContainer(image, transactions, useServerSideFiltering, tempDir); ) {
       pulsarContainer.start();
       Map<String, Object> properties = new HashMap<>();
       properties.put("brokerServiceUrl", pulsarContainer.getPulsarBrokerUrl());
       properties.put("webServiceUrl", pulsarContainer.getHttpServiceUrl());
       properties.put("enableTransaction", transactions);
-      if (serverSideSelectors) {
-        properties.put("jms.useServerSideSelectors", true);
+      if (useServerSideFiltering) {
+        properties.put("jms.useServerSideFiltering", true);
       }
 
       // here we are using the repackaged Pulsar client and actually the class name is
@@ -149,7 +155,7 @@ public class DockerTest {
               (PulsarMessageConsumer.PulsarJMSConsumer) consumerWithSelector;
           PulsarMessageConsumer inner = pulsarJMSConsumer.asPulsarMessageConsumer();
 
-          if (serverSideSelectors) {
+          if (useServerSideFiltering) {
             // the message is not sent to the client at all
             assertEquals(1, inner.getReceivedMessages());
             assertEquals(0, inner.getSkippedMessages());

@@ -36,22 +36,33 @@
       <version>${project.version}</version>
       <exclusions>
         <exclusion>
-          <groupId>org.apache.pulsar</groupId>
+          <groupId>${pulsar.groupId}</groupId>
           <artifactId>pulsar-client-original</artifactId>
         </exclusion>
         <exclusion>
-          <groupId>org.apache.pulsar</groupId>
+          <groupId>${pulsar.groupId}</groupId>
           <artifactId>pulsar-client-admin-original</artifactId>
         </exclusion>
       </exclusions>
     </dependency>
     <dependency>
-      <groupId>org.apache.pulsar</groupId>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>pulsar-jms-filters</artifactId>
+      <version>${project.version}</version>
+      <exclusions>
+        <exclusion>
+          <groupId>${pulsar.groupId}</groupId>
+          <artifactId>*</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>${pulsar.groupId}</groupId>
       <artifactId>pulsar-client</artifactId>
       <version>${pulsar.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.apache.pulsar</groupId>
+      <groupId>${pulsar.groupId}</groupId>
       <artifactId>pulsar-client-admin</artifactId>
       <version>${pulsar.version}</version>
     </dependency>

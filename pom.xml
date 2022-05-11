@@ -49,8 +49,10 @@
     <maven.compiler.source>8</maven.compiler.source>
     <maven.compiler.target>8</maven.compiler.target>
     <jms.version>2.0.3</jms.version>
-    <pulsar.groupId>org.apache.pulsar</pulsar.groupId>
-    <pulsar.version>2.10.1-SNAPSHOT</pulsar.version>
+    <!-- waiting for a Apache Pulsar 2.10.1 release, in the meantime we use DataStax Luna Streaming
+         that is a fork of Apache Pulsar  -->
+    <pulsar.groupId>com.datastax.oss</pulsar.groupId>
+    <pulsar.version>2.10.0.2</pulsar.version>
     <activemq.version>5.16.1</activemq.version>
     <hawtbuf.version>1.11</hawtbuf.version>
     <curator.version>5.1.0</curator.version>
@@ -67,7 +69,7 @@
   <dependencyManagement>
     <dependencies>
       <dependency>
-        <groupId>org.apache.pulsar</groupId>
+        <groupId>${pulsar.groupId}</groupId>
         <artifactId>pulsar</artifactId>
         <version>${pulsar.version}</version>
         <type>pom</type>
@@ -497,22 +499,17 @@ limitations under the License.]]></inlineHeader>
       <id>ossrh</id>
       <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
     </repository>
-    <snapshotRepository>
-      <id>datastax-snapshots-local</id>
-      <name>DataStax Local Snapshots</name>
-      <url>https://repo.sjc.dsinternal.org/artifactory/datastax-snapshots-local/</url>
-    </snapshotRepository>
   </distributionManagement>
-  <!-- to use 2.10.1-SNAPSHOT -->
+  <!-- to use Luna Straaming -->
   <repositories>
     <repository>
-      <id>apache-snapshots</id>
-      <url>https://repository.apache.org/snapshots</url>
+      <id>DataStax Public repo</id>
+      <url>https://repo.datastax.com/artifactory/datastax-public-releases-local</url>
       <snapshots>
-        <enabled>true</enabled>
+        <enabled>false</enabled>
       </snapshots>
       <releases>
-        <enabled>false</enabled>
+        <enabled>true</enabled>
       </releases>
     </repository>
   </repositories>

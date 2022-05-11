@@ -19,6 +19,7 @@ import com.datastax.oss.pulsar.jms.selectors.SelectorSupport;
 import java.time.Instant;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import javax.jms.Destination;
 import javax.jms.IllegalStateException;
 import javax.jms.InvalidDestinationException;
@@ -47,7 +48,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
   final String subscriptionName;
   private final PulsarSession session;
   private final PulsarDestination destination;
-  private final SelectorSupport selectorSupport;
+  private SelectorSupport selectorSupport;
   private final boolean noLocal;
   private Consumer<byte[]> consumer;
   private MessageListener listener;
@@ -96,7 +97,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
             selector,
             subscriptionType == SubscriptionType.Exclusive
                 || session.getFactory().isEnableClientSideEmulation()
-                || session.getFactory().isUseServerSideSelectors());
+                || session.getFactory().isUseServerSideFiltering());
     this.unregisterSubscriptionOnClose = unregisterSubscriptionOnClose;
     if (noLocal
         && subscriptionType != SubscriptionType.Exclusive
@@ -126,6 +127,8 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
       throw new IllegalStateException("Consumer is closed");
     }
     if (consumer == null) {
+      AtomicReference<String> selectorOnSubscriptionReceiver = new AtomicReference<>();
+      String currentSelector = internalGetMessageSelector();
       consumer =
           session
               .getFactory()
@@ -135,7 +138,22 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
                   session.getAcknowledgeMode(),
                   subscriptionMode,
                   subscriptionType,
-                  getMessageSelector());
+                  currentSelector,
+                  noLocal,
+                  session.getConnection().getConnectionId(),
+                  selectorOnSubscriptionReceiver);
+      String jmsSelectorOnSubscription = selectorOnSubscriptionReceiver.get();
+      if (jmsSelectorOnSubscription != null && !jmsSelectorOnSubscription.isEmpty()) {
+        if (currentSelector != null && !currentSelector.isEmpty()) {
+          if (!currentSelector.equals(jmsSelectorOnSubscription)) {
+            throw new javax.jms.InvalidSelectorException(
+                "If you set locally a selector it must match"
+                    + "  the selector set at subscription level, in this case it is "
+                    + jmsSelectorOnSubscription);
+          }
+        }
+        selectorSupport = SelectorSupport.build(jmsSelectorOnSubscription, true);
+      }
     }
     return consumer;
   }
@@ -152,6 +170,14 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
   @Override
   public synchronized String getMessageSelector() throws JMSException {
     checkNotClosed();
+    if (destination.isQueue() && session.getFactory().isUseServerSideFiltering()) {
+      // ensure we download properly the selector from the server
+      getConsumer();
+    }
+    return internalGetMessageSelector();
+  }
+
+  private synchronized String internalGetMessageSelector() {
     return selectorSupport != null ? selectorSupport.getSelector() : null;
   }
 
@@ -351,6 +377,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
               + ",) cannot be converted to a "
               + expectedType);
     }
+    SelectorSupport selectorSupport = getSelectorSupport();
     if (selectorSupport != null
         && requiresClientSideFiltering(message)
         && !selectorSupport.matches(result)) {
@@ -371,6 +398,8 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
         return null;
       }
     }
+    // in case of useServerSideFiltering this filter is also applied on the broker, is the Plugin is
+    // present
     if (result.getJMSExpiration() > 0 && System.currentTimeMillis() >= result.getJMSExpiration()) {
       if (log.isDebugEnabled()) {
         log.debug("msg {} expired at {}", result, Instant.ofEpochMilli(result.getJMSExpiration()));
@@ -427,7 +456,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
     // because the broker can only ACCEPT or REJECT whole batches.
     // the broker will send the batch (Entry) if at least one message matches the selector
     boolean isBatch = (message.getMessageId() instanceof BatchMessageIdImpl);
-    return isBatch || !session.getFactory().isUseServerSideSelectors();
+    return isBatch || !session.getFactory().isUseServerSideFiltering();
   }
 
   /**
@@ -610,6 +639,10 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
 
   PulsarSession getSession() {
     return session;
+  }
+
+  private synchronized SelectorSupport getSelectorSupport() {
+    return selectorSupport;
   }
 
   Consumer<byte[]> getInternalConsumer() {

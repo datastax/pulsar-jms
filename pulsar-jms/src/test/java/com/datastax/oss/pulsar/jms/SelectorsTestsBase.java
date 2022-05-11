@@ -17,6 +17,7 @@ package com.datastax.oss.pulsar.jms;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.datastax.oss.pulsar.jms.messages.PulsarTextMessage;
 import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
@@ -34,6 +35,8 @@ import javax.jms.Queue;
 import javax.jms.TextMessage;
 import javax.jms.Topic;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.pulsar.client.api.Consumer;
+import org.apache.pulsar.client.api.SubscriptionMode;
 import org.apache.pulsar.client.api.SubscriptionType;
 import org.apache.pulsar.client.impl.BatchMessageIdImpl;
 import org.junit.jupiter.api.AfterAll;
@@ -49,11 +52,11 @@ public abstract class SelectorsTestsBase {
   @TempDir public static Path tempDir;
   private static PulsarCluster cluster;
 
-  private final boolean serverSideSelectors;
+  private final boolean useServerSideFiltering;
   private final boolean enableBatching;
 
-  public SelectorsTestsBase(boolean serverSideSelectors, boolean enableBatching) {
-    this.serverSideSelectors = serverSideSelectors;
+  public SelectorsTestsBase(boolean useServerSideFiltering, boolean enableBatching) {
+    this.useServerSideFiltering = useServerSideFiltering;
     this.enableBatching = enableBatching;
   }
 
@@ -74,8 +77,8 @@ public abstract class SelectorsTestsBase {
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
 
-    properties.put("jms.useServerSideSelectors", serverSideSelectors);
-    properties.put("jms.enableClientSideEmulation", !serverSideSelectors);
+    properties.put("jms.useServerSideFiltering", useServerSideFiltering);
+    properties.put("jms.enableClientSideEmulation", !useServerSideFiltering);
 
     Map<String, Object> producerConfig = new HashMap<>();
     producerConfig.put("batchingEnabled", enableBatching);
@@ -88,7 +91,7 @@ public abstract class SelectorsTestsBase {
     Map<String, Object> properties = buildProperties();
 
     // ensure that we don't ask for enableClientSideEmulation in this case
-    properties.put("jms.enableClientSideEmulation", !serverSideSelectors);
+    properties.put("jms.enableClientSideEmulation", !useServerSideFiltering);
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (PulsarConnection connection = factory.createConnection()) {
         connection.start();
@@ -115,7 +118,7 @@ public abstract class SelectorsTestsBase {
             TextMessage textMessage = (TextMessage) consumer1.receive();
             assertEquals("foo-9", textMessage.getText());
 
-            if (serverSideSelectors) {
+            if (useServerSideFiltering) {
               assertEquals(1, consumer1.getReceivedMessages());
               assertEquals(0, consumer1.getSkippedMessages());
             } else {
@@ -171,7 +174,7 @@ public abstract class SelectorsTestsBase {
             TextMessage textMessage = (TextMessage) consumer1.receive();
             assertEquals("foo-9", textMessage.getText());
 
-            if (serverSideSelectors) {
+            if (useServerSideFiltering) {
               assertEquals(1, consumer1.getReceivedMessages());
               assertEquals(0, consumer1.getSkippedMessages());
             } else {
@@ -223,7 +226,7 @@ public abstract class SelectorsTestsBase {
             TextMessage textMessage = (TextMessage) consumer1.receive();
             assertEquals("foo-9", textMessage.getText());
 
-            if (serverSideSelectors) {
+            if (useServerSideFiltering) {
               assertEquals(1, consumer1.getReceivedMessages());
               assertEquals(0, consumer1.getSkippedMessages());
             } else {
@@ -273,7 +276,7 @@ public abstract class SelectorsTestsBase {
             TextMessage textMessage = (TextMessage) consumer1.receive();
             assertEquals("foo-9", textMessage.getText());
 
-            if (serverSideSelectors) {
+            if (useServerSideFiltering) {
               assertEquals(1, consumer1.getReceivedMessages());
               assertEquals(0, consumer1.getSkippedMessages());
             } else {
@@ -360,7 +363,7 @@ public abstract class SelectorsTestsBase {
             // no more messages (this also drains some remaining messages to be skipped)
             assertNull(consumer1.receive(1000));
 
-            if (serverSideSelectors) {
+            if (useServerSideFiltering) {
               if (enableBatching) {
                 // unfortunately the server could not reject any batch
                 assertEquals(100, consumer1.getReceivedMessages());
@@ -452,7 +455,7 @@ public abstract class SelectorsTestsBase {
             // no more messages (this also drains some remaining messages to be skipped)
             assertNull(consumer1.receive(1000));
 
-            if (serverSideSelectors) {
+            if (useServerSideFiltering) {
               // even with batching the client
               // receives exactly only the messages that match the filter
               assertEquals(expected.size(), consumer1.getReceivedMessages());
@@ -461,6 +464,166 @@ public abstract class SelectorsTestsBase {
               assertEquals(100, consumer1.getReceivedMessages());
               assertEquals(100 - expected.size(), consumer1.getSkippedMessages());
             }
+          }
+        }
+      }
+    }
+  }
+
+  @Test
+  public void sendUsingExistingPulsarSubscriptionWithServerSideFilterForTopic() throws Exception {
+
+    assumeTrue(useServerSideFiltering);
+
+    Map<String, Object> properties = buildProperties();
+
+    // we never require enableClientSideEmulation for an Exclusive subscription
+    // because it is always safe
+    properties.put("jms.enableClientSideEmulation", "false");
+
+    String topicName = "topic-with-sub-" + useServerSideFiltering + "_" + enableBatching;
+    cluster.getService().getAdminClient().topics().createNonPartitionedTopic(topicName);
+
+    String subscriptionName = "the-sub";
+    String selector = "keepme = TRUE";
+
+    Map<String, String> subscriptionProperties = new HashMap<>();
+    subscriptionProperties.put("jms.selector", selector);
+    subscriptionProperties.put("jms.filtering", "true");
+
+    // create a Subscription with a selector
+    try (Consumer<byte[]> dummy =
+        cluster
+            .getService()
+            .getClient()
+            .newConsumer()
+            .subscriptionName(subscriptionName)
+            .subscriptionType(SubscriptionType.Shared)
+            .subscriptionMode(SubscriptionMode.Durable)
+            .subscriptionProperties(subscriptionProperties)
+            .topic(topicName)
+            .subscribe()) {
+      // in 2.10 there is no PulsarAdmin API to set subscriptions properties
+      // the only way is to create a dummy Consumer
+    }
+
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+      try (PulsarConnection connection = factory.createConnection()) {
+        connection.start();
+        try (PulsarSession session = connection.createSession(); ) {
+          Topic destination = session.createTopic(topicName);
+
+          // do not set the selector, it will be loaded from the Subscription Properties
+          try (PulsarMessageConsumer consumer1 =
+              session.createSharedDurableConsumer(destination, subscriptionName, null); ) {
+            assertEquals(
+                SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
+
+            // this is downloaded from the server
+            assertEquals(selector, consumer1.getMessageSelector());
+
+            try (MessageProducer producer = session.createProducer(destination); ) {
+              for (int i = 0; i < 10; i++) {
+                TextMessage textMessage = session.createTextMessage("foo-" + i);
+                if (i % 2 == 0) {
+                  textMessage.setBooleanProperty("keepme", true);
+                }
+                producer.send(textMessage);
+              }
+            }
+
+            for (int i = 0; i < 10; i++) {
+              if (i % 2 == 0) {
+                TextMessage textMessage = (TextMessage) consumer1.receive();
+                assertEquals("foo-" + i, textMessage.getText());
+              }
+            }
+
+            assertEquals(5, consumer1.getReceivedMessages());
+            assertEquals(0, consumer1.getSkippedMessages());
+
+            // no more messages
+            assertNull(consumer1.receiveNoWait());
+          }
+        }
+      }
+    }
+  }
+
+  @Test
+  public void sendUsingExistingPulsarSubscriptionWithServerSideFilterForQueue() throws Exception {
+
+    assumeTrue(useServerSideFiltering);
+
+    Map<String, Object> properties = buildProperties();
+
+    // we never require enableClientSideEmulation for an Exclusive subscription
+    // because it is always safe
+    properties.put("jms.enableClientSideEmulation", "false");
+
+    String topicName = "queue-with-sub-" + useServerSideFiltering + "_" + enableBatching;
+    cluster.getService().getAdminClient().topics().createNonPartitionedTopic(topicName);
+
+    String subscriptionName = "the-sub";
+    properties.put("jms.queueSubscriptionName", subscriptionName);
+    String selector = "keepme = TRUE";
+
+    Map<String, String> subscriptionProperties = new HashMap<>();
+    subscriptionProperties.put("jms.selector", selector);
+    subscriptionProperties.put("jms.filtering", "true");
+
+    // create a Subscription with a selector
+    try (Consumer<byte[]> dummy =
+        cluster
+            .getService()
+            .getClient()
+            .newConsumer()
+            .subscriptionName(subscriptionName)
+            .subscriptionType(SubscriptionType.Shared)
+            .subscriptionMode(SubscriptionMode.Durable)
+            .subscriptionProperties(subscriptionProperties)
+            .topic(topicName)
+            .subscribe()) {
+      // in 2.10 there is no PulsarAdmin API to set subscriptions properties
+      // the only way is to create a dummy Consumer
+    }
+
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+      try (PulsarConnection connection = factory.createConnection()) {
+        connection.start();
+        try (PulsarSession session = connection.createSession(); ) {
+          Queue destination = session.createQueue(topicName);
+
+          // do not set the selector, it will be loaded from the Subscription Properties
+          try (PulsarMessageConsumer consumer1 = session.createConsumer(destination); ) {
+            assertEquals(
+                SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
+
+            // this is downloaded from the server
+            assertEquals(selector, consumer1.getMessageSelector());
+
+            try (MessageProducer producer = session.createProducer(destination); ) {
+              for (int i = 0; i < 10; i++) {
+                TextMessage textMessage = session.createTextMessage("foo-" + i);
+                if (i % 2 == 0) {
+                  textMessage.setBooleanProperty("keepme", true);
+                }
+                producer.send(textMessage);
+              }
+            }
+
+            for (int i = 0; i < 10; i++) {
+              if (i % 2 == 0) {
+                TextMessage textMessage = (TextMessage) consumer1.receive();
+                assertEquals("foo-" + i, textMessage.getText());
+              }
+            }
+
+            assertEquals(5, consumer1.getReceivedMessages());
+            assertEquals(0, consumer1.getSkippedMessages());
+
+            // no more messages
+            assertNull(consumer1.receiveNoWait());
           }
         }
       }

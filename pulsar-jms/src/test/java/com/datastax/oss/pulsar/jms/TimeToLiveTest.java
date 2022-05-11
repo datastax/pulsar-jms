@@ -16,6 +16,7 @@
 package com.datastax.oss.pulsar.jms;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
@@ -23,21 +24,21 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
-import javax.jms.Connection;
+import java.util.stream.Stream;
 import javax.jms.DeliveryMode;
 import javax.jms.Message;
-import javax.jms.MessageConsumer;
 import javax.jms.MessageProducer;
 import javax.jms.Queue;
-import javax.jms.Session;
 import javax.jms.TextMessage;
 import javax.jms.Topic;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.api.SubscriptionType;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 @Slf4j
 public class TimeToLiveTest {
@@ -58,48 +59,81 @@ public class TimeToLiveTest {
     }
   }
 
-  @Test
-  public void sendMessageReceiveFromQueueWithTimeToLive() throws Exception {
+  private static Stream<Arguments> combinations() {
+    return Stream.of(
+        Arguments.of(true, true),
+        Arguments.of(false, true),
+        Arguments.of(true, false),
+        Arguments.of(false, false));
+  }
+
+  @ParameterizedTest(name = "{index} useServerSideFiltering {0} enableBatching {1}")
+  @MethodSource("combinations")
+  public void sendMessageReceiveFromQueueWithTimeToLive(
+      boolean useServerSideFiltering, boolean enableBatching) throws Exception {
 
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
-    properties.put("jms.enableClientSideEmulation", "true");
+    properties.put("jms.enableClientSideEmulation", !useServerSideFiltering);
+    properties.put("jms.useServerSideFiltering", useServerSideFiltering);
+    Map<String, Object> producerConfig = new HashMap<>();
+    producerConfig.put("batchingEnabled", enableBatching);
+    properties.put("producerConfig", producerConfig);
+
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
-      try (Connection connection = factory.createConnection(); ) {
+      try (PulsarConnection connection = factory.createConnection(); ) {
         connection.start();
-        try (Session session = connection.createSession(); ) {
+        try (PulsarSession session = connection.createSession(); ) {
           Queue destination =
               session.createQueue("persistent://public/default/test-" + UUID.randomUUID());
 
-          try (MessageConsumer consumer1 = session.createConsumer(destination); ) {
-            assertEquals(
-                SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
-
-            try (MessageProducer producer = session.createProducer(destination); ) {
-              for (int i = 0; i < 10; i++) {
-                TextMessage textMessage = session.createTextMessage("foo-" + i);
-                // 1 second timeToLive to some of the messages
-                long timeToLive;
-                if (i % 2 == 0) {
-                  timeToLive = 1000;
-                } else {
-                  timeToLive = 0;
-                }
-                producer.send(
-                    textMessage, DeliveryMode.PERSISTENT, Message.DEFAULT_PRIORITY, timeToLive);
-                if (timeToLive > 0) {
-                  assertTrue(textMessage.getJMSExpiration() > 0);
-                }
+          try (MessageProducer producer = session.createProducer(destination); ) {
+            for (int i = 0; i < 10; i++) {
+              TextMessage textMessage = session.createTextMessage("foo-" + i);
+              // 1 second timeToLive to some messages
+              long timeToLive;
+              if (i % 2 == 0) {
+                timeToLive = 1000;
+              } else {
+                timeToLive = 0;
+              }
+              producer.send(
+                  textMessage, DeliveryMode.PERSISTENT, Message.DEFAULT_PRIORITY, timeToLive);
+              if (timeToLive > 0) {
+                assertTrue(textMessage.getJMSExpiration() > 0);
               }
             }
+          }
 
-            // wait for messages to expire
-            Thread.sleep(2000);
+          // wait for messages to expire
+          Thread.sleep(2000);
+
+          // please note that the server-side filter is applied on the broker when it pushed the
+          // messages
+          // to the consumer, and not when the consumer receives the messages
+          // so with server-side filtering it is still possible to see a message dispatched to a
+          // consumer
+          // if the consumer is connected when the producer sends the message
+
+          // here we are creating the Consumer after Thread.sleep, so when the broker
+          // dispatches the messages they are already expired
+          try (PulsarMessageConsumer consumer1 = session.createConsumer(destination); ) {
+            assertEquals(SubscriptionType.Shared, consumer1.getSubscriptionType());
 
             // only foo-1, foo-3, foo-5... can be received
             for (int i = 0; i < 5; i++) {
-              TextMessage textMessage = (TextMessage) consumer1.receive();
+              TextMessage textMessage = (TextMessage) consumer1.receive(10000);
+              log.info("received {}", textMessage);
+              assertNotNull(textMessage, "only " + i + " messages have been received");
               assertEquals("foo-" + (i * 2 + 1), textMessage.getText());
+            }
+
+            if (useServerSideFiltering) {
+              assertEquals(5, consumer1.getReceivedMessages());
+              assertEquals(0, consumer1.getSkippedMessages());
+            } else {
+              assertEquals(10, consumer1.getReceivedMessages());
+              assertEquals(5, consumer1.getSkippedMessages());
             }
           }
         }
@@ -107,23 +141,43 @@ public class TimeToLiveTest {
     }
   }
 
-  @Test
-  public void sendMessageReceiveFromTopicWithTimeToLive() throws Exception {
+  @ParameterizedTest(name = "{index} useServerSideFiltering {0} enableBatching {1}")
+  @MethodSource("combinations")
+  public void sendMessageReceiveFromTopicWithTimeToLive(
+      boolean useServerSideFiltering, boolean enableBatching) throws Exception {
 
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
-    properties.put("jms.enableClientSideEmulation", "true");
+    properties.put("jms.enableClientSideEmulation", !useServerSideFiltering);
+    properties.put("jms.useServerSideFiltering", useServerSideFiltering);
+    Map<String, Object> producerConfig = new HashMap<>();
+    producerConfig.put("batchingEnabled", enableBatching);
+    properties.put("producerConfig", producerConfig);
+
+    // we don't want the consumer to pre-fetch all the messages
+    Map<String, Object> consumerConfig = new HashMap<>();
+    consumerConfig.put("receiverQueueSize", 1);
+    properties.put("consumerConfig", consumerConfig);
+
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
-      try (Connection connection = factory.createConnection(); ) {
+      try (PulsarConnection connection = factory.createConnection(); ) {
         connection.start();
-        try (Session session = connection.createSession(); ) {
+        try (PulsarSession session = connection.createSession(); ) {
           Topic destination =
               session.createTopic("persistent://public/default/test-" + UUID.randomUUID());
 
-          try (MessageConsumer consumer1 = session.createConsumer(destination); ) {
-            assertEquals(
-                SubscriptionType.Exclusive,
-                ((PulsarMessageConsumer) consumer1).getSubscriptionType());
+          // please note that the server-side filter is applied on the broker when it pushed the
+          // messages
+          // to the consumer, and not when the consumer receives the messages
+          // so with server-side filtering it is still possible to see a message dispatched to a
+          // consumer
+          // if the consumer is connected when the producer sends the message
+          // here we are creating the Consumer before sending the messages
+          // so one message (receiverQueueSize=1) will be processed on the broker as soon as it has
+          // been
+          // produced
+          try (PulsarMessageConsumer consumer1 = session.createConsumer(destination); ) {
+            assertEquals(SubscriptionType.Exclusive, consumer1.getSubscriptionType());
 
             try (MessageProducer producer = session.createProducer(destination); ) {
               for (int i = 0; i < 10; i++) {
@@ -150,6 +204,15 @@ public class TimeToLiveTest {
             for (int i = 0; i < 5; i++) {
               TextMessage textMessage = (TextMessage) consumer1.receive();
               assertEquals("foo-" + (i * 2 + 1), textMessage.getText());
+            }
+
+            if (useServerSideFiltering) {
+              // the consumer pre-fetches one message, so this is dispatched before Thread.sleep()
+              assertEquals(1, consumer1.getSkippedMessages());
+              assertEquals(6, consumer1.getReceivedMessages());
+            } else {
+              assertEquals(5, consumer1.getSkippedMessages());
+              assertEquals(10, consumer1.getReceivedMessages());
             }
           }
         }
