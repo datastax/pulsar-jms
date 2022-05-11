@@ -52,7 +52,7 @@
     <!-- waiting for a Apache Pulsar 2.10.1 release, in the meantime we use DataStax Luna Streaming
          that is a fork of Apache Pulsar  -->
     <pulsar.groupId>com.datastax.oss</pulsar.groupId>
-    <pulsar.version>2.10.0.2-SNAPSHOT</pulsar.version>
+    <pulsar.version>2.10.0.2</pulsar.version>
     <activemq.version>5.16.1</activemq.version>
     <hawtbuf.version>1.11</hawtbuf.version>
     <curator.version>5.1.0</curator.version>
@@ -499,11 +499,6 @@ limitations under the License.]]></inlineHeader>
       <id>ossrh</id>
       <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
     </repository>
-    <snapshotRepository>
-      <id>datastax-snapshots-local</id>
-      <name>DataStax Local Snapshots</name>
-      <url>https://repo.sjc.dsinternal.org/artifactory/datastax-snapshots-local/</url>
-    </snapshotRepository>
   </distributionManagement>
   <!-- to use Luna Straaming -->
   <repositories>
