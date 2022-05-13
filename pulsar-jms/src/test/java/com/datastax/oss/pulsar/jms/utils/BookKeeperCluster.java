@@ -104,6 +104,8 @@ public final class BookKeeperCluster implements AutoCloseable {
     conf.setMetadataServiceUri(getBookKeeperMetadataURI());
     conf.setLedgerDirNames(new String[] {targetDir.toAbsolutePath().toString()});
     conf.setJournalDirName(targetDir.toAbsolutePath().toString());
+    // required for chunking test, this is the default value in bookkeeper.conf in Pulsar
+    conf.setNettyMaxFrameSizeBytes(5253120);
     conf.setFlushInterval(10000);
     conf.setGcWaitTime(5);
     conf.setJournalFlushWhenQueueEmpty(true);

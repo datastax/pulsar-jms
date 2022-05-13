@@ -17,6 +17,7 @@ package com.datastax.oss.pulsar.jms;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.datastax.oss.pulsar.jms.messages.PulsarTextMessage;
@@ -35,6 +36,7 @@ import javax.jms.Queue;
 import javax.jms.TextMessage;
 import javax.jms.Topic;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.pulsar.client.api.Consumer;
 import org.apache.pulsar.client.api.SubscriptionMode;
 import org.apache.pulsar.client.api.SubscriptionType;
@@ -621,6 +623,63 @@ public abstract class SelectorsTestsBase {
 
             assertEquals(5, consumer1.getReceivedMessages());
             assertEquals(0, consumer1.getSkippedMessages());
+
+            // no more messages
+            assertNull(consumer1.receiveNoWait());
+          }
+        }
+      }
+    }
+  }
+
+  @Test
+  public void chunkingTest() throws Exception {
+    assumeFalse(enableBatching);
+    Map<String, Object> properties = buildProperties();
+
+    // ensure that we don't ask for enableClientSideEmulation in this case
+    properties.put("jms.enableClientSideEmulation", !useServerSideFiltering);
+    Map<String, Object> producerConfig = (Map<String, Object>) properties.get("producerConfig");
+    producerConfig.put("chunkingEnabled", true);
+
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+      try (PulsarConnection connection = factory.createConnection()) {
+        connection.start();
+        try (PulsarSession session = connection.createSession(); ) {
+          Topic destination =
+              session.createTopic("persistent://public/default/test-" + UUID.randomUUID());
+
+          try (PulsarMessageConsumer consumer1 =
+              session.createConsumer(destination, "lastMessage=TRUE"); ) {
+            assertEquals(
+                SubscriptionType.Exclusive,
+                ((PulsarMessageConsumer) consumer1).getSubscriptionType());
+            assertEquals("lastMessage=TRUE", consumer1.getMessageSelector());
+
+            int sizeForChunking =
+                cluster.getService().getConfiguration().getMaxMessageSize() + 1024;
+            String hugePayload = StringUtils.repeat("a", sizeForChunking);
+
+            try (MessageProducer producer = session.createProducer(destination); ) {
+              for (int i = 0; i < 10; i++) {
+                TextMessage textMessage = session.createTextMessage(hugePayload + "-" + i);
+                if (i == 9) {
+                  textMessage.setBooleanProperty("lastMessage", true);
+                }
+                producer.send(textMessage);
+              }
+            }
+
+            TextMessage textMessage = (TextMessage) consumer1.receive();
+            assertEquals(hugePayload + "-9", textMessage.getText());
+
+            if (useServerSideFiltering) {
+              assertEquals(1, consumer1.getReceivedMessages());
+              assertEquals(0, consumer1.getSkippedMessages());
+            } else {
+              assertEquals(10, consumer1.getReceivedMessages());
+              assertEquals(9, consumer1.getSkippedMessages());
+            }
 
             // no more messages
             assertNull(consumer1.receiveNoWait());

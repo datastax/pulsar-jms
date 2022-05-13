@@ -231,10 +231,6 @@ public class JMSFilter implements EntryFilter {
           if (oneAccepted) {
             return FilterResult.ACCEPT;
           }
-          log.info(
-              "allFilteredBySubscriptionFilter {} ??? {}",
-              allFilteredBySubscriptionFilter,
-              rejectResultForSelector);
           return rejectResultForSelector;
         } finally {
           uncompressedPayload.release();
@@ -294,10 +290,8 @@ public class JMSFilter implements EntryFilter {
         }
 
         if (matches) {
-          log.info("result {} {} {}", entry.getPosition(), FilterResult.ACCEPT, typedProperties);
           return FilterResult.ACCEPT;
         }
-        log.info("result {} {} {}", entry.getPosition(), rejectResultForSelector, typedProperties);
         return rejectResultForSelector;
       }
 
