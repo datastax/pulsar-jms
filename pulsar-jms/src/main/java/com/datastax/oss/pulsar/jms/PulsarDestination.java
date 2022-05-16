@@ -33,6 +33,19 @@ public abstract class PulsarDestination implements Destination {
     this.topicName = name;
   }
 
+  /**
+   * Extract custom Queue Subscription Name. This feature does not apply to JMS Topics.
+   *
+   * @return the subscription name, if present.
+   */
+  public String extractSubscriptionName() {
+    return null;
+  }
+
+  public String getInternalTopicName() {
+    return topicName;
+  }
+
   public abstract boolean isQueue();
 
   public abstract boolean isTopic();

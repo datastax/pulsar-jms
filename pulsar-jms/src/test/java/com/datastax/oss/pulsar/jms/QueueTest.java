@@ -17,6 +17,7 @@ package com.datastax.oss.pulsar.jms;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -39,6 +40,7 @@ import javax.jms.QueueBrowser;
 import javax.jms.Session;
 import javax.jms.TextMessage;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.pulsar.common.policies.data.TopicStats;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -317,6 +319,58 @@ public class QueueTest {
 
             // no more messages
             assertNull(consumer1.receiveNoWait());
+          }
+        }
+      }
+    }
+  }
+
+  @Test
+  public void customSubscriptionName() throws Exception {
+
+    Map<String, Object> properties = new HashMap<>();
+    properties.put("webServiceUrl", cluster.getAddress());
+    properties.put("jms.queueSubscriptionName", "default-sub-name");
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+      try (Connection connection = factory.createConnection()) {
+        connection.start();
+        try (Session session = connection.createSession(); ) {
+          String shortTopicName = "test-" + UUID.randomUUID();
+          String fullTopicName = "persistent://public/default/" + shortTopicName;
+          Queue destinationWithShortTopicName = session.createQueue(shortTopicName);
+          Queue destinationWithShortTopicNameAndCustomSubscription =
+              session.createQueue(shortTopicName + ":sub1");
+          Queue destinationWithFullTopicNameAndCustomSubscription =
+              session.createQueue(fullTopicName + ":sub2");
+
+          // custom subscription must be handled well even by Producer code (removing the Subscription name part)
+          try (MessageProducer producer = session
+                  .createProducer(destinationWithShortTopicNameAndCustomSubscription); ) {
+            for (int i = 0; i < 10; i++) {
+              producer.send(session.createTextMessage("foo-" + i));
+            }
+          }
+
+          try (MessageConsumer consumer1 = session.createConsumer(destinationWithShortTopicName);
+              MessageConsumer consumer2 =
+                  session.createConsumer(destinationWithShortTopicNameAndCustomSubscription);
+              MessageConsumer consumer3 =
+                  session.createConsumer(destinationWithFullTopicNameAndCustomSubscription); ) {
+
+            // assert that all the consumers receive all the messages
+            for (int i = 0; i < 10; i++) {
+              assertNotNull(consumer1.receive());
+              assertNotNull(consumer2.receive());
+              assertNotNull(consumer3.receive());
+            }
+
+            // verify that we have 3 different subscriptions, with the expected names
+            TopicStats stats =
+                cluster.getService().getAdminClient().topics().getStats(fullTopicName);
+            log.info("Subscriptions {}", stats.getSubscriptions().keySet());
+            assertNotNull(stats.getSubscriptions().get("default-sub-name"));
+            assertNotNull(stats.getSubscriptions().get("sub1"));
+            assertNotNull(stats.getSubscriptions().get("sub2"));
           }
         }
       }

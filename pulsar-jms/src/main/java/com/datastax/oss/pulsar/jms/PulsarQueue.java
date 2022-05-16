@@ -49,4 +49,39 @@ public final class PulsarQueue extends PulsarDestination implements Queue {
   public String toString() {
     return "Queue{" + topicName + "}";
   }
+
+  /**
+   * Extract custom Queue Subscription Name
+   *
+   * @return the subscription name, if present
+   */
+  public String extractSubscriptionName() {
+    int pos = topicName.lastIndexOf(":");
+    if (pos < 0) {
+      return null;
+    }
+    // only valid cases
+    // queue:subscription
+    // persistent://public/default/queue:subscription
+    int slash = topicName.lastIndexOf("/");
+    if (slash < 0 || slash < pos) {
+      return topicName.substring(pos + 1);
+    }
+    return null;
+  }
+
+  public String getInternalTopicName() {
+    int pos = topicName.lastIndexOf(":");
+    if (pos < 0) {
+      return topicName;
+    }
+    // only valid cases
+    // queue:subscription
+    // persistent://public/default/queue:subscription
+    int slash = topicName.lastIndexOf("/");
+    if (slash < 0 || slash < pos) {
+      return topicName.substring(0, pos);
+    }
+    return topicName;
+  }
 }

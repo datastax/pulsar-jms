@@ -36,6 +36,7 @@ abstract class PulsarTemporaryDestination extends PulsarDestination {
   public final void delete() throws JMSException {
     try {
       log.info("Deleting {}", this);
+      String topicName = getInternalTopicName();
       String fullQualifiedTopicName = session.getFactory().applySystemNamespace(topicName);
       TopicStats stats =
           session.getFactory().getPulsarAdmin().topics().getStats(fullQualifiedTopicName);

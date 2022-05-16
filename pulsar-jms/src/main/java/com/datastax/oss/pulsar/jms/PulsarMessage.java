@@ -1171,6 +1171,9 @@ public abstract class PulsarMessage implements Message {
       message.property("JMSMessageId", messageId);
     }
     if (jmsReplyTo != null) {
+      // here we want to keep the original name passed by the user
+      // if we have the subscription name in the form Queue:Subscription
+      // then here we want to keep the Subscription name
       message.property(
           "JMSReplyTo",
           session.getFactory().applySystemNamespace(((PulsarDestination) jmsReplyTo).topicName));
