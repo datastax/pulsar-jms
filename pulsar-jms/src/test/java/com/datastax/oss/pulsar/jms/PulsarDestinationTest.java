@@ -37,12 +37,12 @@ public class PulsarDestinationTest {
     assertNull(topic.extractSubscriptionName());
 
     topic = new PulsarQueue("test:sub");
-    assertEquals("sub", topic.extractSubscriptionName());
+    assertEquals("test:sub", topic.extractSubscriptionName());
 
     topic = new PulsarQueue("test:sub");
-    assertEquals("sub", topic.extractSubscriptionName());
+    assertEquals("test:sub", topic.extractSubscriptionName());
 
     topic = new PulsarQueue("persistent://public/default/test:sub");
-    assertEquals("sub", topic.extractSubscriptionName());
+    assertEquals("test:sub", topic.extractSubscriptionName());
   }
 }

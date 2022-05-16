@@ -16,6 +16,7 @@
 package com.datastax.oss.pulsar.jms;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
@@ -41,6 +42,7 @@ import org.apache.pulsar.client.api.Consumer;
 import org.apache.pulsar.client.api.SubscriptionMode;
 import org.apache.pulsar.client.api.SubscriptionType;
 import org.apache.pulsar.client.impl.BatchMessageIdImpl;
+import org.apache.pulsar.common.policies.data.TopicStats;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -563,7 +565,7 @@ public abstract class SelectorsTestsBase {
     // because it is always safe
     properties.put("jms.enableClientSideEmulation", "false");
 
-    String topicName = "queue-with-sub-" + useServerSideFiltering + "_" + enableBatching;
+    String topicName = "sendUsingExistingPulsarSubscriptionWithServerSideFilterForQueue_" + enableBatching;
     cluster.getService().getAdminClient().topics().createNonPartitionedTopic(topicName);
 
     String subscriptionName = "the-sub";
@@ -579,7 +581,7 @@ public abstract class SelectorsTestsBase {
             .getService()
             .getClient()
             .newConsumer()
-            .subscriptionName(subscriptionName)
+            .subscriptionName(topicName + ":" + subscriptionName) // real subscription name is short topic name + subname
             .subscriptionType(SubscriptionType.Shared)
             .subscriptionMode(SubscriptionMode.Durable)
             .subscriptionProperties(subscriptionProperties)
@@ -628,6 +630,10 @@ public abstract class SelectorsTestsBase {
             assertNull(consumer1.receiveNoWait());
           }
         }
+
+        // ensure subscription exists
+        TopicStats stats = cluster.getService().getAdminClient().topics().getStats(topicName);
+        assertNotNull(stats.getSubscriptions().get(topicName + ":" + subscriptionName));
       }
     }
   }

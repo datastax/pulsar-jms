@@ -64,8 +64,18 @@ public final class PulsarQueue extends PulsarDestination implements Queue {
     // queue:subscription
     // persistent://public/default/queue:subscription
     int slash = topicName.lastIndexOf("/");
+    // we include the short topic name in the subscription name
+    // because in Pulsar subscription level permissions are namespace scoped
+    // and not topic-scoped, so it is better that the subscription name
+    // is unique in the scope of a namespace
     if (slash < 0 || slash < pos) {
-      return topicName.substring(pos + 1);
+      if (slash < 0) {
+        // queue:subscription
+        return topicName;
+      } else {
+        // persistent://public/default/queue:subscription
+        return topicName.substring(slash + 1);
+      }
     }
     return null;
   }

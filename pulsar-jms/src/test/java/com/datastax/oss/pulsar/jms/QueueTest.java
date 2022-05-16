@@ -370,8 +370,8 @@ public class QueueTest {
                 cluster.getService().getAdminClient().topics().getStats(fullTopicName);
             log.info("Subscriptions {}", stats.getSubscriptions().keySet());
             assertNotNull(stats.getSubscriptions().get("default-sub-name"));
-            assertNotNull(stats.getSubscriptions().get("sub1"));
-            assertNotNull(stats.getSubscriptions().get("sub2"));
+            assertNotNull(stats.getSubscriptions().get(shortTopicName + ":sub1"));
+            assertNotNull(stats.getSubscriptions().get(shortTopicName + ":sub2"));
           }
         }
       }
