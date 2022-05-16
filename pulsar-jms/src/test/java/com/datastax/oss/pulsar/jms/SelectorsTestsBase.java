@@ -567,7 +567,6 @@ public abstract class SelectorsTestsBase {
     cluster.getService().getAdminClient().topics().createNonPartitionedTopic(topicName);
 
     String subscriptionName = "the-sub";
-    properties.put("jms.queueSubscriptionName", subscriptionName);
     String selector = "keepme = TRUE";
 
     Map<String, String> subscriptionProperties = new HashMap<>();
@@ -594,7 +593,8 @@ public abstract class SelectorsTestsBase {
       try (PulsarConnection connection = factory.createConnection()) {
         connection.start();
         try (PulsarSession session = connection.createSession(); ) {
-          Queue destination = session.createQueue(topicName);
+          // since 2.0.1 you can set the Subscription name in the JMS Queue Name
+          Queue destination = session.createQueue(topicName + ":" + subscriptionName);
 
           // do not set the selector, it will be loaded from the Subscription Properties
           try (PulsarMessageConsumer consumer1 = session.createConsumer(destination); ) {

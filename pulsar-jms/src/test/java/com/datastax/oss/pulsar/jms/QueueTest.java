@@ -343,9 +343,10 @@ public class QueueTest {
           Queue destinationWithFullTopicNameAndCustomSubscription =
               session.createQueue(fullTopicName + ":sub2");
 
-          // custom subscription must be handled well even by Producer code (removing the Subscription name part)
-          try (MessageProducer producer = session
-                  .createProducer(destinationWithShortTopicNameAndCustomSubscription); ) {
+          // custom subscription must be handled well even by Producer code (removing the
+          // Subscription name part)
+          try (MessageProducer producer =
+              session.createProducer(destinationWithShortTopicNameAndCustomSubscription); ) {
             for (int i = 0; i < 10; i++) {
               producer.send(session.createTextMessage("foo-" + i));
             }
