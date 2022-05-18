@@ -565,7 +565,8 @@ public abstract class SelectorsTestsBase {
     // because it is always safe
     properties.put("jms.enableClientSideEmulation", "false");
 
-    String topicName = "sendUsingExistingPulsarSubscriptionWithServerSideFilterForQueue_" + enableBatching;
+    String topicName =
+        "sendUsingExistingPulsarSubscriptionWithServerSideFilterForQueue_" + enableBatching;
     cluster.getService().getAdminClient().topics().createNonPartitionedTopic(topicName);
 
     String subscriptionName = "the-sub";
@@ -581,7 +582,10 @@ public abstract class SelectorsTestsBase {
             .getService()
             .getClient()
             .newConsumer()
-            .subscriptionName(topicName + ":" + subscriptionName) // real subscription name is short topic name + subname
+            .subscriptionName(
+                topicName
+                    + ":"
+                    + subscriptionName) // real subscription name is short topic name + subname
             .subscriptionType(SubscriptionType.Shared)
             .subscriptionMode(SubscriptionMode.Durable)
             .subscriptionProperties(subscriptionProperties)

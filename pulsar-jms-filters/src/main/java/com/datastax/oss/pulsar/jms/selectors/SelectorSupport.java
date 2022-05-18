@@ -69,9 +69,53 @@ public final class SelectorSupport {
     // JMSTimestamp,
     // JMSCorrelationID, and JMSType. JMSMessageID, JMSCorrelationID, and JMSType values may be null
     // and if so are treated as a NULL value.
-    MessageEvaluationContext context = new MessageEvaluationContext();
-    ActiveMQMessage toMessage = new ActiveMQMessage();
-    toMessage.setProperties(messageProperties);
+    MessageEvaluationContext context =
+        new MessageEvaluationContext() {
+          @Override
+          public boolean isDropped() {
+            // this method would trigger churn
+            return false;
+          }
+        };
+
+    ActiveMQMessage toMessage =
+        new ActiveMQMessage() {
+
+          // this methods in ActiveMQMessage use synchronization and also do lot of useless
+          // computations
+          @Override
+          public int incrementReferenceCount() {
+            return 0;
+          }
+
+          @Override
+          public int decrementReferenceCount() {
+            return 0;
+          }
+
+          @Override
+          public int getSize() {
+            return 0;
+          }
+
+          @Override
+          public int getReferenceCount() {
+            return 0;
+          }
+
+          // saving CPU cycles here, PropertyExpression calls this method for non-system properties
+          // https://github.com/apache/activemq/blob/d54d046b8a8f2e9e5c0a28e1f8c7634b3c8b18e4/activemq-client/src/main/java/org/apache/activemq/filter/PropertyExpression.java#L226
+          @Override
+          public Object getProperty(String name) {
+            return messageProperties.get(name);
+          }
+
+          @Override
+          public Map<String, Object> getProperties() {
+            throw new UnsupportedOperationException("not supported - getProperties");
+          };
+        };
+    // the is no need to call toMessage.setProperties()
     toMessage.setJMSMessageID(jmsMessageId);
     toMessage.setJMSCorrelationID(jmsCorrelationId);
     toMessage.setJMSReplyTo(ActiveMQDestination.transform(jmsReplyTo));
