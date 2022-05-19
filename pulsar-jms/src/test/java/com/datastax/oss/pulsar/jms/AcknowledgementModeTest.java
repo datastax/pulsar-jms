@@ -17,6 +17,7 @@ package com.datastax.oss.pulsar.jms;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
@@ -36,6 +37,7 @@ import javax.jms.Queue;
 import javax.jms.Session;
 import javax.jms.TextMessage;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.pulsar.client.impl.BatchMessageIdImpl;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -187,6 +189,10 @@ public class AcknowledgementModeTest {
             TextMessage textMsg = session.createTextMessage("foo");
             textMsg.setStringProperty("test", "foo");
             producer.send(textMsg);
+
+            TextMessage textMsg2 = session.createTextMessage("foo");
+            textMsg2.setStringProperty("test", "foo2");
+            producer.send(textMsg2);
           }
 
           try (MessageConsumer consumer = session.createConsumer(destination); ) {
@@ -200,6 +206,162 @@ public class AcknowledgementModeTest {
             // receive and ack
             Message receive = consumer.receive();
             assertEquals("foo", receive.getStringProperty("test"));
+
+            Message receive2 = consumer.receive();
+            assertEquals("foo2", receive2.getStringProperty("test"));
+
+            // ack only message1, this automatically acks all the other messages
+            receive.acknowledge();
+          }
+
+          // no more messages
+          try (MessageConsumer consumer = session.createConsumer(destination); ) {
+            assertNull(consumer.receive(100));
+          }
+        }
+      }
+    }
+  }
+
+  @Test
+  public void testINDIVIDUAL_ACKNOWLEDGE() throws Exception {
+    Map<String, Object> properties = new HashMap<>();
+    properties.put("webServiceUrl", cluster.getAddress());
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+      try (Connection connection = factory.createConnection()) {
+        connection.start();
+        try (Session session =
+            connection.createSession(PulsarJMSConstants.INDIVIDUAL_ACKNOWLEDGE); ) {
+          Queue destination =
+              session.createQueue("persistent://public/default/test-" + UUID.randomUUID());
+
+          try (MessageProducer producer = session.createProducer(destination); ) {
+            TextMessage textMsg = session.createTextMessage("foo");
+            textMsg.setStringProperty("test", "foo");
+            producer.send(textMsg);
+
+            TextMessage textMsg2 = session.createTextMessage("foo");
+            textMsg2.setStringProperty("test", "foo2");
+            producer.send(textMsg2);
+          }
+
+          try (MessageConsumer consumer = session.createConsumer(destination); ) {
+            assertEquals("foo", consumer.receive().getStringProperty("test"));
+            // message is not automatically acknowledged on receive
+
+            // closing the consumer
+          }
+
+          try (MessageConsumer consumer = session.createConsumer(destination); ) {
+            // receive and ack
+            Message receive = consumer.receive();
+            assertEquals("foo", receive.getStringProperty("test"));
+
+            Message receive2 = consumer.receive();
+            assertEquals("foo2", receive2.getStringProperty("test"));
+
+            // ack only message1,
+            receive.acknowledge();
+          }
+
+          try (MessageConsumer consumer = session.createConsumer(destination); ) {
+
+            // message2 is still there
+            Message receive2 = consumer.receive();
+            assertEquals("foo2", receive2.getStringProperty("test"));
+
+            assertNull(consumer.receive(100));
+          }
+        }
+      }
+    }
+  }
+
+  @Test
+  public void testINDIVIDUAL_ACKNOWLEDGEWithBatching() throws Exception {
+    Map<String, Object> properties = new HashMap<>();
+    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> producerConfig = new HashMap<>();
+    producerConfig.put("batchingEnabled", "true");
+    producerConfig.put("batchingMaxPublishDelayMicros", "1000000");
+    producerConfig.put("batchingMaxMessages", "1000000");
+    properties.put("producerConfig", producerConfig);
+
+    Map<String, Object> consumerConfig = new HashMap<>();
+    consumerConfig.put("ackReceiptEnabled", true);
+    properties.put("consumerConfig", consumerConfig);
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+      try (Connection connection = factory.createConnection()) {
+        connection.start();
+        try (Session session =
+            connection.createSession(PulsarJMSConstants.INDIVIDUAL_ACKNOWLEDGE); ) {
+          Queue destination =
+              session.createQueue("persistent://public/default/test-" + UUID.randomUUID());
+
+          try (MessageProducer producer = session.createProducer(destination); ) {
+            TextMessage textMsg = session.createTextMessage("foo");
+            textMsg.setStringProperty("test", "foo");
+            producer.send(
+                textMsg,
+                new CompletionListener() {
+                  @Override
+                  public void onCompletion(Message message) {}
+
+                  @Override
+                  public void onException(Message message, Exception e) {}
+                });
+
+            TextMessage textMsg2 = session.createTextMessage("foo");
+            textMsg2.setStringProperty("test", "foo2");
+            producer.send(
+                textMsg2,
+                new CompletionListener() {
+                  @Override
+                  public void onCompletion(Message message) {}
+
+                  @Override
+                  public void onException(Message message, Exception e) {}
+                });
+          }
+
+          try (MessageConsumer consumer = session.createConsumer(destination); ) {
+            assertEquals("foo", consumer.receive().getStringProperty("test"));
+            // message is not automatically acknowledged on receive
+
+            // closing the consumer
+          }
+
+          try (MessageConsumer consumer = session.createConsumer(destination); ) {
+            // receive and ack
+            PulsarMessage receive = (PulsarMessage) consumer.receive();
+            assertEquals("foo", receive.getStringProperty("test"));
+            assertTrue(
+                receive.getReceivedPulsarMessage().getMessageId() instanceof BatchMessageIdImpl);
+
+            PulsarMessage receive2 = (PulsarMessage) consumer.receive();
+            assertEquals("foo2", receive2.getStringProperty("test"));
+            assertTrue(
+                receive2.getReceivedPulsarMessage().getMessageId() instanceof BatchMessageIdImpl);
+
+            // ack only message1,
+            receive.acknowledge();
+          }
+
+          try (MessageConsumer consumer = session.createConsumer(destination); ) {
+
+            // message1 is still there, because we haven't fully acknowledged the Batch
+            Message receive = consumer.receive();
+            assertEquals("foo", receive.getStringProperty("test"));
+
+            // message2 is still there
+            Message receive2 = consumer.receive();
+            assertEquals("foo2", receive2.getStringProperty("test"));
+
+            assertNull(consumer.receive(100));
+
+            // ack message2
+            receive2.acknowledge();
+            // ack message1
             receive.acknowledge();
           }
 

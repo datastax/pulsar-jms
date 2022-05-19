@@ -1069,7 +1069,11 @@ public abstract class PulsarMessage implements Message {
   @Override
   public void acknowledge() throws JMSException {
     consumer.checkNotClosed();
-    consumer.getSession().acknowledgeAllMessages();
+    if (consumer.getSession().getAcknowledgeMode() == PulsarJMSConstants.INDIVIDUAL_ACKNOWLEDGE) {
+      acknowledgeInternal();
+    } else {
+      consumer.getSession().acknowledgeAllMessages();
+    }
   }
 
   void acknowledgeInternal() throws JMSException {
