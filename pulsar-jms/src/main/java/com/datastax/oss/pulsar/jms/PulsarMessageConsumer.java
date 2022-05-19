@@ -442,6 +442,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
               });
     }
     if (session.getAcknowledgeMode() != Session.CLIENT_ACKNOWLEDGE
+        && session.getAcknowledgeMode() != PulsarJMSConstants.INDIVIDUAL_ACKNOWLEDGE
         && session.getAcknowledgeMode() != Session.SESSION_TRANSACTED) {
       session.unregisterUnacknowledgedMessage(result);
     }

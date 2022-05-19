@@ -145,6 +145,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
       case Session.SESSION_TRANSACTED:
       case Session.AUTO_ACKNOWLEDGE:
       case Session.CLIENT_ACKNOWLEDGE:
+      case PulsarJMSConstants.INDIVIDUAL_ACKNOWLEDGE:
       case Session.DUPS_OK_ACKNOWLEDGE:
         break;
       default:
