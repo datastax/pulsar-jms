@@ -70,3 +70,14 @@ This is very useful to map Pulsar Subscription to JMS Queues.
 ```
 java -jar jms-cli.jar createConsumer -d test:subscriptionName -n 0 -dt queue -c conf/sample.json -s "foo='bar'"
 ```
+
+### Create a JMS Subscription with Server Side Filtering
+
+```
+java -jar jms-cli.jar create-jms-subscription -d test-queue -dt queue -sub mysub -s 'keepme = TRUE'  conf/sample.json
+```
+
+With this command you create a Pulsar subscription on a JMS Destination, and you can set a server 
+side selector that is applied per subscription.
+
+If you run the `describe` command you will see the new subscription.

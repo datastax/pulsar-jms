@@ -21,6 +21,7 @@ import com.beust.jcommander.ParameterException;
 import com.beust.jcommander.Parameters;
 import com.datastax.oss.pulsar.jms.PulsarConnectionFactory;
 import com.datastax.oss.pulsar.jms.Utils;
+import com.datastax.oss.pulsar.jms.selectors.SelectorSupport;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
@@ -39,10 +40,15 @@ import javax.jms.JMSContext;
 import javax.jms.JMSProducer;
 import javax.jms.Message;
 import javax.jms.MessageListener;
+import javax.jms.Queue;
 import javax.jms.TextMessage;
 import javax.jms.Topic;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.admin.PulsarAdmin;
+import org.apache.pulsar.client.admin.PulsarAdminException;
+import org.apache.pulsar.client.api.SubscriptionInitialPosition;
+import org.apache.pulsar.client.api.SubscriptionMode;
+import org.apache.pulsar.client.api.SubscriptionType;
 import org.apache.pulsar.common.policies.data.SubscriptionStats;
 import org.apache.pulsar.common.policies.data.TopicStats;
 import org.apache.pulsar.common.util.ObjectMapperFactory;
@@ -59,6 +65,7 @@ public class Main {
               .addCommand("createSharedDurableConsumer", new CreateSharedDurableConsumerCmd())
               .addCommand("produce", new ProduceCmd())
               .addCommand("describe", new DescribeCmd())
+              .addCommand("create-jms-subscription", new CreateSubscriptionCmd())
               .args(args)
               .build();
       String cmd = jcommander.getParsedCommand();
@@ -175,6 +182,76 @@ public class Main {
         default:
           throw new IllegalArgumentException("Invalid destination type " + destinationType);
       }
+    }
+  }
+
+  public static class CreateSubscriptionCmd extends TopicBasedCmd {
+
+    @Parameter(
+      description = "Selector",
+      names = {"--selector", "-s"},
+      required = false
+    )
+    private String selector;
+
+    @Parameter(
+      description = "Subscription",
+      names = {"--subscription", "-sub"},
+      required = true
+    )
+    private String subscription;
+
+    public void run() throws Exception {
+      Destination destination = getDestination(false);
+      PulsarConnectionFactory factory = getFactory();
+      String topicName = factory.getPulsarTopicName(destination);
+      log.info("JMS Destination {} maps to Pulsar Topic {}", destination, topicName);
+      PulsarAdmin pulsarAdmin = factory.getPulsarAdmin();
+      try {
+        TopicStats stats = pulsarAdmin.topics().getStats(topicName);
+        Map<String, ? extends SubscriptionStats> subscriptions = stats.getSubscriptions();
+        if (subscriptions.containsKey(subscription)) {
+          throw new IllegalArgumentException(
+              "Pulsar topic " + topicName + " already has a subscription named " + subscription);
+        }
+      } catch (PulsarAdminException.NotFoundException ok) {
+        log.info("Topic {} does not exist", topicName);
+      }
+
+      Map<String, String> subscriptionProperties = new HashMap<>();
+      if (selector != null && !selector.isEmpty()) {
+        // try to parse the selector
+        SelectorSupport.build(selector, true);
+        subscriptionProperties.put("jms.selector", selector);
+        subscriptionProperties.put("jms.filtering", "true");
+        log.info("Activating selector {} properties {}", selector, subscriptionProperties);
+      }
+
+      SubscriptionInitialPosition position = SubscriptionInitialPosition.Latest;
+      if (destination instanceof Queue) {
+        position = SubscriptionInitialPosition.Earliest;
+      }
+
+      log.info(
+          "Creating subscription {} on {} with position {} and properties {}",
+          subscription,
+          topicName,
+          position,
+          subscriptionProperties);
+
+      // there is no API to create a Subcscription with prorpeties in 2.10
+      // using PulsarAdmin, the only way is to create a Consumer
+      factory
+          .getPulsarClient()
+          .newConsumer()
+          .subscriptionName(subscription)
+          .topic(topicName)
+          .subscriptionProperties(subscriptionProperties)
+          .subscriptionMode(SubscriptionMode.Durable)
+          .subscriptionType(SubscriptionType.Shared)
+          .subscriptionInitialPosition(position)
+          .subscribe()
+          .close();
     }
   }
 
@@ -367,19 +444,6 @@ public class Main {
     public void run() throws Exception {
       Destination destination = getDestination(true);
       JMSContext context = getContext();
-      CountDownLatch countDownLatch =
-          new CountDownLatch(numMessages > 0 ? numMessages : Integer.MAX_VALUE);
-      context
-          .createDurableConsumer((Topic) destination, subscription, selector, false)
-          .setMessageListener(
-              new MessageListener() {
-                @Override
-                public void onMessage(Message message) {
-                  printMessage(message);
-                  countDownLatch.countDown();
-                }
-              });
-      countDownLatch.await();
     }
   }
 
