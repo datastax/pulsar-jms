@@ -444,6 +444,20 @@ public class Main {
     public void run() throws Exception {
       Destination destination = getDestination(true);
       JMSContext context = getContext();
+
+      CountDownLatch countDownLatch =
+          new CountDownLatch(numMessages > 0 ? numMessages : Integer.MAX_VALUE);
+      context
+          .createDurableConsumer((Topic) destination, subscription, selector, false)
+          .setMessageListener(
+              new MessageListener() {
+                @Override
+                public void onMessage(Message message) {
+                  printMessage(message);
+                  countDownLatch.countDown();
+                }
+              });
+      countDownLatch.await();
     }
   }
 

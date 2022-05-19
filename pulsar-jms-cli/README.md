@@ -81,3 +81,5 @@ With this command you create a Pulsar subscription on a JMS Destination, and you
 side selector that is applied per subscription.
 
 If you run the `describe` command you will see the new subscription.
+=======
+```
