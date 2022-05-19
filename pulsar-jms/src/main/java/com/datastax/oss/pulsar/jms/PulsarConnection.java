@@ -32,9 +32,11 @@ import javax.jms.InvalidClientIDException;
 import javax.jms.InvalidDestinationException;
 import javax.jms.InvalidSelectorException;
 import javax.jms.JMSException;
+import javax.jms.MessageConsumer;
 import javax.jms.Queue;
 import javax.jms.QueueConnection;
 import javax.jms.QueueSession;
+import javax.jms.ServerSession;
 import javax.jms.ServerSessionPool;
 import javax.jms.Session;
 import javax.jms.TemporaryQueue;
@@ -682,7 +684,8 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
       int maxMessages)
       throws JMSException {
     checkNotClosed();
-    throw new JMSException("not supported");
+    return buildConnectionConsumer(
+        sessionPool, (session) -> session.createConsumer(destination, messageSelector));
   }
 
   /**
@@ -727,7 +730,9 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
       int maxMessages)
       throws JMSException {
     checkNotClosed();
-    throw new JMSException("not supported");
+    return buildConnectionConsumer(
+        sessionPool,
+        session -> session.createSharedConsumer(topic, subscriptionName, messageSelector));
   }
 
   /**
@@ -772,7 +777,9 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
       int maxMessages)
       throws JMSException {
     checkNotClosed();
-    throw new JMSException("not supported");
+    return buildConnectionConsumer(
+        sessionPool,
+        session -> session.createDurableConsumer(topic, subscriptionName, messageSelector, false));
   }
 
   /**
@@ -817,7 +824,9 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
       int maxMessages)
       throws JMSException {
     checkNotClosed();
-    throw new JMSException("not supported");
+    return buildConnectionConsumer(
+        sessionPool,
+        session -> session.createSharedDurableConsumer(topic, subscriptionName, messageSelector));
   }
 
   public void unregisterSession(PulsarSession session) {
@@ -932,8 +941,10 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
 
   @Override
   public ConnectionConsumer createConnectionConsumer(
-      Topic topic, String s, ServerSessionPool serverSessionPool, int i) throws JMSException {
-    throw new JMSException("Not implemented");
+      Topic topic, String messageSelector, ServerSessionPool serverSessionPool, int i)
+      throws JMSException {
+    return buildConnectionConsumer(
+        serverSessionPool, (session) -> session.createConsumer(topic, messageSelector));
   }
 
   void removeTemporaryDestination(PulsarTemporaryDestination pulsarTemporaryDestination) {
@@ -942,5 +953,23 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
 
   public String getConnectionId() {
     return connectionId;
+  }
+
+  @FunctionalInterface
+  private interface ConsumerBuilder {
+    MessageConsumer build(Session session) throws JMSException;
+  }
+
+  private ConnectionConsumer buildConnectionConsumer(
+      ServerSessionPool sessionPool, ConsumerBuilder consumerBuilder) throws JMSException {
+    ServerSession serverSession = sessionPool.getServerSession();
+    Session session = serverSession.getSession();
+    // this session is supposed to have a MessageListener that receives the messages
+    MessageConsumer consumer = consumerBuilder.build(session);
+    consumer.setMessageListener(session.getMessageListener());
+    ConnectionConsumer connectionConsumer =
+        new PulsarConnectionConsumer((PulsarMessageConsumer) consumer, sessionPool);
+    serverSession.start();
+    return connectionConsumer;
   }
 }

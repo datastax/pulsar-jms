@@ -87,6 +87,7 @@ public class PulsarConnectionFactory
   private SubscriptionType topicSharedSubscriptionType = SubscriptionType.Shared;
   private long waitForServerStartupTimeout = 60000;
   private boolean usePulsarAdmin = true;
+  private int precreateQueueSubscriptionConsumerQueueSize = 0;
   private boolean initialized;
   private boolean closed;
 
@@ -233,6 +234,11 @@ public class PulsarConnectionFactory
 
       this.usePulsarAdmin =
           Boolean.parseBoolean(getAndRemoveString("jms.usePulsarAdmin", "true", configuration));
+
+      this.precreateQueueSubscriptionConsumerQueueSize =
+          Integer.parseInt(
+              getAndRemoveString(
+                  "jms.precreateQueueSubscriptionConsumerQueueSize", "0", configuration));
 
       final String rawTopicSharedSubscriptionType =
           getAndRemoveString(
@@ -869,7 +875,7 @@ public class PulsarConnectionFactory
               .subscriptionType(getTopicSharedSubscriptionType())
               .subscriptionName(getQueueSubscriptionName(destination))
               .subscriptionInitialPosition(SubscriptionInitialPosition.Earliest)
-              .receiverQueueSize(0)
+              .receiverQueueSize(getPrecreateQueueSubscriptionConsumerQueueSize())
               .topic(fullQualifiedTopicName)
               .subscribe()
               .close();
@@ -1196,5 +1202,9 @@ public class PulsarConnectionFactory
 
   public synchronized boolean isClosed() {
     return closed;
+  }
+
+  private synchronized int getPrecreateQueueSubscriptionConsumerQueueSize() {
+    return precreateQueueSubscriptionConsumerQueueSize;
   }
 }
