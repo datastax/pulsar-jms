@@ -37,11 +37,11 @@ You can also use a "fat" JAR that includes all dependencies:
 
 ## Which version ?
 
-Startlight for JMS works well with every Pulsar version in case you use basic features.
+Starlight for JMS works well with every Pulsar version in case you use basic features.
 But there are some specific features that require you to use a given JMS Client version dependending on your Pulsar server.
 
 If you use Transactions and you are running Pulsar 2.8.x you must use Starlight for JMS with a version starting with 1, like 1.5.0;
-If you run Pulsar 2.10 or above you have to use Startlight for JMS with version 2.0.0 or above.
+If you run Pulsar 2.10 or above you have to use Starlight for JMS with version 2.0.0 or above.
 
 If you want to use Server Side Filtering then you must use Pulsar 2.10.1 or above and Starlight for JMS 2.0.0 or above.
 

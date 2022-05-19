@@ -1,0 +1,12 @@
+{  
+  "jms.clientId":"test",
+  "jms.enableClientSideEmulation":"true",
+  "jms.useServerSideFiltering":"false",
+  "jms.queueSubscriptionName": "jms-queue",
+  "brokerServiceUrl": "pulsar://localhost:6650",
+  "webServiceUrl":"http://localhost:8080",
+  "jms.systemNamespace":"public/default",
+  "producerConfig": {
+     "batchingEnabled":"true"
+  }
+}
