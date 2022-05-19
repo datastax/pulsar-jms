@@ -800,12 +800,16 @@ public class PulsarConnectionFactory
     }
   }
 
+  public String getPulsarTopicName(Destination defaultDestination) throws JMSException {
+    PulsarDestination destination = toPulsarDestination(defaultDestination);
+    String topicName = destination.getInternalTopicName();
+    return applySystemNamespace(topicName);
+  }
+
   Producer<byte[]> getProducerForDestination(Destination defaultDestination, boolean transactions)
       throws JMSException {
     try {
-      PulsarDestination destination = toPulsarDestination(defaultDestination);
-      String topicName = destination.getInternalTopicName();
-      String fullQualifiedTopicName = applySystemNamespace(topicName);
+      String fullQualifiedTopicName = getPulsarTopicName(defaultDestination);
       String key = transactions ? fullQualifiedTopicName + "-tx" : fullQualifiedTopicName;
       return producers.computeIfAbsent(
           key,
@@ -847,8 +851,7 @@ public class PulsarConnectionFactory
 
     // please note that in the special jms-queue subscription we cannot
     // set a selector, because it is shared among all the Consumers of the Queue
-    String topicName = destination.getInternalTopicName();
-    String fullQualifiedTopicName = applySystemNamespace(topicName);
+    String fullQualifiedTopicName = getPulsarTopicName(destination);
     while (true) {
       try {
         if (isUsePulsarAdmin()) {
@@ -914,8 +917,7 @@ public class PulsarConnectionFactory
       String jmsConnectionID,
       AtomicReference<String> selectorOnSubscriptionReceiver)
       throws JMSException {
-    String topicName = destination.getInternalTopicName();
-    String fullQualifiedTopicName = applySystemNamespace(topicName);
+    String fullQualifiedTopicName = getPulsarTopicName(destination);
     // for queues we have a single shared subscription
     String subscriptionName =
         destination.isQueue() ? getQueueSubscriptionName(destination) : consumerName;
@@ -1020,8 +1022,7 @@ public class PulsarConnectionFactory
   }
 
   public Reader<byte[]> createReaderForBrowser(PulsarQueue destination) throws JMSException {
-    String topicName = destination.getInternalTopicName();
-    String fullQualifiedTopicName = applySystemNamespace(topicName);
+    String fullQualifiedTopicName = getPulsarTopicName(destination);
     try {
       List<Message<byte[]>> messages =
           getPulsarAdmin()
@@ -1071,8 +1072,7 @@ public class PulsarConnectionFactory
     try {
 
       if (destination != null) {
-        String topicName = destination.getInternalTopicName();
-        String fullQualifiedTopicName = applySystemNamespace(topicName);
+        String fullQualifiedTopicName = getPulsarTopicName(destination);
         log.info("deleteSubscription topic {} name {}", fullQualifiedTopicName, name);
         try {
           pulsarAdmin.topics().deleteSubscription(fullQualifiedTopicName, name, true);

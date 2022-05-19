@@ -42,6 +42,9 @@ import javax.jms.MessageListener;
 import javax.jms.TextMessage;
 import javax.jms.Topic;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.pulsar.client.admin.PulsarAdmin;
+import org.apache.pulsar.common.policies.data.SubscriptionStats;
+import org.apache.pulsar.common.policies.data.TopicStats;
 import org.apache.pulsar.common.util.ObjectMapperFactory;
 
 @Slf4j
@@ -55,6 +58,7 @@ public class Main {
               .addCommand("createDurableConsumer", new CreateDurableConsumerCmd())
               .addCommand("createSharedDurableConsumer", new CreateSharedDurableConsumerCmd())
               .addCommand("produce", new ProduceCmd())
+              .addCommand("describe", new DescribeCmd())
               .args(args)
               .build();
       String cmd = jcommander.getParsedCommand();
@@ -171,6 +175,62 @@ public class Main {
         default:
           throw new IllegalArgumentException("Invalid destination type " + destinationType);
       }
+    }
+  }
+
+  public static class DescribeCmd extends TopicBasedCmd {
+
+    public void run() throws Exception {
+      Destination destination = getDestination(false);
+      PulsarConnectionFactory factory = getFactory();
+      String topicName = factory.getPulsarTopicName(destination);
+      log.info("JMS Destination {} maps to Pulsar Topic {}", destination, topicName);
+      PulsarAdmin pulsarAdmin = factory.getPulsarAdmin();
+      TopicStats stats = pulsarAdmin.topics().getStats(topicName);
+      Map<String, ? extends SubscriptionStats> subscriptions = stats.getSubscriptions();
+      if (subscriptions.isEmpty()) {
+        log.info("There are no subscription this Pulsar topic");
+        return;
+      }
+      subscriptions.forEach(
+          (name, sub) -> {
+            log.info("Subscription: {}", name);
+            Map<String, String> subscriptionProperties = sub.getSubscriptionProperties();
+            if (subscriptionProperties != null) {
+              subscriptionProperties.forEach(
+                  (k, v) -> {
+                    log.info("  Property {}:{}", k, v);
+                  });
+              String jmsFiltering = subscriptionProperties.getOrDefault("jms.filtering", "false");
+              if ("true".equals(jmsFiltering)) {
+                log.info("  JMS Server Side filters are enabled with a per-subscription filter");
+                String jmsSelector = subscriptionProperties.getOrDefault("jms.selector", "");
+                log.info("  Selector is: {}", jmsSelector);
+              } else {
+                log.info(
+                    "  JMS Server Side filters: the per-subscription filter is not enabled here");
+              }
+              sub.getConsumers()
+                  .forEach(
+                      c -> {
+                        log.info("  Consumer {}", c.getConsumerName());
+                        Map<String, String> metadata = c.getMetadata();
+                        if (metadata != null) {
+                          metadata.forEach(
+                              (k, v) -> {
+                                log.info("    Property {}:{}", k, v);
+                              });
+                          String jmsConsumerFiltering =
+                              metadata.getOrDefault("jms.filtering", "false");
+                          if ("true".equals(jmsConsumerFiltering)) {
+                            log.info("    Consumer has jms.serverSideFiltering option enabled");
+                          } else {
+                            log.info("    Consumer is NOT using jms.serverSideFiltering feature");
+                          }
+                        }
+                      });
+            }
+          });
     }
   }
 

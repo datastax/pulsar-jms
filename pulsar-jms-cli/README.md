@@ -29,6 +29,15 @@ Please refer to the main [../README.md](README file) for the reference documenta
 
 ## Sample commands
 
+### Describe a JMS destination
+
+```
+java -jar jms-cli.jar describe -d test-c conf/sample.json
+```
+
+With this command you describe the JMS destination, in particular you will see
+the subscriptions, the consumers and any Server Side filters that are applied currently.
+
 ### Produce messages to a JMS destination
 
 ```
