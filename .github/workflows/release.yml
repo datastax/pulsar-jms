@@ -20,6 +20,6 @@ jobs:
         run: mvn -B package -DskipTests
       - uses: ncipollo/release-action@v1
         with:
-          artifacts: "pulsar-jms-all/target/pulsar-jms-all-*.jar,resource-adapter/target/pulsarra-rar.rar,pulsar-jms-filters/target/pulsar-jms*.nar"
+          artifacts: "pulsar-jms-all/target/pulsar-jms-all-*.jar,resource-adapter/target/pulsarra-rar.rar,pulsar-jms-filters/target/pulsar-jms*.nar,pulsar-jms-cli/target/jms-cli.jar"
           token: ${{ secrets.GITHUB_TOKEN }}
           generateReleaseNotes: true
