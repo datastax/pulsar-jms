@@ -239,7 +239,7 @@ public class Main {
           position,
           subscriptionProperties);
 
-      // there is no API to create a Subcscription with prorpeties in 2.10
+      // there is no API to create a Subscription with properties in 2.10
       // using PulsarAdmin, the only way is to create a Consumer
       factory
           .getPulsarClient()
