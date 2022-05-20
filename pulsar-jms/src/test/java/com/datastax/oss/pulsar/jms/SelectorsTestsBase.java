@@ -18,6 +18,7 @@ package com.datastax.oss.pulsar.jms;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -695,6 +696,100 @@ public abstract class SelectorsTestsBase {
             assertNull(consumer1.receiveNoWait());
           }
         }
+      }
+    }
+  }
+
+  @Test
+  public void sendHugeFilterOnServerSideSubscription() throws Exception {
+    // we are testing here that we can store a huge (10k) filter on the Subscription Metadata
+    assumeTrue(useServerSideFiltering);
+
+    Map<String, Object> properties = buildProperties();
+
+    // we never require enableClientSideEmulation for an Exclusive subscription
+    // because it is always safe
+    properties.put("jms.enableClientSideEmulation", "false");
+
+    String topicName = "sendHugeFilterOnServerSideSubscription_" + enableBatching;
+    cluster.getService().getAdminClient().topics().createNonPartitionedTopic(topicName);
+
+    String subscriptionName = "the-sub";
+    StringBuilder huge = new StringBuilder("prop1 IN (");
+    for (int i = 0; i < 2048; i++) {
+      huge.append("'" + i + "',");
+    }
+    huge.append("'') or keepme = TRUE");
+    String selector = huge.toString();
+    // 10k filter
+    assertTrue(selector.length() > 10 * 1024);
+
+    Map<String, String> subscriptionProperties = new HashMap<>();
+    subscriptionProperties.put("jms.selector", selector);
+    subscriptionProperties.put("jms.filtering", "true");
+
+    // create a Subscription with a selector
+    try (Consumer<byte[]> dummy =
+        cluster
+            .getService()
+            .getClient()
+            .newConsumer()
+            .subscriptionName(
+                topicName
+                    + ":"
+                    + subscriptionName) // real subscription name is short topic name + subname
+            .subscriptionType(SubscriptionType.Shared)
+            .subscriptionMode(SubscriptionMode.Durable)
+            .subscriptionProperties(subscriptionProperties)
+            .topic(topicName)
+            .subscribe()) {
+      // in 2.10 there is no PulsarAdmin API to set subscriptions properties
+      // the only way is to create a dummy Consumer
+    }
+
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+      try (PulsarConnection connection = factory.createConnection()) {
+        connection.start();
+        try (PulsarSession session = connection.createSession(); ) {
+          // since 2.0.1 you can set the Subscription name in the JMS Queue Name
+          Queue destination = session.createQueue(topicName + ":" + subscriptionName);
+
+          // do not set the selector, it will be loaded from the Subscription Properties
+          try (PulsarMessageConsumer consumer1 = session.createConsumer(destination); ) {
+            assertEquals(
+                SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
+
+            // this is downloaded from the server
+            assertEquals(selector, consumer1.getMessageSelector());
+
+            try (MessageProducer producer = session.createProducer(destination); ) {
+              for (int i = 0; i < 1000; i++) {
+                TextMessage textMessage = session.createTextMessage("foo-" + i);
+                if (i % 2 == 0) {
+                  textMessage.setBooleanProperty("keepme", true);
+                }
+                producer.send(textMessage);
+              }
+            }
+
+            for (int i = 0; i < 1000; i++) {
+              if (i % 2 == 0) {
+                TextMessage textMessage = (TextMessage) consumer1.receive();
+                assertEquals("foo-" + i, textMessage.getText());
+              }
+            }
+
+            assertEquals(500, consumer1.getReceivedMessages());
+            assertEquals(0, consumer1.getSkippedMessages());
+
+            // no more messages
+            assertNull(consumer1.receiveNoWait());
+          }
+        }
+
+        // ensure subscription exists
+        TopicStats stats = cluster.getService().getAdminClient().topics().getStats(topicName);
+        assertNotNull(stats.getSubscriptions().get(topicName + ":" + subscriptionName));
       }
     }
   }
