@@ -431,7 +431,7 @@ public abstract class SelectorsTestsBase {
             List<String> expected1 = new CopyOnWriteArrayList<>();
             List<String> expected2 = new CopyOnWriteArrayList<>();
             try (MessageProducer producer = session.createProducer(destination); ) {
-              for (int i = 0; i < 100; i++) {
+              for (int i = 0; i < 10; i++) {
                 String text = "foo-" + i;
                 TextMessage textMessage = session.createTextMessage(text);
                 // some messages go to consumer 1
