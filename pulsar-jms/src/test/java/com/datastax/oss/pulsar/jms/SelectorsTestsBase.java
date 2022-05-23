@@ -1071,4 +1071,72 @@ public abstract class SelectorsTestsBase {
       }
     }
   }
+
+  // waiting for 2.10.0.4 with
+  // https://github.com/apache/pulsar/pull/15713
+  @Test
+  public void sendHugeFilterOnConsumerMetadata() throws Exception {
+    // we are testing here that we can store a huge (10k) filter on the Consumer Metadata
+    assumeTrue(useServerSideFiltering);
+
+    Map<String, Object> properties = buildProperties();
+    properties.put("jms.enableClientSideEmulation", "false");
+
+    String topicName = "sendHugeFilterOnConsumerMetadata_" + enableBatching;
+    cluster.getService().getAdminClient().topics().createNonPartitionedTopic(topicName);
+
+    String subscriptionName = "the-sub";
+    StringBuilder huge = new StringBuilder("prop1 IN (");
+    for (int i = 0; i < 2048; i++) {
+      huge.append("'" + i + "',");
+    }
+    huge.append("'') or keepme = TRUE");
+    String selector = huge.toString();
+    // 10k filter
+    assertTrue(selector.length() > 10 * 1024);
+
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+      try (PulsarConnection connection = factory.createConnection()) {
+        connection.start();
+        try (PulsarSession session = connection.createSession(); ) {
+          // since 2.0.1 you can set the Subscription name in the JMS Queue Name
+          Queue destination = session.createQueue(topicName + ":" + subscriptionName);
+
+          try (PulsarMessageConsumer consumer1 = session.createConsumer(destination, selector); ) {
+            assertEquals(
+                    SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
+
+            assertEquals(selector, consumer1.getMessageSelector());
+
+            try (MessageProducer producer = session.createProducer(destination); ) {
+              for (int i = 0; i < 1000; i++) {
+                TextMessage textMessage = session.createTextMessage("foo-" + i);
+                if (i % 2 == 0) {
+                  textMessage.setBooleanProperty("keepme", true);
+                }
+                producer.send(textMessage);
+              }
+            }
+
+            for (int i = 0; i < 1000; i++) {
+              if (i % 2 == 0) {
+                TextMessage textMessage = (TextMessage) consumer1.receive();
+                assertEquals("foo-" + i, textMessage.getText());
+              }
+            }
+
+            assertEquals(500, consumer1.getReceivedMessages());
+            assertEquals(0, consumer1.getSkippedMessages());
+
+            // no more messages
+            assertNull(consumer1.receiveNoWait());
+          }
+        }
+
+        // ensure subscription exists
+        TopicStats stats = cluster.getService().getAdminClient().topics().getStats(topicName);
+        assertNotNull(stats.getSubscriptions().get(topicName + ":" + subscriptionName));
+      }
+    }
+  }
 }

@@ -61,6 +61,7 @@ public class PulsarCluster implements AutoCloseable {
     config.setEntryFilterNames(Arrays.asList("jms"));
     config.setEntryFiltersDirectory("target/classes/filters");
     config.setAcknowledgmentAtBatchIndexLevelEnabled(true);
+    config.setMaxConsumerMetadataSize(1024 * 1024);
     service = new PulsarService(config);
   }
 
