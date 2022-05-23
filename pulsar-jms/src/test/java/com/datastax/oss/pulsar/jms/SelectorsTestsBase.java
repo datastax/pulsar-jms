@@ -45,6 +45,7 @@ import org.apache.pulsar.client.api.SubscriptionMode;
 import org.apache.pulsar.client.api.SubscriptionType;
 import org.apache.pulsar.client.impl.BatchMessageIdImpl;
 import org.apache.pulsar.common.policies.data.TopicStats;
+import org.apache.pulsar.common.util.FutureUtil;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -393,6 +394,8 @@ public abstract class SelectorsTestsBase {
     }
   }
 
+  // This test may take long time, because it depends on how the broker
+  // chooses the Consumer to try to dispatch the messages.
   @Test
   public void sendBatchWithCompetingConsumersOnQueue() throws Exception {
     Map<String, Object> properties = buildProperties();
@@ -782,6 +785,132 @@ public abstract class SelectorsTestsBase {
 
             // no more messages
             assertNull(consumer1.receiveNoWait());
+          }
+        }
+
+        // ensure subscription exists
+        TopicStats stats = cluster.getService().getAdminClient().topics().getStats(topicName);
+        assertNotNull(stats.getSubscriptions().get(topicName + ":" + subscriptionName));
+      }
+    }
+  }
+
+  @Test
+  public void
+      sendUsingExistingPulsarSubscriptionWithServerSideFilterForQueueAndAdditionalLocalSelector()
+          throws Exception {
+
+    assumeTrue(useServerSideFiltering);
+
+    Map<String, Object> properties = buildProperties();
+
+    if (enableBatching) {
+      // ensure that we create batches with more than 1 message
+      Map<String, Object> producerConfig = (Map<String, Object>) properties.get("producerConfig");
+      producerConfig.put("batchingMaxPublishDelayMicros", "1000000");
+      // each batch will contain 5 messages
+      producerConfig.put("batchingMaxMessages", "5");
+    }
+
+    // we never require enableClientSideEmulation for an Exclusive subscription
+    // because it is always safe
+    properties.put("jms.enableClientSideEmulation", "false");
+
+    String topicName =
+        "sendUsingExistingPulsarSubscriptionWithServerSideFilterForQueueAndAdditionalLocalSelector_"
+            + enableBatching;
+    cluster.getService().getAdminClient().topics().createNonPartitionedTopic(topicName);
+
+    String subscriptionName = "the-sub";
+    String selectorOnSubscription = "keepme = TRUE";
+    String selectorOnClient = "keepmeFromClient = TRUE";
+
+    Map<String, String> subscriptionProperties = new HashMap<>();
+    subscriptionProperties.put("jms.selector", selectorOnSubscription);
+    subscriptionProperties.put("jms.filtering", "true");
+
+    // create a Subscription with a selector
+    try (Consumer<byte[]> dummy =
+        cluster
+            .getService()
+            .getClient()
+            .newConsumer()
+            .subscriptionName(
+                topicName
+                    + ":"
+                    + subscriptionName) // real subscription name is short topic name + subname
+            .subscriptionType(SubscriptionType.Shared)
+            .subscriptionMode(SubscriptionMode.Durable)
+            .subscriptionProperties(subscriptionProperties)
+            .topic(topicName)
+            .subscribe()) {
+      // in 2.10 there is no PulsarAdmin API to set subscriptions properties
+      // the only way is to create a dummy Consumer
+    }
+
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+      try (PulsarConnection connection = factory.createConnection()) {
+        connection.start();
+        try (PulsarSession session = connection.createSession(); ) {
+          // since 2.0.1 you can set the Subscription name in the JMS Queue Name
+          Queue destination = session.createQueue(topicName + ":" + subscriptionName);
+
+          // the final local selector is the subscription selector AND the local selector
+          try (PulsarMessageConsumer consumer1 =
+              session.createConsumer(destination, selectorOnClient); ) {
+            assertEquals(
+                SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
+
+            // this is downloaded from the server
+            assertEquals(
+                "(" + selectorOnSubscription + ") AND (" + selectorOnClient + ")",
+                consumer1.getMessageSelector());
+
+            List<CompletableFuture<Message>> handles = new ArrayList<>();
+            try (MessageProducer producer = session.createProducer(destination); ) {
+              for (int i = 0; i < 20; i++) {
+                TextMessage textMessage = session.createTextMessage("foo-" + i);
+                if (i % 2 == 0) {
+                  textMessage.setBooleanProperty("keepme", true);
+                }
+                if (i % 3 == 0) {
+                  textMessage.setBooleanProperty("keepmeFromClient", true);
+                }
+                CompletableFuture<Message> handle = new CompletableFuture<>();
+                handles.add(handle);
+                producer.send(
+                    textMessage,
+                    new CompletionListener() {
+                      @Override
+                      public void onCompletion(Message message) {
+                        handle.complete(message);
+                      }
+
+                      @Override
+                      public void onException(Message message, Exception e) {
+                        handle.completeExceptionally(e);
+                      }
+                    });
+              }
+              FutureUtil.waitForAll(handles).get();
+            }
+            for (int i = 0; i < 20; i++) {
+              if ((i % 2 == 0) && (i % 3 == 0)) {
+                TextMessage textMessage = (TextMessage) consumer1.receive();
+                log.info("received {}", textMessage.getText());
+                assertEquals("foo-" + i, textMessage.getText());
+              }
+            }
+            // no more messages
+            assertNull(consumer1.receive(1000));
+
+            if (enableBatching) {
+              assertEquals(20, consumer1.getReceivedMessages());
+              assertEquals(16, consumer1.getSkippedMessages());
+            } else {
+              assertEquals(4, consumer1.getReceivedMessages());
+              assertEquals(0, consumer1.getSkippedMessages());
+            }
           }
         }
 

@@ -49,6 +49,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
   private final PulsarSession session;
   private final PulsarDestination destination;
   private SelectorSupport selectorSupport;
+  private SelectorSupport selectorSupportOnSubscription;
   private final boolean noLocal;
   private Consumer<byte[]> consumer;
   private MessageListener listener;
@@ -144,15 +145,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
                   selectorOnSubscriptionReceiver);
       String jmsSelectorOnSubscription = selectorOnSubscriptionReceiver.get();
       if (jmsSelectorOnSubscription != null && !jmsSelectorOnSubscription.isEmpty()) {
-        if (currentSelector != null && !currentSelector.isEmpty()) {
-          if (!currentSelector.equals(jmsSelectorOnSubscription)) {
-            throw new javax.jms.InvalidSelectorException(
-                "If you set locally a selector it must match"
-                    + "  the selector set at subscription level, in this case it is "
-                    + jmsSelectorOnSubscription);
-          }
-        }
-        selectorSupport = SelectorSupport.build(jmsSelectorOnSubscription, true);
+        selectorSupportOnSubscription = SelectorSupport.build(jmsSelectorOnSubscription, true);
       }
     }
     return consumer;
@@ -174,11 +167,25 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
       // ensure we download properly the selector from the server
       getConsumer();
     }
-    return internalGetMessageSelector();
+    String selector = internalGetMessageSelector();
+    String selectorOnSubscription = internalGetMessageSelectorFromSubscription();
+    if (selectorOnSubscription == null) {
+      return selector;
+    }
+    if (selector == null) {
+      return selectorOnSubscription;
+    }
+    return "(" + selectorOnSubscription + ") AND (" + selector + ")";
   }
 
   private synchronized String internalGetMessageSelector() {
     return selectorSupport != null ? selectorSupport.getSelector() : null;
+  }
+
+  private synchronized String internalGetMessageSelectorFromSubscription() {
+    return selectorSupportOnSubscription != null
+        ? selectorSupportOnSubscription.getSelector()
+        : null;
   }
 
   /**
@@ -376,6 +383,23 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
               + result
               + ",) cannot be converted to a "
               + expectedType);
+    }
+    SelectorSupport selectorSupportOnSubscription = getSelectorSupportOnSubscription();
+    if (selectorSupportOnSubscription != null
+        && requiresClientSideFiltering(message)
+        && !selectorSupportOnSubscription.matches(result)) {
+      if (log.isDebugEnabled()) {
+        log.debug(
+            "msg {} does not match subscription selector {}",
+            result,
+            selectorSupportOnSubscription.getSelector());
+      }
+      // this message should have been filtered out on the server
+      // because the selector is on the subscription
+      // this case may happen with batch messages
+      skippedMessages.incrementAndGet();
+      consumer.acknowledgeAsync(message.getMessageId());
+      return null;
     }
     SelectorSupport selectorSupport = getSelectorSupport();
     if (selectorSupport != null
@@ -644,6 +668,14 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
 
   private synchronized SelectorSupport getSelectorSupport() {
     return selectorSupport;
+  }
+
+  public synchronized SelectorSupport getSelectorSupportOnSubscription() {
+    return selectorSupportOnSubscription;
+  }
+
+  public void setSelectorSupportOnSubscription(SelectorSupport selectorSupportOnSubscription) {
+    this.selectorSupportOnSubscription = selectorSupportOnSubscription;
   }
 
   Consumer<byte[]> getInternalConsumer() {
