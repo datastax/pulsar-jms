@@ -278,7 +278,18 @@ public class AcknowledgementModeTest {
   }
 
   @Test
-  public void testINDIVIDUAL_ACKNOWLEDGEWithBatching() throws Exception {
+  public void testINDIVIDUAL_ACKNOWLEDGEWithBatchingandBatchIndexAckEnabled() throws Exception {
+    // see https://github.com/apache/pulsar/wiki/PIP-54:-Support-acknowledgment-at-batch-index-level
+    testINDIVIDUAL_ACKNOWLEDGEWithBatching(true);
+  }
+
+  @Test
+  public void testINDIVIDUAL_ACKNOWLEDGEWithBatchingWithoutBatchIndexAckEnabled() throws Exception {
+    testINDIVIDUAL_ACKNOWLEDGEWithBatching(false);
+  }
+
+  private void testINDIVIDUAL_ACKNOWLEDGEWithBatching(boolean batchIndexAckEnabled)
+      throws Exception {
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
     Map<String, Object> producerConfig = new HashMap<>();
@@ -289,6 +300,8 @@ public class AcknowledgementModeTest {
 
     Map<String, Object> consumerConfig = new HashMap<>();
     consumerConfig.put("ackReceiptEnabled", true);
+    consumerConfig.put("batchIndexAckEnabled", batchIndexAckEnabled);
+
     properties.put("consumerConfig", consumerConfig);
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
@@ -349,20 +362,34 @@ public class AcknowledgementModeTest {
 
           try (MessageConsumer consumer = session.createConsumer(destination); ) {
 
-            // message1 is still there, because we haven't fully acknowledged the Batch
-            Message receive = consumer.receive();
-            assertEquals("foo", receive.getStringProperty("test"));
+            if (batchIndexAckEnabled) {
+              // message1 is hidden to the client (even if it has been sent on the wire)
+              // see PIP-54
 
-            // message2 is still there
-            Message receive2 = consumer.receive();
-            assertEquals("foo2", receive2.getStringProperty("test"));
+              // message2 is still there
+              Message receive2 = consumer.receive();
+              assertEquals("foo2", receive2.getStringProperty("test"));
 
-            assertNull(consumer.receive(100));
+              assertNull(consumer.receive(100));
 
-            // ack message2
-            receive2.acknowledge();
-            // ack message1
-            receive.acknowledge();
+              // ack message2
+              receive2.acknowledge();
+            } else {
+              // message1 is still there, because we haven't fully acknowledged the Batch
+              Message receive = consumer.receive();
+              assertEquals("foo", receive.getStringProperty("test"));
+
+              // message2 is still there
+              Message receive2 = consumer.receive();
+              assertEquals("foo2", receive2.getStringProperty("test"));
+
+              assertNull(consumer.receive(100));
+
+              // ack message2
+              receive2.acknowledge();
+              // ack message1
+              receive.acknowledge();
+            }
           }
 
           // no more messages

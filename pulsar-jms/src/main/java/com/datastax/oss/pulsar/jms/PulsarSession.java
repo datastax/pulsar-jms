@@ -1580,7 +1580,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
       getFactory().removeConsumer(pulsarConsumer);
       for (Iterator<PulsarMessage> it = unackedMessages.iterator(); it.hasNext(); ) {
         PulsarMessage message = it.next();
-        if (message.isReceivedFromConsumer(consumer)) {
+        if (message != null && message.isReceivedFromConsumer(consumer)) {
           it.remove();
         }
       }
