@@ -674,10 +674,6 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
     return selectorSupportOnSubscription;
   }
 
-  public void setSelectorSupportOnSubscription(SelectorSupport selectorSupportOnSubscription) {
-    this.selectorSupportOnSubscription = selectorSupportOnSubscription;
-  }
-
   Consumer<byte[]> getInternalConsumer() {
     return consumer;
   }
