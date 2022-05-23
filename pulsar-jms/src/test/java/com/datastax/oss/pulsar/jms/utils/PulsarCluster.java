@@ -60,6 +60,7 @@ public class PulsarCluster implements AutoCloseable {
     config.setBookkeeperUseV2WireProtocol(false);
     config.setEntryFilterNames(Arrays.asList("jms"));
     config.setEntryFiltersDirectory("target/classes/filters");
+    config.setAcknowledgmentAtBatchIndexLevelEnabled(true);
     service = new PulsarService(config);
   }
 
