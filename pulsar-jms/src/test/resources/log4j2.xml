@@ -29,11 +29,13 @@
     <logger name="org.apache.bookkeeper" level="error" additivity="true"/>
     <logger name="org.apache.bookkeeper.mledger" level="info" additivity="true"/>
     <logger name="org.apache.pulsar" level="info" additivity="true"/>
-    <logger name="org.apache.zookeeper" level="info" additivity="false"/>
-    <logger name="org.apache.curator" level="error" additivity="false"/>
-    <logger name="org.eclipse.jetty" level="error" additivity="false"/>
+    <logger name="org.apache.zookeeper" level="error" additivity="true"/>
+    <logger name="org.apache.curator" level="error" additivity="true"/>
+    <logger name="org.eclipse.jetty" level="error" additivity="true"/>
     <logger name="org.glassfish.jersey" level="error" additivity="false"/>
+    <logger name="com.datastax.oss.pulsar.jms" level="info" additivity="true"/>
     <logger name="com.datastax.oss.pulsar.jms.utils" level="info" additivity="false"/>
-    <logger name="io.netty" level="error" additivity="false"/>
+    <logger name="io.netty" level="error" additivity="true"/>
+    <logger name="org.asynchttpclient" level="error" additivity="true"/>
   </Loggers>
 </Configuration>

@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
 import javax.jms.CompletionListener;
 import javax.jms.Message;
 import javax.jms.MessageProducer;
@@ -88,6 +89,9 @@ public abstract class SelectorsTestsBase {
     Map<String, Object> producerConfig = new HashMap<>();
     producerConfig.put("batchingEnabled", enableBatching);
     properties.put("producerConfig", producerConfig);
+
+    Map<String, Object> consumerConfig = new HashMap<>();
+    properties.put("consumerConfig", consumerConfig);
     return properties;
   }
 
@@ -383,6 +387,151 @@ public abstract class SelectorsTestsBase {
               assertEquals(100, consumer1.getReceivedMessages());
               assertEquals(100 - expected.size(), consumer1.getSkippedMessages());
             }
+          }
+        }
+      }
+    }
+  }
+
+  @Test
+  public void sendBatchWithCompetingConsumersOnQueue() throws Exception {
+    Map<String, Object> properties = buildProperties();
+    if (enableBatching) {
+      // ensure that we create batches with more than 1 message
+      Map<String, Object> producerConfig = (Map<String, Object>) properties.get("producerConfig");
+      producerConfig.put("batchingMaxPublishDelayMicros", "1000000");
+      // each batch will contain 5 messages
+      producerConfig.put("batchingMaxMessages", "5");
+    }
+
+    // batchIndexAckEnabled is required in order for the client to be able to
+    // negatively/positively acknowledge single messages inside a batch
+    Map<String, Object> consumerConfig = (Map<String, Object>) properties.get("consumerConfig");
+    consumerConfig.put("batchIndexAckEnabled", true);
+
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+      try (PulsarConnection connection = factory.createConnection()) {
+        connection.start();
+        try (PulsarSession session = connection.createSession(); ) {
+          Queue destination =
+              session.createQueue("persistent://public/default/test-" + UUID.randomUUID());
+
+          try (PulsarMessageConsumer consumer1 =
+                  session.createConsumer(destination, "consumer='one'");
+              PulsarMessageConsumer consumer2 =
+                  session.createConsumer(destination, "consumer='two'"); ) {
+            assertEquals(
+                SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
+            assertEquals("consumer='one'", consumer1.getMessageSelector());
+            assertEquals(
+                SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
+            assertEquals("consumer='two'", consumer2.getMessageSelector());
+
+            List<CompletableFuture<Message>> handles = new ArrayList<>();
+            List<String> expected1 = new CopyOnWriteArrayList<>();
+            List<String> expected2 = new CopyOnWriteArrayList<>();
+            try (MessageProducer producer = session.createProducer(destination); ) {
+              for (int i = 0; i < 100; i++) {
+                String text = "foo-" + i;
+                TextMessage textMessage = session.createTextMessage(text);
+                // some messages go to consumer 1
+                if (i % 3 == 0) {
+                  expected1.add(text);
+                  textMessage.setStringProperty("consumer", "one");
+                } else {
+                  expected2.add(text);
+                  textMessage.setStringProperty("consumer", "two");
+                }
+                CompletableFuture<Message> handle = new CompletableFuture<>();
+                producer.send(
+                    textMessage,
+                    new CompletionListener() {
+                      @Override
+                      public void onCompletion(Message message) {
+                        handle.complete(message);
+                      }
+
+                      @Override
+                      public void onException(Message message, Exception e) {
+                        handle.completeExceptionally(e);
+                      }
+                    });
+                handles.add(handle);
+              }
+            }
+
+            CompletableFuture.allOf(handles.toArray(new CompletableFuture[0])).get();
+
+            CompletableFuture<String> thread1Result = new CompletableFuture();
+            Thread thread1 =
+                new Thread(
+                    () -> {
+                      try {
+                        while (!expected1.isEmpty()) {
+                          log.info(
+                              "{} messages left for consumer1: {}", expected1.size(), expected1);
+                          PulsarTextMessage textMessage = (PulsarTextMessage) consumer1.receive();
+                          log.info(
+                              "consumer1 received {} {}",
+                              textMessage.getText(),
+                              textMessage.getStringProperty("consumer"));
+                          // ensure that we receive the message only ONCE
+                          assertTrue(expected1.remove(textMessage.getText()));
+                          assertEquals("one", textMessage.getStringProperty("consumer"));
+
+                          // ensure that it is a batch message
+                          assertEquals(
+                              enableBatching,
+                              textMessage.getReceivedPulsarMessage().getMessageId()
+                                  instanceof BatchMessageIdImpl);
+                        }
+                        // no more messages (this also drains some remaining messages to be skipped)
+                        assertNull(consumer1.receive(1000));
+
+                        thread1Result.complete("");
+                      } catch (Throwable t) {
+                        log.error("error thread1", t);
+                        thread1Result.completeExceptionally(t);
+                      }
+                    });
+
+            CompletableFuture<String> thread2Result = new CompletableFuture();
+            Thread thread2 =
+                new Thread(
+                    () -> {
+                      try {
+                        while (!expected2.isEmpty()) {
+                          log.info(
+                              "{} messages left for consumer2: {}", expected2.size(), expected2);
+                          PulsarTextMessage textMessage = (PulsarTextMessage) consumer2.receive();
+                          log.info(
+                              "consumer2 received {} {}",
+                              textMessage.getText(),
+                              textMessage.getStringProperty("consumer"));
+                          // ensure that we receive the message only ONCE
+                          assertTrue(expected2.remove(textMessage.getText()));
+                          assertEquals("two", textMessage.getStringProperty("consumer"));
+
+                          // ensure that it is a batch message
+                          assertEquals(
+                              enableBatching,
+                              textMessage.getReceivedPulsarMessage().getMessageId()
+                                  instanceof BatchMessageIdImpl);
+                        }
+                        // no more messages (this also drains some remaining messages to be skipped)
+                        assertNull(consumer2.receive(1000));
+
+                        thread2Result.complete("");
+                      } catch (Throwable t) {
+                        log.error("error thread2", t);
+                        thread2Result.completeExceptionally(t);
+                      }
+                    });
+
+            thread1.start();
+            thread2.start();
+            thread1Result.get();
+            thread2Result.get();
           }
         }
       }
