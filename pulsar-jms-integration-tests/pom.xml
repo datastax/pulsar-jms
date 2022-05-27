@@ -97,8 +97,8 @@
             <configuration>
               <tasks>
                 <echo>copy filters</echo>
-                <mkdir dir="${project.build.outputDirectory}/filters" />
-                <copy verbose="true" file="${basedir}/../pulsar-jms-filters/target/pulsar-jms-filters-${project.version}.jar" tofile="${project.build.outputDirectory}/filters/jms-filter.nar" />
+                <mkdir dir="${project.build.outputDirectory}/filters"/>
+                <copy verbose="true" file="${basedir}/../pulsar-jms-filters/target/pulsar-jms-${project.version}-nar.nar" tofile="${project.build.outputDirectory}/filters/jms-filter.nar"/>
               </tasks>
             </configuration>
           </execution>

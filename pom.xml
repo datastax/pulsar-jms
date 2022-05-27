@@ -31,6 +31,7 @@
     <url>http://www.datastax.com</url>
   </organization>
   <modules>
+    <module>activemq-filters</module>
     <module>pulsar-jms-filters</module>
     <module>pulsar-jms</module>
     <module>resource-adapter</module>
@@ -75,6 +76,11 @@
         <version>${pulsar.version}</version>
         <type>pom</type>
         <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.slf4j</groupId>
+        <artifactId>slf4j-api</artifactId>
+        <version>${slf4j.version}</version>
       </dependency>
       <dependency>
         <groupId>org.slf4j</groupId>

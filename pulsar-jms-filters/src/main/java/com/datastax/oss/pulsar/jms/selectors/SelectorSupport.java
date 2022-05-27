@@ -23,6 +23,7 @@ import javax.jms.InvalidSelectorException;
 import javax.jms.JMSException;
 import javax.jms.Message;
 import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.activemq.command.ActiveMQDestination;
 import org.apache.activemq.command.ActiveMQMessage;
 import org.apache.activemq.filter.BooleanExpression;
@@ -30,6 +31,7 @@ import org.apache.activemq.filter.MessageEvaluationContext;
 import org.apache.activemq.selector.SelectorParser;
 
 @AllArgsConstructor
+@Slf4j
 public final class SelectorSupport {
 
   private final BooleanExpression expression;
@@ -44,6 +46,9 @@ public final class SelectorSupport {
           "Client-Side selectors are not enabled, please set enableClientSideEmulation=true");
     }
     BooleanExpression parse = SelectorParser.parse(selector);
+    if (log.isDebugEnabled()) {
+      log.debug("parsed {} as {}", selector, parse);
+    }
     return new SelectorSupport(parse, selector);
   }
 
