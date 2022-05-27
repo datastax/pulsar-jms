@@ -1072,8 +1072,6 @@ public abstract class SelectorsTestsBase {
     }
   }
 
-  // waiting for 2.10.0.4 with
-  // https://github.com/apache/pulsar/pull/15713
   @Test
   public void sendHugeFilterOnConsumerMetadata() throws Exception {
     // we are testing here that we can store a huge (10k) filter on the Consumer Metadata
