@@ -11,7 +11,7 @@ unzip -o $HERE/jakarta-messaging-tck-2.0.0.zip -d $HERE/target
 
 TS_HOME=target/messaging-tck
 
-VERSION=$(mvn org.apache.maven.plugins:maven-help-plugin:3.2.0:evaluate -Dexpression=project.version -q -DforceStdout)
+VERSION=$(mvn org.apache.maven.plugins:maven-help-plugin:3.2.0:evaluate -Dexpression=project.version -q -DforceStdout | tail -n1)
 cp ts.* $TS_HOME/bin
 # overwrite ts.jte
 cp $CONFIGURATION_FILE $TS_HOME/bin/ts.jte
