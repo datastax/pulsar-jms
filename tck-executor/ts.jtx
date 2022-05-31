@@ -33,7 +33,3 @@ com/sun/ts/tests/jms/core20/jmscontexttopictests/Client.java#jMSRuntimeException
 # Buggy TCK test (line 1629, "exception" variable is never assigned)
 com/sun/ts/tests/jms/core20/appclient/jmscontexttopictests/Client.java#messageFormatRuntimeExceptionTests_from_standalone
 
-# Flaky test on CI (QueueBrowser + Selector "ERROR: Found 0 messages in browser expected 1", sometimes peekMessage does not return the right value)
-# see https://github.com/apache/pulsar/issues/11002, it should be fixed with Pulsar 2.8.1 onwards
-com/sun/ts/tests/jms/core20/jmscontextqueuetests/Client.java#createQueueBrowserTest_from_standalone
-com/sun/ts/tests/jms/core20/sessiontests/Client.java#createQueueBrowserTest_from_standalone
