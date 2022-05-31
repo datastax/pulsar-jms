@@ -249,8 +249,12 @@ public abstract class UnaryExpression implements Expression {
 
     @Override
     public boolean matches(MessageEvaluationContext message) throws JMSException {
-      BooleanExpression be = (BooleanExpression) right;
-      return !be.matches(message);
+      Boolean lvalue = (Boolean) right.evaluate(message);
+      if (lvalue == null) {
+        // NOT NULL returns NULL that eventually fails the selector
+        return false;
+      }
+      return !lvalue;
     }
 
     public String getExpressionSymbol() {
