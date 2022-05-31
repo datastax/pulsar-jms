@@ -34,6 +34,10 @@ class SelectorSupportTest {
     match(false, "foo='bar' and foo='bar' and foo='other'");
     match(false, "foo='bar' and foo='other'");
     match(true, "foo='bar' and foo='bar'");
+    match(false, "foo='other'");
+    match(false, "foo is null");
+    match(true, "foo is not null");
+    match(true, "undefinedProperty is null");
   }
 
   private static void match(boolean expected, String selector) throws Exception {

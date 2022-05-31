@@ -127,19 +127,7 @@ public abstract class UnaryExpression implements Expression {
   };
 
   public static BooleanExpression createNOT(BooleanExpression left) {
-    return new BooleanUnaryExpression(left) {
-      public Object evaluate(MessageEvaluationContext message) throws JMSException {
-        Boolean lvalue = (Boolean) right.evaluate(message);
-        if (lvalue == null) {
-          return null;
-        }
-        return lvalue.booleanValue() ? Boolean.FALSE : Boolean.TRUE;
-      }
-
-      public String getExpressionSymbol() {
-        return "NOT";
-      }
-    };
+    return new NotExpression(left);
   }
 
   public static BooleanExpression createXPath(final String xpath) {
@@ -245,4 +233,28 @@ public abstract class UnaryExpression implements Expression {
    * @return
    */
   public abstract String getExpressionSymbol();
+
+  private static class NotExpression extends BooleanUnaryExpression {
+    public NotExpression(BooleanExpression right) {
+      super(right);
+    }
+
+    public Object evaluate(MessageEvaluationContext message) throws JMSException {
+      Boolean lvalue = (Boolean) right.evaluate(message);
+      if (lvalue == null) {
+        return null;
+      }
+      return lvalue.booleanValue() ? Boolean.FALSE : Boolean.TRUE;
+    }
+
+    @Override
+    public boolean matches(MessageEvaluationContext message) throws JMSException {
+      BooleanExpression be = (BooleanExpression) right;
+      return !be.matches(message);
+    }
+
+    public String getExpressionSymbol() {
+      return "NOT";
+    }
+  }
 }

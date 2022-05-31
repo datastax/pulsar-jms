@@ -1102,7 +1102,7 @@ public abstract class SelectorsTestsBase {
 
           try (PulsarMessageConsumer consumer1 = session.createConsumer(destination, selector); ) {
             assertEquals(
-                    SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
+                SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
 
             assertEquals(selector, consumer1.getMessageSelector());
 

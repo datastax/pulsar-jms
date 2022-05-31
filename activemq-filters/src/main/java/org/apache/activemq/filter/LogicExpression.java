@@ -131,8 +131,8 @@ public abstract class LogicExpression implements BooleanExpression {
     @Override
     public boolean matches(MessageEvaluationContext message) throws JMSException {
       for (BooleanExpression expression : expressions) {
-        Boolean lv = (Boolean) expression.evaluate(message);
-        if (lv != null && lv.booleanValue()) {
+        boolean lv = expression.matches(message);
+        if (lv) {
           return true;
         }
       }
@@ -172,8 +172,8 @@ public abstract class LogicExpression implements BooleanExpression {
     @Override
     public boolean matches(MessageEvaluationContext message) throws JMSException {
       for (BooleanExpression expression : expressions) {
-        Boolean lv = (Boolean) expression.evaluate(message);
-        if (lv == null || !lv.booleanValue()) {
+        boolean lv = expression.matches(message);
+        if (!lv) {
           return false;
         }
       }
