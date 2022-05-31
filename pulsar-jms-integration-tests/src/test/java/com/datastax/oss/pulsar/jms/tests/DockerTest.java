@@ -58,9 +58,9 @@ public class DockerTest {
   }
 
   @Test
-  public void testPulsar2101() throws Exception {
+  public void testLunaStreaming210() throws Exception {
     // waiting for Apache Pulsar 2.10.1, in the meantime we use Luna Streaming 2.10.0.1
-    test("datastax/lunastreaming:2.10_0.1", false);
+    test("datastax/lunastreaming:2.10_0.4", false);
   }
 
   @Test
