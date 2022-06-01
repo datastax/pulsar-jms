@@ -15,10 +15,7 @@
  */
 package org.apache.activemq.filter;
 
-/**
- * A default entry in a DestinationMap which holds a single value.
- *
- */
+/** A default entry in a DestinationMap which holds a single value. */
 @SuppressWarnings("rawtypes")
 public class DefaultDestinationMapEntry extends DestinationMapEntry {
   private DestinationMapEntry value;

@@ -17,10 +17,7 @@ package org.apache.activemq.filter;
 
 import org.apache.activemq.command.*;
 
-/**
- * A base class for entry objects used to construct a destination based policy map.
- *
- */
+/** A base class for entry objects used to construct a destination based policy map. */
 public abstract class DestinationMapEntry<T> implements Comparable<T> {
 
   protected ActiveMQDestination destination;

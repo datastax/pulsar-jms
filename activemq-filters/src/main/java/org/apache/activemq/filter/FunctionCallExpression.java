@@ -79,7 +79,6 @@ public class FunctionCallExpression implements Expression {
    * Constructs a function call expression with the named function and argument list.
    *
    * <p>Use createFunctionCall() to create instances.
-   *
    */
   protected FunctionCallExpression(String func_name, List<Expression> args)
       throws invalidFunctionExpressionException {
