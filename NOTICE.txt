@@ -1,0 +1,9 @@
+Starlight for JMS - DataStax
+
+This product includes software components originally
+developed for Apache ActiveMQ (https://github.com/apache/activemq),
+licensed under the Apache 2.0 license. 
+In particular the code for Selectors in the activemq-filters module.
+The licensing terms for Apache ActiveMQ code can be found at:
+https://github.com/apache/activemq/blob/master/LICENSE
+

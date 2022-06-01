@@ -20,7 +20,6 @@ import org.apache.activemq.command.*;
 /**
  * A base class for entry objects used to construct a destination based policy map.
  *
- * @org.apache.xbean.XBean
  */
 public abstract class DestinationMapEntry<T> implements Comparable<T> {
 
