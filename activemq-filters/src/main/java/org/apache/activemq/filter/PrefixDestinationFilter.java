@@ -17,14 +17,14 @@ package org.apache.activemq.filter;
 
 import org.apache.activemq.command.ActiveMQDestination;
 
-/** Matches messages which match a prefix like "A.B.>" */
+/** Matches messages which match a prefix like "A.B.&gt;" */
 public class PrefixDestinationFilter extends DestinationFilter {
 
   private String[] prefixes;
   private byte destinationType;
 
   /**
-   * An array of paths, the last path is '>'
+   * An array of paths, the last path is '&gt;'
    *
    * @param prefixes
    */

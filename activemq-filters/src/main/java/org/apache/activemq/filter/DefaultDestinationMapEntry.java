@@ -18,7 +18,6 @@ package org.apache.activemq.filter;
 /**
  * A default entry in a DestinationMap which holds a single value.
  *
- * @org.apache.xbean.XBean element="destinationEntry"
  */
 @SuppressWarnings("rawtypes")
 public class DefaultDestinationMapEntry extends DestinationMapEntry {

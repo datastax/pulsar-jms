@@ -80,7 +80,6 @@ public class FunctionCallExpression implements Expression {
    *
    * <p>Use createFunctionCall() to create instances.
    *
-   * @exception invalidFunctionExpressionException - if the function name is not valid.
    */
   protected FunctionCallExpression(String func_name, List<Expression> args)
       throws invalidFunctionExpressionException {
@@ -111,8 +110,6 @@ public class FunctionCallExpression implements Expression {
    * @param args - list of argument expressions passed to the function.
    * @return an instance of a BooleanFunctionCallExpr if the function returns a boolean value in
    *     this call, or a FunctionCallExpression otherwise.
-   * @exception invalidFunctionExpression - if the function name is not valid, or the given argument
-   *     list is not valid for the function.
    */
   public static FunctionCallExpression createFunctionCall(String func_name, List<Expression> args)
       throws invalidFunctionExpressionException {
