@@ -77,6 +77,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   private boolean jms20;
   private final int sessionMode;
   private final boolean transacted;
+  private final boolean emulateTransactions;
   // this is to emulate QueueSession/TopicSession
   private boolean allowQueueOperations = true;
   private boolean allowTopicOperations = true;
@@ -93,21 +94,27 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   private final List<PulsarQueueBrowser> browsers = new CopyOnWriteArrayList<>();
 
   public PulsarSession(int sessionMode, PulsarConnection connection) throws JMSException {
+    if (sessionMode == SESSION_TRANSACTED && !connection.getFactory().isEnableTransaction()) {
+      if (connection.getFactory().isEmulateTransactions()) {
+        emulateTransactions = true;
+      } else {
+        throw new JMSException(
+                "Please enable transactions on PulsarConnectionFactory with enableTransaction=true, you can configure " +
+                        "jms.emulateTransactions if your Pulsar cluster does not support transactions");
+      }
+    } else {
+      emulateTransactions = false;
+    }
     this.jms20 = false;
     this.connection = connection;
     this.sessionMode = sessionMode;
     this.transacted = sessionMode == Session.SESSION_TRANSACTED;
     validateSessionMode(sessionMode);
-    if (sessionMode == SESSION_TRANSACTED) {
-      if (!connection.getFactory().isEnableTransaction()) {
-        throw new JMSException(
-            "Please enable transactions on PulsarConnectionFactory with enableTransaction=true");
-      }
-    }
   }
 
   Transaction getTransaction() throws JMSException {
-    if (transaction == null && sessionMode == SESSION_TRANSACTED) {
+    if (transaction == null && sessionMode == SESSION_TRANSACTED
+            && !emulateTransactions) {
       this.transaction = startTransaction(connection);
     }
     return this.transaction;
@@ -389,6 +396,13 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     }
     closeLock.readLock().lock();
     try {
+      if (emulateTransactions) {
+        // we are postponing to this moment the acknowledgment
+        for (PulsarMessage msg : unackedMessages) {
+          msg.acknowledgeInternal();
+        }
+        unackedMessages.clear();
+      }
       if (transaction != null) {
         // we are postponing to this moment the acknowledgment
         List<CompletableFuture<?>> handles = new ArrayList<>();
