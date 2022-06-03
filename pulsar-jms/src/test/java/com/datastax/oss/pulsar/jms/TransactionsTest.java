@@ -257,7 +257,6 @@ public class TransactionsTest {
   }
 
   @Test
-  @Disabled
   public void consumeRollbackTransactionTest() throws Exception {
 
     Map<String, Object> properties = new HashMap<>();
@@ -346,7 +345,6 @@ public class TransactionsTest {
   }
 
   @Test
-  @Disabled
   public void consumeAutoRollbackTransactionTestWithQueueBrowser() throws Exception {
 
     int numMessages = 10;
@@ -494,7 +492,6 @@ public class TransactionsTest {
   }
 
   @Test
-  @Disabled
   public void consumeRollbackTransactionTestWithQueueBrowser() throws Exception {
 
     int numMessages = 10;
