@@ -443,6 +443,10 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   private void rollbackInternal() throws JMSException {
     for (PulsarMessageConsumer consumer : consumers) {
       consumer.redeliverUnacknowledgedMessages();
+      if (consumer.isClosedWhileActiveTransaction()) {
+        // consumer closed before calling "rollback"
+        consumer.closeDuringRollback();
+      }
     }
     unackedMessages.clear();
     if (transaction != null) {

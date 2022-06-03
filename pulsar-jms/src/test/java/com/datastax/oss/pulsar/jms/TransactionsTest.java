@@ -260,6 +260,9 @@ public class TransactionsTest {
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
     properties.put("enableTransaction", "true");
+    Map<String, Object> consumerConfig = new HashMap<>();
+    consumerConfig.put("ackReceiptEnabled", true);
+    properties.put("consumerConfig", consumerConfig);
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
         connection.start();
@@ -281,7 +284,52 @@ public class TransactionsTest {
               assertEquals("foo", receive.getBody(String.class));
             }
 
+            // rollback transaction AFTER closing the Consumer
             transaction.rollback();
+
+            // the consumer rolledback the transaction, now we can receive the message from
+            // another client
+            try (MessageConsumer consumer = producerSession.createConsumer(destination); ) {
+              assertNotNull(consumer.receive());
+            }
+          }
+        }
+      }
+    }
+  }
+
+  @Test
+  public void consumeRollbackTransaction2Test() throws Exception {
+
+    Map<String, Object> properties = new HashMap<>();
+    properties.put("webServiceUrl", cluster.getAddress());
+    properties.put("enableTransaction", "true");
+    Map<String, Object> consumerConfig = new HashMap<>();
+    consumerConfig.put("ackReceiptEnabled", true);
+    properties.put("consumerConfig", consumerConfig);
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+      try (Connection connection = factory.createConnection()) {
+        connection.start();
+
+        try (Session producerSession = connection.createSession(); ) {
+          Destination destination =
+              producerSession.createQueue("persistent://public/default/test-" + UUID.randomUUID());
+
+          try (Session transaction = connection.createSession(Session.SESSION_TRANSACTED); ) {
+
+            try (MessageConsumer consumer = transaction.createConsumer(destination); ) {
+
+              try (MessageProducer producer = producerSession.createProducer(destination); ) {
+                TextMessage textMsg = producerSession.createTextMessage("foo");
+                producer.send(textMsg);
+              }
+
+              Message receive = consumer.receive();
+              assertEquals("foo", receive.getBody(String.class));
+
+              // rollback before closing Consumer
+              transaction.rollback();
+            }
 
             // the consumer rolledback the transaction, now we can receive the message from
             // another client

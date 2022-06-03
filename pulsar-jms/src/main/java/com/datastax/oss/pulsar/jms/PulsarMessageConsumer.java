@@ -54,6 +54,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
   final boolean unregisterSubscriptionOnClose;
   private boolean closed;
   private boolean requestClose;
+  private boolean closedWhileActiveTransaction;
 
   public PulsarMessageConsumer(
       String subscriptionName,
@@ -456,6 +457,8 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
               throw Utils.handleException(err);
             }
           });
+    } else if (session.getTransacted()) {
+      closedWhileActiveTransaction = true;
     }
   }
 
@@ -624,6 +627,15 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
         });
   }
 
+  void closeDuringRollback() throws JMSException {
+    try {
+      consumer.close();
+      session.removeConsumer(this);
+    } catch (Exception err) {
+      throw Utils.handleException(err);
+    }
+  }
+
   public void closeInternal() throws JMSException {
     if (closed) {
       return;
@@ -638,6 +650,10 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
     } catch (Exception err) {
       throw Utils.handleException(err);
     }
+  }
+
+  public synchronized boolean isClosedWhileActiveTransaction() {
+    return closedWhileActiveTransaction;
   }
 
   public void negativeAck(org.apache.pulsar.client.api.Message<byte[]> message) {
