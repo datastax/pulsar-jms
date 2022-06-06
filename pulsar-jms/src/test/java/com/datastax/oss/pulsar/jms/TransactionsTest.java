@@ -43,7 +43,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.impl.BatchMessageIdImpl;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -708,7 +707,7 @@ public class TransactionsTest {
 
         try (Session consumerSession = connection.createSession(Session.SESSION_TRANSACTED); ) {
           Destination destination =
-                  consumerSession.createTopic("persistent://public/default/test-" + UUID.randomUUID());
+              consumerSession.createTopic("persistent://public/default/test-" + UUID.randomUUID());
           try (MessageConsumer consumer = consumerSession.createConsumer(destination)) {
 
             try (Session transaction = connection.createSession(Session.SESSION_TRANSACTED); ) {
