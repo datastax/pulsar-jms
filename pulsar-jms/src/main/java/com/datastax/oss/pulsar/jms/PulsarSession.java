@@ -99,8 +99,8 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
         emulateTransactions = true;
       } else {
         throw new JMSException(
-                "Please enable transactions on PulsarConnectionFactory with enableTransaction=true, you can configure " +
-                        "jms.emulateTransactions if your Pulsar cluster does not support transactions");
+            "Please enable transactions on PulsarConnectionFactory with enableTransaction=true, you can configure "
+                + "jms.emulateTransactions if your Pulsar cluster does not support transactions");
       }
     } else {
       emulateTransactions = false;
@@ -113,8 +113,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   }
 
   Transaction getTransaction() throws JMSException {
-    if (transaction == null && sessionMode == SESSION_TRANSACTED
-            && !emulateTransactions) {
+    if (transaction == null && sessionMode == SESSION_TRANSACTED && !emulateTransactions) {
       this.transaction = startTransaction(connection);
     }
     return this.transaction;

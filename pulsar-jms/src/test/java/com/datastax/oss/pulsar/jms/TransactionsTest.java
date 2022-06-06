@@ -696,7 +696,7 @@ public class TransactionsTest {
   }
 
   @Test
-  public void emualatedTransactionsTest() throws Exception {
+  public void emulatedTransactionsTest() throws Exception {
 
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
@@ -720,7 +720,7 @@ public class TransactionsTest {
               }
 
               transaction.commit();
-              // message is now visible to consumers
+
               assertNotNull(consumer.receive());
               assertNotNull(consumer.receive());
 

@@ -303,10 +303,12 @@ public class PulsarConnectionFactory
           Boolean.parseBoolean(configuration.getOrDefault("enableTransaction", "false").toString());
 
       this.emulateTransactions =
-              Boolean.parseBoolean(getAndRemoveString("jms.emulateTransactions", "false", configuration).toString());
+          Boolean.parseBoolean(
+              getAndRemoveString("jms.emulateTransactions", "false", configuration).toString());
 
       if (emulateTransactions && enableTransaction) {
-        throw new IllegalStateException("You cannot set both enableTransaction and jms.emulateTransactions");
+        throw new IllegalStateException(
+            "You cannot set both enableTransaction and jms.emulateTransactions");
       }
 
       String webServiceUrl =
