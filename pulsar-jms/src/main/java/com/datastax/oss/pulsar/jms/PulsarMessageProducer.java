@@ -46,6 +46,7 @@ import javax.jms.TopicPublisher;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.api.Producer;
 import org.apache.pulsar.client.api.TypedMessageBuilder;
+import org.apache.pulsar.client.api.transaction.Transaction;
 
 @Slf4j
 class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSender {
@@ -1198,7 +1199,13 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
     PulsarMessage pulsarMessage = prepareMessageForSend(message);
     final TypedMessageBuilder<byte[]> typedMessageBuilder;
     if (session.getTransacted()) {
-      typedMessageBuilder = producer.newMessage(session.getTransaction());
+      Transaction transaction = session.getTransaction();
+      if (transaction != null) {
+        typedMessageBuilder = producer.newMessage(transaction);
+      } else {
+        // emulated transactions
+        typedMessageBuilder = producer.newMessage();
+      }
     } else {
       typedMessageBuilder = producer.newMessage();
     }
@@ -1245,7 +1252,13 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
     }
     TypedMessageBuilder<byte[]> typedMessageBuilder;
     if (session.getTransacted()) {
-      typedMessageBuilder = producer.newMessage(session.getTransaction());
+      Transaction transaction = session.getTransaction();
+      if (transaction != null) {
+        typedMessageBuilder = producer.newMessage(transaction);
+      } else {
+        // emulated transactions
+        typedMessageBuilder = producer.newMessage();
+      }
     } else {
       typedMessageBuilder = producer.newMessage();
     }

@@ -18,6 +18,7 @@ package com.datastax.oss.pulsar.jms;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
 import java.nio.file.Path;
@@ -42,12 +43,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.impl.BatchMessageIdImpl;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 @Slf4j
-@Disabled
 public class TransactionsTest {
 
   @TempDir public static Path tempDir;
@@ -688,6 +687,43 @@ public class TransactionsTest {
               assertEquals(messageId1.getLedgerId(), messageId2.getLedgerId());
               assertEquals(messageId1.getEntryId(), messageId2.getEntryId());
               assertEquals(messageId1.getBatchIndex() + 1, messageId2.getBatchIndex());
+            }
+          }
+        }
+      }
+    }
+  }
+
+  @Test
+  public void emulatedTransactionsTest() throws Exception {
+
+    Map<String, Object> properties = new HashMap<>();
+    properties.put("webServiceUrl", cluster.getAddress());
+    properties.put("enableTransaction", "false");
+    properties.put("jms.emulateTransactions", "true");
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+      try (Connection connection = factory.createConnection()) {
+        connection.start();
+
+        try (Session consumerSession = connection.createSession(Session.SESSION_TRANSACTED); ) {
+          Destination destination =
+              consumerSession.createTopic("persistent://public/default/test-" + UUID.randomUUID());
+          try (MessageConsumer consumer = consumerSession.createConsumer(destination)) {
+
+            try (Session transaction = connection.createSession(Session.SESSION_TRANSACTED); ) {
+              assertTrue(transaction.getTransacted());
+              try (MessageProducer producer = transaction.createProducer(destination); ) {
+                TextMessage textMsg = transaction.createTextMessage("foo");
+                producer.send(textMsg);
+                producer.send(textMsg);
+              }
+
+              transaction.commit();
+
+              assertNotNull(consumer.receive());
+              assertNotNull(consumer.receive());
+
+              consumerSession.commit();
             }
           }
         }

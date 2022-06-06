@@ -76,6 +76,7 @@ public class PulsarConnectionFactory
   private String systemNamespace = "public/default";
   private String defaultClientId = null;
   private boolean enableTransaction = false;
+  private boolean emulateTransactions = false;
   private boolean enableClientSideEmulation = false;
   private boolean useServerSideFiltering = false;
   private boolean forceDeleteTemporaryDestinations = false;
@@ -301,6 +302,15 @@ public class PulsarConnectionFactory
       this.enableTransaction =
           Boolean.parseBoolean(configuration.getOrDefault("enableTransaction", "false").toString());
 
+      this.emulateTransactions =
+          Boolean.parseBoolean(
+              getAndRemoveString("jms.emulateTransactions", "false", configuration).toString());
+
+      if (emulateTransactions && enableTransaction) {
+        throw new IllegalStateException(
+            "You cannot set both enableTransaction and jms.emulateTransactions");
+      }
+
       String webServiceUrl =
           getAndRemoveString("webServiceUrl", "http://localhost:8080", configuration);
 
@@ -404,6 +414,10 @@ public class PulsarConnectionFactory
 
   public synchronized boolean isEnableTransaction() {
     return enableTransaction;
+  }
+
+  public synchronized boolean isEmulateTransactions() {
+    return emulateTransactions;
   }
 
   public synchronized PulsarClient getPulsarClient() {
