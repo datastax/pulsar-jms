@@ -19,6 +19,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
+import javax.jms.DeliveryMode;
+import org.apache.activemq.command.ActiveMQQueue;
+import org.apache.activemq.command.ActiveMQTopic;
 import org.junit.jupiter.api.Test;
 
 class SelectorSupportTest {
@@ -42,10 +47,48 @@ class SelectorSupportTest {
     match(false, "undefinedProperty");
   }
 
+  @Test
+  public void testSpecialKeywords() throws Exception {
+    match(true, "JMSMessageID = '0:1:9:-1'");
+    match(true, "JMSMessageID is not null");
+    match(false, "JMSMessageID is null");
+    match(true, "JMSReplyTo = 'queue://persistent://public/default/testReply'");
+    match(true, "JMSDestination = 'topic://persistent://public/default/test'");
+    match(true, "JMSCorrelationID = '0:1:2:3'");
+    match(true, "JMSDeliveryMode = 'PERSISTENT'");
+    match(true, "JMSType = 'my-type'");
+    match(true, "JMSExpiration = 1234");
+    match(true, "JMSPriority = 5");
+    match(true, "JMSTimestamp = 5234234");
+  }
+
   private static void match(boolean expected, String selector) throws Exception {
     SelectorSupport build = SelectorSupport.build(selector, true);
+    Map<String, AtomicInteger> propertyAccessCount = new HashMap<>();
     Map<String, Object> properties = new HashMap<>();
     properties.put("foo", "bar");
-    assertEquals(expected, build.matches(properties, "", "", null, null, 0, null, 0, 0, 0));
+    properties.put("JMSMessageID", "0:1:9:-1");
+    properties.put("JMSReplyTo", new ActiveMQQueue("persistent://public/default/testReply"));
+    properties.put("JMSDestination", new ActiveMQTopic("persistent://public/default/test"));
+
+    properties.put("JMSCorrelationID", "0:1:2:3");
+    properties.put("JMSDeliveryMode", DeliveryMode.PERSISTENT);
+    properties.put("JMSType", "my-type");
+    properties.put("JMSExpiration", 1234L);
+    properties.put("JMSPriority", 5);
+    properties.put("JMSTimestamp", 5234234L);
+
+    Function<String, Object> spy =
+        (k) -> {
+          propertyAccessCount.computeIfAbsent(k, v -> new AtomicInteger()).incrementAndGet();
+          return properties.get(k);
+        };
+    assertEquals(expected, build.matches(spy));
+
+    // SelectorSupport has a cache to prevent multiple requests for the same key
+    propertyAccessCount.forEach(
+        (property, count) -> {
+          assertEquals(1, count.get());
+        });
   }
 }

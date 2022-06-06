@@ -284,7 +284,6 @@ public class TransactionsTest {
 
               Message receive = consumer.receive();
               assertEquals("foo", receive.getBody(String.class));
-
             }
 
             // rollback transaction AFTER closing the Consumer
@@ -301,7 +300,6 @@ public class TransactionsTest {
     }
   }
 
-
   @Test
   public void consumeRollbackTransaction2Test() throws Exception {
 
@@ -317,7 +315,7 @@ public class TransactionsTest {
 
         try (Session producerSession = connection.createSession(); ) {
           Destination destination =
-                  producerSession.createQueue("persistent://public/default/test-" + UUID.randomUUID());
+              producerSession.createQueue("persistent://public/default/test-" + UUID.randomUUID());
 
           try (Session transaction = connection.createSession(Session.SESSION_TRANSACTED); ) {
 
