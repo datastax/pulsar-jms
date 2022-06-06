@@ -18,6 +18,8 @@ package com.datastax.oss.pulsar.jms.selectors;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Function;
+import javax.jms.DeliveryMode;
 import javax.jms.Destination;
 import javax.jms.InvalidSelectorException;
 import javax.jms.JMSException;
@@ -26,6 +28,7 @@ import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.activemq.command.ActiveMQDestination;
 import org.apache.activemq.command.ActiveMQMessage;
+import org.apache.activemq.command.MessageId;
 import org.apache.activemq.filter.BooleanExpression;
 import org.apache.activemq.filter.MessageEvaluationContext;
 import org.apache.activemq.selector.SelectorParser;
@@ -52,18 +55,14 @@ public final class SelectorSupport {
     return new SelectorSupport(parse, selector);
   }
 
-  public boolean matches(
-      Map<String, Object> messageProperties,
-      String jmsMessageId,
-      String jmsCorrelationId,
-      Destination jmsReplyTo,
-      Destination jmsDestination,
-      int jmsDeliveryMode,
-      String jmsType,
-      long jmsExpiration,
-      int jmsPriority,
-      long jmsTimestamp)
-      throws JMSException {
+  public boolean matches(Function<String, Object> messagePropertiesAccessor) throws JMSException {
+    Map<String, Object> cache = new HashMap<>();
+
+    // this cache is important in order to be able to not parse Message Metadata more than once
+    // for complex selectors that refer more times to the same property
+    Function<String, Object> messageProperties =
+        (name) -> cache.computeIfAbsent(name, messagePropertiesAccessor::apply);
+
     // convert anything that can be used by the selector
     // https://github.com/apache/activemq/blob/d54d046b8a8f2e9e5c0a28e1f8c7634b3c8b18e4/activemq-client/src/main/java/org/apache/activemq/filter/PropertyExpression.java#L35
 
@@ -108,11 +107,117 @@ public final class SelectorSupport {
             return 0;
           }
 
+          @Override
+          public String getJMSMessageID() {
+            return (String) messageProperties.apply("JMSMessageID");
+          }
+
+          @Override
+          public MessageId getMessageId() {
+            return new MessageId(getJMSMessageID());
+          }
+
+          @Override
+          public Destination getJMSReplyTo() {
+            return (Destination) messageProperties.apply("JMSReplyTo");
+          }
+
+          @Override
+          public ActiveMQDestination getReplyTo() {
+            return (ActiveMQDestination) messageProperties.apply("JMSReplyTo");
+          }
+
+          @Override
+          public ActiveMQDestination getOriginalDestination() {
+            return (ActiveMQDestination) messageProperties.apply("JMSDestination");
+          }
+
+          @Override
+          public String getJMSCorrelationID() {
+            return (String) messageProperties.apply("JMSCorrelationID");
+          }
+
+          @Override
+          public String getCorrelationId() {
+            return (String) messageProperties.apply("JMSCorrelationID");
+          }
+
+          @Override
+          public long getJMSTimestamp() {
+            return (long) messageProperties.apply("JMSTimestamp");
+          }
+
+          @Override
+          public long getTimestamp() {
+            return (long) messageProperties.apply("JMSTimestamp");
+          }
+
+          @Override
+          public String getGroupID() {
+            return (String) messageProperties.apply("JMSXGroupID");
+          }
+
+          @Override
+          public int getGroupSequence() {
+            return (int) messageProperties.apply("JMSXGroupSeq");
+          }
+
+          @Override
+          public boolean isRedelivered() {
+            // not supported
+            return false;
+          }
+
+          @Override
+          public long getJMSExpiration() {
+            return (long) messageProperties.apply("JMSExpiration");
+          }
+
+          @Override
+          public long getExpiration() {
+            return (long) messageProperties.apply("JMSExpiration");
+          }
+
+          @Override
+          public int getJMSPriority() {
+            return (int) messageProperties.apply("JMSPriority");
+          }
+
+          @Override
+          public byte getPriority() {
+            return (byte) ((int) messageProperties.apply("JMSPriority"));
+          }
+
+          @Override
+          public int getJMSDeliveryMode() {
+            return (int) messageProperties.apply("JMSDeliveryMode");
+          }
+
+          @Override
+          public boolean isPersistent() {
+            return ((int) messageProperties.apply("JMSDeliveryMode")) == DeliveryMode.PERSISTENT;
+          }
+
+          @Override
+          public String getJMSType() {
+            return (String) messageProperties.apply("JMSType");
+          }
+
+          @Override
+          public String getType() {
+            return (String) messageProperties.apply("JMSType");
+          }
+
+          @Override
+          public Destination getJMSDestination() {
+            return (Destination) messageProperties.apply("JMSDestination");
+          }
+
           // saving CPU cycles here, PropertyExpression calls this method for non-system properties
           // https://github.com/apache/activemq/blob/d54d046b8a8f2e9e5c0a28e1f8c7634b3c8b18e4/activemq-client/src/main/java/org/apache/activemq/filter/PropertyExpression.java#L226
           @Override
           public Object getProperty(String name) {
-            return messageProperties.get(name);
+            return messageProperties.apply(name);
           }
 
           @Override
@@ -120,16 +225,6 @@ public final class SelectorSupport {
             throw new UnsupportedOperationException("not supported - getProperties");
           };
         };
-    // the is no need to call toMessage.setProperties()
-    toMessage.setJMSMessageID(jmsMessageId);
-    toMessage.setJMSCorrelationID(jmsCorrelationId);
-    toMessage.setJMSReplyTo(ActiveMQDestination.transform(jmsReplyTo));
-    toMessage.setJMSDestination(ActiveMQDestination.transform(jmsDestination));
-    toMessage.setJMSDeliveryMode(jmsDeliveryMode);
-    toMessage.setJMSType(jmsType);
-    toMessage.setJMSExpiration(jmsExpiration);
-    toMessage.setJMSPriority(jmsPriority);
-    toMessage.setJMSTimestamp(jmsTimestamp);
     context.setMessageReference(toMessage);
     return expression.matches(context);
   }
@@ -145,17 +240,36 @@ public final class SelectorSupport {
       Object obj = fromMessage.getObjectProperty(name);
       properties.put(name, obj);
     }
-    return matches(
-        properties,
-        fromMessage.getJMSMessageID(),
-        fromMessage.getJMSCorrelationID(),
-        fromMessage.getJMSReplyTo(),
-        fromMessage.getJMSDestination(),
-        fromMessage.getJMSDeliveryMode(),
-        fromMessage.getJMSType(),
-        fromMessage.getJMSExpiration(),
-        fromMessage.getJMSPriority(),
-        fromMessage.getJMSTimestamp());
+    Function<String, Object> getProperty =
+        (name) -> {
+          try {
+            switch (name) {
+              case "JMSMessageID":
+                return fromMessage.getJMSMessageID();
+              case "JMSCorrelationID":
+                return fromMessage.getJMSCorrelationID();
+              case "JMSReplyTo":
+                return fromMessage.getJMSReplyTo();
+              case "JMSDestination":
+                return fromMessage.getJMSDestination();
+              case "JMSDeliveryMode":
+                return fromMessage.getJMSDeliveryMode();
+              case "JMSType":
+                return fromMessage.getJMSType();
+              case "JMSExpiration":
+                return fromMessage.getJMSExpiration();
+              case "JMSPriority":
+                return fromMessage.getJMSPriority();
+              case "JMSTimestamp":
+                return fromMessage.getJMSTimestamp();
+              default:
+                return properties.get(name);
+            }
+          } catch (JMSException err) {
+            throw new RuntimeException(err);
+          }
+        };
+    return matches(getProperty);
   }
 
   @Override

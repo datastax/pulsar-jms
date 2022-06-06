@@ -522,15 +522,15 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
     }
     if (!session.isTransactionStarted()) {
       session.executeCriticalOperation(
-              () -> {
-                try {
-                  consumer.close();
-                  session.removeConsumer(this);
-                  return null;
-                } catch (Exception err) {
-                  throw Utils.handleException(err);
-                }
-              });
+          () -> {
+            try {
+              consumer.close();
+              session.removeConsumer(this);
+              return null;
+            } catch (Exception err) {
+              throw Utils.handleException(err);
+            }
+          });
     } else if (session.getTransacted()) {
       closedWhileActiveTransaction = true;
     }

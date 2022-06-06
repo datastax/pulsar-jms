@@ -18,13 +18,14 @@ package com.datastax.oss.pulsar.jms.selectors;
 import io.netty.buffer.ByteBuf;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 import javax.jms.Destination;
 import javax.jms.JMSException;
 import javax.jms.Message;
+import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.activemq.command.ActiveMQQueue;
 import org.apache.activemq.command.ActiveMQTopic;
@@ -160,16 +161,19 @@ public class JMSFilter implements EntryFilter {
                 Commands.deSerializeSingleMessageInBatch(
                     uncompressedPayload, singleMessageMetadata, i, numMessages);
             try {
-              Map<String, Object> typedProperties =
-                  buildProperties(
+              PropertyEvaluator typedProperties =
+                  new PropertyEvaluator(
                       singleMessageMetadata.getPropertiesCount(),
-                      singleMessageMetadata.getPropertiesList());
-
+                      singleMessageMetadata.getPropertiesList(),
+                      destinationTypeForTheClient,
+                      topicName,
+                      singleMessageMetadata,
+                      null);
               // noLocal filter
               // all the messages in the batch come from the Producer/Connection
               // so we can reject the whole batch immediately at the first entry
               if (!filterJMSConnectionID.isEmpty()
-                  && filterJMSConnectionID.equals(typedProperties.get("JMSConnectionID"))) {
+                  && filterJMSConnectionID.equals(typedProperties.apply("JMSConnectionID"))) {
                 if (isExclusive || forceDropRejected) {
                   return FilterResult.REJECT;
                 } else {
@@ -190,27 +194,12 @@ public class JMSFilter implements EntryFilter {
               boolean matches = true;
 
               if (selector != null) {
-                matches =
-                    matches(
-                        typedProperties,
-                        singleMessageMetadata,
-                        null,
-                        topicName,
-                        selector,
-                        destinationTypeForTheClient,
-                        jmsExpiration);
+                matches = matches(typedProperties, selector);
               }
 
               if (!jmsSelectorOnSubscription.isEmpty()) {
                 boolean matchesSubscriptionFilter =
-                    matches(
-                        typedProperties,
-                        null,
-                        metadata,
-                        topicName,
-                        selectorOnSubscription,
-                        destinationTypeForTheClient,
-                        jmsExpiration);
+                    matches(typedProperties, selectorOnSubscription);
                 matches = matches && matchesSubscriptionFilter;
                 if (matchesSubscriptionFilter) {
                   allFilteredBySubscriptionFilter = false;
@@ -239,9 +228,14 @@ public class JMSFilter implements EntryFilter {
 
         // here we are dealing with a single message,
         // so we can reject the message more easily
-
-        Map<String, Object> typedProperties =
-            buildProperties(metadata.getPropertiesCount(), metadata.getPropertiesList());
+        PropertyEvaluator typedProperties =
+            new PropertyEvaluator(
+                metadata.getPropertiesCount(),
+                metadata.getPropertiesList(),
+                destinationTypeForTheClient,
+                topicName,
+                null,
+                metadata);
 
         // timetoLive filter
         long jmsExpiration = getJMSExpiration(typedProperties);
@@ -252,15 +246,7 @@ public class JMSFilter implements EntryFilter {
         }
 
         if (!jmsSelectorOnSubscription.isEmpty()) {
-          boolean matchesSubscriptionFilter =
-              matches(
-                  typedProperties,
-                  null,
-                  metadata,
-                  topicName,
-                  selectorOnSubscription,
-                  destinationTypeForTheClient,
-                  jmsExpiration);
+          boolean matchesSubscriptionFilter = matches(typedProperties, selectorOnSubscription);
           // the subscription filter always deletes the messages
           if (!matchesSubscriptionFilter) {
             return FilterResult.REJECT;
@@ -269,19 +255,11 @@ public class JMSFilter implements EntryFilter {
 
         boolean matches = true;
         if (selector != null) {
-          matches =
-              matches(
-                  typedProperties,
-                  null,
-                  metadata,
-                  topicName,
-                  selector,
-                  destinationTypeForTheClient,
-                  jmsExpiration);
+          matches = matches(typedProperties, selector);
         }
 
         if (!filterJMSConnectionID.isEmpty()
-            && filterJMSConnectionID.equals(typedProperties.get("JMSConnectionID"))) {
+            && filterJMSConnectionID.equals(typedProperties.apply("JMSConnectionID"))) {
           if (isExclusive || forceDropRejected) {
             return FilterResult.REJECT;
           } else {
@@ -301,11 +279,133 @@ public class JMSFilter implements EntryFilter {
     }
   }
 
-  private static long getJMSExpiration(Map<String, Object> typedProperties) {
+  @AllArgsConstructor
+  private static class PropertyEvaluator implements Function<String, Object> {
+    private int propertiesCount;
+    private List<KeyValue> propertiesList;
+    private String destinationTypeForTheClient;
+    private String topicName;
+    private SingleMessageMetadata singleMessageMetadata;
+    private MessageMetadata metadata;
+
+    private Object getProperty(String name) {
+      return JMSFilter.getProperty(propertiesCount, propertiesList, name);
+    }
+
+    @Override
+    public Object apply(String name) {
+      switch (name) {
+        case "JMSReplyTo":
+          {
+            String _jmsReplyTo = safeString(getProperty("JMSReplyTo"));
+            Destination jmsReplyTo = null;
+            if (_jmsReplyTo != null) {
+              String jmsReplyToType = getProperty("JMSReplyToType") + "";
+              switch (jmsReplyToType) {
+                case "topic":
+                  return new ActiveMQTopic(_jmsReplyTo);
+                default:
+                  return new ActiveMQQueue(_jmsReplyTo);
+              }
+            } else {
+              return null;
+            }
+          }
+        case "JMSDestination":
+          {
+            return "queue".equalsIgnoreCase(destinationTypeForTheClient)
+                ? new ActiveMQQueue(topicName)
+                : new ActiveMQTopic(topicName);
+          }
+        case "JMSType":
+        case "JMSMessageId":
+          return getProperty(name);
+        case "JMSCorrelationID":
+          {
+            String _correlationId = safeString(getProperty("JMSCorrelationID"));
+            if (_correlationId != null) {
+              return new String(Base64.getDecoder().decode(_correlationId), StandardCharsets.UTF_8);
+            } else {
+              return null;
+            }
+          }
+        case "JMSPriority":
+          {
+            Object jmsPriorityString = getProperty("JMSPriority");
+            if (jmsPriorityString != null) {
+              try {
+                return Integer.parseInt(jmsPriorityString + "");
+              } catch (NumberFormatException err) {
+                // cannot decode priority, not a big deal as it is not supported in Pulsar
+                return Message.DEFAULT_PRIORITY;
+              }
+            }
+          }
+        case "JMSDeliveryMode":
+          {
+            Object deliveryModeString = getProperty("JMSDeliveryMode");
+            if (deliveryModeString != null) {
+              try {
+                return Integer.parseInt(deliveryModeString + "");
+              } catch (NumberFormatException err) {
+                // cannot decode deliveryMode, not a big deal as it is not supported in Pulsar
+              }
+            }
+            return Message.DEFAULT_DELIVERY_MODE;
+          }
+        case "JMSTimestamp":
+          {
+            if (singleMessageMetadata != null) {
+              if (singleMessageMetadata.hasEventTime()) {
+                return singleMessageMetadata.getEventTime();
+              }
+            }
+            if (metadata != null) {
+              if (metadata.hasEventTime()) {
+                return metadata.getEventTime();
+              }
+            }
+            return 0;
+          }
+        case "JMSXDeliveryCount":
+          // this is not supported on the broker
+          return 0;
+        case "JMSXGroupID":
+          {
+            if (singleMessageMetadata != null && singleMessageMetadata.hasPartitionKey()) {
+              return singleMessageMetadata.getPartitionKey();
+            }
+            if (metadata != null && metadata.hasPartitionKey()) {
+              return metadata.getPartitionKey();
+            }
+            return "";
+          }
+        case "JMSXGroupSeq":
+          {
+            Object rawJMSXGroupSeq = getProperty("JMSXGroupSeq");
+            if (rawJMSXGroupSeq != null) {
+              return rawJMSXGroupSeq;
+            }
+            if (singleMessageMetadata != null && singleMessageMetadata.hasSequenceId()) {
+              return singleMessageMetadata.getSequenceId() + "";
+            }
+            if (metadata != null && metadata.hasSequenceId()) {
+              return metadata.getSequenceId() + "";
+            }
+            return "0";
+          }
+        default:
+          return getProperty(name);
+      }
+    }
+  }
+
+  private static long getJMSExpiration(Function<String, Object> typedProperties) {
     long jmsExpiration = 0;
-    if (typedProperties.containsKey("JMSExpiration")) {
+    Object value = typedProperties.apply("JMSExpiration");
+    if (value != null) {
       try {
-        jmsExpiration = Long.parseLong(typedProperties.get("JMSExpiration") + "");
+        jmsExpiration = Long.parseLong(value + "");
       } catch (NumberFormatException err) {
         // cannot decode JMSExpiration
       }
@@ -313,22 +413,26 @@ public class JMSFilter implements EntryFilter {
     return jmsExpiration;
   }
 
-  private Map<String, Object> buildProperties(int propertiesCount, List<KeyValue> propertiesList) {
-    Map<String, String> properties = new HashMap<>();
-    if (propertiesCount > 0) {
-      propertiesList.forEach(
-          kv -> {
-            properties.put(kv.getKey(), kv.getValue());
-          });
+  private static Object getProperty(
+      int propertiesCount, List<KeyValue> propertiesList, String name) {
+    if (propertiesCount <= 0) {
+      return null;
     }
-    Map<String, Object> typedProperties = new HashMap<>();
-    properties.forEach(
-        (k, v) -> {
-          if (!k.equals("_jsmtype")) {
-            typedProperties.put(k, getObjectProperty(k, properties));
-          }
-        });
-    return typedProperties;
+    String type = null;
+    String value = null;
+    String typeProperty = propertyType(name);
+    for (KeyValue keyValue : propertiesList) {
+      String key = keyValue.getKey();
+      if (key.equals(typeProperty)) {
+        type = keyValue.getValue();
+      } else if (key.equals(name)) {
+        value = keyValue.getValue();
+      }
+      if (type != null && value != null) {
+        break;
+      }
+    }
+    return getObjectProperty(value, type);
   }
 
   @Override
@@ -340,13 +444,14 @@ public class JMSFilter implements EntryFilter {
     return name + "_jsmtype";
   }
 
-  public static Object getObjectProperty(String name, Map<String, String> properties) {
-
-    String value = properties.getOrDefault(name, null);
+  private static Object getObjectProperty(String value, String type) {
     if (value == null) {
       return null;
     }
-    String type = properties.getOrDefault(propertyType(name), "string");
+    if (type == null) {
+      // strings
+      return value;
+    }
     switch (type) {
       case "string":
         return value;
@@ -374,117 +479,9 @@ public class JMSFilter implements EntryFilter {
     return value == null ? null : value.toString();
   }
 
-  private static boolean matches(
-      Map<String, Object> typedProperties,
-      SingleMessageMetadata singleMessageMetadata,
-      MessageMetadata metadata,
-      String topicName,
-      SelectorSupport selector,
-      String destinationTypeForTheClient,
-      long jmsExpiration)
+  private static boolean matches(Function<String, Object> typedProperties, SelectorSupport selector)
       throws JMSException {
 
-    String _jmsReplyTo = safeString(typedProperties.get("JMSReplyTo"));
-    Destination jmsReplyTo = null;
-    if (_jmsReplyTo != null) {
-      String jmsReplyToType = typedProperties.get("JMSReplyToType") + "";
-      switch (jmsReplyToType) {
-        case "topic":
-          jmsReplyTo = new ActiveMQTopic(_jmsReplyTo);
-          break;
-        default:
-          jmsReplyTo = new ActiveMQQueue(_jmsReplyTo);
-      }
-    }
-
-    Destination destination =
-        "queue".equalsIgnoreCase(destinationTypeForTheClient)
-            ? new ActiveMQQueue(topicName)
-            : new ActiveMQTopic(topicName);
-
-    String jmsType = safeString(typedProperties.get("JMSType"));
-    String messageId = safeString(typedProperties.get("JMSMessageId"));
-    String correlationId = null;
-    String _correlationId = safeString(typedProperties.get("JMSCorrelationID"));
-    if (_correlationId != null) {
-      correlationId = new String(Base64.getDecoder().decode(correlationId), StandardCharsets.UTF_8);
-    }
-    int jmsPriority = Message.DEFAULT_PRIORITY;
-    if (typedProperties.containsKey("JMSPriority")) {
-      try {
-        jmsPriority = Integer.parseInt(typedProperties.get("JMSPriority") + "");
-      } catch (NumberFormatException err) {
-        // cannot decode priority, not a big deal as it is not supported in Pulsar
-      }
-    }
-    int deliveryMode = Message.DEFAULT_DELIVERY_MODE;
-    if (typedProperties.containsKey("JMSDeliveryMode")) {
-      try {
-        deliveryMode = Integer.parseInt(typedProperties.get("JMSDeliveryMode") + "");
-      } catch (NumberFormatException err) {
-        // cannot decode deliveryMode, not a big deal as it is not supported in Pulsar
-      }
-    }
-
-    // this is optional
-    long jmsTimestamp = 0;
-
-    if (singleMessageMetadata != null) {
-
-      if (singleMessageMetadata.hasEventTime()) {
-        jmsTimestamp = singleMessageMetadata.getEventTime();
-      }
-
-      // JMSXDeliveryCount not supported here
-      // typedProperties.put("JMSXDeliveryCount", (singleMessageMetadata.getRedeliveryCount() + 1) +
-      // "");
-
-      if (singleMessageMetadata.hasPartitionKey()) {
-        typedProperties.put("JMSXGroupID", singleMessageMetadata.getPartitionKey());
-      } else {
-        typedProperties.put("JMSXGroupID", "");
-      }
-
-      if (!typedProperties.containsKey("JMSXGroupSeq")) {
-        if (singleMessageMetadata.hasSequenceId()) {
-          typedProperties.put("JMSXGroupSeq", singleMessageMetadata.getSequenceId() + "");
-        } else {
-          typedProperties.put("JMSXGroupSeq", "0");
-        }
-      }
-
-    } else {
-      if (metadata.hasEventTime()) {
-        jmsTimestamp = metadata.getEventTime();
-      }
-
-      // JMSXDeliveryCount not supported here
-      // typedProperties.put("JMSXDeliveryCount", (metadata.getRedeliveryCount() + 1) + "");
-
-      if (metadata.hasPartitionKey()) {
-        typedProperties.put("JMSXGroupID", metadata.getPartitionKey());
-      } else {
-        typedProperties.put("JMSXGroupID", "");
-      }
-
-      if (!typedProperties.containsKey("JMSXGroupSeq")) {
-        if (metadata.hasSequenceId()) {
-          typedProperties.put("JMSXGroupSeq", metadata.getSequenceId() + "");
-        } else {
-          typedProperties.put("JMSXGroupSeq", "0");
-        }
-      }
-    }
-    return selector.matches(
-        typedProperties,
-        messageId,
-        correlationId,
-        jmsReplyTo,
-        destination,
-        deliveryMode,
-        jmsType,
-        jmsExpiration,
-        jmsPriority,
-        jmsTimestamp);
+    return selector.matches(typedProperties);
   }
 }

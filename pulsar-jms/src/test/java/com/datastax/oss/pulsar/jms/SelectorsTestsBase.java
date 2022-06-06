@@ -16,6 +16,7 @@
 package com.datastax.oss.pulsar.jms;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -93,6 +94,9 @@ public abstract class SelectorsTestsBase {
 
     Map<String, Object> consumerConfig = new HashMap<>();
     properties.put("consumerConfig", consumerConfig);
+    // batchIndexAckEnabled is required in order for the client to be able to
+    // negatively/positively acknowledge single messages inside a batch
+    consumerConfig.put("batchIndexAckEnabled", true);
     return properties;
   }
 
@@ -406,11 +410,6 @@ public abstract class SelectorsTestsBase {
       // each batch will contain 5 messages
       producerConfig.put("batchingMaxMessages", "5");
     }
-
-    // batchIndexAckEnabled is required in order for the client to be able to
-    // negatively/positively acknowledge single messages inside a batch
-    Map<String, Object> consumerConfig = (Map<String, Object>) properties.get("consumerConfig");
-    consumerConfig.put("batchIndexAckEnabled", true);
 
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (PulsarConnection connection = factory.createConnection()) {
@@ -897,16 +896,30 @@ public abstract class SelectorsTestsBase {
             for (int i = 0; i < 20; i++) {
               if ((i % 2 == 0) && (i % 3 == 0)) {
                 TextMessage textMessage = (TextMessage) consumer1.receive();
-                log.info("received {}", textMessage.getText());
+                log.info(
+                    "received {} {}",
+                    textMessage.getText(),
+                    ((PulsarMessage) textMessage).getReceivedPulsarMessage().getMessageId());
                 assertEquals("foo-" + i, textMessage.getText());
               }
             }
             // no more messages
-            assertNull(consumer1.receive(1000));
+            TextMessage receive = (TextMessage) consumer1.receive(1000);
+            boolean failed = false;
+            if (receive != null) {
+              failed = true;
+              log.info(
+                  "FAILED ! received {} {}",
+                  receive.getText(),
+                  ((PulsarMessage) receive).getReceivedPulsarMessage().getMessageId());
+              receive = (TextMessage) consumer1.receive(1000);
+            }
+            assertFalse(failed);
 
             if (enableBatching) {
-              assertEquals(20, consumer1.getReceivedMessages());
-              assertEquals(16, consumer1.getSkippedMessages());
+              assertTrue(
+                  consumer1.getReceivedMessages() == 20 || consumer1.getReceivedMessages() == 21);
+              assertEquals(consumer1.getReceivedMessages() - 4, consumer1.getSkippedMessages());
             } else {
               assertEquals(4, consumer1.getReceivedMessages());
               assertEquals(0, consumer1.getSkippedMessages());
