@@ -51,7 +51,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
   private SelectorSupport selectorSupport;
   private SelectorSupport selectorSupportOnSubscription;
   private final boolean noLocal;
-  private Consumer<byte[]> consumer;
+  private Consumer<?> consumer;
   private MessageListener listener;
   private final SubscriptionMode subscriptionMode;
   private final SubscriptionType subscriptionType;
@@ -124,7 +124,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
   }
 
   // Visible for testing
-  synchronized Consumer<byte[]> getConsumer() throws JMSException {
+  synchronized Consumer<?> getConsumer() throws JMSException {
     if (closed) {
       throw new IllegalStateException("Consumer is closed");
     }
@@ -304,8 +304,8 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
                 session.executeCriticalOperation(
                     () -> {
                       try {
-                        Consumer<byte[]> consumer = getConsumer();
-                        org.apache.pulsar.client.api.Message<byte[]> message =
+                        Consumer<?> consumer = getConsumer();
+                        org.apache.pulsar.client.api.Message<?> message =
                             consumer.receive(stepTimeout, TimeUnit.MILLISECONDS);
                         if (message == null) {
                           return null;
@@ -338,8 +338,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
     return receive(1);
   }
 
-  private void skipMessage(org.apache.pulsar.client.api.Message<byte[]> message)
-      throws JMSException {
+  private void skipMessage(org.apache.pulsar.client.api.Message<?> message) throws JMSException {
     skippedMessages.incrementAndGet();
     if (subscriptionType == SubscriptionType.Exclusive
         || session.getFactory().isAcknowledgeRejectedMessages()) {
@@ -359,7 +358,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
   }
 
   private PulsarMessage handleReceivedMessage(
-      org.apache.pulsar.client.api.Message<byte[]> message,
+      org.apache.pulsar.client.api.Message<?> message,
       Class expectedType,
       java.util.function.Consumer<PulsarMessage> listenerCode,
       boolean noLocalFilter)
@@ -368,7 +367,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
     receivedMessages.incrementAndGet();
 
     PulsarMessage result = PulsarMessage.decode(this, message);
-    Consumer<byte[]> consumer = getConsumer();
+    Consumer<?> consumer = getConsumer();
     if (expectedType != null && !result.isBodyAssignableTo(expectedType)) {
       if (log.isDebugEnabled()) {
         log.debug(
@@ -589,9 +588,9 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
   }
 
   synchronized void acknowledge(
-      org.apache.pulsar.client.api.Message<byte[]> receivedPulsarMessage, PulsarMessage message)
+      org.apache.pulsar.client.api.Message<?> receivedPulsarMessage, PulsarMessage message)
       throws JMSException {
-    Consumer<byte[]> consumer = getConsumer();
+    Consumer<?> consumer = getConsumer();
     try {
       consumer.acknowledge(receivedPulsarMessage);
       session.unregisterUnacknowledgedMessage(message);
@@ -614,8 +613,8 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
             return;
           }
           try {
-            Consumer<byte[]> consumer = getConsumer();
-            org.apache.pulsar.client.api.Message<byte[]> message =
+            Consumer<?> consumer = getConsumer();
+            org.apache.pulsar.client.api.Message<?> message =
                 consumer.receive(timeout, TimeUnit.MILLISECONDS);
             if (message == null) {
               return;
@@ -666,7 +665,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
     return closedWhileActiveTransaction;
   }
 
-  public void negativeAck(org.apache.pulsar.client.api.Message<byte[]> message) {
+  public void negativeAck(org.apache.pulsar.client.api.Message<?> message) {
     if (consumer != null) {
       consumer.negativeAcknowledge(message);
     }
@@ -690,7 +689,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
     return selectorSupportOnSubscription;
   }
 
-  Consumer<byte[]> getInternalConsumer() {
+  Consumer<?> getInternalConsumer() {
     return consumer;
   }
 

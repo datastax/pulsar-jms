@@ -40,11 +40,18 @@ public final class PulsarMapMessage extends PulsarMessage implements MapMessage 
   }
 
   public PulsarMapMessage(Map<String, Object> body) throws MessageFormatException {
+    this(body, true);
+  }
+
+  public PulsarMapMessage(Map<String, Object> body, boolean validate)
+      throws MessageFormatException {
     this();
     if (body != null) {
       map.putAll(body);
-      for (Object value : body.values()) {
-        validateWritableObject(value);
+      if (validate) {
+        for (Object value : body.values()) {
+          validateWritableObject(value);
+        }
       }
     }
   }

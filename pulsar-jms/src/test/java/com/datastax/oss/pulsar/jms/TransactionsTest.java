@@ -673,13 +673,13 @@ public class TransactionsTest {
 
               // verify that the two messages are part of the same batch
               PulsarMessage message1 = (PulsarMessage) consumer.receive();
-              org.apache.pulsar.client.api.Message<byte[]> receivedPulsarMessage1 =
+              org.apache.pulsar.client.api.Message<?> receivedPulsarMessage1 =
                   message1.getReceivedPulsarMessage();
               BatchMessageIdImpl messageId1 =
                   (BatchMessageIdImpl) receivedPulsarMessage1.getMessageId();
 
               PulsarMessage message2 = (PulsarMessage) consumer.receive();
-              org.apache.pulsar.client.api.Message<byte[]> receivedPulsarMessage2 =
+              org.apache.pulsar.client.api.Message<?> receivedPulsarMessage2 =
                   message2.getReceivedPulsarMessage();
               BatchMessageIdImpl messageId2 =
                   (BatchMessageIdImpl) receivedPulsarMessage2.getMessageId();
