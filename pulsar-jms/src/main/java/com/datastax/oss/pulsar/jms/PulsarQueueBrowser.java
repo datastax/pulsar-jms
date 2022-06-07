@@ -30,7 +30,7 @@ import org.apache.pulsar.client.api.Reader;
 final class PulsarQueueBrowser implements QueueBrowser {
   private final PulsarSession session;
   private final PulsarQueue queue;
-  private final Reader<byte[]> reader;
+  private final Reader<?> reader;
   private final SelectorSupport selectorSupport;
 
   public PulsarQueueBrowser(PulsarSession session, Queue queue, String selector)

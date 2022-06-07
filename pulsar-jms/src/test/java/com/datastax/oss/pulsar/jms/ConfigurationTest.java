@@ -75,7 +75,7 @@ public class ConfigurationTest {
         PulsarSession session = connection.createSession()) {
       Queue queue = session.createQueue("test" + UUID.randomUUID());
       try (PulsarMessageConsumer consumer = session.createConsumer(queue); ) {
-        Consumer<byte[]> pulsarConsumer = consumer.getConsumer();
+        Consumer<?> pulsarConsumer = consumer.getConsumer();
         assertEquals("the-consumer-name", pulsarConsumer.getConsumerName());
       }
     }

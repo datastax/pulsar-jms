@@ -49,6 +49,7 @@ import org.apache.pulsar.client.api.PulsarClient;
 import org.apache.pulsar.client.api.PulsarClientException;
 import org.apache.pulsar.client.api.Reader;
 import org.apache.pulsar.client.api.ReaderBuilder;
+import org.apache.pulsar.client.api.Schema;
 import org.apache.pulsar.client.api.SubscriptionInitialPosition;
 import org.apache.pulsar.client.api.SubscriptionMode;
 import org.apache.pulsar.client.api.SubscriptionType;
@@ -67,12 +68,13 @@ public class PulsarConnectionFactory
 
   private final Map<String, Producer<byte[]>> producers = new ConcurrentHashMap<>();
   private final Set<PulsarConnection> connections = Collections.synchronizedSet(new HashSet<>());
-  private final List<Consumer<byte[]>> consumers = new CopyOnWriteArrayList<>();
-  private final List<Reader<byte[]>> readers = new CopyOnWriteArrayList<>();
+  private final List<Consumer<?>> consumers = new CopyOnWriteArrayList<>();
+  private final List<Reader<?>> readers = new CopyOnWriteArrayList<>();
   private PulsarClient pulsarClient;
   private PulsarAdmin pulsarAdmin;
   private Map<String, Object> producerConfiguration;
   private Map<String, Object> consumerConfiguration;
+  private Schema<?> consumerSchema;
   private String systemNamespace = "public/default";
   private String defaultClientId = null;
   private boolean enableTransaction = false;
@@ -175,6 +177,10 @@ public class PulsarConnectionFactory
     return consumerConfiguration;
   }
 
+  private synchronized Schema<?> getConsumerSchema() {
+    return consumerSchema;
+  }
+
   private synchronized Map<String, Object> getProducerConfiguration() {
     return producerConfiguration;
   }
@@ -215,10 +221,16 @@ public class PulsarConnectionFactory
         this.producerConfiguration = Collections.emptyMap();
       }
 
+      this.consumerSchema = Schema.BYTES;
       Map<String, Object> consumerConfigurationM =
           (Map<String, Object>) configuration.remove("consumerConfig");
       if (consumerConfigurationM != null) {
         this.consumerConfiguration = new HashMap(consumerConfigurationM);
+        boolean useSchema =
+            Boolean.parseBoolean(getAndRemoveString("useSchema", "false", consumerConfiguration));
+        if (useSchema) {
+          consumerSchema = Schema.AUTO_CONSUME();
+        }
       } else {
         this.consumerConfiguration = Collections.emptyMap();
       }
@@ -926,7 +938,7 @@ public class PulsarConnectionFactory
     }
   }
 
-  public Consumer<byte[]> createConsumer(
+  public Consumer<?> createConsumer(
       PulsarDestination destination,
       String consumerName,
       int sessionMode,
@@ -1018,12 +1030,14 @@ public class PulsarConnectionFactory
         }
       }
 
-      ConsumerBuilder<byte[]> builder =
+      Schema<?> schema = getConsumerSchema();
+      Map<String, Object> consumerConfiguration = getConsumerConfiguration();
+      ConsumerBuilder<?> builder =
           pulsarClient
-              .newConsumer()
+              .newConsumer(schema)
               // these properties can be overridden by the configuration
               .negativeAckRedeliveryDelay(1, TimeUnit.SECONDS)
-              .loadConf(getConsumerConfiguration())
+              .loadConf(consumerConfiguration)
               .properties(consumerMetadata)
               // these properties cannot be overwritten by the configuration
               .subscriptionInitialPosition(initialPosition)
@@ -1032,7 +1046,7 @@ public class PulsarConnectionFactory
               .subscriptionType(subscriptionType)
               .subscriptionName(subscriptionName)
               .topic(fullQualifiedTopicName);
-      Consumer<byte[]> newConsumer = builder.subscribe();
+      Consumer<?> newConsumer = builder.subscribe();
       consumers.add(newConsumer);
 
       return newConsumer;
@@ -1041,7 +1055,7 @@ public class PulsarConnectionFactory
     }
   }
 
-  public Reader<byte[]> createReaderForBrowser(PulsarQueue destination) throws JMSException {
+  public Reader<?> createReaderForBrowser(PulsarQueue destination) throws JMSException {
     String fullQualifiedTopicName = getPulsarTopicName(destination);
     try {
       List<Message<byte[]>> messages =
@@ -1059,9 +1073,10 @@ public class PulsarConnectionFactory
       if (log.isDebugEnabled()) {
         log.debug("createBrowser {} at {}", fullQualifiedTopicName, seekMessageId);
       }
-      ReaderBuilder<byte[]> builder =
+      Schema<?> schema = getConsumerSchema();
+      ReaderBuilder<?> builder =
           pulsarClient
-              .newReader()
+              .newReader(schema)
               // these properties can be overridden by the configuration
               .loadConf(getConsumerConfiguration())
               // these properties cannot be overwritten by the configuration
@@ -1069,7 +1084,7 @@ public class PulsarConnectionFactory
               .startMessageId(seekMessageId)
               .startMessageIdInclusive()
               .topic(fullQualifiedTopicName);
-      Reader<byte[]> newReader = builder.create();
+      Reader<?> newReader = builder.create();
       readers.add(newReader);
       return newReader;
     } catch (PulsarClientException | PulsarAdminException err) {
@@ -1077,11 +1092,11 @@ public class PulsarConnectionFactory
     }
   }
 
-  public void removeConsumer(Consumer<byte[]> consumer) {
+  public void removeConsumer(Consumer<?> consumer) {
     consumers.remove(consumer);
   }
 
-  public void removeReader(Reader<byte[]> reader) {
+  public void removeReader(Reader<?> reader) {
     readers.remove(reader);
   }
 
