@@ -15,9 +15,14 @@
  */
 package com.datastax.oss.pulsar.jms;
 
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
 import javax.jms.IllegalStateException;
 import javax.jms.IllegalStateRuntimeException;
 import javax.jms.InvalidClientIDException;
@@ -284,5 +289,41 @@ public final class Utils {
     JMSRuntimeException jms = new JMSRuntimeException("Generic error " + err.getMessage());
     jms.initCause(err);
     throw jms;
+  }
+
+  private static List deepCopyList(List configuration) {
+    return (List) configuration.stream().map(f -> deepCopyObject(f)).collect(Collectors.toList());
+  }
+
+  private static Set deepCopySet(Set configuration) {
+    return (Set) configuration.stream().map(f -> deepCopyObject(f)).collect(Collectors.toSet());
+  }
+
+  public static Object deepCopyObject(Object value) {
+    if (value == null) {
+      return null;
+    }
+    if (value instanceof Map) {
+      return deepCopyMap((Map) value);
+    }
+    if (value instanceof List) {
+      return deepCopyList((List) value);
+    }
+    if (value instanceof Set) {
+      return deepCopySet((Set) value);
+    }
+    return value;
+  }
+
+  public static Map<String, Object> deepCopyMap(Map<String, Object> configuration) {
+    if (configuration == null) {
+      return null;
+    }
+    Map<String, Object> copy = new HashMap<>();
+    configuration.forEach(
+        (key, value) -> {
+          copy.put(key, deepCopyObject(value));
+        });
+    return copy;
   }
 }
