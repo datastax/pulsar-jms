@@ -451,7 +451,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
     }
 
     if (session.getTransacted()) {
-      // open transaction now
+      // open transaction now, the message will be acknowledged on commit()
       session.getTransaction();
     } else if (session.getAcknowledgeMode() == Session.AUTO_ACKNOWLEDGE) {
       consumer.acknowledge(message);
@@ -619,8 +619,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
             if (message == null) {
               return;
             }
-            PulsarMessage pulsarMessage =
-                handleReceivedMessage(
+            handleReceivedMessage(
                     message,
                     null,
                     (pmessage) -> {

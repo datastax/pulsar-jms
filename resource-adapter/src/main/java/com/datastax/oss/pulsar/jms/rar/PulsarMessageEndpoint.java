@@ -173,8 +173,11 @@ public class PulsarMessageEndpoint implements MessageListener {
         && this.activationSpec == activationSpec;
   }
 
+  @Slf4j
   private static class TransactionControlHandle implements XAResource {
     private final PulsarMessage message;
+    private transient boolean committed;
+    private transient boolean rolledback;
 
     public TransactionControlHandle(PulsarMessage message) {
       this.message = message;
@@ -184,6 +187,10 @@ public class PulsarMessageEndpoint implements MessageListener {
     public void commit(Xid xid, boolean onePhase) throws XAException {
       // we do not support XA transactions, simply acknowledge the message
       try {
+        committed = true;
+        if (log.isDebugEnabled()) {
+          log.debug("commit {} onePhase {} ack message {}", xid, onePhase, message);
+        }
         message.acknowledge();
       } catch (JMSException err) {
         throw new XAException(err + "");
@@ -191,7 +198,13 @@ public class PulsarMessageEndpoint implements MessageListener {
     }
 
     @Override
-    public void end(Xid xid, int flags) throws XAException {}
+    public void end(Xid xid, int flags) throws XAException {
+      if (!committed && !rolledback) {
+        if (log.isDebugEnabled()) {
+          log.debug("ending TX {} with flags {} but commit/rollback was not called");
+        }
+      }
+    }
 
     @Override
     public void forget(Xid xid) throws XAException {
@@ -221,7 +234,11 @@ public class PulsarMessageEndpoint implements MessageListener {
     @Override
     public void rollback(Xid xid) throws XAException {
       try {
+        rolledback = true;
         message.negativeAck();
+        if (log.isDebugEnabled()) {
+          log.debug("rollback {} ack message {}", xid, message);
+        }
       } catch (JMSException err) {
         throw new XAException(err + "");
       }
@@ -233,6 +250,10 @@ public class PulsarMessageEndpoint implements MessageListener {
     }
 
     @Override
-    public void start(Xid xid, int flags) throws XAException {}
+    public void start(Xid xid, int flags) throws XAException {
+      if (log.isDebugEnabled()) {
+        log.debug("start {} flags {}", xid, flags);
+      }
+    }
   }
 }

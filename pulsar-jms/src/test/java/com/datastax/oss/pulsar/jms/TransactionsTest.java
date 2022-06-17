@@ -18,14 +18,21 @@ package com.datastax.oss.pulsar.jms;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
 import java.nio.file.Path;
 import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import javax.jms.CompletionListener;
 import javax.jms.Connection;
 import javax.jms.Destination;
@@ -34,6 +41,7 @@ import javax.jms.JMSContext;
 import javax.jms.JMSException;
 import javax.jms.Message;
 import javax.jms.MessageConsumer;
+import javax.jms.MessageListener;
 import javax.jms.MessageProducer;
 import javax.jms.Queue;
 import javax.jms.QueueBrowser;
@@ -41,6 +49,7 @@ import javax.jms.Session;
 import javax.jms.TextMessage;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.impl.BatchMessageIdImpl;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -724,6 +733,137 @@ public class TransactionsTest {
               assertNotNull(consumer.receive());
 
               consumerSession.commit();
+            }
+          }
+        }
+      }
+    }
+  }
+
+
+  @Test
+  public void messageListenerTest() throws Exception {
+    Map<String, Object> properties = new HashMap<>();
+    properties.put("webServiceUrl", cluster.getAddress());
+    properties.put("enableTransaction", "true");
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+      try (Connection connection = factory.createConnection()) {
+        connection.start();
+
+        try (Session consumerSession = connection.createSession(Session.SESSION_TRANSACTED); ) {
+          Destination destination =
+                  consumerSession.createTopic("persistent://public/default/test-" + UUID.randomUUID());
+          List<Message> received = new CopyOnWriteArrayList<>();
+          try (MessageConsumer consumer = consumerSession.createConsumer(destination)) {
+            consumer.setMessageListener(new MessageListener() {
+              @Override
+              public void onMessage(Message message) {
+                log.info("Received message {}", message);
+                received.add(message);
+              }
+            });
+
+            try (Session producerSession = connection.createSession(Session.SESSION_TRANSACTED); ) {
+
+              try (MessageProducer producer = producerSession.createProducer(destination); ) {
+                TextMessage textMsg = producerSession.createTextMessage("foo");
+                producer.send(textMsg);
+              }
+
+              // message is not "visible" as producer transaction is not committed
+              Awaitility.await().during(4, TimeUnit.SECONDS).until(() -> received.isEmpty());
+
+              producerSession.commit();
+
+              // message is now visible to consumers
+              Awaitility.await().until(() -> !received.isEmpty());
+
+              received.clear();
+
+              // rollback
+              consumerSession.rollback();
+
+              // receive the message again
+              Awaitility.await().until(() -> !received.isEmpty());
+
+              received.clear();
+              consumerSession.commit();
+
+              // verify no message is received anymore
+              Awaitility.await().during(4, TimeUnit.SECONDS).until(() -> received.isEmpty());
+
+              // verify no other consumer is able to receive the message
+              try (Session otherConsumer = connection.createSession(Session.AUTO_ACKNOWLEDGE);
+                  MessageConsumer consumer1 = otherConsumer.createConsumer(destination)) {
+                  assertNull(consumer1.receive(1000));
+              }
+
+            }
+          }
+        }
+      }
+    }
+  }
+
+
+  @Test
+  public void messageListenerWithEmulatedTransactionsTest() throws Exception {
+    Map<String, Object> properties = new HashMap<>();
+    properties.put("webServiceUrl", cluster.getAddress());
+    properties.put("enableTransaction", "false");
+    properties.put("jms.emulateTransactions", "true");
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+      try (Connection connection = factory.createConnection()) {
+        connection.start();
+
+        try (Session consumerSession = connection.createSession(Session.SESSION_TRANSACTED); ) {
+          Destination destination =
+                  consumerSession.createTopic("persistent://public/default/test-" + UUID.randomUUID());
+          List<Message> received = new CopyOnWriteArrayList<>();
+          try (MessageConsumer consumer = consumerSession.createConsumer(destination)) {
+            consumer.setMessageListener(new MessageListener() {
+              @Override
+              public void onMessage(Message message) {
+                log.info("Received message {}", message);
+                received.add(message);
+              }
+            });
+
+            try (Session producerSession = connection.createSession(Session.SESSION_TRANSACTED); ) {
+
+              try (MessageProducer producer = producerSession.createProducer(destination); ) {
+                TextMessage textMsg = producerSession.createTextMessage("foo");
+                producer.send(textMsg);
+              }
+
+              // message is "visible" as producer transaction is not committed but
+              // we are only emulating transactions and so the message is sent immediately
+              Awaitility.await().until(() -> !received.isEmpty());
+
+
+              // commit producer (useless in this case)
+              producerSession.commit();
+
+              received.clear();
+
+              // rollback the consumer session
+              consumerSession.rollback();
+
+              // receive the message again
+              Awaitility.await().until(() -> !received.isEmpty());
+
+              received.clear();
+              consumerSession.commit();
+
+              // verify no message is received anymore
+              Awaitility.await().during(4, TimeUnit.SECONDS).until(() -> received.isEmpty());
+
+              // verify no other consumer is able to receive the message
+              try (Session otherConsumer = connection.createSession(Session.AUTO_ACKNOWLEDGE);
+                   MessageConsumer consumer1 = otherConsumer.createConsumer(destination)) {
+                assertNull(consumer1.receive(1000));
+              }
+
             }
           }
         }
