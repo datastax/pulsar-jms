@@ -183,12 +183,11 @@ public class PulsarInteropTest {
         Destination destination = context.createTopic(topic);
 
         PulsarClient client =
-                cluster
-                        .getService()
-                        .getClient(); // do not close this client, it is internal to the broker
+            cluster
+                .getService()
+                .getClient(); // do not close this client, it is internal to the broker
         try (JMSConsumer consumer = context.createConsumer(destination)) {
-          try (Producer<Long> producer =
-                       client.newProducer(Schema.INT64).topic(topic).create(); ) {
+          try (Producer<Long> producer = client.newProducer(Schema.INT64).topic(topic).create(); ) {
             producer.newMessage().value(23432424L).key("bar").send();
 
             // the JMS client reads Schema INT64 as ObjectMessage
