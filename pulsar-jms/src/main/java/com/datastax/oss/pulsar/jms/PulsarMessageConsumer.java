@@ -451,7 +451,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
     }
 
     if (session.getTransacted()) {
-      // open transaction now
+      // open transaction now, the message will be acknowledged on commit()
       session.getTransaction();
     } else if (session.getAcknowledgeMode() == Session.AUTO_ACKNOWLEDGE) {
       consumer.acknowledge(message);
@@ -619,14 +619,13 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
             if (message == null) {
               return;
             }
-            PulsarMessage pulsarMessage =
-                handleReceivedMessage(
-                    message,
-                    null,
-                    (pmessage) -> {
-                      listener.onMessage(pmessage);
-                    },
-                    noLocal);
+            handleReceivedMessage(
+                message,
+                null,
+                (pmessage) -> {
+                  listener.onMessage(pmessage);
+                },
+                noLocal);
           } catch (PulsarClientException.AlreadyClosedException closed) {
             log.error("Error while receiving message con Closed consumer {}", this);
           } catch (JMSException | PulsarClientException err) {

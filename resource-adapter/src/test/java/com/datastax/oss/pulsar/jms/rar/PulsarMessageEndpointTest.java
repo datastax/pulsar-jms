@@ -60,8 +60,16 @@ public class PulsarMessageEndpointTest {
     AtomicInteger afterDeliveryCount = new AtomicInteger();
     AtomicInteger releaseCount = new AtomicInteger();
     XAResource resource;
+    boolean startTransaction;
+
+    public DummyEndpoint(boolean startTransaction) {
+      this.startTransaction = startTransaction;
+    }
 
     protected void commitOrRollback(XAResource resource) {
+      if (!startTransaction) {
+        return;
+      }
       try {
         resource.prepare(null);
         resource.commit(null, true);
@@ -102,10 +110,25 @@ public class PulsarMessageEndpointTest {
 
   @Test
   public void testDeliverMessage() throws Exception {
-    DummyEndpoint listener = new DummyEndpoint();
+    DummyEndpoint listener = new DummyEndpoint(true);
     PulsarMessage pulsarMessage = mock(PulsarMessage.class);
     AtomicReference<Throwable> expectedError = new AtomicReference();
-    testDeliverMessage(listener, pulsarMessage, expectedError::set);
+    testDeliverMessage(listener, pulsarMessage, expectedError::set, true);
+    assertSame(pulsarMessage, listener.receivedMessages.get(0));
+    assertEquals(1, listener.beforeDeliveryCount.get());
+    assertEquals(1, listener.afterDeliveryCount.get());
+    assertEquals(1, listener.releaseCount.get());
+    verify(pulsarMessage, times(1)).acknowledge();
+    verify(pulsarMessage, times(0)).negativeAck();
+    assertNull(expectedError.get());
+  }
+
+  @Test
+  public void testDeliverMessageNoTx() throws Exception {
+    DummyEndpoint listener = new DummyEndpoint(false);
+    PulsarMessage pulsarMessage = mock(PulsarMessage.class);
+    AtomicReference<Throwable> expectedError = new AtomicReference();
+    testDeliverMessage(listener, pulsarMessage, expectedError::set, false);
     assertSame(pulsarMessage, listener.receivedMessages.get(0));
     assertEquals(1, listener.beforeDeliveryCount.get());
     assertEquals(1, listener.afterDeliveryCount.get());
@@ -118,7 +141,7 @@ public class PulsarMessageEndpointTest {
   @Test
   public void testOnMessageError() throws Exception {
     DummyEndpoint listener =
-        new DummyEndpoint() {
+        new DummyEndpoint(true) {
           @Override
           public void processMessage(Message message) {
             super.processMessage(message);
@@ -127,7 +150,7 @@ public class PulsarMessageEndpointTest {
         };
     PulsarMessage pulsarMessage = mock(PulsarMessage.class);
     AtomicReference<Throwable> expectedError = new AtomicReference();
-    testDeliverMessage(listener, pulsarMessage, expectedError::set);
+    testDeliverMessage(listener, pulsarMessage, expectedError::set, true);
 
     assertEquals(1, listener.beforeDeliveryCount.get());
     assertEquals(1, listener.afterDeliveryCount.get());
@@ -138,9 +161,31 @@ public class PulsarMessageEndpointTest {
   }
 
   @Test
+  public void testOnMessageErrorNoTx() throws Exception {
+    DummyEndpoint listener =
+            new DummyEndpoint(false) {
+              @Override
+              public void processMessage(Message message) {
+                super.processMessage(message);
+                throw new RuntimeException();
+              }
+            };
+    PulsarMessage pulsarMessage = mock(PulsarMessage.class);
+    AtomicReference<Throwable> expectedError = new AtomicReference();
+    testDeliverMessage(listener, pulsarMessage, expectedError::set, false);
+
+    assertEquals(1, listener.beforeDeliveryCount.get());
+    assertEquals(1, listener.afterDeliveryCount.get());
+    assertEquals(1, listener.releaseCount.get());
+    verify(pulsarMessage, times(0)).acknowledge();
+    verify(pulsarMessage, times(1)).negativeAck();
+    assertNotNull(expectedError.get());
+  }
+
+  @Test
   public void testOnContainerRollback() throws Exception {
     DummyEndpoint listener =
-        new DummyEndpoint() {
+        new DummyEndpoint(true) {
           @Override
           protected void commitOrRollback(XAResource resource) {
             try {
@@ -152,7 +197,7 @@ public class PulsarMessageEndpointTest {
         };
     PulsarMessage pulsarMessage = mock(PulsarMessage.class);
     AtomicReference<Throwable> expectedError = new AtomicReference();
-    testDeliverMessage(listener, pulsarMessage, expectedError::set);
+    testDeliverMessage(listener, pulsarMessage, expectedError::set, true);
 
     assertEquals(1, listener.beforeDeliveryCount.get());
     assertEquals(1, listener.afterDeliveryCount.get());
@@ -165,7 +210,7 @@ public class PulsarMessageEndpointTest {
   @Test
   public void testOnBeforeDeliveryError() throws Exception {
     DummyEndpoint listener =
-        new DummyEndpoint() {
+        new DummyEndpoint(true) {
           @Override
           public void beforeDelivery(Method method)
               throws NoSuchMethodException, ResourceException {
@@ -175,7 +220,7 @@ public class PulsarMessageEndpointTest {
         };
     PulsarMessage pulsarMessage = mock(PulsarMessage.class);
     AtomicReference<Throwable> expectedError = new AtomicReference();
-    testDeliverMessage(listener, pulsarMessage, expectedError::set);
+    testDeliverMessage(listener, pulsarMessage, expectedError::set, true);
 
     assertEquals(1, listener.beforeDeliveryCount.get());
     assertEquals(0, listener.afterDeliveryCount.get());
@@ -188,7 +233,7 @@ public class PulsarMessageEndpointTest {
   @Test
   public void testOnAfterDeliveryError() throws Exception {
     DummyEndpoint listener =
-        new DummyEndpoint() {
+        new DummyEndpoint(true) {
           @Override
           public void afterDelivery() throws ResourceException {
             super.afterDelivery();
@@ -197,7 +242,7 @@ public class PulsarMessageEndpointTest {
         };
     PulsarMessage pulsarMessage = mock(PulsarMessage.class);
     AtomicReference<Throwable> expectedError = new AtomicReference();
-    testDeliverMessage(listener, pulsarMessage, expectedError::set);
+    testDeliverMessage(listener, pulsarMessage, expectedError::set, true);
 
     assertEquals(1, listener.beforeDeliveryCount.get());
     assertEquals(1, listener.afterDeliveryCount.get());
@@ -210,7 +255,8 @@ public class PulsarMessageEndpointTest {
   private void testDeliverMessage(
       DummyEndpoint listener,
       PulsarMessage message,
-      java.util.function.Consumer<Throwable> errorCatcher)
+      java.util.function.Consumer<Throwable> errorCatcher,
+      boolean containerStartTransaction)
       throws Exception {
     PulsarConnectionFactory pulsarConnectionFactory = mock(PulsarConnectionFactory.class);
     MessageEndpointFactory messageEndpointFactory = mock(MessageEndpointFactory.class);
@@ -240,6 +286,9 @@ public class PulsarMessageEndpointTest {
                 XAResource resource =
                     (XAResource) invocationOnMock.getArgumentAt(0, XAResource.class);
                 listener.setResource(resource);
+                if (containerStartTransaction) {
+                  resource.start(null, 0);
+                }
                 return listener;
               }
             });
@@ -308,7 +357,7 @@ public class PulsarMessageEndpointTest {
       String subscriptionMode,
       Consumer<JMSContext> verifier)
       throws Exception {
-    DummyEndpoint listener = new DummyEndpoint();
+    DummyEndpoint listener = new DummyEndpoint(true);
     PulsarConnectionFactory pulsarConnectionFactory = mock(PulsarConnectionFactory.class);
     MessageEndpointFactory messageEndpointFactory = mock(MessageEndpointFactory.class);
     JMSContext context = mock(JMSContext.class);
