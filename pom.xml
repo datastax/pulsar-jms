@@ -54,7 +54,7 @@
     <!-- waiting for a Apache Pulsar 2.10.1 release, in the meantime we use DataStax Luna Streaming
          that is a fork of Apache Pulsar  -->
     <pulsar.groupId>com.datastax.oss</pulsar.groupId>
-    <pulsar.version>2.10.0.4</pulsar.version>
+    <pulsar.version>2.10.0.6</pulsar.version>
     <activemq.version>5.16.1</activemq.version>
     <hawtbuf.version>1.11</hawtbuf.version>
     <curator.version>5.1.0</curator.version>
