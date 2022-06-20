@@ -18,9 +18,7 @@ package com.datastax.oss.pulsar.jms;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
 
 import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
 import java.nio.file.Path;
@@ -29,10 +27,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import javax.jms.CompletionListener;
 import javax.jms.Connection;
 import javax.jms.Destination;
@@ -740,7 +736,6 @@ public class TransactionsTest {
     }
   }
 
-
   @Test
   public void messageListenerTest() throws Exception {
     Map<String, Object> properties = new HashMap<>();
@@ -752,16 +747,17 @@ public class TransactionsTest {
 
         try (Session consumerSession = connection.createSession(Session.SESSION_TRANSACTED); ) {
           Destination destination =
-                  consumerSession.createTopic("persistent://public/default/test-" + UUID.randomUUID());
+              consumerSession.createTopic("persistent://public/default/test-" + UUID.randomUUID());
           List<Message> received = new CopyOnWriteArrayList<>();
           try (MessageConsumer consumer = consumerSession.createConsumer(destination)) {
-            consumer.setMessageListener(new MessageListener() {
-              @Override
-              public void onMessage(Message message) {
-                log.info("Received message {}", message);
-                received.add(message);
-              }
-            });
+            consumer.setMessageListener(
+                new MessageListener() {
+                  @Override
+                  public void onMessage(Message message) {
+                    log.info("Received message {}", message);
+                    received.add(message);
+                  }
+                });
 
             try (Session producerSession = connection.createSession(Session.SESSION_TRANSACTED); ) {
 
@@ -795,16 +791,14 @@ public class TransactionsTest {
               // verify no other consumer is able to receive the message
               try (Session otherConsumer = connection.createSession(Session.AUTO_ACKNOWLEDGE);
                   MessageConsumer consumer1 = otherConsumer.createConsumer(destination)) {
-                  assertNull(consumer1.receive(1000));
+                assertNull(consumer1.receive(1000));
               }
-
             }
           }
         }
       }
     }
   }
-
 
   @Test
   public void messageListenerWithEmulatedTransactionsTest() throws Exception {
@@ -818,16 +812,17 @@ public class TransactionsTest {
 
         try (Session consumerSession = connection.createSession(Session.SESSION_TRANSACTED); ) {
           Destination destination =
-                  consumerSession.createTopic("persistent://public/default/test-" + UUID.randomUUID());
+              consumerSession.createTopic("persistent://public/default/test-" + UUID.randomUUID());
           List<Message> received = new CopyOnWriteArrayList<>();
           try (MessageConsumer consumer = consumerSession.createConsumer(destination)) {
-            consumer.setMessageListener(new MessageListener() {
-              @Override
-              public void onMessage(Message message) {
-                log.info("Received message {}", message);
-                received.add(message);
-              }
-            });
+            consumer.setMessageListener(
+                new MessageListener() {
+                  @Override
+                  public void onMessage(Message message) {
+                    log.info("Received message {}", message);
+                    received.add(message);
+                  }
+                });
 
             try (Session producerSession = connection.createSession(Session.SESSION_TRANSACTED); ) {
 
@@ -839,7 +834,6 @@ public class TransactionsTest {
               // message is "visible" as producer transaction is not committed but
               // we are only emulating transactions and so the message is sent immediately
               Awaitility.await().until(() -> !received.isEmpty());
-
 
               // commit producer (useless in this case)
               producerSession.commit();
@@ -860,10 +854,9 @@ public class TransactionsTest {
 
               // verify no other consumer is able to receive the message
               try (Session otherConsumer = connection.createSession(Session.AUTO_ACKNOWLEDGE);
-                   MessageConsumer consumer1 = otherConsumer.createConsumer(destination)) {
+                  MessageConsumer consumer1 = otherConsumer.createConsumer(destination)) {
                 assertNull(consumer1.receive(1000));
               }
-
             }
           }
         }

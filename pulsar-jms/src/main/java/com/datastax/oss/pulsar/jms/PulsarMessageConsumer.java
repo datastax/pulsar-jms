@@ -620,12 +620,12 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
               return;
             }
             handleReceivedMessage(
-                    message,
-                    null,
-                    (pmessage) -> {
-                      listener.onMessage(pmessage);
-                    },
-                    noLocal);
+                message,
+                null,
+                (pmessage) -> {
+                  listener.onMessage(pmessage);
+                },
+                noLocal);
           } catch (PulsarClientException.AlreadyClosedException closed) {
             log.error("Error while receiving message con Closed consumer {}", this);
           } catch (JMSException | PulsarClientException err) {

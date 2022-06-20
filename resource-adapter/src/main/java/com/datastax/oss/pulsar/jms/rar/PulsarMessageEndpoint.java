@@ -145,19 +145,32 @@ public class PulsarMessageEndpoint implements MessageListener {
   public void onMessage(Message message) {
     PulsarMessage pulsarMessage = (PulsarMessage) message;
     MessageEndpoint handle;
+    TransactionControlHandle txHandle = new TransactionControlHandle(pulsarMessage);
     try {
-      handle = messageEndpointFactory.createEndpoint(new TransactionControlHandle(pulsarMessage));
+      handle = messageEndpointFactory.createEndpoint(txHandle);
     } catch (Exception err) {
       log.error("Cannot deliver message " + message + " - cannot create endpoint", err);
       throw new RuntimeException(err);
     }
+    boolean processed = false;
     try {
       MessageListener endpoint = (MessageListener) handle;
+      // here the Application server decides to start a transaction or not
       handle.beforeDelivery(ON_MESSAGE);
       try {
         endpoint.onMessage(message);
+        processed = true;
       } finally {
         handle.afterDelivery();
+        // the container did not start a transaction
+        // we have to handle the message manually
+        if (!txHandle.started) {
+          if (processed) {
+            pulsarMessage.acknowledge();
+          } else {
+            pulsarMessage.negativeAck();
+          }
+        }
       }
     } catch (Throwable err) {
       log.error("Cannot deliver message " + message + " to endpoint " + handle);
@@ -176,8 +189,7 @@ public class PulsarMessageEndpoint implements MessageListener {
   @Slf4j
   private static class TransactionControlHandle implements XAResource {
     private final PulsarMessage message;
-    private transient boolean committed;
-    private transient boolean rolledback;
+    private boolean started;
 
     public TransactionControlHandle(PulsarMessage message) {
       this.message = message;
@@ -187,7 +199,6 @@ public class PulsarMessageEndpoint implements MessageListener {
     public void commit(Xid xid, boolean onePhase) throws XAException {
       // we do not support XA transactions, simply acknowledge the message
       try {
-        committed = true;
         if (log.isDebugEnabled()) {
           log.debug("commit {} onePhase {} ack message {}", xid, onePhase, message);
         }
@@ -199,11 +210,6 @@ public class PulsarMessageEndpoint implements MessageListener {
 
     @Override
     public void end(Xid xid, int flags) throws XAException {
-      if (!committed && !rolledback) {
-        if (log.isDebugEnabled()) {
-          log.debug("ending TX {} with flags {} but commit/rollback was not called");
-        }
-      }
     }
 
     @Override
@@ -234,7 +240,6 @@ public class PulsarMessageEndpoint implements MessageListener {
     @Override
     public void rollback(Xid xid) throws XAException {
       try {
-        rolledback = true;
         message.negativeAck();
         if (log.isDebugEnabled()) {
           log.debug("rollback {} ack message {}", xid, message);
@@ -254,6 +259,7 @@ public class PulsarMessageEndpoint implements MessageListener {
       if (log.isDebugEnabled()) {
         log.debug("start {} flags {}", xid, flags);
       }
+      started = true;
     }
   }
 }
