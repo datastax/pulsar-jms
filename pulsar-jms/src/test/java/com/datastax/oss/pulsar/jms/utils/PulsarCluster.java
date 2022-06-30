@@ -19,6 +19,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Optional;
+import java.util.function.Consumer;
 import org.apache.bookkeeper.util.PortManager;
 import org.apache.pulsar.PulsarTransactionCoordinatorMetadataSetup;
 import org.apache.pulsar.broker.PulsarService;
@@ -32,14 +33,10 @@ public class PulsarCluster implements AutoCloseable {
   private final BookKeeperCluster bookKeeperCluster;
 
   public PulsarCluster(Path tempDir) throws Exception {
-    this(tempDir, true);
+    this(tempDir, (config) -> {});
   }
 
-  public PulsarCluster(Path tempDir, boolean allowAutoTopicCreation) throws Exception {
-    this(tempDir, allowAutoTopicCreation, true);
-  }
-
-  public PulsarCluster(Path tempDir, boolean allowAutoTopicCreation, boolean enableTransactions)
+  public PulsarCluster(Path tempDir, Consumer<ServiceConfiguration> configurationConsumer)
       throws Exception {
     this.bookKeeperCluster = new BookKeeperCluster(tempDir, PortManager.nextFreePort());
     ServiceConfiguration config = new ServiceConfiguration();
@@ -49,12 +46,12 @@ public class PulsarCluster implements AutoCloseable {
     config.setManagedLedgerDefaultWriteQuorum(1);
     config.setManagedLedgerDefaultAckQuorum(1);
     config.setBrokerServicePort(Optional.of(PortManager.nextFreePort()));
-    config.setAllowAutoTopicCreation(allowAutoTopicCreation);
+    config.setAllowAutoTopicCreation(true);
     config.setWebSocketServiceEnabled(false);
     config.setSystemTopicEnabled(true);
     config.setBookkeeperNumberOfChannelsPerBookie(1);
     config.setBookkeeperExplicitLacIntervalInMills(500);
-    config.setTransactionCoordinatorEnabled(enableTransactions);
+    config.setTransactionCoordinatorEnabled(true);
     config.setBookkeeperMetadataServiceUri(bookKeeperCluster.getBookKeeperMetadataURI());
     config.setWebServicePort(Optional.of(PortManager.nextFreePort()));
     config.setBookkeeperUseV2WireProtocol(false);
@@ -62,6 +59,7 @@ public class PulsarCluster implements AutoCloseable {
     config.setEntryFiltersDirectory("target/classes/filters");
     config.setAcknowledgmentAtBatchIndexLevelEnabled(true);
     config.setMaxConsumerMetadataSize(1024 * 1024);
+    configurationConsumer.accept(config);
     service = new PulsarService(config);
   }
 
