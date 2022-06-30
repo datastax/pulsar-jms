@@ -105,6 +105,7 @@ public class PulsarConnectionFactory
   private transient SubscriptionType topicSharedSubscriptionType = SubscriptionType.Shared;
   private transient long waitForServerStartupTimeout = 60000;
   private transient boolean usePulsarAdmin = true;
+  private transient boolean precreateQueueSubscription = true;
   private transient int precreateQueueSubscriptionConsumerQueueSize = 0;
   private transient boolean initialized;
   private transient boolean closed;
@@ -263,6 +264,10 @@ public class PulsarConnectionFactory
 
       this.usePulsarAdmin =
           Boolean.parseBoolean(getAndRemoveString("jms.usePulsarAdmin", "true", configurationCopy));
+
+      this.precreateQueueSubscription =
+          Boolean.parseBoolean(
+              getAndRemoveString("jms.precreateQueueSubscription", "true", configurationCopy));
 
       this.precreateQueueSubscriptionConsumerQueueSize =
           Integer.parseInt(
@@ -897,7 +902,14 @@ public class PulsarConnectionFactory
     return usePulsarAdmin;
   }
 
+  synchronized boolean isPrecreateQueueSubscription() {
+    return precreateQueueSubscription;
+  }
+
   public void ensureQueueSubscription(PulsarDestination destination) throws JMSException {
+    if (!isPrecreateQueueSubscription()) {
+      return;
+    }
     long start = System.currentTimeMillis();
 
     // please note that in the special jms-queue subscription we cannot

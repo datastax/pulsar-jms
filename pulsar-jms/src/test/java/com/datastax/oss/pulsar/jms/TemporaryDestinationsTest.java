@@ -47,7 +47,13 @@ public class TemporaryDestinationsTest {
 
   @BeforeAll
   public static void before() throws Exception {
-    cluster = new PulsarCluster(tempDir, false, false);
+    cluster =
+        new PulsarCluster(
+            tempDir,
+            (config) -> {
+              config.setTransactionCoordinatorEnabled(false);
+              config.setAllowAutoTopicCreation(false);
+            });
     cluster.start();
   }
 

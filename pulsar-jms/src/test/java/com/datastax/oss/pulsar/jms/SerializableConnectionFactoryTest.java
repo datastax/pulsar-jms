@@ -44,7 +44,8 @@ public class SerializableConnectionFactoryTest {
 
   @BeforeAll
   public static void before() throws Exception {
-    cluster = new PulsarCluster(tempDir, true, false);
+    cluster =
+        new PulsarCluster(tempDir, (config) -> config.setTransactionCoordinatorEnabled(false));
     cluster.start();
   }
 
