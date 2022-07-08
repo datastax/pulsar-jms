@@ -209,8 +209,7 @@ public class PulsarMessageEndpoint implements MessageListener {
     }
 
     @Override
-    public void end(Xid xid, int flags) throws XAException {
-    }
+    public void end(Xid xid, int flags) throws XAException {}
 
     @Override
     public void forget(Xid xid) throws XAException {

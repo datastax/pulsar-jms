@@ -163,13 +163,13 @@ public class PulsarMessageEndpointTest {
   @Test
   public void testOnMessageErrorNoTx() throws Exception {
     DummyEndpoint listener =
-            new DummyEndpoint(false) {
-              @Override
-              public void processMessage(Message message) {
-                super.processMessage(message);
-                throw new RuntimeException();
-              }
-            };
+        new DummyEndpoint(false) {
+          @Override
+          public void processMessage(Message message) {
+            super.processMessage(message);
+            throw new RuntimeException();
+          }
+        };
     PulsarMessage pulsarMessage = mock(PulsarMessage.class);
     AtomicReference<Throwable> expectedError = new AtomicReference();
     testDeliverMessage(listener, pulsarMessage, expectedError::set, false);
