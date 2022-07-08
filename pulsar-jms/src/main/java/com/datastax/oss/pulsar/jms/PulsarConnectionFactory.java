@@ -28,6 +28,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -59,6 +60,7 @@ import org.apache.pulsar.client.api.Schema;
 import org.apache.pulsar.client.api.SubscriptionInitialPosition;
 import org.apache.pulsar.client.api.SubscriptionMode;
 import org.apache.pulsar.client.api.SubscriptionType;
+import org.apache.pulsar.client.impl.auth.AuthenticationToken;
 import org.apache.pulsar.common.policies.data.SubscriptionStats;
 
 @Slf4j
@@ -101,6 +103,9 @@ public class PulsarConnectionFactory
   private transient boolean acknowledgeRejectedMessages = false;
   private transient String tckUsername = "";
   private transient String tckPassword = "";
+  private transient boolean useCredentialsFromCreateConnection = false;
+  private transient String lastConnectUsername = null;
+  private transient String lastConnectPassword = null;
   private transient String queueSubscriptionName = "jms-queue";
   private transient SubscriptionType topicSharedSubscriptionType = SubscriptionType.Shared;
   private transient long waitForServerStartupTimeout = 60000;
@@ -201,7 +206,8 @@ public class PulsarConnectionFactory
     return producerConfiguration;
   }
 
-  private synchronized void ensureInitialized() throws JMSException {
+  private synchronized void ensureInitialized(String connectUsername, String connectPassword)
+      throws JMSException {
     if (initialized) {
       return;
     }
@@ -256,6 +262,15 @@ public class PulsarConnectionFactory
 
       this.tckUsername = getAndRemoveString("jms.tckUsername", "", configurationCopy);
       this.tckPassword = getAndRemoveString("jms.tckPassword", "", configurationCopy);
+
+      // with useCredentialsFromCreateConnection we pick the username/password from
+      // Connection.connect() to
+      // configure authentication parameters.
+      // the meaning of username/password depends on the Authentication Plugin
+      this.useCredentialsFromCreateConnection =
+          Boolean.parseBoolean(
+              getAndRemoveString(
+                  "jms.useCredentialsFromCreateConnection", "false", configurationCopy));
 
       this.defaultClientId = getAndRemoveString("jms.clientId", null, configurationCopy);
 
@@ -359,6 +374,24 @@ public class PulsarConnectionFactory
         // https://pulsar.apache.org/docs/en/security-tls-keystore/#configuring-clients
         String authPluginClassName = getAndRemoveString("authPlugin", "", configurationCopy);
         String authParamsString = getAndRemoveString("authParams", "", configurationCopy);
+
+        if (useCredentialsFromCreateConnection) {
+          if (connectUsername == null) {
+            connectUsername = "";
+          }
+          if (connectPassword == null) {
+            connectPassword = "";
+          }
+          // for JWT token authentication the "password" is passed as "authParams"
+          if (authPluginClassName.equals(AuthenticationToken.class.getName())) {
+            authParamsString = connectPassword;
+          } else {
+            throw new javax.jms.IllegalStateRuntimeException(
+                "With jms.useCredentialsFromConnect:true "
+                    + "only JWT (AuthenticationToken) authentication is currently supported");
+          }
+        }
+
         Authentication authentication =
             AuthenticationFactory.create(authPluginClassName, authParamsString);
         if (log.isDebugEnabled()) {
@@ -424,9 +457,36 @@ public class PulsarConnectionFactory
       }
       this.pulsarClient = pulsarClient;
       this.pulsarAdmin = pulsarAdmin;
+
+      if (useCredentialsFromCreateConnection) {
+        // commit credentials only in case of success
+        this.lastConnectUsername = connectUsername;
+        this.lastConnectPassword = connectPassword;
+      }
       this.initialized = true;
     } catch (Throwable t) {
       throw Utils.handleException(t);
+    }
+  }
+
+  private void validateConnectUsernamePasswordReused(String connectUsername, String connectPassword)
+      throws IllegalStateException {
+    if (lastConnectUsername != null) {
+      if (!Objects.equals(connectUsername, lastConnectUsername)) {
+        throw new IllegalStateException(
+            "With jms.useCredentialsFromConnect:true "
+                + "once you call connect(username,password) you must always use the same credentials, "
+                + "bad username "
+                + connectUsername
+                + ", expecting "
+                + lastConnectUsername);
+      }
+      if (!Objects.equals(connectPassword, lastConnectPassword)) {
+        throw new IllegalStateException(
+            "With jms.useCredentialsFromConnect:true "
+                + "once you call connect(username,password) you must always use the same credentials, "
+                + "password does not match");
+      }
     }
   }
 
@@ -485,10 +545,7 @@ public class PulsarConnectionFactory
    */
   @Override
   public PulsarConnection createConnection() throws JMSException {
-    ensureInitialized();
-    PulsarConnection res = new PulsarConnection(this);
-    connections.add(res);
-    return res;
+    return createConnection(null, null);
   }
 
   /**
@@ -507,13 +564,18 @@ public class PulsarConnectionFactory
    */
   @Override
   public PulsarConnection createConnection(String userName, String password) throws JMSException {
-    ensureInitialized();
-    validateDummyUserNamePassword(userName, password);
-    return createConnection();
+    validateUserNamePassword(userName, password);
+    ensureInitialized(userName, password);
+    PulsarConnection res = new PulsarConnection(this);
+    connections.add(res);
+    return res;
   }
 
-  private synchronized void validateDummyUserNamePassword(String userName, String password)
-      throws JMSSecurityException {
+  private synchronized void validateUserNamePassword(String userName, String password)
+      throws JMSException {
+    if (useCredentialsFromCreateConnection) {
+      validateConnectUsernamePasswordReused(userName, password);
+    }
     if (tckUsername != null
         && !tckUsername.isEmpty()
         && !tckUsername.equals(userName)
@@ -719,9 +781,9 @@ public class PulsarConnectionFactory
    */
   @Override
   public JMSContext createContext(String userName, String password, int sessionMode) {
-    Utils.runtimeException(this::ensureInitialized);
-    Utils.runtimeException(() -> validateDummyUserNamePassword(userName, password));
-    return createContext(sessionMode);
+    Utils.runtimeException(() -> validateUserNamePassword(userName, password));
+    Utils.runtimeException(() -> ensureInitialized(userName, password));
+    return new PulsarJMSContext(this, sessionMode, userName, password);
   }
 
   /**
@@ -804,8 +866,7 @@ public class PulsarConnectionFactory
    */
   @Override
   public JMSContext createContext(int sessionMode) {
-    Utils.runtimeException(this::ensureInitialized);
-    return new PulsarJMSContext(this, sessionMode);
+    return createContext(null, null, sessionMode);
   }
 
   public void close() {

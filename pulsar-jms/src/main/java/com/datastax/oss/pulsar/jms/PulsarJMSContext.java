@@ -50,15 +50,19 @@ public class PulsarJMSContext implements JMSContext {
   private boolean autoStart = true;
   private boolean owningConnection;
 
-  public PulsarJMSContext(PulsarConnectionFactory factory, int sessionMode) {
+  public PulsarJMSContext(
+      PulsarConnectionFactory factory,
+      int sessionMode,
+      String connectUsername,
+      String connectPassword) {
     try {
-      this.connection = factory.createConnection();
+      this.connection = factory.createConnection(connectUsername, connectPassword);
       this.session = connection.createSession(sessionMode);
       this.session.setJms20(true);
       this.connection.setAllowSetClientId(true);
       this.owningConnection = true;
     } catch (JMSException err) {
-      JMSRuntimeException jms = new JMSRuntimeException("error");
+      JMSRuntimeException jms = new JMSRuntimeException("Error while creating JMSContext");
       jms.initCause(err);
       throw jms;
     }
