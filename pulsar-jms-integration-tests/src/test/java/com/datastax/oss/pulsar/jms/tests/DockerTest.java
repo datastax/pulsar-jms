@@ -17,7 +17,9 @@ package com.datastax.oss.pulsar.jms.tests;
 
 import static org.junit.Assume.assumeTrue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import com.datastax.oss.pulsar.jms.PulsarConnectionFactory;
 import com.datastax.oss.pulsar.jms.PulsarMessageConsumer;
@@ -26,9 +28,13 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
+import javax.jms.Connection;
 import javax.jms.Destination;
+import javax.jms.IllegalStateException;
+import javax.jms.IllegalStateRuntimeException;
 import javax.jms.JMSConsumer;
 import javax.jms.JMSContext;
+import javax.jms.Session;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -164,6 +170,67 @@ public class DockerTest {
             assertEquals(2, inner.getReceivedMessages());
             assertEquals(1, inner.getSkippedMessages());
           }
+        }
+      }
+
+      Map<String, Object> propertiesForPasswordInConnect = new HashMap<>(properties);
+      propertiesForPasswordInConnect.put("jms.useCredentialsFromCreateConnection", "true");
+      String password = (String) propertiesForPasswordInConnect.remove("authParams");
+      assertNotNull(password);
+      try (PulsarConnectionFactory factoryConnectUsernamePassword =
+          new PulsarConnectionFactory(propertiesForPasswordInConnect); ) {
+
+        // verify that it works with createConnection
+        try (Connection connection =
+                factoryConnectUsernamePassword.createConnection("myself", password);
+            Session session = connection.createSession()) {
+          session
+              .createProducer(session.createTopic("testAuth"))
+              .send(session.createTextMessage("foo"));
+        }
+
+        // verify that it works with createContext
+        try (JMSContext context =
+            factoryConnectUsernamePassword.createContext("myself", password)) {
+          context.createProducer().send(context.createTopic("testAuth2"), "foo");
+
+          // verify create subcontext (no need to pass username/password)
+          try (JMSContext subContext = context.createContext(JMSContext.CLIENT_ACKNOWLEDGE)) {
+            subContext.createProducer().send(subContext.createTopic("testAuth2"), "foo");
+          }
+        }
+
+        try {
+          factoryConnectUsernamePassword.createConnection("someoneelse", password).close();
+          fail();
+        } catch (IllegalStateException ok) {
+        }
+        try {
+          factoryConnectUsernamePassword.createContext("someoneelse", password).close();
+          fail();
+        } catch (IllegalStateRuntimeException ok) {
+        }
+
+        try {
+          factoryConnectUsernamePassword.createConnection("myself", "differentpassword").close();
+          fail();
+        } catch (IllegalStateException ok) {
+        }
+        try {
+          factoryConnectUsernamePassword.createContext("myself", "differentpassword").close();
+          fail();
+        } catch (IllegalStateRuntimeException ok) {
+        }
+
+        try {
+          factoryConnectUsernamePassword.createConnection().close();
+          fail();
+        } catch (IllegalStateException ok) {
+        }
+        try {
+          factoryConnectUsernamePassword.createContext().close();
+          fail();
+        } catch (IllegalStateRuntimeException ok) {
         }
       }
     }
