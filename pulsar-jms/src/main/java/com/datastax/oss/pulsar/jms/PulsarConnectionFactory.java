@@ -657,11 +657,8 @@ public class PulsarConnectionFactory
     if (useCredentialsFromCreateConnection) {
       validateConnectUsernamePasswordReused(userName, password);
     }
-
-    if (!anonymous
-            && tckUsername != null && !tckUsername.isEmpty()) {
-      if (!Objects.equals(tckUsername, userName)
-              || !Objects.equals(tckPassword, password)) {
+    if (!anonymous && tckUsername != null && !tckUsername.isEmpty()) {
+      if (!Objects.equals(tckUsername, userName) || !Objects.equals(tckPassword, password)) {
         // this verification is here only for the TCK
         throw new JMSSecurityException("Unauthorized");
       }
