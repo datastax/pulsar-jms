@@ -44,6 +44,8 @@ import javax.jms.Destination;
 import javax.jms.JMSConsumer;
 import javax.jms.JMSContext;
 import javax.jms.JMSProducer;
+import javax.jms.JMSSecurityException;
+import javax.jms.JMSSecurityRuntimeException;
 import javax.jms.MapMessage;
 import javax.jms.Message;
 import javax.jms.MessageConsumer;
@@ -526,6 +528,55 @@ public class SimpleTest {
             fail("Unexpected name of [" + name + "] in MapMessage");
           }
         }
+      }
+    }
+  }
+
+  @Test
+  public void tckUsernamePasswordTest() throws Exception {
+    Map<String, Object> properties = new HashMap<>();
+    properties.put("webServiceUrl", cluster.getAddress());
+    properties.put("jms.tckUsername", "bob");
+    properties.put("jms.tckPassword", "shhhh");
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+      try (JMSContext context = factory.createContext(JMSContext.AUTO_ACKNOWLEDGE)) {}
+      try (Connection connection = factory.createConnection()) {}
+      try (JMSContext context =
+          factory.createContext("bob", "shhhh", JMSContext.AUTO_ACKNOWLEDGE)) {}
+      try (Connection connection = factory.createConnection("bob", "shhhh")) {}
+      try (JMSContext context =
+          factory.createContext("bad", "shhhh", JMSContext.AUTO_ACKNOWLEDGE)) {
+        fail();
+      } catch (JMSSecurityRuntimeException ok) {
+
+      }
+      try (Connection connection = factory.createConnection("bad", "shhhh")) {
+        fail();
+      } catch (JMSSecurityException ok) {
+      }
+      try (JMSContext connection = factory.createContext(null, null, JMSContext.AUTO_ACKNOWLEDGE)) {
+        fail();
+      } catch (JMSSecurityRuntimeException ok) {
+      }
+      try (Connection connection = factory.createConnection(null, null)) {
+        fail();
+      } catch (JMSSecurityException ok) {
+      }
+    }
+
+    // new PulsarConnectionFactory
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+      try (Connection connection = factory.createConnection("invalid", "invalid")) {
+        fail();
+      } catch (JMSSecurityException ok) {
+      }
+      try (Connection connection = factory.createQueueConnection("invalid", "invalid")) {
+        fail();
+      } catch (JMSSecurityException ok) {
+      }
+      try (Connection connection = factory.createTopicConnection("invalid", "invalid")) {
+        fail();
+      } catch (JMSSecurityException ok) {
       }
     }
   }

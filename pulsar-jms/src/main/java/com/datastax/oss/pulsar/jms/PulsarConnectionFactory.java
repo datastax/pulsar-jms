@@ -459,9 +459,11 @@ public class PulsarConnectionFactory
       this.pulsarAdmin = pulsarAdmin;
 
       if (useCredentialsFromCreateConnection) {
-        // commit credentials only in case of success
-        this.lastConnectUsername = connectUsername;
-        this.lastConnectPassword = connectPassword;
+        if (lastConnectUsername == null) {
+          // commit credentials only in case of success
+          this.lastConnectUsername = connectUsername;
+          this.lastConnectPassword = connectPassword;
+        }
       }
       this.initialized = true;
     } catch (Throwable t) {
@@ -545,7 +547,11 @@ public class PulsarConnectionFactory
    */
   @Override
   public PulsarConnection createConnection() throws JMSException {
-    return createConnection(null, null);
+    ensureInitialized(null, null);
+    validateUserNamePassword(true, null, null);
+    PulsarConnection res = new PulsarConnection(this);
+    connections.add(res);
+    return res;
   }
 
   /**
@@ -564,28 +570,26 @@ public class PulsarConnectionFactory
    */
   @Override
   public PulsarConnection createConnection(String userName, String password) throws JMSException {
-    validateUserNamePassword(userName, password);
     ensureInitialized(userName, password);
+    validateUserNamePassword(false, userName, password);
     PulsarConnection res = new PulsarConnection(this);
     connections.add(res);
     return res;
   }
 
-  private synchronized void validateUserNamePassword(String userName, String password)
-      throws JMSException {
+  private synchronized void validateUserNamePassword(
+      boolean anonymous, String userName, String password) throws JMSException {
     if (useCredentialsFromCreateConnection) {
       validateConnectUsernamePasswordReused(userName, password);
     }
-    if (tckUsername != null
-        && !tckUsername.isEmpty()
-        && !tckUsername.equals(userName)
-        && tckPassword != null
-        && !tckPassword.equals(password)) {
-      // this verification is here only for the TCK, Pulsar does not support username/password
-      // authentication
-      // therefore we are using only one single PulsarClient per factory
-      // authentication must be set at Factory level
-      throw new JMSSecurityException("Unauthorized");
+
+    if (!anonymous
+            && tckUsername != null && !tckUsername.isEmpty()) {
+      if (!Objects.equals(tckUsername, userName)
+              || !Objects.equals(tckPassword, password)) {
+        // this verification is here only for the TCK
+        throw new JMSSecurityException("Unauthorized");
+      }
     }
   }
 
@@ -781,9 +785,9 @@ public class PulsarConnectionFactory
    */
   @Override
   public JMSContext createContext(String userName, String password, int sessionMode) {
-    Utils.runtimeException(() -> validateUserNamePassword(userName, password));
     Utils.runtimeException(() -> ensureInitialized(userName, password));
-    return new PulsarJMSContext(this, sessionMode, userName, password);
+    Utils.runtimeException(() -> validateUserNamePassword(false, userName, password));
+    return new PulsarJMSContext(this, sessionMode, false, userName, password);
   }
 
   /**
@@ -866,7 +870,9 @@ public class PulsarConnectionFactory
    */
   @Override
   public JMSContext createContext(int sessionMode) {
-    return createContext(null, null, sessionMode);
+    Utils.runtimeException(() -> ensureInitialized(null, null));
+    Utils.runtimeException(() -> validateUserNamePassword(true, null, null));
+    return new PulsarJMSContext(this, sessionMode, true, null, null);
   }
 
   public void close() {
