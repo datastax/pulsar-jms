@@ -82,7 +82,7 @@ public class JNDIInitialContextFactory implements InitialContextFactory {
     configuration.put("producerConfig", producerConfig);
 
     configuration.put("jms.tckUsername", "j2ee");
-    configuration.put("jms.tckUsername", "j2ee");
+    configuration.put("jms.tckPassword", "j2ee");
     configuration.put("jms.enableClientSideEmulation", "true");
     // this is needed to support delayed messages even with simple unnamed Consumers
     configuration.put("jms.useExclusiveSubscriptionsForSimpleConsumers", "false");

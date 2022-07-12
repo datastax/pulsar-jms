@@ -53,10 +53,15 @@ public class PulsarJMSContext implements JMSContext {
   public PulsarJMSContext(
       PulsarConnectionFactory factory,
       int sessionMode,
+      boolean anonymous,
       String connectUsername,
       String connectPassword) {
     try {
-      this.connection = factory.createConnection(connectUsername, connectPassword);
+      if (anonymous) {
+        this.connection = factory.createConnection();
+      } else {
+        this.connection = factory.createConnection(connectUsername, connectPassword);
+      }
       this.session = connection.createSession(sessionMode);
       this.session.setJms20(true);
       this.connection.setAllowSetClientId(true);
