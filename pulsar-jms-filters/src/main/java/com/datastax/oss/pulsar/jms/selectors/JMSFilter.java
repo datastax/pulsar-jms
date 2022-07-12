@@ -18,6 +18,7 @@ package com.datastax.oss.pulsar.jms.selectors;
 import io.netty.buffer.ByteBuf;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -51,7 +52,8 @@ public class JMSFilter implements EntryFilter {
   @Override
   public FilterResult filterEntry(Entry entry, FilterContext context) {
     Consumer consumer = context.getConsumer();
-    Map<String, String> consumerMetadata = consumer.getMetadata();
+    Map<String, String> consumerMetadata =
+        consumer != null ? consumer.getMetadata() : Collections.emptyMap();
     Subscription subscription = context.getSubscription();
     boolean jmsFiltering = "true".equals(consumerMetadata.get("jms.filtering"));
     final String jmsSelectorOnSubscription;
@@ -125,7 +127,7 @@ public class JMSFilter implements EntryFilter {
       return FilterResult.RESCHEDULE;
     }
 
-    CommandSubscribe.SubType subType = consumer.subType();
+    CommandSubscribe.SubType subType = subscription.getType();
     final boolean isExclusive;
     switch (subType) {
       case Exclusive:
