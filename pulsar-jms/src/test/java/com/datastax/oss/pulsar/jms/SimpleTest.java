@@ -554,6 +554,7 @@ public class SimpleTest {
         fail();
       } catch (JMSSecurityException ok) {
       }
+
       try (JMSContext connection = factory.createContext(null, null, JMSContext.AUTO_ACKNOWLEDGE)) {
         fail();
       } catch (JMSSecurityRuntimeException ok) {

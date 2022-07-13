@@ -48,6 +48,7 @@ import org.apache.pulsar.client.api.BatcherBuilder;
 import org.apache.pulsar.client.api.ClientBuilder;
 import org.apache.pulsar.client.api.Consumer;
 import org.apache.pulsar.client.api.ConsumerBuilder;
+import org.apache.pulsar.client.api.DeadLetterPolicy;
 import org.apache.pulsar.client.api.Message;
 import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.api.Producer;
@@ -56,10 +57,12 @@ import org.apache.pulsar.client.api.PulsarClient;
 import org.apache.pulsar.client.api.PulsarClientException;
 import org.apache.pulsar.client.api.Reader;
 import org.apache.pulsar.client.api.ReaderBuilder;
+import org.apache.pulsar.client.api.RedeliveryBackoff;
 import org.apache.pulsar.client.api.Schema;
 import org.apache.pulsar.client.api.SubscriptionInitialPosition;
 import org.apache.pulsar.client.api.SubscriptionMode;
 import org.apache.pulsar.client.api.SubscriptionType;
+import org.apache.pulsar.client.impl.MultiplierRedeliveryBackoff;
 import org.apache.pulsar.client.impl.auth.AuthenticationToken;
 import org.apache.pulsar.common.policies.data.SubscriptionStats;
 
@@ -92,6 +95,9 @@ public class PulsarConnectionFactory
   private transient Map<String, Object> producerConfiguration;
   private transient Map<String, Object> consumerConfiguration;
   private transient Schema<?> consumerSchema;
+  private transient DeadLetterPolicy deadLetterPolicy;
+  private transient RedeliveryBackoff negativeAckRedeliveryBackoff;
+  private transient RedeliveryBackoff ackTimeoutRedeliveryBackoff;
   private transient String systemNamespace = "public/default";
   private transient String defaultClientId = null;
   private transient boolean enableTransaction = false;
@@ -254,6 +260,13 @@ public class PulsarConnectionFactory
         if (useSchema) {
           consumerSchema = Schema.AUTO_CONSUME();
         }
+
+        deadLetterPolicy = getAndRemoveDeadLetterPolicy(consumerConfiguration);
+        negativeAckRedeliveryBackoff =
+            getAndRemoveRedeliveryBackoff("negativeAckRedeliveryBackoff", consumerConfiguration);
+        ackTimeoutRedeliveryBackoff =
+            getAndRemoveRedeliveryBackoff("ackTimeoutRedeliveryBackoff", consumerConfiguration);
+
       } else {
         this.consumerConfiguration = Collections.emptyMap();
       }
@@ -471,6 +484,68 @@ public class PulsarConnectionFactory
     }
   }
 
+  private static RedeliveryBackoff getAndRemoveRedeliveryBackoff(
+      String baseName, Map<String, Object> consumerConfiguration) {
+    Map<String, Object> config = (Map<String, Object>) consumerConfiguration.remove(baseName);
+    if (config == null) {
+      return null;
+    }
+    MultiplierRedeliveryBackoff.MultiplierRedeliveryBackoffBuilder builder =
+        MultiplierRedeliveryBackoff.builder();
+    long maxDelayMs = Long.parseLong(getAndRemoveString("maxDelayMs", "-1", config));
+    if (maxDelayMs >= 0) {
+      builder.maxDelayMs(maxDelayMs);
+    }
+
+    long minDelayMs = Long.parseLong(getAndRemoveString("minDelayMs", "-1", config));
+    if (minDelayMs >= 0) {
+      builder.minDelayMs(minDelayMs);
+    }
+    double multiplier = Double.parseDouble(getAndRemoveString("multiplier", "-1", config));
+    if (multiplier >= 0) {
+      builder.multiplier(multiplier);
+    }
+    if (!config.isEmpty()) {
+      throw new IllegalArgumentException("Unhandled fields in " + baseName + ": " + config);
+    }
+    return builder.build();
+  }
+
+  private static DeadLetterPolicy getAndRemoveDeadLetterPolicy(
+      Map<String, Object> consumerConfiguration) {
+    Map<String, Object> deadLetterPolicyConfig =
+        (Map<String, Object>) consumerConfiguration.remove("deadLetterPolicy");
+    if (deadLetterPolicyConfig == null || deadLetterPolicyConfig.isEmpty()) {
+      return null;
+    }
+
+    DeadLetterPolicy.DeadLetterPolicyBuilder deadLetterPolicyBuilder = DeadLetterPolicy.builder();
+    String deadLetterTopic = getAndRemoveString("deadLetterTopic", "", deadLetterPolicyConfig);
+    if (!deadLetterTopic.isEmpty()) {
+      deadLetterPolicyBuilder.deadLetterTopic(deadLetterTopic);
+    }
+    String retryLetterTopic = getAndRemoveString("retryLetterTopic", "", deadLetterPolicyConfig);
+    if (!deadLetterTopic.isEmpty()) {
+      deadLetterPolicyBuilder.retryLetterTopic(retryLetterTopic);
+    }
+    String initialSubscriptionName =
+        getAndRemoveString("initialSubscriptionName", "", deadLetterPolicyConfig);
+    if (!initialSubscriptionName.isEmpty()) {
+      deadLetterPolicyBuilder.initialSubscriptionName(initialSubscriptionName);
+    }
+    int maxRedeliverCount =
+        Integer.parseInt(getAndRemoveString("maxRedeliverCount", "-1", deadLetterPolicyConfig));
+    if (maxRedeliverCount > -1) {
+      deadLetterPolicyBuilder.maxRedeliverCount(maxRedeliverCount);
+    }
+    if (!deadLetterPolicyConfig.isEmpty()) {
+      throw new IllegalArgumentException(
+          "Unhandled fields in deadLetterPolicy: " + deadLetterPolicyConfig);
+    }
+
+    return deadLetterPolicyBuilder.build();
+  }
+
   private void validateConnectUsernamePasswordReused(String connectUsername, String connectPassword)
       throws IllegalStateException {
     if (lastConnectUsername != null) {
@@ -582,11 +657,8 @@ public class PulsarConnectionFactory
     if (useCredentialsFromCreateConnection) {
       validateConnectUsernamePasswordReused(userName, password);
     }
-
-    if (!anonymous
-            && tckUsername != null && !tckUsername.isEmpty()) {
-      if (!Objects.equals(tckUsername, userName)
-              || !Objects.equals(tckPassword, password)) {
+    if (!anonymous && tckUsername != null && !tckUsername.isEmpty()) {
+      if (!Objects.equals(tckUsername, userName) || !Objects.equals(tckPassword, password)) {
         // this verification is here only for the TCK
         throw new JMSSecurityException("Unauthorized");
       }
@@ -1144,6 +1216,15 @@ public class PulsarConnectionFactory
               .subscriptionType(subscriptionType)
               .subscriptionName(subscriptionName)
               .topic(fullQualifiedTopicName);
+      if (deadLetterPolicy != null) {
+        builder.deadLetterPolicy(deadLetterPolicy);
+      }
+      if (negativeAckRedeliveryBackoff != null) {
+        builder.negativeAckRedeliveryBackoff(negativeAckRedeliveryBackoff);
+      }
+      if (ackTimeoutRedeliveryBackoff != null) {
+        builder.ackTimeoutRedeliveryBackoff(ackTimeoutRedeliveryBackoff);
+      }
       Consumer<?> newConsumer = builder.subscribe();
       consumers.add(newConsumer);
 
