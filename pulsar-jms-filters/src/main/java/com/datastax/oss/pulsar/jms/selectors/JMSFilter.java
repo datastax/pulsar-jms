@@ -128,6 +128,12 @@ public class JMSFilter implements EntryFilter {
     }
 
     CommandSubscribe.SubType subType = subscription.getType();
+    if (subType == null) {
+      // this is possible during backlog calculation if the dispatcher has not
+      // been created yet, so no consumer ever connected and the type of
+      // subscription is not known yet
+      subType = CommandSubscribe.SubType.Shared;
+    }
     final boolean isExclusive;
     switch (subType) {
       case Exclusive:
