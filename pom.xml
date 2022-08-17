@@ -42,6 +42,7 @@
     <module>pulsar-jms-all</module>
     <module>pulsar-jms-integration-tests</module>
     <module>pulsar-jms-cli</module>
+    <module>pulsar-jms-admin-ext</module>
   </modules>
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -295,7 +296,7 @@ limitations under the License.]]></inlineHeader>
         <plugin>
           <groupId>org.codehaus.mojo</groupId>
           <artifactId>animal-sniffer-maven-plugin</artifactId>
-          <version>1.16</version>
+          <version>1.22</version>
           <executions>
             <execution>
               <id>check-jdk8</id>
