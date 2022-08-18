@@ -346,7 +346,7 @@ public class PulsarConnectionFactory
                   "jms.useExclusiveSubscriptionsForSimpleConsumers", "true", configurationCopy));
 
       // This flag is to force acknowledgement for messages that are rejected due to
-      // client side filtering in case of Shared subscription.
+      // filtering in case of Shared subscription.
       // If you have a shared subscription on a topic (Topic or Queue) and a message
       // is filtered out, by default we negatively acknowledge the message in order to
       // let another consumer on the same subscription to receive it.

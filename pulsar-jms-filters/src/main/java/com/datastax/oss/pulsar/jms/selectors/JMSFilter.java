@@ -82,8 +82,9 @@ public class JMSFilter implements EntryFilter {
     boolean forceDropRejected =
         "true".equals(consumerMetadata.getOrDefault("jms.force.drop.rejected", "false"));
     final FilterResult rejectResultForSelector;
-    if ("drop".equals(jmsSelectorRejectAction)) {
+    if ("drop".equals(jmsSelectorRejectAction) || forceDropRejected) {
       // this is the common behaviour for a Topics
+      // or happens for Queues with jms.acknowledgeRejectedMessages=true
       rejectResultForSelector = FilterResult.REJECT;
     } else {
       // this is the common behaviour for a Queue
