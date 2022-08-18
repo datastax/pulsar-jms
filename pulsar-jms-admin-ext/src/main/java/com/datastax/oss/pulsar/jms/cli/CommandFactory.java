@@ -63,13 +63,14 @@ public class CommandFactory implements CustomCommandFactory {
                         ParameterDescriptor.builder()
                             .description("Destination type")
                             .type(ParameterType.STRING)
-                            .name("--type")
+                            .names(Arrays.asList("--type", "-t"))
                             .required(true)
                             .build(),
                         ParameterDescriptor.builder()
                             .description("Destination")
                             .type(ParameterType.STRING)
-                            .name("--destination")
+                            .mainParameter(true)
+                            .names(Arrays.asList("destination"))
                             .required(true)
                             .build());
                   }
@@ -78,7 +79,9 @@ public class CommandFactory implements CustomCommandFactory {
                   public boolean execute(
                       Map<String, Object> parameters, CommandExecutionContext context)
                       throws Exception {
-                    String destination = parameters.getOrDefault("--destination", "").toString();
+                    System.out.println(
+                        "Execute: " + parameters + " properties " + context.getConfiguration());
+                    String destination = parameters.getOrDefault("destination", "").toString();
                     TopicStats stats = context.getPulsarAdmin().topics().getStats(destination);
                     System.out.println("Topic stats: " + stats);
                     return false;
