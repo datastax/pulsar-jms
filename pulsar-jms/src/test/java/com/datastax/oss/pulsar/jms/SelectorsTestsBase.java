@@ -45,6 +45,8 @@ import org.apache.pulsar.client.api.Consumer;
 import org.apache.pulsar.client.api.SubscriptionMode;
 import org.apache.pulsar.client.api.SubscriptionType;
 import org.apache.pulsar.client.impl.BatchMessageIdImpl;
+import org.apache.pulsar.common.policies.data.ManagedLedgerInternalStats;
+import org.apache.pulsar.common.policies.data.PersistentTopicInternalStats;
 import org.apache.pulsar.common.policies.data.TopicStats;
 import org.apache.pulsar.common.util.FutureUtil;
 import org.junit.jupiter.api.AfterAll;
@@ -302,6 +304,108 @@ public abstract class SelectorsTestsBase {
             // no more messages
             assertNull(consumer1.receiveNoWait());
           }
+        }
+      }
+    }
+  }
+
+  @Test
+  public void testAcknowledgeRejectedMessagesWithQueues() throws Exception {
+    Map<String, Object> properties = buildProperties();
+    if (enableBatching) {
+      // ensure that we create batches with more than 1 message
+      Map<String, Object> producerConfig = (Map<String, Object>) properties.get("producerConfig");
+      producerConfig.put("batchingMaxPublishDelayMicros", "1000000");
+      // each batch will contain 5 messages
+      producerConfig.put("batchingMaxMessages", "5");
+    }
+
+    properties.put("jms.acknowledgeRejectedMessages", true);
+
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+      try (PulsarConnection connection = factory.createConnection()) {
+        connection.start();
+        try (PulsarSession session = connection.createSession(); ) {
+          Queue destination =
+              session.createQueue("persistent://public/default/test-" + UUID.randomUUID());
+
+          try (PulsarMessageConsumer consumer1 =
+              session.createConsumer(destination, "keepMessage=TRUE"); ) {
+            assertEquals(
+                SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
+            assertEquals("keepMessage=TRUE", consumer1.getMessageSelector());
+            List<CompletableFuture<Message>> handles = new ArrayList<>();
+            List<String> expected = new ArrayList<>();
+            try (MessageProducer producer = session.createProducer(destination); ) {
+              for (int i = 0; i < 100; i++) {
+                String text = "foo-" + i;
+                TextMessage textMessage = session.createTextMessage(text);
+                if (i % 5 == 0) {
+                  expected.add(text);
+                  textMessage.setBooleanProperty("keepMessage", true);
+                }
+                CompletableFuture<Message> handle = new CompletableFuture<>();
+                producer.send(
+                    textMessage,
+                    new CompletionListener() {
+                      @Override
+                      public void onCompletion(Message message) {
+                        handle.complete(message);
+                      }
+
+                      @Override
+                      public void onException(Message message, Exception e) {
+                        handle.completeExceptionally(e);
+                      }
+                    });
+                handles.add(handle);
+              }
+            }
+
+            CompletableFuture.allOf(handles.toArray(new CompletableFuture[0])).get();
+
+            for (String text : expected) {
+              PulsarTextMessage textMessage = (PulsarTextMessage) consumer1.receive();
+              assertEquals(text, textMessage.getText());
+
+              // ensure that it is a batch message
+              assertEquals(
+                  enableBatching,
+                  textMessage.getReceivedPulsarMessage().getMessageId()
+                      instanceof BatchMessageIdImpl);
+            }
+
+            // no more messages (this also drains some remaining messages to be skipped)
+            assertNull(consumer1.receive(1000));
+
+            if (useServerSideFiltering) {
+              if (enableBatching) {
+                // unfortunately the server could not reject any batch
+                assertEquals(100, consumer1.getReceivedMessages());
+                assertEquals(100 - expected.size(), consumer1.getSkippedMessages());
+              } else {
+                // this is the best case, no batching, so the client
+                // receives exactly only the messages that match the filter
+                assertEquals(expected.size(), consumer1.getReceivedMessages());
+                assertEquals(0, consumer1.getSkippedMessages());
+              }
+            } else {
+              assertEquals(100, consumer1.getReceivedMessages());
+              assertEquals(100 - expected.size(), consumer1.getSkippedMessages());
+            }
+          }
+
+          // no individuallyDeletedMessages
+          PersistentTopicInternalStats internalStats =
+              cluster
+                  .getService()
+                  .getAdminClient()
+                  .topics()
+                  .getInternalStats(destination.getQueueName());
+          assertEquals(1, internalStats.cursors.size());
+          ManagedLedgerInternalStats.CursorStats cursorStats =
+              internalStats.cursors.values().iterator().next();
+          assertEquals("[]", cursorStats.individuallyDeletedMessages);
         }
       }
     }
