@@ -283,7 +283,9 @@ public class JMSFilter implements EntryFilter {
       }
 
     } catch (Throwable err) {
-      log.error("Error while decoding batch entry", err);
+      log.error("Error while processing entry " + err, err);
+      // also print on stdout:
+      err.printStackTrace(System.out);
       return FilterResult.REJECT;
     }
   }
@@ -374,7 +376,7 @@ public class JMSFilter implements EntryFilter {
                 return metadata.getEventTime();
               }
             }
-            return 0;
+            return 0L; // must be a long
           }
         case "JMSXDeliveryCount":
           // this is not supported on the broker
