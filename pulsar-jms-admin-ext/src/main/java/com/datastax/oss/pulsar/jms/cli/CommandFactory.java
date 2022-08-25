@@ -17,77 +17,34 @@ package com.datastax.oss.pulsar.jms.cli;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.admin.cli.extensions.CommandExecutionContext;
 import org.apache.pulsar.admin.cli.extensions.CustomCommand;
 import org.apache.pulsar.admin.cli.extensions.CustomCommandFactory;
 import org.apache.pulsar.admin.cli.extensions.CustomCommandGroup;
-import org.apache.pulsar.admin.cli.extensions.ParameterDescriptor;
-import org.apache.pulsar.admin.cli.extensions.ParameterType;
-import org.apache.pulsar.common.policies.data.TopicStats;
 
 @Slf4j
 public class CommandFactory implements CustomCommandFactory {
   @Override
   public List<CustomCommandGroup> commandGroups(CommandExecutionContext context) {
-    return Arrays.asList(
-        new CustomCommandGroup() {
-          @Override
-          public String name() {
-            return "jms";
-          }
+    return Arrays.asList(new JMSCommandGroup());
+  }
 
-          @Override
-          public String description() {
-            return "Starlight for JMS commands";
-          }
+  private static class JMSCommandGroup implements CustomCommandGroup {
+    @Override
+    public String name() {
+      return "jms";
+    }
 
-          @Override
-          public List<CustomCommand> commands(CommandExecutionContext context) {
-            return Arrays.asList(
-                new CustomCommand() {
-                  @Override
-                  public String name() {
-                    return "describe";
-                  }
+    @Override
+    public String description() {
+      return "Starlight for JMS commands";
+    }
 
-                  @Override
-                  public String description() {
-                    return "Describe a JMS Destination";
-                  }
-
-                  @Override
-                  public List<ParameterDescriptor> parameters() {
-                    return Arrays.asList(
-                        ParameterDescriptor.builder()
-                            .description("Destination type")
-                            .type(ParameterType.STRING)
-                            .names(Arrays.asList("--type", "-t"))
-                            .required(true)
-                            .build(),
-                        ParameterDescriptor.builder()
-                            .description("Destination")
-                            .type(ParameterType.STRING)
-                            .mainParameter(true)
-                            .names(Arrays.asList("destination"))
-                            .required(true)
-                            .build());
-                  }
-
-                  @Override
-                  public boolean execute(
-                      Map<String, Object> parameters, CommandExecutionContext context)
-                      throws Exception {
-                    System.out.println(
-                        "Execute: " + parameters + " properties " + context.getConfiguration());
-                    String destination = parameters.getOrDefault("destination", "").toString();
-                    TopicStats stats = context.getPulsarAdmin().topics().getStats(destination);
-                    System.out.println("Topic stats: " + stats);
-                    return false;
-                  }
-                });
-          }
-        });
+    @Override
+    public List<CustomCommand> commands(CommandExecutionContext context) {
+      return Arrays.asList(
+          new DescribeCommand(), new CreateSubscriptionCommand(), new UpdateSubscriptionCommand());
+    }
   }
 }

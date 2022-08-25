@@ -46,9 +46,7 @@ import javax.jms.Topic;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.admin.PulsarAdmin;
 import org.apache.pulsar.client.admin.PulsarAdminException;
-import org.apache.pulsar.client.api.SubscriptionInitialPosition;
-import org.apache.pulsar.client.api.SubscriptionMode;
-import org.apache.pulsar.client.api.SubscriptionType;
+import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.common.policies.data.SubscriptionStats;
 import org.apache.pulsar.common.policies.data.TopicStats;
 import org.apache.pulsar.common.util.ObjectMapperFactory;
@@ -227,9 +225,9 @@ public class Main {
         log.info("Activating selector {} properties {}", selector, subscriptionProperties);
       }
 
-      SubscriptionInitialPosition position = SubscriptionInitialPosition.Latest;
+      MessageId position = MessageId.latest;
       if (destination instanceof Queue) {
-        position = SubscriptionInitialPosition.Earliest;
+        position = MessageId.earliest;
       }
 
       log.info(
@@ -239,19 +237,8 @@ public class Main {
           position,
           subscriptionProperties);
 
-      // there is no API to create a Subscription with properties in 2.10
-      // using PulsarAdmin, the only way is to create a Consumer
-      factory
-          .getPulsarClient()
-          .newConsumer()
-          .subscriptionName(subscription)
-          .topic(topicName)
-          .subscriptionProperties(subscriptionProperties)
-          .subscriptionMode(SubscriptionMode.Durable)
-          .subscriptionType(SubscriptionType.Shared)
-          .subscriptionInitialPosition(position)
-          .subscribe()
-          .close();
+      pulsarAdmin
+              .topics().createSubscription(topicName, subscription, position, false, subscriptionProperties);
     }
   }
 

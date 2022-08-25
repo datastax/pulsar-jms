@@ -115,6 +115,7 @@ public class PulsarConnectionFactory
   private transient int precreateQueueSubscriptionConsumerQueueSize = 0;
   private transient boolean initialized;
   private transient boolean closed;
+  private transient boolean startPulsarClient = true;
 
   private transient Map<String, Object> configuration = Collections.emptyMap();
 
@@ -437,7 +438,7 @@ public class PulsarConnectionFactory
           clientBuilder.serviceUrl(brokenServiceUrl);
         }
 
-        pulsarClient = clientBuilder.build();
+        pulsarClient = buildPulsarClient(clientBuilder);
 
       } catch (PulsarClientException err) {
         if (pulsarAdmin != null) {
@@ -462,6 +463,10 @@ public class PulsarConnectionFactory
     } catch (Throwable t) {
       throw Utils.handleException(t);
     }
+  }
+
+  protected PulsarClient buildPulsarClient(ClientBuilder builder) throws PulsarClientException {
+    return builder.build();
   }
 
   private void validateConnectUsernamePasswordReused(String connectUsername, String connectPassword)
@@ -886,10 +891,14 @@ public class PulsarConnectionFactory
       }
     }
 
-    this.pulsarAdmin.close();
+    if (this.pulsarAdmin != null) {
+      this.pulsarAdmin.close();
+    }
 
     try {
-      this.pulsarClient.close();
+      if (this.pulsarClient != null) {
+        this.pulsarClient.close();
+      }
     } catch (PulsarClientException err) {
       log.info("Error closing PulsarClient", err);
     }
