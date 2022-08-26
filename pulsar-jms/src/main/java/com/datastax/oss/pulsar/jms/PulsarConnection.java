@@ -929,9 +929,11 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
 
   @Override
   public ConnectionConsumer createConnectionConsumer(
-      Queue queue, String s, ServerSessionPool serverSessionPool, int i) throws JMSException {
+      Queue queue, String messageSelector, ServerSessionPool serverSessionPool, int i)
+      throws JMSException {
     checkNotClosed();
-    throw new JMSException("Not implemented");
+    return buildConnectionConsumer(
+        serverSessionPool, (session) -> session.createConsumer(queue, messageSelector));
   }
 
   @Override
