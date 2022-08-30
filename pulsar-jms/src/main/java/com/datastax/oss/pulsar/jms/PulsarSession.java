@@ -21,6 +21,7 @@ import com.datastax.oss.pulsar.jms.messages.PulsarObjectMessage;
 import com.datastax.oss.pulsar.jms.messages.PulsarSimpleMessage;
 import com.datastax.oss.pulsar.jms.messages.PulsarStreamMessage;
 import com.datastax.oss.pulsar.jms.messages.PulsarTextMessage;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -32,6 +33,8 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import javax.jms.Connection;
 import javax.jms.Destination;
@@ -92,6 +95,12 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   // this collection is accessed by the Listener thread
   private final List<PulsarMessageConsumer> consumers = new CopyOnWriteArrayList<>();
   private final List<PulsarQueueBrowser> browsers = new CopyOnWriteArrayList<>();
+
+  private final ReentrantLock pendingActivitiesLock = new ReentrantLock();
+  private final Condition pendingActivitiesLockCanCommit = pendingActivitiesLock.newCondition();
+  private final Condition pendingActivitiesLockCanDoActivity = pendingActivitiesLock.newCondition();
+  private int activitesBlockingTransactionOperations = 0;
+  private boolean transactionOperationInProgress = false;
 
   public PulsarSession(int sessionMode, PulsarConnection connection) throws JMSException {
     if (sessionMode == SESSION_TRANSACTED && !connection.getFactory().isEnableTransaction()) {
@@ -363,6 +372,74 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     return sessionMode;
   }
 
+  void blockTransactionOperations() throws JMSException {
+    if (!transacted) {
+      return;
+    }
+    pendingActivitiesLock.lock();
+    try {
+      while (transactionOperationInProgress) {
+        pendingActivitiesLockCanDoActivity.await();
+      }
+      activitesBlockingTransactionOperations++;
+    } catch (InterruptedException err) {
+      IllegalStateException e = new IllegalStateException("commit/rollback interrupted");
+      e.initCause(err);
+      throw e;
+    } finally {
+      pendingActivitiesLock.unlock();
+    }
+  }
+
+  void unblockTransactionOperations() {
+    if (!transacted) {
+      return;
+    }
+    pendingActivitiesLock.lock();
+    try {
+      int newValue = --activitesBlockingTransactionOperations;
+      if (newValue == 0) {
+        pendingActivitiesLockCanCommit.signalAll();
+      }
+    } finally {
+      pendingActivitiesLock.unlock();
+    }
+  }
+
+  @SuppressFBWarnings({"UL_UNRELEASED_LOCK", "UL_UNRELEASED_LOCK_EXCEPTION_PATH"})
+  void beginTransactionOperation() throws JMSException {
+    pendingActivitiesLock.lock();
+    try {
+      // wait for other commit/rollbacks to complete
+      while (transactionOperationInProgress) {
+        pendingActivitiesLockCanDoActivity.await();
+      }
+      transactionOperationInProgress = true;
+      while (activitesBlockingTransactionOperations > 0) {
+        pendingActivitiesLockCanCommit.await();
+      }
+    } catch (InterruptedException err) {
+      IllegalStateException e = new IllegalStateException("commit/rollback interrupted");
+      e.initCause(err);
+      throw e;
+    } finally {
+      pendingActivitiesLock.unlock();
+    }
+  }
+
+  void endTransactionOperation() throws JMSException {
+    pendingActivitiesLock.lock();
+    try {
+      if (!transactionOperationInProgress) {
+        throw new IllegalStateException("commit/rollback already in not progress");
+      }
+      transactionOperationInProgress = false;
+      pendingActivitiesLockCanDoActivity.signalAll();
+    } finally {
+      pendingActivitiesLock.unlock();
+    }
+  }
+
   /**
    * Commits all messages done in this transaction and releases any locks currently held.
    *
@@ -395,23 +472,28 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     }
     closeLock.readLock().lock();
     try {
-      if (emulateTransactions) {
-        // we are postponing to this moment the acknowledgment
-        for (PulsarMessage msg : unackedMessages) {
-          msg.acknowledgeInternal();
+      beginTransactionOperation();
+      try {
+        if (emulateTransactions) {
+          // we are postponing to this moment the acknowledgment
+          for (PulsarMessage msg : new ArrayList<>(unackedMessages)) {
+            msg.acknowledgeInternal();
+          }
+          unackedMessages.clear();
         }
-        unackedMessages.clear();
-      }
-      if (transaction != null) {
-        // we are postponing to this moment the acknowledgment
-        List<CompletableFuture<?>> handles = new ArrayList<>();
-        for (PulsarMessage msg : unackedMessages) {
-          handles.add(msg.acknowledgeInternalInTransaction(transaction));
+        if (transaction != null) {
+          // we are postponing to this moment the acknowledgment
+          List<CompletableFuture<?>> handles = new ArrayList<>();
+          for (PulsarMessage msg : new ArrayList<>(unackedMessages)) {
+            handles.add(msg.acknowledgeInternalInTransaction(transaction));
+          }
+          handles.add(transaction.commit());
+          Utils.get(CompletableFuture.allOf(handles.toArray(new CompletableFuture<?>[0])));
+          unackedMessages.clear();
+          transaction = null;
         }
-        handles.add(transaction.commit());
-        Utils.get(CompletableFuture.allOf(handles.toArray(new CompletableFuture<?>[0])));
-        unackedMessages.clear();
-        transaction = null;
+      } finally {
+        endTransactionOperation();
       }
     } finally {
       closeLock.readLock().unlock();
@@ -445,10 +527,15 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     Utils.checkNotOnMessageProducer(this, null);
     closeLock.readLock().lock();
     try {
-      if (!transacted) {
-        throw new IllegalStateException("session is not transacted");
+      beginTransactionOperation();
+      try {
+        if (!transacted) {
+          throw new IllegalStateException("session is not transacted");
+        }
+        rollbackInternal();
+      } finally {
+        endTransactionOperation();
       }
-      rollbackInternal();
     } finally {
       closeLock.readLock().unlock();
     }
@@ -584,9 +671,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     if (transacted) {
       throw new IllegalStateException("cannot call this method inside a transacted session");
     }
-    log.info("recover, unacked messages {}", unackedMessages);
     for (PulsarMessage msg : unackedMessages) {
-      log.info("recovering message {}", msg);
       msg.negativeAck();
     }
     unackedMessages.clear();
@@ -1582,15 +1667,15 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     unackedMessages.clear();
   }
 
-  public void registerUnacknowledgedMessage(PulsarMessage result) {
+  void registerUnacknowledgedMessage(PulsarMessage result) {
     unackedMessages.add(result);
   }
 
-  public void unregisterUnacknowledgedMessage(PulsarMessage result) {
+  void unregisterUnacknowledgedMessage(PulsarMessage result) {
     unackedMessages.remove(result);
   }
 
-  public void removeConsumer(PulsarMessageConsumer consumer) {
+  void removeConsumer(PulsarMessageConsumer consumer) {
     Consumer<?> pulsarConsumer = consumer.getInternalConsumer();
     if (pulsarConsumer != null) {
       consumers.remove(consumer);
