@@ -445,9 +445,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
 
       if (listenerCode != null) {
         try {
-          log.info("begin Listener code....");
           listenerCode.accept(result);
-          log.info("end Listener code....");
         } catch (Throwable t) {
           log.error("Listener thrown error, calling negativeAcknowledge", t);
           consumer.negativeAcknowledge(message);
