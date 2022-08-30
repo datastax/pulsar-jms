@@ -18,6 +18,7 @@ package com.datastax.oss.pulsar.jms;
 import com.datastax.oss.pulsar.jms.selectors.SelectorSupport;
 import java.time.Instant;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.jms.Destination;
@@ -58,7 +59,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
   final boolean unregisterSubscriptionOnClose;
   private boolean closed;
   private boolean requestClose;
-  private boolean closedWhileActiveTransaction;
+  private final AtomicBoolean closedWhileActiveTransaction = new AtomicBoolean(false);
   final AtomicLong receivedMessages = new AtomicLong();
   final AtomicLong skippedMessages = new AtomicLong();
 
@@ -363,117 +364,128 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
       java.util.function.Consumer<PulsarMessage> listenerCode,
       boolean noLocalFilter)
       throws JMSException, org.apache.pulsar.client.api.PulsarClientException {
+    session.blockTransactionOperations();
 
-    receivedMessages.incrementAndGet();
+    try {
 
-    PulsarMessage result = PulsarMessage.decode(this, message);
-    Consumer<?> consumer = getConsumer();
-    if (expectedType != null && !result.isBodyAssignableTo(expectedType)) {
-      if (log.isDebugEnabled()) {
-        log.debug(
-            "negativeAcknowledge for message {} that cannot be converted to {}",
-            message,
-            expectedType);
-      }
-      consumer.negativeAcknowledge(message);
-      throw new MessageFormatException(
-          "The message ("
-              + result.messageType()
-              + ","
-              + result
-              + ",) cannot be converted to a "
-              + expectedType);
-    }
-    SelectorSupport selectorSupportOnSubscription = getSelectorSupportOnSubscription();
-    if (selectorSupportOnSubscription != null
-        && requiresClientSideFiltering(message)
-        && !selectorSupportOnSubscription.matches(result)) {
-      if (log.isDebugEnabled()) {
-        log.debug(
-            "msg {} does not match subscription selector {}",
-            result,
-            selectorSupportOnSubscription.getSelector());
-      }
-      // this message should have been filtered out on the server
-      // because the selector is on the subscription
-      // this case may happen with batch messages
-      skippedMessages.incrementAndGet();
-      consumer.acknowledgeAsync(message.getMessageId());
-      return null;
-    }
-    SelectorSupport selectorSupport = getSelectorSupport();
-    if (selectorSupport != null
-        && requiresClientSideFiltering(message)
-        && !selectorSupport.matches(result)) {
-      if (log.isDebugEnabled()) {
-        log.debug("msg {} does not match selector {}", result, selectorSupport.getSelector());
-      }
-      skipMessage(message);
-      return null;
-    }
-    if (noLocalFilter) {
-      String senderConnectionID = result.getStringProperty("JMSConnectionID");
-      if (senderConnectionID != null
-          && senderConnectionID.equals(session.getConnection().getConnectionId())) {
+      receivedMessages.incrementAndGet();
+
+      PulsarMessage result = PulsarMessage.decode(this, message);
+      Consumer<?> consumer = getConsumer();
+      if (expectedType != null && !result.isBodyAssignableTo(expectedType)) {
         if (log.isDebugEnabled()) {
-          log.debug("msg {} was generated from this connection {}", result, senderConnectionID);
+          log.debug(
+              "negativeAcknowledge for message {} that cannot be converted to {}",
+              message,
+              expectedType);
+        }
+        consumer.negativeAcknowledge(message);
+        throw new MessageFormatException(
+            "The message ("
+                + result.messageType()
+                + ","
+                + result
+                + ",) cannot be converted to a "
+                + expectedType);
+      }
+      SelectorSupport selectorSupportOnSubscription = getSelectorSupportOnSubscription();
+      if (selectorSupportOnSubscription != null
+          && requiresClientSideFiltering(message)
+          && !selectorSupportOnSubscription.matches(result)) {
+        if (log.isDebugEnabled()) {
+          log.debug(
+              "msg {} does not match subscription selector {}",
+              result,
+              selectorSupportOnSubscription.getSelector());
+        }
+        // this message should have been filtered out on the server
+        // because the selector is on the subscription
+        // this case may happen with batch messages
+        skippedMessages.incrementAndGet();
+        consumer.acknowledgeAsync(message.getMessageId());
+        return null;
+      }
+      SelectorSupport selectorSupport = getSelectorSupport();
+      if (selectorSupport != null
+          && requiresClientSideFiltering(message)
+          && !selectorSupport.matches(result)) {
+        if (log.isDebugEnabled()) {
+          log.debug("msg {} does not match selector {}", result, selectorSupport.getSelector());
         }
         skipMessage(message);
         return null;
       }
-    }
-    // in case of useServerSideFiltering this filter is also applied on the broker, is the Plugin is
-    // present
-    if (result.getJMSExpiration() > 0 && System.currentTimeMillis() >= result.getJMSExpiration()) {
-      if (log.isDebugEnabled()) {
-        log.debug("msg {} expired at {}", result, Instant.ofEpochMilli(result.getJMSExpiration()));
+      if (noLocalFilter) {
+        String senderConnectionID = result.getStringProperty("JMSConnectionID");
+        if (senderConnectionID != null
+            && senderConnectionID.equals(session.getConnection().getConnectionId())) {
+          if (log.isDebugEnabled()) {
+            log.debug("msg {} was generated from this connection {}", result, senderConnectionID);
+          }
+          skipMessage(message);
+          return null;
+        }
       }
-      skipMessage(message);
-      return null;
-    }
-
-    // this must happen before the execution of the listener
-    // in order to support Session.recover
-    session.registerUnacknowledgedMessage(result);
-
-    if (listenerCode != null) {
-      try {
-        listenerCode.accept(result);
-      } catch (Throwable t) {
-        log.error("Listener thrown error, calling negativeAcknowledge", t);
-        consumer.negativeAcknowledge(message);
-        throw Utils.handleException(t);
-      }
-      if (result.isNegativeAcked()) {
-        // this may happen if the listener calls "Session.recover"
+      // in case of useServerSideFiltering this filter is also applied on the broker, is the Plugin
+      // is
+      // present
+      if (result.getJMSExpiration() > 0
+          && System.currentTimeMillis() >= result.getJMSExpiration()) {
+        if (log.isDebugEnabled()) {
+          log.debug(
+              "msg {} expired at {}", result, Instant.ofEpochMilli(result.getJMSExpiration()));
+        }
+        skipMessage(message);
         return null;
       }
-    }
 
-    if (session.getTransacted()) {
-      // open transaction now, the message will be acknowledged on commit()
-      session.getTransaction();
-    } else if (session.getAcknowledgeMode() == Session.AUTO_ACKNOWLEDGE) {
-      consumer.acknowledge(message);
-    } else if (session.getAcknowledgeMode() == Session.DUPS_OK_ACKNOWLEDGE) {
-      consumer
-          .acknowledgeAsync(message)
-          .whenComplete(
-              (m, ex) -> {
-                if (ex != null) {
-                  log.error("Cannot acknowledge message {} {}", message, ex);
-                }
-              });
+      // this must happen before the execution of the listener
+      // in order to support Session.recover
+      session.registerUnacknowledgedMessage(result);
+
+      if (listenerCode != null) {
+        try {
+          log.info("begin Listener code....");
+          listenerCode.accept(result);
+          log.info("end Listener code....");
+        } catch (Throwable t) {
+          log.error("Listener thrown error, calling negativeAcknowledge", t);
+          consumer.negativeAcknowledge(message);
+          throw Utils.handleException(t);
+        }
+        if (result.isNegativeAcked()) {
+          // this may happen if the listener calls "Session.recover"
+          return null;
+        }
+      }
+
+      if (session.getTransacted()) {
+        // open transaction now, the message will be acknowledged on commit()
+        session.getTransaction();
+      } else if (session.getAcknowledgeMode() == Session.AUTO_ACKNOWLEDGE) {
+        consumer.acknowledge(message);
+      } else if (session.getAcknowledgeMode() == Session.DUPS_OK_ACKNOWLEDGE) {
+        consumer
+            .acknowledgeAsync(message)
+            .whenComplete(
+                (m, ex) -> {
+                  if (ex != null) {
+                    log.error("Cannot acknowledge message {} {}", message, ex);
+                  }
+                });
+      }
+      if (session.getAcknowledgeMode() != Session.CLIENT_ACKNOWLEDGE
+          && session.getAcknowledgeMode() != PulsarJMSConstants.INDIVIDUAL_ACKNOWLEDGE
+          && session.getAcknowledgeMode() != Session.SESSION_TRANSACTED) {
+        session.unregisterUnacknowledgedMessage(result);
+      }
+      if (requestClose) {
+        closeInternal();
+      }
+      return result;
+    } finally {
+      session.unblockTransactionOperations();
     }
-    if (session.getAcknowledgeMode() != Session.CLIENT_ACKNOWLEDGE
-        && session.getAcknowledgeMode() != PulsarJMSConstants.INDIVIDUAL_ACKNOWLEDGE
-        && session.getAcknowledgeMode() != Session.SESSION_TRANSACTED) {
-      session.unregisterUnacknowledgedMessage(result);
-    }
-    if (requestClose) {
-      closeInternal();
-    }
-    return result;
   }
 
   private boolean requiresClientSideFiltering(org.apache.pulsar.client.api.Message<?> message) {
@@ -531,7 +543,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
             }
           });
     } else if (session.getTransacted()) {
-      closedWhileActiveTransaction = true;
+      closedWhileActiveTransaction.set(true);
     }
   }
 
@@ -660,8 +672,8 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
     }
   }
 
-  public synchronized boolean isClosedWhileActiveTransaction() {
-    return closedWhileActiveTransaction;
+  public boolean isClosedWhileActiveTransaction() {
+    return closedWhileActiveTransaction.get();
   }
 
   public void negativeAck(org.apache.pulsar.client.api.Message<?> message) {
