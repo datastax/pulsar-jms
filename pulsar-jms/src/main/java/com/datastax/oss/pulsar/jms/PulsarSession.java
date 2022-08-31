@@ -78,6 +78,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
 
   private final PulsarConnection connection;
   private boolean jms20;
+  private final ConsumerConfiguration overrideConsumerConfiguration;
   private final int sessionMode;
   private final boolean transacted;
   private final boolean emulateTransactions;
@@ -102,7 +103,11 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   private int activitesBlockingTransactionOperations = 0;
   private boolean transactionOperationInProgress = false;
 
-  public PulsarSession(int sessionMode, PulsarConnection connection) throws JMSException {
+  PulsarSession(
+      int sessionMode,
+      PulsarConnection connection,
+      ConsumerConfiguration overrideConsumerConfiguration)
+      throws JMSException {
     if (sessionMode == SESSION_TRANSACTED && !connection.getFactory().isEnableTransaction()) {
       if (connection.getFactory().isEmulateTransactions()) {
         emulateTransactions = true;
@@ -118,7 +123,32 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     this.connection = connection;
     this.sessionMode = sessionMode;
     this.transacted = sessionMode == Session.SESSION_TRANSACTED;
+    this.overrideConsumerConfiguration = overrideConsumerConfiguration;
     validateSessionMode(sessionMode);
+  }
+
+  /**
+   * Build a new Sessopm that shares the same Connection, as {@link
+   * javax.jms.JMSContext#createContext(int)}. But you can override some configuration settings,
+   * like "consumerConfig"
+   *
+   * @param sessionMode
+   * @param customConfiguration
+   * @return a new Pulsar Session
+   */
+  public PulsarSession createSession(int sessionMode, Map<String, Object> customConfiguration)
+      throws JMSException {
+    return connection.createSession(
+        sessionMode == Session.SESSION_TRANSACTED,
+        sessionMode,
+        ConsumerConfiguration.buildConsumerConfiguration(
+            customConfiguration != null
+                ? (Map<String, Object>) customConfiguration.get("consumerConfig")
+                : null));
+  }
+
+  ConsumerConfiguration getOverrideConsumerConfiguration() {
+    return overrideConsumerConfiguration;
   }
 
   Transaction getTransaction() throws JMSException {

@@ -326,4 +326,10 @@ public final class Utils {
         });
     return copy;
   }
+
+  public static String getAndRemoveString(
+      String name, String defaultValue, Map<String, Object> properties) {
+    Object value = (Object) properties.remove(name);
+    return value != null ? value.toString() : defaultValue;
+  }
 }
