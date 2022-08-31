@@ -69,7 +69,8 @@ public class OverrideConsumerConfigurationTest {
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties);
-        PulsarJMSContext primaryContext = factory.createContext(JMSContext.CLIENT_ACKNOWLEDGE)) {
+        PulsarJMSContext primaryContext =
+            (PulsarJMSContext) factory.createContext(JMSContext.CLIENT_ACKNOWLEDGE)) {
       Queue destination =
           primaryContext.createQueue("persistent://public/default/test-" + UUID.randomUUID());
 

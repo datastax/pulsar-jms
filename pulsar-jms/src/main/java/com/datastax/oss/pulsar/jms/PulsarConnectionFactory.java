@@ -627,7 +627,7 @@ public class PulsarConnectionFactory
    * @since JMS 2.0
    */
   @Override
-  public PulsarJMSContext createContext() {
+  public JMSContext createContext() {
     return createContext(JMSContext.AUTO_ACKNOWLEDGE);
   }
 
@@ -853,7 +853,7 @@ public class PulsarConnectionFactory
    * @since JMS 2.0
    */
   @Override
-  public PulsarJMSContext createContext(int sessionMode) {
+  public JMSContext createContext(int sessionMode) {
     Utils.runtimeException(() -> ensureInitialized(null, null));
     Utils.runtimeException(() -> validateUserNamePassword(true, null, null));
     return new PulsarJMSContext(this, sessionMode, true, null, null);
