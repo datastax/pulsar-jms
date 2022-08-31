@@ -144,6 +144,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
                   currentSelector,
                   noLocal,
                   session.getConnection().getConnectionId(),
+                  session.getOverrideConsumerConfiguration(),
                   selectorOnSubscriptionReceiver);
       String jmsSelectorOnSubscription = selectorOnSubscriptionReceiver.get();
       if (jmsSelectorOnSubscription != null && !jmsSelectorOnSubscription.isEmpty()) {

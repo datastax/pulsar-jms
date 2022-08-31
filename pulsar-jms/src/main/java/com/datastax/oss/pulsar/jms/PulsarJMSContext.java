@@ -16,6 +16,7 @@
 package com.datastax.oss.pulsar.jms;
 
 import java.io.Serializable;
+import java.util.Map;
 import javax.jms.BytesMessage;
 import javax.jms.Connection;
 import javax.jms.ConnectionFactory;
@@ -50,7 +51,7 @@ public class PulsarJMSContext implements JMSContext {
   private boolean autoStart = true;
   private boolean owningConnection;
 
-  public PulsarJMSContext(
+  PulsarJMSContext(
       PulsarConnectionFactory factory,
       int sessionMode,
       boolean anonymous,
@@ -73,11 +74,18 @@ public class PulsarJMSContext implements JMSContext {
     }
   }
 
-  public PulsarJMSContext(final PulsarConnection connection, int sessionMode) {
+  PulsarJMSContext(
+      final PulsarConnection connection,
+      int sessionMode,
+      ConsumerConfiguration overrideConsumerConfiguration) {
     try {
       this.owningConnection = false;
       this.connection = connection;
-      this.session = connection.createSession(sessionMode);
+      this.session =
+          connection.createSession(
+              sessionMode == Session.SESSION_TRANSACTED,
+              sessionMode,
+              overrideConsumerConfiguration);
       this.session.setJms20(true);
     } catch (JMSException err) {
       JMSRuntimeException jms = new JMSRuntimeException("error");
@@ -133,7 +141,25 @@ public class PulsarJMSContext implements JMSContext {
    */
   @Override
   public JMSContext createContext(int sessionMode) {
-    return new PulsarJMSContext(connection, sessionMode);
+    return new PulsarJMSContext(connection, sessionMode, null);
+  }
+
+  /**
+   * Build a new JMSContext that shares the same Connection, as {@link #createContext(int)}. But you
+   * can override some configuration settings, like "consumerConfig"
+   *
+   * @param sessionMode
+   * @param customConfiguration
+   * @return a new JMS Context
+   */
+  public JMSContext createContext(int sessionMode, Map<String, Object> customConfiguration) {
+    return new PulsarJMSContext(
+        connection,
+        sessionMode,
+        ConsumerConfiguration.buildConsumerConfiguration(
+            customConfiguration != null
+                ? (Map<String, Object>) customConfiguration.get("consumerConfig")
+                : null));
   }
 
   /**

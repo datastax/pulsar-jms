@@ -167,10 +167,19 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
    */
   @Override
   public PulsarSession createSession(boolean transacted, int acknowledgeMode) throws JMSException {
+    return createSession(transacted, acknowledgeMode, null);
+  }
+
+  PulsarSession createSession(
+      boolean transacted, int acknowledgeMode, ConsumerConfiguration overrideconsumerConfiguration)
+      throws JMSException {
     checkNotClosed();
     allowSetClientId = false;
     PulsarSession session =
-        new PulsarSession(transacted ? Session.SESSION_TRANSACTED : acknowledgeMode, this);
+        new PulsarSession(
+            transacted ? Session.SESSION_TRANSACTED : acknowledgeMode,
+            this,
+            overrideconsumerConfiguration);
     sessions.add(session);
     return session;
   }

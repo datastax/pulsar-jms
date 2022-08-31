@@ -15,6 +15,8 @@
  */
 package com.datastax.oss.pulsar.jms;
 
+import static com.datastax.oss.pulsar.jms.Utils.getAndRemoveString;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.io.ObjectInputStream;
@@ -48,7 +50,6 @@ import org.apache.pulsar.client.api.BatcherBuilder;
 import org.apache.pulsar.client.api.ClientBuilder;
 import org.apache.pulsar.client.api.Consumer;
 import org.apache.pulsar.client.api.ConsumerBuilder;
-import org.apache.pulsar.client.api.DeadLetterPolicy;
 import org.apache.pulsar.client.api.Message;
 import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.api.Producer;
@@ -57,12 +58,10 @@ import org.apache.pulsar.client.api.PulsarClient;
 import org.apache.pulsar.client.api.PulsarClientException;
 import org.apache.pulsar.client.api.Reader;
 import org.apache.pulsar.client.api.ReaderBuilder;
-import org.apache.pulsar.client.api.RedeliveryBackoff;
 import org.apache.pulsar.client.api.Schema;
 import org.apache.pulsar.client.api.SubscriptionInitialPosition;
 import org.apache.pulsar.client.api.SubscriptionMode;
 import org.apache.pulsar.client.api.SubscriptionType;
-import org.apache.pulsar.client.impl.MultiplierRedeliveryBackoff;
 import org.apache.pulsar.client.impl.auth.AuthenticationToken;
 import org.apache.pulsar.common.policies.data.SubscriptionStats;
 
@@ -93,11 +92,7 @@ public class PulsarConnectionFactory
   private transient PulsarClient pulsarClient;
   private transient PulsarAdmin pulsarAdmin;
   private transient Map<String, Object> producerConfiguration;
-  private transient Map<String, Object> consumerConfiguration;
-  private transient Schema<?> consumerSchema;
-  private transient DeadLetterPolicy deadLetterPolicy;
-  private transient RedeliveryBackoff negativeAckRedeliveryBackoff;
-  private transient RedeliveryBackoff ackTimeoutRedeliveryBackoff;
+  private transient ConsumerConfiguration defaultConsumerConfiguration;
   private transient String systemNamespace = "public/default";
   private transient String defaultClientId = null;
   private transient boolean enableTransaction = false;
@@ -200,12 +195,12 @@ public class PulsarConnectionFactory
     return copy;
   }
 
-  private synchronized Map<String, Object> getConsumerConfiguration() {
-    return consumerConfiguration;
-  }
-
-  private synchronized Schema<?> getConsumerSchema() {
-    return consumerSchema;
+  private synchronized ConsumerConfiguration getConsumerConfiguration(
+      ConsumerConfiguration overrideConsumerConfiguration) {
+    if (overrideConsumerConfiguration == null) {
+      return defaultConsumerConfiguration;
+    }
+    return overrideConsumerConfiguration.applyDefaults(defaultConsumerConfiguration);
   }
 
   private synchronized Map<String, Object> getProducerConfiguration() {
@@ -250,26 +245,11 @@ public class PulsarConnectionFactory
         this.producerConfiguration = Collections.emptyMap();
       }
 
-      this.consumerSchema = Schema.BYTES;
       Map<String, Object> consumerConfigurationM =
           (Map<String, Object>) configurationCopy.remove("consumerConfig");
-      if (consumerConfigurationM != null) {
-        this.consumerConfiguration = new HashMap(consumerConfigurationM);
-        boolean useSchema =
-            Boolean.parseBoolean(getAndRemoveString("useSchema", "false", consumerConfiguration));
-        if (useSchema) {
-          consumerSchema = Schema.AUTO_CONSUME();
-        }
+      this.defaultConsumerConfiguration =
+          ConsumerConfiguration.buildConsumerConfiguration(consumerConfigurationM);
 
-        deadLetterPolicy = getAndRemoveDeadLetterPolicy(consumerConfiguration);
-        negativeAckRedeliveryBackoff =
-            getAndRemoveRedeliveryBackoff("negativeAckRedeliveryBackoff", consumerConfiguration);
-        ackTimeoutRedeliveryBackoff =
-            getAndRemoveRedeliveryBackoff("ackTimeoutRedeliveryBackoff", consumerConfiguration);
-
-      } else {
-        this.consumerConfiguration = Collections.emptyMap();
-      }
       this.systemNamespace =
           getAndRemoveString("jms.systemNamespace", "public/default", configurationCopy);
 
@@ -484,68 +464,6 @@ public class PulsarConnectionFactory
     }
   }
 
-  private static RedeliveryBackoff getAndRemoveRedeliveryBackoff(
-      String baseName, Map<String, Object> consumerConfiguration) {
-    Map<String, Object> config = (Map<String, Object>) consumerConfiguration.remove(baseName);
-    if (config == null) {
-      return null;
-    }
-    MultiplierRedeliveryBackoff.MultiplierRedeliveryBackoffBuilder builder =
-        MultiplierRedeliveryBackoff.builder();
-    long maxDelayMs = Long.parseLong(getAndRemoveString("maxDelayMs", "-1", config));
-    if (maxDelayMs >= 0) {
-      builder.maxDelayMs(maxDelayMs);
-    }
-
-    long minDelayMs = Long.parseLong(getAndRemoveString("minDelayMs", "-1", config));
-    if (minDelayMs >= 0) {
-      builder.minDelayMs(minDelayMs);
-    }
-    double multiplier = Double.parseDouble(getAndRemoveString("multiplier", "-1", config));
-    if (multiplier >= 0) {
-      builder.multiplier(multiplier);
-    }
-    if (!config.isEmpty()) {
-      throw new IllegalArgumentException("Unhandled fields in " + baseName + ": " + config);
-    }
-    return builder.build();
-  }
-
-  private static DeadLetterPolicy getAndRemoveDeadLetterPolicy(
-      Map<String, Object> consumerConfiguration) {
-    Map<String, Object> deadLetterPolicyConfig =
-        (Map<String, Object>) consumerConfiguration.remove("deadLetterPolicy");
-    if (deadLetterPolicyConfig == null || deadLetterPolicyConfig.isEmpty()) {
-      return null;
-    }
-
-    DeadLetterPolicy.DeadLetterPolicyBuilder deadLetterPolicyBuilder = DeadLetterPolicy.builder();
-    String deadLetterTopic = getAndRemoveString("deadLetterTopic", "", deadLetterPolicyConfig);
-    if (!deadLetterTopic.isEmpty()) {
-      deadLetterPolicyBuilder.deadLetterTopic(deadLetterTopic);
-    }
-    String retryLetterTopic = getAndRemoveString("retryLetterTopic", "", deadLetterPolicyConfig);
-    if (!deadLetterTopic.isEmpty()) {
-      deadLetterPolicyBuilder.retryLetterTopic(retryLetterTopic);
-    }
-    String initialSubscriptionName =
-        getAndRemoveString("initialSubscriptionName", "", deadLetterPolicyConfig);
-    if (!initialSubscriptionName.isEmpty()) {
-      deadLetterPolicyBuilder.initialSubscriptionName(initialSubscriptionName);
-    }
-    int maxRedeliverCount =
-        Integer.parseInt(getAndRemoveString("maxRedeliverCount", "-1", deadLetterPolicyConfig));
-    if (maxRedeliverCount > -1) {
-      deadLetterPolicyBuilder.maxRedeliverCount(maxRedeliverCount);
-    }
-    if (!deadLetterPolicyConfig.isEmpty()) {
-      throw new IllegalArgumentException(
-          "Unhandled fields in deadLetterPolicy: " + deadLetterPolicyConfig);
-    }
-
-    return deadLetterPolicyBuilder.build();
-  }
-
   private void validateConnectUsernamePasswordReused(String connectUsername, String connectPassword)
       throws IllegalStateException {
     if (lastConnectUsername != null) {
@@ -565,12 +483,6 @@ public class PulsarConnectionFactory
                 + "password does not match");
       }
     }
-  }
-
-  private static String getAndRemoveString(
-      String name, String defaultValue, Map<String, Object> properties) {
-    Object value = (Object) properties.remove(name);
-    return value != null ? value.toString() : defaultValue;
   }
 
   public synchronized boolean isEnableClientSideEmulation() {
@@ -715,7 +627,7 @@ public class PulsarConnectionFactory
    * @since JMS 2.0
    */
   @Override
-  public JMSContext createContext() {
+  public PulsarJMSContext createContext() {
     return createContext(JMSContext.AUTO_ACKNOWLEDGE);
   }
 
@@ -941,7 +853,7 @@ public class PulsarConnectionFactory
    * @since JMS 2.0
    */
   @Override
-  public JMSContext createContext(int sessionMode) {
+  public PulsarJMSContext createContext(int sessionMode) {
     Utils.runtimeException(() -> ensureInitialized(null, null));
     Utils.runtimeException(() -> validateUserNamePassword(true, null, null));
     return new PulsarJMSContext(this, sessionMode, true, null, null);
@@ -1117,6 +1029,7 @@ public class PulsarConnectionFactory
       String messageSelector,
       boolean noLocal,
       String jmsConnectionID,
+      ConsumerConfiguration overrideConsumerConfiguration,
       AtomicReference<String> selectorOnSubscriptionReceiver)
       throws JMSException {
     String fullQualifiedTopicName = getPulsarTopicName(destination);
@@ -1200,14 +1113,18 @@ public class PulsarConnectionFactory
         }
       }
 
-      Schema<?> schema = getConsumerSchema();
-      Map<String, Object> consumerConfiguration = getConsumerConfiguration();
+      ConsumerConfiguration consumerConfiguration =
+          getConsumerConfiguration(overrideConsumerConfiguration);
+      Schema<?> schema = consumerConfiguration.getConsumerSchema();
+      if (schema == null) {
+        schema = Schema.BYTES;
+      }
       ConsumerBuilder<?> builder =
           pulsarClient
               .newConsumer(schema)
               // these properties can be overridden by the configuration
               .negativeAckRedeliveryDelay(1, TimeUnit.SECONDS)
-              .loadConf(consumerConfiguration)
+              .loadConf(consumerConfiguration.getConsumerConfiguration())
               .properties(consumerMetadata)
               // these properties cannot be overwritten by the configuration
               .subscriptionInitialPosition(initialPosition)
@@ -1216,14 +1133,15 @@ public class PulsarConnectionFactory
               .subscriptionType(subscriptionType)
               .subscriptionName(subscriptionName)
               .topic(fullQualifiedTopicName);
-      if (deadLetterPolicy != null) {
-        builder.deadLetterPolicy(deadLetterPolicy);
+      if (consumerConfiguration.getDeadLetterPolicy() != null) {
+        builder.deadLetterPolicy(consumerConfiguration.getDeadLetterPolicy());
       }
-      if (negativeAckRedeliveryBackoff != null) {
-        builder.negativeAckRedeliveryBackoff(negativeAckRedeliveryBackoff);
+      if (consumerConfiguration.getNegativeAckRedeliveryBackoff() != null) {
+        builder.negativeAckRedeliveryBackoff(
+            consumerConfiguration.getNegativeAckRedeliveryBackoff());
       }
-      if (ackTimeoutRedeliveryBackoff != null) {
-        builder.ackTimeoutRedeliveryBackoff(ackTimeoutRedeliveryBackoff);
+      if (consumerConfiguration.getAckTimeoutRedeliveryBackoff() != null) {
+        builder.ackTimeoutRedeliveryBackoff(consumerConfiguration.getAckTimeoutRedeliveryBackoff());
       }
       Consumer<?> newConsumer = builder.subscribe();
       consumers.add(newConsumer);
@@ -1234,7 +1152,9 @@ public class PulsarConnectionFactory
     }
   }
 
-  public Reader<?> createReaderForBrowser(PulsarQueue destination) throws JMSException {
+  public Reader<?> createReaderForBrowser(
+      PulsarQueue destination, ConsumerConfiguration overrideConsumerConfiguration)
+      throws JMSException {
     String fullQualifiedTopicName = getPulsarTopicName(destination);
     try {
       List<Message<byte[]>> messages =
@@ -1252,12 +1172,17 @@ public class PulsarConnectionFactory
       if (log.isDebugEnabled()) {
         log.debug("createBrowser {} at {}", fullQualifiedTopicName, seekMessageId);
       }
-      Schema<?> schema = getConsumerSchema();
+      ConsumerConfiguration consumerConfiguration =
+          getConsumerConfiguration(overrideConsumerConfiguration);
+      Schema<?> schema = consumerConfiguration.getConsumerSchema();
+      if (schema == null) {
+        schema = Schema.BYTES;
+      }
       ReaderBuilder<?> builder =
           pulsarClient
               .newReader(schema)
               // these properties can be overridden by the configuration
-              .loadConf(getConsumerConfiguration())
+              .loadConf(consumerConfiguration.getConsumerConfiguration())
               // these properties cannot be overwritten by the configuration
               .readerName("jms-queue-browser-" + UUID.randomUUID())
               .startMessageId(seekMessageId)
