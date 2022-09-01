@@ -29,9 +29,8 @@
   <name>Pulsar Admin JMS Extensions</name>
   <dependencies>
     <dependency>
-      <groupId>com.datastax.oss</groupId>
+      <groupId>${pulsar.groupId}</groupId>
       <artifactId>pulsar-client-tools-api</artifactId>
-      <version>2.10.1.5-SNAPSHOT</version>
       <scope>provided</scope>
     </dependency>
     <dependency>
