@@ -18,10 +18,11 @@ package com.datastax.oss.pulsar.jms;
 import com.datastax.oss.pulsar.jms.selectors.SelectorSupport;
 import java.io.IOException;
 import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import javax.jms.JMSException;
 import javax.jms.Queue;
@@ -38,24 +39,36 @@ final class PulsarQueueBrowser implements QueueBrowser {
   private final PulsarQueue queue;
   private final List<Reader<?>> readers;
   private final SelectorSupport selectorSupport;
-  private final SelectorSupport selectorSupportOnSubscription;
+  private final Map<String, SelectorSupport> selectorSupportOnSubscriptions = new HashMap<>();
 
   public PulsarQueueBrowser(PulsarSession session, Queue queue, String selector)
       throws JMSException {
     session.checkNotClosed();
     this.session = session;
     this.queue = (PulsarQueue) queue;
-    AtomicReference<String> serverSideSelector = new AtomicReference<>();
+    Map<String, String> downloadedSelectorsOnSubscriptions = new HashMap<>();
     this.readers =
         session
             .getFactory()
             .createReadersForBrowser(
-                this.queue, session.getOverrideConsumerConfiguration(), serverSideSelector);
+                this.queue,
+                session.getOverrideConsumerConfiguration(),
+                downloadedSelectorsOnSubscriptions);
 
     // we are reading messages and it is always safe to apply selectors
     // on the client side
     this.selectorSupport = SelectorSupport.build(selector, true);
-    this.selectorSupportOnSubscription = SelectorSupport.build(serverSideSelector.get(), true);
+    if (!downloadedSelectorsOnSubscriptions.isEmpty()) {
+      for (Map.Entry<String, String> entry : downloadedSelectorsOnSubscriptions.entrySet()) {
+        String topicName = entry.getKey();
+        String jmsSelectorOnSubscription = entry.getValue();
+        if (jmsSelectorOnSubscription != null && !jmsSelectorOnSubscription.isEmpty()) {
+          SelectorSupport selectorSupportOnSubscription =
+              SelectorSupport.build(jmsSelectorOnSubscription, true);
+          selectorSupportOnSubscriptions.put(topicName, selectorSupportOnSubscription);
+        }
+      }
+    }
   }
 
   /**
@@ -97,9 +110,10 @@ final class PulsarQueueBrowser implements QueueBrowser {
   }
 
   private synchronized String internalGetMessageSelectorFromSubscription() {
-    return selectorSupportOnSubscription != null
-        ? selectorSupportOnSubscription.getSelector()
-        : null;
+    if (selectorSupportOnSubscriptions.isEmpty()) {
+      return null;
+    }
+    return selectorSupportOnSubscriptions.values().iterator().next().getSelector();
   }
 
   private class MessageEnumeration implements Enumeration {
@@ -146,12 +160,17 @@ final class PulsarQueueBrowser implements QueueBrowser {
                 if (selectorSupport != null && !selectorSupport.matches(nextMessage)) {
                   log.debug("skip non matching message {}", nextMessage);
                   nextMessage = null;
-                } else if (selectorSupportOnSubscription != null
-                    && !selectorSupportOnSubscription.matches(nextMessage)) {
-                  log.debug("skip non matching message {}", nextMessage);
-                  nextMessage = null;
                 } else {
-                  return;
+                  SelectorSupport selectorSupportOnSubscription =
+                      selectorSupportOnSubscriptions.get(
+                          nextMessage.getReceivedPulsarMessage().getTopicName());
+                  if (selectorSupportOnSubscription != null
+                      && !selectorSupportOnSubscription.matches(nextMessage)) {
+                    log.debug("skip non matching message {}", nextMessage);
+                    nextMessage = null;
+                  } else {
+                    return;
+                  }
                 }
               }
             }
