@@ -923,4 +923,79 @@ public class TransactionsTest {
       }
     }
   }
+
+  @Test
+  public void testMixedProducesScenario() throws Exception {
+
+    Map<String, Object> properties = new HashMap<>();
+    properties.put("webServiceUrl", cluster.getAddress());
+    properties.put("enableTransaction", "true");
+    properties.put("jms.clientId", "my-id");
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+      try (Connection connection = factory.createConnection()) {
+        connection.start();
+
+        try (Session someSession = connection.createSession(); ) {
+          String name = "persistent://public/default/test" + UUID.randomUUID();
+          Destination destination = someSession.createQueue(name);
+
+          // use another consumer to read the topic out of the transaction
+          // we use a named subscription, in JMS it is a durableConsumer on a JMS Topic
+          Topic topic = someSession.createTopic(name);
+
+          try (Session transaction = connection.createSession(Session.SESSION_TRANSACTED);
+              Session otherSession = connection.createSession(Session.AUTO_ACKNOWLEDGE);
+              MessageConsumer consumerOtherSession =
+                  otherSession.createDurableConsumer(topic, "other-sub")) {
+
+            String sentMessageID;
+            String sentMessageID2;
+            try (MessageConsumer transactionConsumer = transaction.createConsumer(destination); ) {
+
+              try (MessageProducer transactionProducer1 = transaction.createProducer(destination);
+                  MessageProducer producerNoTransaction =
+                      otherSession.createProducer(destination); ) {
+
+                TextMessage textMsg = someSession.createTextMessage("foo1");
+                transactionProducer1.send(textMsg);
+                log.info("sent {}", textMsg.getJMSMessageID());
+                // the message ID is assigned during "send"
+                sentMessageID = textMsg.getJMSMessageID();
+
+                TextMessage textMsg2 = someSession.createTextMessage("foo2");
+                producerNoTransaction.send(textMsg2);
+                log.info("sent {}", textMsg2.getJMSMessageID());
+                // the message ID is assigned during "send"
+                sentMessageID2 = textMsg2.getJMSMessageID();
+
+                transaction.commit();
+              }
+
+              Message receive = transactionConsumer.receive();
+              assertEquals("foo1", receive.getBody(String.class));
+              log.info("received {}", receive.getJMSMessageID());
+              assertEquals(sentMessageID, receive.getJMSMessageID());
+
+              Message receive2 = transactionConsumer.receive();
+              assertEquals("foo2", receive2.getBody(String.class));
+              log.info("received {}", receive2.getJMSMessageID());
+              assertEquals(sentMessageID2, receive2.getJMSMessageID());
+            }
+
+            transaction.commit();
+
+            Message receiveOtherSession = consumerOtherSession.receive();
+            assertEquals("foo1", receiveOtherSession.getBody(String.class));
+            log.info("receivedOtherSession {}", receiveOtherSession.getJMSMessageID());
+            assertEquals(sentMessageID, receiveOtherSession.getJMSMessageID());
+
+            receiveOtherSession = consumerOtherSession.receive();
+            assertEquals("foo2", receiveOtherSession.getBody(String.class));
+            log.info("receivedOtherSession {}", receiveOtherSession.getJMSMessageID());
+            assertEquals(sentMessageID2, receiveOtherSession.getJMSMessageID());
+          }
+        }
+      }
+    }
+  }
 }
