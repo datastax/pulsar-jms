@@ -43,6 +43,7 @@ import javax.jms.Queue;
 import javax.jms.QueueBrowser;
 import javax.jms.Session;
 import javax.jms.TextMessage;
+import javax.jms.Topic;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.impl.BatchMessageIdImpl;
 import org.awaitility.Awaitility;
@@ -95,7 +96,6 @@ public class TransactionsTest {
 
               // message is not "visible" as transaction is not committed
               assertNull(consumer.receive(1000));
-
               transaction.commit();
 
               // message is now visible to consumers
@@ -857,6 +857,66 @@ public class TransactionsTest {
                   MessageConsumer consumer1 = otherConsumer.createConsumer(destination)) {
                 assertNull(consumer1.receive(1000));
               }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  @Test
+  public void consumeProduceScenario() throws Exception {
+
+    Map<String, Object> properties = new HashMap<>();
+    properties.put("webServiceUrl", cluster.getAddress());
+    properties.put("enableTransaction", "true");
+    properties.put("jms.clientId", "my-id");
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+      try (Connection connection = factory.createConnection()) {
+        connection.start();
+
+        try (Session someSession = connection.createSession(); ) {
+          String name = "persistent://public/default/test" + UUID.randomUUID();
+          Destination destination = someSession.createQueue(name);
+
+          // use another consumer to read the topic out of the transaction
+          // we use a named subscription, in JMS it is a durableConsumer on a JMS Topic
+          Topic topic = someSession.createTopic(name);
+
+          try (Session transaction = connection.createSession(Session.SESSION_TRANSACTED);
+              Session otherSession = connection.createSession(Session.AUTO_ACKNOWLEDGE);
+              MessageConsumer consumerOtherSession =
+                  otherSession.createDurableConsumer(topic, "other-sub")) {
+
+            String sentMessageID;
+            try (MessageConsumer transactionConsumer = transaction.createConsumer(destination); ) {
+
+              try (MessageProducer transactionProducer =
+                  transaction.createProducer(destination); ) {
+                TextMessage textMsg = someSession.createTextMessage("foo");
+                transactionProducer.send(textMsg);
+                log.info("sent {}", textMsg.getJMSMessageID());
+                // the message ID is assigned during "send"
+                sentMessageID = textMsg.getJMSMessageID();
+                transaction.commit();
+              }
+
+              Message receive = transactionConsumer.receive();
+              assertEquals("foo", receive.getBody(String.class));
+              log.info("received {}", receive.getJMSMessageID());
+              assertEquals(sentMessageID, receive.getJMSMessageID());
+            }
+            ;
+            transaction.commit();
+
+            Message receiveOtherSession = consumerOtherSession.receive();
+            assertEquals("foo", receiveOtherSession.getBody(String.class));
+            log.info("receivedOtherSession {}", receiveOtherSession.getJMSMessageID());
+            assertEquals(sentMessageID, receiveOtherSession.getJMSMessageID());
+
+            // message has been committed by the transacted session
+            try (MessageConsumer consumer = someSession.createConsumer(destination); ) {
+              assertNull(consumer.receive(1000));
             }
           }
         }
