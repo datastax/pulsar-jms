@@ -21,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
+import com.google.common.collect.ImmutableMap;
 import java.nio.file.Path;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -993,6 +994,68 @@ public class TransactionsTest {
             assertEquals("foo2", receiveOtherSession.getBody(String.class));
             log.info("receivedOtherSession {}", receiveOtherSession.getJMSMessageID());
             assertEquals(sentMessageID2, receiveOtherSession.getJMSMessageID());
+          }
+        }
+      }
+    }
+  }
+
+  @Test
+  public void testMixedConsumersOnSharedSubscription() throws Exception {
+
+    Map<String, Object> properties = new HashMap<>();
+    properties.put("webServiceUrl", cluster.getAddress());
+    properties.put("enableTransaction", "true");
+    properties.put("jms.clientId", "my-id");
+    properties.put(
+        "consumerConfig",
+        ImmutableMap.of(
+            "receiverQueueSize", 1,
+            "ackTimeoutMillis", 1000));
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+      try (Connection connection = factory.createConnection()) {
+        connection.start();
+
+        try (Session someSession = connection.createSession(); ) {
+          String name = "persistent://public/default/test" + UUID.randomUUID();
+          Topic destination = someSession.createTopic(name);
+
+          try (Session transaction = connection.createSession(Session.SESSION_TRANSACTED);
+              Session otherSession = connection.createSession(Session.CLIENT_ACKNOWLEDGE);
+              MessageConsumer consumerOtherSession =
+                  otherSession.createSharedDurableConsumer(destination, "the-shared-sub");
+              MessageConsumer transactionConsumer =
+                  transaction.createSharedDurableConsumer(destination, "the-shared-sub"); ) {
+            try (MessageProducer producerNoTransaction =
+                otherSession.createProducer(destination); ) {
+
+              TextMessage textMsg = someSession.createTextMessage("foo1");
+              producerNoTransaction.send(textMsg);
+
+              TextMessage textMsg2 = someSession.createTextMessage("foo2");
+              producerNoTransaction.send(textMsg2);
+            }
+
+            // this looks simple but it isn't simple indeed
+            // because the broker may send the message to the second consumer
+            // but if we don't ack it and actTimeoutMillis elapses
+            // the message is automatically negativelity acknoledged
+            // and the broker dispatches the message again
+            // so eventually the message will be received by the first consumer
+            Message receive = transactionConsumer.receive();
+            Message receive2 = consumerOtherSession.receive();
+            receive2.acknowledge();
+
+            transaction.rollback();
+            // closing consumer 1 in order to speed up the test
+            transactionConsumer.close();
+
+            // the first message one is to be delivered again
+            Message receive3 = consumerOtherSession.receive();
+            receive3.acknowledge();
+
+            assertEquals(receive.getBody(String.class), receive3.getBody(String.class));
+            assertEquals(receive.getJMSMessageID(), receive3.getJMSMessageID());
           }
         }
       }
