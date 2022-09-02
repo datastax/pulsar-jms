@@ -934,30 +934,11 @@ public class PulsarConnectionFactory
     return applySystemNamespace(topicName);
   }
 
-  void closeProducerForDestinationWithStickKey(
-      Destination defaultDestination, boolean transactions, long stickyKey) throws JMSException {
-    String fullQualifiedTopicName = getPulsarTopicName(defaultDestination);
-    String key = computeProducerKey(fullQualifiedTopicName, transactions, stickyKey);
-    Producer<byte[]> producer = producers.remove(key);
-    if (producer != null) {
-      producer.closeAsync();
-    }
-  }
-
-  private static String computeProducerKey(
-      String fullQualifiedTopicName, boolean transactions, long stickyKey) {
-    if (stickyKey > 0 && transactions) {
-      return fullQualifiedTopicName + "-tx-" + stickyKey;
-    } else {
-      return transactions ? fullQualifiedTopicName + "-tx" : fullQualifiedTopicName;
-    }
-  }
-
-  Producer<byte[]> getProducerForDestination(
-      Destination defaultDestination, boolean transactions, long stickyKey) throws JMSException {
+  Producer<byte[]> getProducerForDestination(Destination defaultDestination, boolean transactions)
+      throws JMSException {
     try {
       String fullQualifiedTopicName = getPulsarTopicName(defaultDestination);
-      String key = computeProducerKey(fullQualifiedTopicName, transactions, stickyKey);
+      String key = transactions ? fullQualifiedTopicName + "-tx" : fullQualifiedTopicName;
       return producers.computeIfAbsent(
           key,
           d -> {
@@ -975,12 +956,13 @@ public class PulsarConnectionFactory
                           (BatcherBuilder) producerConfiguration.get("batcherBuilder"));
                     }
                     if (transactions) {
-                      if (stickyKey > 0) {
+                      if (transactionsStickyPartitions) {
                         producerBuilder.messageRouter(
                             new MessageRouter() {
                               @Override
                               public int choosePartition(Message<?> msg, TopicMetadata metadata) {
-                                return signSafeMod(stickyKey, metadata.numPartitions());
+                                long key = Long.parseLong(msg.getProperty("JMSTX"));
+                                return signSafeMod(key, metadata.numPartitions());
                               }
                             });
                       }

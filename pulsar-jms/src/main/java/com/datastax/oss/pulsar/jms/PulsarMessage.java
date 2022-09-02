@@ -1218,6 +1218,11 @@ public abstract class PulsarMessage implements Message {
 
     message.property("JMSDeliveryTime", jmsDeliveryTime + "");
 
+    long stickyKey = session.getTransactionStickyKey();
+    if (stickyKey > 0) {
+      message.property("JMSTX", Long.toString(stickyKey));
+    }
+
     // we can use JMSXGroupID as key in order to provide
     // a behaviour similar to https://activemq.apache.org/message-groups
     String JMSXGroupID = properties.get("JMSXGroupID");

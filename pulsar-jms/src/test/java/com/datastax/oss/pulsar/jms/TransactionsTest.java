@@ -22,7 +22,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
 import com.google.common.collect.ImmutableMap;
-import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Enumeration;
@@ -1072,8 +1071,6 @@ public class TransactionsTest {
     properties.put("enableTransaction", "true");
     properties.put("jms.transactionsStickyPartitions", "true");
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
-      Field producers = factory.getClass().getDeclaredField("producers");
-      producers.setAccessible(true);
       String topicName = "persistent://public/default/test-" + UUID.randomUUID();
 
       try (Connection connection = factory.createConnection()) {
@@ -1105,8 +1102,6 @@ public class TransactionsTest {
               producer4.send(transaction4.createTextMessage("foo4"));
             }
 
-            assertEquals(4, ((Map) (producers.get(factory))).size());
-
             transaction1.commit();
             transaction2.commit();
             transaction3.commit();
@@ -1130,8 +1125,6 @@ public class TransactionsTest {
                     });
           }
         }
-
-        assertTrue(((Map) (producers.get(factory))).isEmpty());
       }
     }
   }

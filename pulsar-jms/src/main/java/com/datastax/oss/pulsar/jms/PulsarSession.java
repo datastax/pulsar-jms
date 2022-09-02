@@ -25,12 +25,10 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -91,7 +89,6 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   private boolean allowTopicOperations = true;
   Transaction transaction;
   private MessageListener messageListener;
-  private final Set<Destination> destinationsWithStickyPartitionProducers = new HashSet<>();
   private final ReentrantReadWriteLock closeLock = new ReentrantReadWriteLock();
   private final List<PulsarMessage> unackedMessages = new ArrayList<>();
   private final Map<String, PulsarDestination> destinationBySubscription = new HashMap<>();
@@ -106,7 +103,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   private final Condition pendingActivitiesLockCanDoActivity = pendingActivitiesLock.newCondition();
   private int activitesBlockingTransactionOperations = 0;
   private boolean transactionOperationInProgress = false;
-  private final long transactionStickyKey;
+  private final AtomicLong transactionStickyKey = new AtomicLong();
 
   PulsarSession(
       int sessionMode,
@@ -130,9 +127,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     this.transacted = sessionMode == Session.SESSION_TRANSACTED;
     this.overrideConsumerConfiguration = overrideConsumerConfiguration;
     if (transacted && connection.getFactory().isTransactionsStickyPartitions()) {
-      transactionStickyKey = STICKY_KEY_GENERATOR.incrementAndGet();
-    } else {
-      transactionStickyKey = 0;
+      transactionStickyKey.set(STICKY_KEY_GENERATOR.incrementAndGet());
     }
     validateSessionMode(sessionMode);
   }
@@ -213,12 +208,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   }
 
   Producer<byte[]> getProducerForDestination(Destination destination) throws JMSException {
-    Producer<byte[]> producer =
-        getFactory().getProducerForDestination(destination, transacted, transactionStickyKey);
-    if (transactionStickyKey > 0) {
-      destinationsWithStickyPartitionProducers.add(destination);
-    }
-    return producer;
+    return getFactory().getProducerForDestination(destination, transacted);
   }
 
   /**
@@ -421,6 +411,10 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     return sessionMode;
   }
 
+  public long getTransactionStickyKey() {
+    return transactionStickyKey.get();
+  }
+
   void blockTransactionOperations() throws JMSException {
     if (!transacted) {
       return;
@@ -540,6 +534,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
           Utils.get(CompletableFuture.allOf(handles.toArray(new CompletableFuture<?>[0])));
           unackedMessages.clear();
           transaction = null;
+          transactionStickyKey.set(STICKY_KEY_GENERATOR.incrementAndGet());
         }
       } finally {
         endTransactionOperation();
@@ -603,6 +598,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
       Utils.get(transaction.abort());
     }
     transaction = null;
+    transactionStickyKey.set(STICKY_KEY_GENERATOR.incrementAndGet());
   }
 
   /**
@@ -676,11 +672,6 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
       for (PulsarQueueBrowser browser : browsers) {
         browser.close();
       }
-      for (Destination destination : destinationsWithStickyPartitionProducers) {
-        factory.closeProducerForDestinationWithStickKey(
-            destination, transacted, transactionStickyKey);
-      }
-      destinationsWithStickyPartitionProducers.clear();
       consumers.clear();
       browsers.clear();
     } finally {
