@@ -939,6 +939,7 @@ public class PulsarConnectionFactory
     try {
       String fullQualifiedTopicName = getPulsarTopicName(defaultDestination);
       String key = transactions ? fullQualifiedTopicName + "-tx" : fullQualifiedTopicName;
+      boolean transactionsStickyPartitions = isTransactionsStickyPartitions();
       return producers.computeIfAbsent(
           key,
           d -> {
