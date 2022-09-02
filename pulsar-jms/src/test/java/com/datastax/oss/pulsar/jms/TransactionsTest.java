@@ -23,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
 import com.google.common.collect.ImmutableMap;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
@@ -1056,6 +1057,114 @@ public class TransactionsTest {
 
             assertEquals(receive.getBody(String.class), receive3.getBody(String.class));
             assertEquals(receive.getJMSMessageID(), receive3.getJMSMessageID());
+          }
+        }
+      }
+    }
+  }
+
+  @Test
+  public void sendMessageWithPartitionStickKeyTest() throws Exception {
+
+    Map<String, Object> properties = new HashMap<>();
+    properties.put("webServiceUrl", cluster.getAddress());
+    properties.put("enableTransaction", "true");
+    properties.put("jms.transactionsStickyPartitions", "true");
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+      String topicName = "persistent://public/default/test-" + UUID.randomUUID();
+
+      try (Connection connection = factory.createConnection()) {
+        connection.start();
+
+        // create a topic with 4 partitions
+        factory.getPulsarAdmin().topics().createPartitionedTopic(topicName, 4);
+
+        try (Session consumerSession = connection.createSession(); ) {
+          Destination destination = consumerSession.createQueue(topicName);
+
+          // each session will have a stickyKey id, that is incremental
+          // so the test case is consistently sending the messages
+          // to the same partitions
+          try (MessageConsumer consumer = consumerSession.createConsumer(destination);
+              Session transaction1 = connection.createSession(Session.SESSION_TRANSACTED);
+              Session transaction2 = connection.createSession(Session.SESSION_TRANSACTED);
+              Session transaction3 = connection.createSession(Session.SESSION_TRANSACTED);
+              Session transaction4 = connection.createSession(Session.SESSION_TRANSACTED);
+              MessageProducer producer1 = transaction1.createProducer(destination);
+              MessageProducer producer2 = transaction2.createProducer(destination);
+              MessageProducer producer3 = transaction3.createProducer(destination);
+              MessageProducer producer4 = transaction4.createProducer(destination); ) {
+
+            for (int i = 0; i < 10; i++) {
+              producer1.send(transaction1.createTextMessage("foo1"));
+              producer2.send(transaction2.createTextMessage("foo2"));
+              producer3.send(transaction3.createTextMessage("foo3"));
+              producer4.send(transaction4.createTextMessage("foo4"));
+            }
+
+            transaction1.commit();
+            transaction2.commit();
+            transaction3.commit();
+            transaction4.commit();
+
+            Map<String, List<Message>> messagesByPartition = new HashMap<>();
+            for (int i = 0; i < 10 * 4; i++) {
+              PulsarMessage message = (PulsarMessage) consumer.receive();
+              String receivedTopicName = message.getReceivedPulsarMessage().getTopicName();
+              log.info("message {} {}", receivedTopicName, message);
+              messagesByPartition
+                  .computeIfAbsent(receivedTopicName, (t) -> new ArrayList<>())
+                  .add(message);
+              message.acknowledge();
+            }
+            assertEquals(messagesByPartition.size(), 4);
+            messagesByPartition
+                .entrySet()
+                .forEach(
+                    entry -> {
+                      assertEquals(10, entry.getValue().size());
+                      // verify that all the messages on the topic
+                      // have been sent by the same producer (same content)
+                      try {
+                        String first = entry.getValue().get(0).getBody(String.class);
+                        for (Message msg : entry.getValue()) {
+                          assertEquals(first, msg.getBody(String.class));
+                        }
+                      } catch (JMSException err) {
+                        throw new RuntimeException(err);
+                      }
+                    });
+
+            messagesByPartition.clear();
+
+            try (Session transaction5 = connection.createSession(Session.SESSION_TRANSACTED);
+                MessageProducer producer5 = transaction5.createProducer(destination); ) {
+              // now we use only one transaction,
+              // but after every commit we must go to a different partition
+              for (int i = 0; i < 8; i++) {
+                producer5.send(transaction5.createTextMessage("foo1"));
+                transaction5.commit();
+              }
+
+              for (int i = 0; i < 8; i++) {
+                PulsarMessage message = (PulsarMessage) consumer.receive();
+                String receivedTopicName = message.getReceivedPulsarMessage().getTopicName();
+                log.info("messageAfter {} {}", receivedTopicName, message);
+                messagesByPartition
+                    .computeIfAbsent(receivedTopicName, (t) -> new ArrayList<>())
+                    .add(message);
+                message.acknowledge();
+              }
+              assertEquals(messagesByPartition.size(), 4);
+              messagesByPartition
+                  .entrySet()
+                  .forEach(
+                      entry -> {
+                        assertEquals(2, entry.getValue().size());
+                      });
+
+              messagesByPartition.clear();
+            }
           }
         }
       }

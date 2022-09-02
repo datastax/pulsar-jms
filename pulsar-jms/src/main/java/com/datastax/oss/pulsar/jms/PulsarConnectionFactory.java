@@ -16,6 +16,7 @@
 package com.datastax.oss.pulsar.jms;
 
 import static com.datastax.oss.pulsar.jms.Utils.getAndRemoveString;
+import static org.apache.pulsar.client.util.MathUtils.signSafeMod;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
@@ -52,6 +53,7 @@ import org.apache.pulsar.client.api.Consumer;
 import org.apache.pulsar.client.api.ConsumerBuilder;
 import org.apache.pulsar.client.api.Message;
 import org.apache.pulsar.client.api.MessageId;
+import org.apache.pulsar.client.api.MessageRouter;
 import org.apache.pulsar.client.api.Producer;
 import org.apache.pulsar.client.api.ProducerBuilder;
 import org.apache.pulsar.client.api.PulsarClient;
@@ -62,6 +64,7 @@ import org.apache.pulsar.client.api.Schema;
 import org.apache.pulsar.client.api.SubscriptionInitialPosition;
 import org.apache.pulsar.client.api.SubscriptionMode;
 import org.apache.pulsar.client.api.SubscriptionType;
+import org.apache.pulsar.client.api.TopicMetadata;
 import org.apache.pulsar.client.impl.auth.AuthenticationToken;
 import org.apache.pulsar.common.policies.data.SubscriptionStats;
 
@@ -98,6 +101,7 @@ public class PulsarConnectionFactory
   private transient boolean enableTransaction = false;
   private transient boolean emulateTransactions = false;
   private transient boolean enableClientSideEmulation = false;
+  private transient boolean transactionsStickyPartitions = false;
   private transient boolean useServerSideFiltering = false;
   private transient boolean forceDeleteTemporaryDestinations = false;
   private transient boolean useExclusiveSubscriptionsForSimpleConsumers = false;
@@ -314,6 +318,10 @@ public class PulsarConnectionFactory
           Boolean.parseBoolean(
               getAndRemoveString("jms.enableClientSideEmulation", "false", configurationCopy));
 
+      this.transactionsStickyPartitions =
+          Boolean.parseBoolean(
+              getAndRemoveString("jms.transactionsStickyPartitions", "false", configurationCopy));
+
       this.useServerSideFiltering =
           Boolean.parseBoolean(
               getAndRemoveString("jms.useServerSideFiltering", "false", configurationCopy));
@@ -492,6 +500,10 @@ public class PulsarConnectionFactory
 
   public synchronized boolean isEnableClientSideEmulation() {
     return enableClientSideEmulation;
+  }
+
+  public synchronized boolean isTransactionsStickyPartitions() {
+    return transactionsStickyPartitions;
   }
 
   public synchronized boolean isUseServerSideFiltering() {
@@ -927,6 +939,7 @@ public class PulsarConnectionFactory
     try {
       String fullQualifiedTopicName = getPulsarTopicName(defaultDestination);
       String key = transactions ? fullQualifiedTopicName + "-tx" : fullQualifiedTopicName;
+      boolean transactionsStickyPartitions = isTransactionsStickyPartitions();
       return producers.computeIfAbsent(
           key,
           d -> {
@@ -944,6 +957,16 @@ public class PulsarConnectionFactory
                           (BatcherBuilder) producerConfiguration.get("batcherBuilder"));
                     }
                     if (transactions) {
+                      if (transactionsStickyPartitions) {
+                        producerBuilder.messageRouter(
+                            new MessageRouter() {
+                              @Override
+                              public int choosePartition(Message<?> msg, TopicMetadata metadata) {
+                                long key = Long.parseLong(msg.getProperty("JMSTX"));
+                                return signSafeMod(key, metadata.numPartitions());
+                              }
+                            });
+                      }
                       // this is a limitation of Pulsar transaction support
                       producerBuilder.sendTimeout(0, TimeUnit.MILLISECONDS);
                     }
