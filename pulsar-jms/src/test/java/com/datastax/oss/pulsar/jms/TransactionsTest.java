@@ -636,6 +636,8 @@ public class TransactionsTest {
     properties.put("enableTransaction", "true");
     Map<String, Object> producerConfig = new HashMap<>();
     producerConfig.put("batchingEnabled", true);
+    producerConfig.put("batchingMaxPublishDelayMicros", TimeUnit.SECONDS.toMicros(5));
+    producerConfig.put("batchingMaxMessages", 2);
     properties.put("producerConfig", producerConfig);
 
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
