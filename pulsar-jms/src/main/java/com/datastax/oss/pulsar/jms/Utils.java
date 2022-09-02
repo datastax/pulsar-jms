@@ -171,7 +171,7 @@ public final class Utils {
         && current.session == session
         && ((producer != null && current.producer == producer)
             || // specific producer
-            (producer == null || current.producer != null))) // any producer
+            (producer == null && current.producer != null))) // any producer
     {
       throw new IllegalStateException("Cannot call this method inside a CompletionListener");
     }

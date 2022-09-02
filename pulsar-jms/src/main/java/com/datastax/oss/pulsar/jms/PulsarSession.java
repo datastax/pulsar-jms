@@ -495,7 +495,6 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   @Override
   public void commit() throws JMSException {
     checkNotClosed();
-    Utils.checkNotOnMessageListener(this);
     Utils.checkNotOnMessageProducer(this, null);
     if (!transacted) {
       throw new IllegalStateException("session is not transacted");
@@ -505,21 +504,25 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
       beginTransactionOperation();
       try {
         if (emulateTransactions) {
-          // we are postponing to this moment the acknowledgment
-          for (PulsarMessage msg : new ArrayList<>(unackedMessages)) {
-            msg.acknowledgeInternal();
+          synchronized (unackedMessages) {
+            // we are postponing to this moment the acknowledgment
+            for (PulsarMessage msg : new ArrayList<>(unackedMessages)) {
+              msg.acknowledgeInternal();
+            }
+            unackedMessages.clear();
           }
-          unackedMessages.clear();
         }
         if (transaction != null) {
           // we are postponing to this moment the acknowledgment
           List<CompletableFuture<?>> handles = new ArrayList<>();
-          for (PulsarMessage msg : new ArrayList<>(unackedMessages)) {
-            handles.add(msg.acknowledgeInternalInTransaction(transaction));
+          synchronized (unackedMessages) {
+            for (PulsarMessage msg : new ArrayList<>(unackedMessages)) {
+              handles.add(msg.acknowledgeInternalInTransaction(transaction));
+            }
+            unackedMessages.clear();
           }
           handles.add(transaction.commit());
           Utils.get(CompletableFuture.allOf(handles.toArray(new CompletableFuture<?>[0])));
-          unackedMessages.clear();
           transaction = null;
         }
       } finally {
@@ -553,7 +556,6 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   @Override
   public void rollback() throws JMSException {
     checkNotClosed();
-    Utils.checkNotOnMessageListener(this);
     Utils.checkNotOnMessageProducer(this, null);
     closeLock.readLock().lock();
     try {
@@ -579,7 +581,9 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
         consumer.closeDuringRollback();
       }
     }
-    unackedMessages.clear();
+    synchronized (unackedMessages) {
+      unackedMessages.clear();
+    }
     if (transaction != null) {
       Utils.get(transaction.abort());
     }
@@ -649,14 +653,16 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
       if (transacted && transaction != null) {
         rollbackInternal();
       }
-      unackedMessages.clear();
+      synchronized (unackedMessages) {
+        unackedMessages.clear();
+      }
       for (PulsarMessageConsumer consumer : consumers) {
         consumer.closeInternal();
       }
+      consumers.clear();
       for (PulsarQueueBrowser browser : browsers) {
         browser.close();
       }
-      consumers.clear();
       browsers.clear();
     } finally {
       closeLock.writeLock().unlock();
@@ -701,10 +707,12 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     if (transacted) {
       throw new IllegalStateException("cannot call this method inside a transacted session");
     }
-    for (PulsarMessage msg : unackedMessages) {
-      msg.negativeAck();
+    synchronized (unackedMessages) {
+      for (PulsarMessage msg : unackedMessages) {
+        msg.negativeAck();
+      }
+      unackedMessages.clear();
     }
-    unackedMessages.clear();
   }
 
   /**
@@ -1691,18 +1699,24 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    */
   void acknowledgeAllMessages() throws JMSException {
     checkNotClosed();
-    for (PulsarMessage unackedMessage : new ArrayList<>(unackedMessages)) {
-      unackedMessage.acknowledgeInternal();
+    synchronized (unackedMessages) {
+      for (PulsarMessage unackedMessage : new ArrayList<>(unackedMessages)) {
+        unackedMessage.acknowledgeInternal();
+      }
+      unackedMessages.clear();
     }
-    unackedMessages.clear();
   }
 
   void registerUnacknowledgedMessage(PulsarMessage result) {
-    unackedMessages.add(result);
+    synchronized (unackedMessages) {
+      unackedMessages.add(result);
+    }
   }
 
   void unregisterUnacknowledgedMessage(PulsarMessage result) {
-    unackedMessages.remove(result);
+    synchronized (unackedMessages) {
+      unackedMessages.remove(result);
+    }
   }
 
   void removeConsumer(PulsarMessageConsumer consumer) {
@@ -1710,10 +1724,12 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     if (pulsarConsumer != null) {
       consumers.remove(consumer);
       getFactory().removeConsumer(pulsarConsumer);
-      for (Iterator<PulsarMessage> it = unackedMessages.iterator(); it.hasNext(); ) {
-        PulsarMessage message = it.next();
-        if (message != null && message.isReceivedFromConsumer(consumer)) {
-          it.remove();
+      synchronized (unackedMessages) {
+        for (Iterator<PulsarMessage> it = unackedMessages.iterator(); it.hasNext(); ) {
+          PulsarMessage message = it.next();
+          if (message != null && message.isReceivedFromConsumer(consumer)) {
+            it.remove();
+          }
         }
       }
     }
