@@ -31,6 +31,8 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import javax.jms.CompletionListener;
 import javax.jms.Connection;
 import javax.jms.Destination;
@@ -635,6 +637,8 @@ public class TransactionsTest {
     properties.put("enableTransaction", "true");
     Map<String, Object> producerConfig = new HashMap<>();
     producerConfig.put("batchingEnabled", true);
+    producerConfig.put("batchingMaxPublishDelayMicros", TimeUnit.SECONDS.toMicros(5));
+    producerConfig.put("batchingMaxMessages", 2);
     properties.put("producerConfig", producerConfig);
 
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
@@ -786,6 +790,88 @@ public class TransactionsTest {
 
               received.clear();
               consumerSession.commit();
+
+              // verify no message is received anymore
+              Awaitility.await().during(4, TimeUnit.SECONDS).until(() -> received.isEmpty());
+
+              // verify no other consumer is able to receive the message
+              try (Session otherConsumer = connection.createSession(Session.AUTO_ACKNOWLEDGE);
+                  MessageConsumer consumer1 = otherConsumer.createConsumer(destination)) {
+                assertNull(consumer1.receive(1000));
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  @Test
+  public void commitInsideMessageListenerTest() throws Exception {
+    Map<String, Object> properties = new HashMap<>();
+    properties.put("webServiceUrl", cluster.getAddress());
+    properties.put("enableTransaction", "true");
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+      try (Connection connection = factory.createConnection()) {
+        connection.start();
+
+        try (Session consumerSession = connection.createSession(Session.SESSION_TRANSACTED); ) {
+          Destination destination =
+              consumerSession.createTopic("persistent://public/default/test-" + UUID.randomUUID());
+          List<Message> received = new CopyOnWriteArrayList<>();
+          AtomicReference<Throwable> error = new AtomicReference<>();
+          AtomicBoolean commitDone = new AtomicBoolean();
+          AtomicBoolean rollbackDone = new AtomicBoolean();
+          try (MessageConsumer consumer = consumerSession.createConsumer(destination)) {
+            consumer.setMessageListener(
+                new MessageListener() {
+                  @Override
+                  public void onMessage(Message message) {
+                    if (error.get() != null) {
+                      log.info("ignoring error on message receive {}", message);
+                      return;
+                    }
+                    log.info("Received message {}", message);
+
+                    try {
+                      if (message.getBody(String.class).equals("commit")) {
+                        log.info("commit!");
+                        consumerSession.commit();
+                        commitDone.set(true);
+                      } else if (message.getBody(String.class).equals("rollback")) {
+                        if (rollbackDone.compareAndSet(false, true)) {
+                          log.info("rollback!");
+                          consumerSession.rollback();
+                        }
+                      } else {
+                        received.add(message);
+                      }
+                    } catch (Exception err) {
+                      log.info("Error", err);
+                      error.set(err);
+                    }
+                  }
+                });
+
+            try (Session producerSession = connection.createSession();
+                MessageProducer producer = producerSession.createProducer(destination); ) {
+
+              producer.send(producerSession.createTextMessage("foo"));
+
+              // verify that the consumer is able to receive the messages
+              Awaitility.await().until(() -> !received.isEmpty());
+              received.clear();
+
+              // rollback
+              producer.send(producerSession.createTextMessage("rollback"));
+              Awaitility.await().until(() -> rollbackDone.get());
+
+              // receive the message again
+              Awaitility.await().until(() -> !received.isEmpty());
+              received.clear();
+
+              producer.send(producerSession.createTextMessage("commit"));
+              Awaitility.await().until(() -> commitDone.get());
 
               // verify no message is received anymore
               Awaitility.await().during(4, TimeUnit.SECONDS).until(() -> received.isEmpty());
