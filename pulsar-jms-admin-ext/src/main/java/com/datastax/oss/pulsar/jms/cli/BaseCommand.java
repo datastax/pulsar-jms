@@ -17,6 +17,7 @@ package com.datastax.oss.pulsar.jms.cli;
 
 import com.datastax.oss.pulsar.jms.PulsarConnectionFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -33,12 +34,12 @@ import org.apache.pulsar.admin.cli.extensions.ParameterType;
 import org.apache.pulsar.client.api.ClientBuilder;
 import org.apache.pulsar.client.api.PulsarClient;
 import org.apache.pulsar.client.api.PulsarClientException;
-import org.apache.pulsar.common.util.ObjectMapperFactory;
 import org.slf4j.helpers.MessageFormatter;
 
 @Slf4j
 abstract class BaseCommand implements CustomCommand {
 
+  private static final ObjectMapper YAML_PARSER = new ObjectMapper(new YAMLFactory());
   private Map<String, Object> currentParameters;
   private CommandExecutionContext currentContext;
 
@@ -107,10 +108,10 @@ abstract class BaseCommand implements CustomCommand {
                 }
               });
       if (config != null && !config.isEmpty()) {
-        ObjectMapper yaml = ObjectMapperFactory.create();
+
         File file = new File(config);
         log.debug("Reading {}", file.getAbsolutePath());
-        configuration.putAll(yaml.readValue(file, Map.class));
+        configuration.putAll(YAML_PARSER.readValue(file, Map.class));
       }
       log.debug("Configuration {}", configuration);
       factory =

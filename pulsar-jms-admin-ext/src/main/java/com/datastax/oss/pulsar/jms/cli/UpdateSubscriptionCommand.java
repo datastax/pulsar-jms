@@ -16,7 +16,6 @@
 package com.datastax.oss.pulsar.jms.cli;
 
 import com.datastax.oss.pulsar.jms.PulsarConnectionFactory;
-import com.datastax.oss.pulsar.jms.selectors.SelectorSupport;
 import java.util.HashMap;
 import java.util.Map;
 import javax.jms.Destination;
@@ -43,10 +42,6 @@ public class UpdateSubscriptionCommand extends SubscriptionBaseCommand {
     validateSelector();
     String subscription = getSubscription();
     String selector = getSelector();
-    if (!selector.isEmpty()) {
-      // validated selector syntax
-      SelectorSupport.build(selector, true);
-    }
     Destination destination = getDestination(false);
     PulsarConnectionFactory factory = getFactory();
     String topicName = factory.getPulsarTopicName(destination);

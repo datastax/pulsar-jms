@@ -238,7 +238,8 @@ public class Main {
           subscriptionProperties);
 
       pulsarAdmin
-              .topics().createSubscription(topicName, subscription, position, false, subscriptionProperties);
+          .topics()
+          .createSubscription(topicName, subscription, position, false, subscriptionProperties);
     }
   }
 
