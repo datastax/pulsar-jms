@@ -127,7 +127,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     this.transacted = sessionMode == Session.SESSION_TRANSACTED;
     this.overrideConsumerConfiguration = overrideConsumerConfiguration;
     if (transacted && connection.getFactory().isTransactionsStickyPartitions()) {
-      transactionStickyKey.set(STICKY_KEY_GENERATOR.incrementAndGet());
+      generateNewTransactionStickyKey();
     }
     validateSessionMode(sessionMode);
   }
@@ -415,6 +415,10 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     return transactionStickyKey.get();
   }
 
+  private void generateNewTransactionStickyKey() {
+    transactionStickyKey.set(STICKY_KEY_GENERATOR.incrementAndGet());
+  }
+
   void blockTransactionOperations() throws JMSException {
     if (!transacted) {
       return;
@@ -534,7 +538,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
           Utils.get(CompletableFuture.allOf(handles.toArray(new CompletableFuture<?>[0])));
           unackedMessages.clear();
           transaction = null;
-          transactionStickyKey.set(STICKY_KEY_GENERATOR.incrementAndGet());
+          generateNewTransactionStickyKey();
         }
       } finally {
         endTransactionOperation();
@@ -598,7 +602,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
       Utils.get(transaction.abort());
     }
     transaction = null;
-    transactionStickyKey.set(STICKY_KEY_GENERATOR.incrementAndGet());
+    generateNewTransactionStickyKey();
   }
 
   /**

@@ -1115,6 +1115,7 @@ public class TransactionsTest {
               messagesByPartition
                   .computeIfAbsent(receivedTopicName, (t) -> new ArrayList<>())
                   .add(message);
+              message.acknowledge();
             }
             assertEquals(messagesByPartition.size(), 4);
             messagesByPartition
@@ -1122,7 +1123,48 @@ public class TransactionsTest {
                 .forEach(
                     entry -> {
                       assertEquals(10, entry.getValue().size());
+                      // verify that all the messages on the topic
+                      // have been sent by the same producer (same content)
+                      try {
+                        String first = entry.getValue().get(0).getBody(String.class);
+                        for (Message msg : entry.getValue()) {
+                          assertEquals(first, msg.getBody(String.class));
+                        }
+                      } catch (JMSException err) {
+                        throw new RuntimeException(err);
+                      }
                     });
+
+            messagesByPartition.clear();
+
+            try (Session transaction5 = connection.createSession(Session.SESSION_TRANSACTED);
+                MessageProducer producer5 = transaction5.createProducer(destination); ) {
+              // now we use only one transaction,
+              // but after every commit we must go to a different partition
+              for (int i = 0; i < 8; i++) {
+                producer5.send(transaction5.createTextMessage("foo1"));
+                transaction5.commit();
+              }
+
+              for (int i = 0; i < 8; i++) {
+                PulsarMessage message = (PulsarMessage) consumer.receive();
+                String receivedTopicName = message.getReceivedPulsarMessage().getTopicName();
+                log.info("messageAfter {} {}", receivedTopicName, message);
+                messagesByPartition
+                    .computeIfAbsent(receivedTopicName, (t) -> new ArrayList<>())
+                    .add(message);
+                message.acknowledge();
+              }
+              assertEquals(messagesByPartition.size(), 4);
+              messagesByPartition
+                  .entrySet()
+                  .forEach(
+                      entry -> {
+                        assertEquals(2, entry.getValue().size());
+                      });
+
+              messagesByPartition.clear();
+            }
           }
         }
       }
