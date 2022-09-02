@@ -22,7 +22,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
 import com.google.common.collect.ImmutableMap;
+import java.lang.reflect.Field;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
@@ -1058,6 +1060,78 @@ public class TransactionsTest {
             assertEquals(receive.getJMSMessageID(), receive3.getJMSMessageID());
           }
         }
+      }
+    }
+  }
+
+  @Test
+  public void sendMessageWithPartitionStickKeyTest() throws Exception {
+
+    Map<String, Object> properties = new HashMap<>();
+    properties.put("webServiceUrl", cluster.getAddress());
+    properties.put("enableTransaction", "true");
+    properties.put("jms.transactionsStickyPartitions", "true");
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+      Field producers = factory.getClass().getDeclaredField("producers");
+      producers.setAccessible(true);
+      String topicName = "persistent://public/default/test-" + UUID.randomUUID();
+
+      try (Connection connection = factory.createConnection()) {
+        connection.start();
+
+        // create a topic with 4 partitions
+        factory.getPulsarAdmin().topics().createPartitionedTopic(topicName, 4);
+
+        try (Session consumerSession = connection.createSession(); ) {
+          Destination destination = consumerSession.createQueue(topicName);
+
+          // each session will have a stickyKey id, that is incremental
+          // so the test case is consistently sending the messages
+          // to the same partitions
+          try (MessageConsumer consumer = consumerSession.createConsumer(destination);
+              Session transaction1 = connection.createSession(Session.SESSION_TRANSACTED);
+              Session transaction2 = connection.createSession(Session.SESSION_TRANSACTED);
+              Session transaction3 = connection.createSession(Session.SESSION_TRANSACTED);
+              Session transaction4 = connection.createSession(Session.SESSION_TRANSACTED);
+              MessageProducer producer1 = transaction1.createProducer(destination);
+              MessageProducer producer2 = transaction2.createProducer(destination);
+              MessageProducer producer3 = transaction3.createProducer(destination);
+              MessageProducer producer4 = transaction4.createProducer(destination); ) {
+
+            for (int i = 0; i < 10; i++) {
+              producer1.send(transaction1.createTextMessage("foo1"));
+              producer2.send(transaction2.createTextMessage("foo2"));
+              producer3.send(transaction3.createTextMessage("foo3"));
+              producer4.send(transaction4.createTextMessage("foo4"));
+            }
+
+            assertEquals(4, ((Map) (producers.get(factory))).size());
+
+            transaction1.commit();
+            transaction2.commit();
+            transaction3.commit();
+            transaction4.commit();
+
+            Map<String, List<Message>> messagesByPartition = new HashMap<>();
+            for (int i = 0; i < 10 * 4; i++) {
+              PulsarMessage message = (PulsarMessage) consumer.receive();
+              String receivedTopicName = message.getReceivedPulsarMessage().getTopicName();
+              log.info("message {} {}", receivedTopicName, message);
+              messagesByPartition
+                  .computeIfAbsent(receivedTopicName, (t) -> new ArrayList<>())
+                  .add(message);
+            }
+            assertEquals(messagesByPartition.size(), 4);
+            messagesByPartition
+                .entrySet()
+                .forEach(
+                    entry -> {
+                      assertEquals(10, entry.getValue().size());
+                    });
+          }
+        }
+
+        assertTrue(((Map) (producers.get(factory))).isEmpty());
       }
     }
   }
