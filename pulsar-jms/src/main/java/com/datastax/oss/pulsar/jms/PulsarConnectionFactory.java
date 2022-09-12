@@ -1245,6 +1245,8 @@ public class PulsarConnectionFactory
         }
       }
       return readers;
+    } catch (PulsarAdminException.NotFoundException err) {
+      return Collections.emptyList();
     } catch (PulsarAdminException err) {
       throw Utils.handleException(err);
     }

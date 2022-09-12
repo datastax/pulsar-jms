@@ -272,10 +272,38 @@ public class QueueTest {
             assertNull(consumer1.receive(1000));
           }
 
-          // browse a brand new empty queue
-          Queue destinationEmpty =
+          // browse a brand new empty (non existing) queue
+          Queue destinationEmptyNonExisting =
               session.createQueue("persistent://public/default/test-" + UUID.randomUUID());
+          try (QueueBrowser browser = session.createBrowser(destinationEmptyNonExisting)) {
+            Enumeration en = browser.getEnumeration();
+            assertFalse(en.hasMoreElements());
+            try {
+              en.nextElement();
+              fail("should throw NoSuchElementException");
+            } catch (NoSuchElementException expected) {
+            }
+          }
+
+          // browse a brand new empty queue
+          String name = "persistent://public/default/test-" + UUID.randomUUID();
+          cluster.getService().getAdminClient().topics().createNonPartitionedTopic(name);
+          Queue destinationEmpty = session.createQueue(name);
           try (QueueBrowser browser = session.createBrowser(destinationEmpty)) {
+            Enumeration en = browser.getEnumeration();
+            assertFalse(en.hasMoreElements());
+            try {
+              en.nextElement();
+              fail("should throw NoSuchElementException");
+            } catch (NoSuchElementException expected) {
+            }
+          }
+
+          // browse a brand new empty partitioned queue
+          String namePartitioned = "persistent://public/default/test-" + UUID.randomUUID();
+          cluster.getService().getAdminClient().topics().createPartitionedTopic(namePartitioned, 4);
+          Queue destinationEmptyPartitioned = session.createQueue(name);
+          try (QueueBrowser browser = session.createBrowser(destinationEmptyPartitioned)) {
             Enumeration en = browser.getEnumeration();
             assertFalse(en.hasMoreElements());
             try {
