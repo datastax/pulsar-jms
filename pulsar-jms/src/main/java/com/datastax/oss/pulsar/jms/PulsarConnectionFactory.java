@@ -66,6 +66,8 @@ import org.apache.pulsar.client.api.SubscriptionMode;
 import org.apache.pulsar.client.api.SubscriptionType;
 import org.apache.pulsar.client.api.TopicMetadata;
 import org.apache.pulsar.client.impl.auth.AuthenticationToken;
+import org.apache.pulsar.common.partition.PartitionedTopicMetadata;
+import org.apache.pulsar.common.policies.data.PartitionedTopicStats;
 import org.apache.pulsar.common.policies.data.SubscriptionStats;
 
 @Slf4j
@@ -1115,35 +1117,11 @@ public class PulsarConnectionFactory
     }
 
     try {
-      if (isUseServerSideFiltering() && subscriptionMode == SubscriptionMode.Durable) {
-        try {
-          Map<String, ? extends SubscriptionStats> subscriptions =
-              pulsarAdmin.topics().getStats(fullQualifiedTopicName).getSubscriptions();
-          SubscriptionStats subscriptionStats = subscriptions.get(subscriptionName);
-          if (subscriptionStats != null) {
-            Map<String, String> subscriptionPropertiesFromBroker =
-                subscriptionStats.getSubscriptionProperties();
-            log.info("subscriptionPropertiesFromBroker {}", subscriptionPropertiesFromBroker);
-            if (subscriptionPropertiesFromBroker != null) {
-              boolean filtering =
-                  "true".equals(subscriptionPropertiesFromBroker.get("jms.filtering"));
-              if (filtering) {
-                String selectorOnSubscription =
-                    subscriptionPropertiesFromBroker.getOrDefault("jms.selector", "");
-                if (!selectorOnSubscription.isEmpty()) {
-                  log.info(
-                      "Detected selector {} on Subscription {} on topic {}",
-                      selectorOnSubscription,
-                      subscriptionName,
-                      fullQualifiedTopicName);
-                  selectorOnSubscriptionReceiver.set(selectorOnSubscription);
-                }
-              }
-            }
-          }
-        } catch (PulsarAdminException.NotFoundException notFoundException) {
-        }
-      }
+      downloadServerSideFilter(
+          fullQualifiedTopicName,
+          subscriptionName,
+          subscriptionMode,
+          selectorOnSubscriptionReceiver);
 
       ConsumerConfiguration consumerConfiguration =
           getConsumerConfiguration(overrideConsumerConfiguration);
@@ -1184,15 +1162,104 @@ public class PulsarConnectionFactory
     }
   }
 
-  public Reader<?> createReaderForBrowser(
-      PulsarQueue destination, ConsumerConfiguration overrideConsumerConfiguration)
+  private void downloadServerSideFilter(
+      String fullQualifiedTopicName,
+      String subscriptionName,
+      SubscriptionMode subscriptionMode,
+      AtomicReference<String> selectorOnSubscriptionReceiver)
+      throws PulsarAdminException {
+    if (isUseServerSideFiltering() && subscriptionMode == SubscriptionMode.Durable) {
+      try {
+        Map<String, ? extends SubscriptionStats> subscriptions = null;
+        try {
+          PartitionedTopicStats partitionedStats =
+              pulsarAdmin.topics().getPartitionedStats(fullQualifiedTopicName, false);
+          subscriptions = partitionedStats.getSubscriptions();
+        } catch (PulsarAdminException.NotFoundException notFoundOrNonPartitioned) {
+        }
+        if (subscriptions == null) {
+          subscriptions = pulsarAdmin.topics().getStats(fullQualifiedTopicName).getSubscriptions();
+        }
+        SubscriptionStats subscriptionStats = subscriptions.get(subscriptionName);
+        if (subscriptionStats != null) {
+          Map<String, String> subscriptionPropertiesFromBroker =
+              subscriptionStats.getSubscriptionProperties();
+          if (subscriptionPropertiesFromBroker != null) {
+            log.debug("subscriptionPropertiesFromBroker {}", subscriptionPropertiesFromBroker);
+            boolean filtering =
+                "true".equals(subscriptionPropertiesFromBroker.get("jms.filtering"));
+            if (filtering) {
+              String selectorOnSubscription =
+                  subscriptionPropertiesFromBroker.getOrDefault("jms.selector", "");
+              if (!selectorOnSubscription.isEmpty()) {
+                log.info(
+                    "Detected selector {} on Subscription {} on topic {}",
+                    selectorOnSubscription,
+                    subscriptionName,
+                    fullQualifiedTopicName);
+                selectorOnSubscriptionReceiver.set(selectorOnSubscription);
+              }
+            }
+          }
+        }
+      } catch (PulsarAdminException.NotFoundException notFoundException) {
+        log.info("Topic not found, cannot download server-side filters {}", fullQualifiedTopicName);
+      }
+    }
+  }
+
+  public List<Reader<?>> createReadersForBrowser(
+      PulsarQueue destination,
+      ConsumerConfiguration overrideConsumerConfiguration,
+      AtomicReference<String> selectorOnSubscriptionReceiver)
       throws JMSException {
+
     String fullQualifiedTopicName = getPulsarTopicName(destination);
+    String queueSubscriptionName = getQueueSubscriptionName(destination);
     try {
+      downloadServerSideFilter(
+          fullQualifiedTopicName,
+          queueSubscriptionName,
+          SubscriptionMode.Durable,
+          selectorOnSubscriptionReceiver);
+    } catch (PulsarAdminException err) {
+      throw Utils.handleException(err);
+    }
+
+    try {
+      PartitionedTopicMetadata partitionedTopicMetadata =
+          getPulsarAdmin().topics().getPartitionedTopicMetadata(fullQualifiedTopicName);
+      List<Reader<?>> readers = new ArrayList<>();
+      if (partitionedTopicMetadata.partitions == 0) {
+        Reader<?> readerForBrowserForNonPartitionedTopic =
+            createReaderForBrowserForNonPartitionedTopic(
+                queueSubscriptionName, fullQualifiedTopicName, overrideConsumerConfiguration);
+        readers.add(readerForBrowserForNonPartitionedTopic);
+      } else {
+        for (int i = 0; i < partitionedTopicMetadata.partitions; i++) {
+          String partitionName = fullQualifiedTopicName + "-partition-" + i;
+          Reader<?> readerForBrowserForNonPartitionedTopic =
+              createReaderForBrowserForNonPartitionedTopic(
+                  queueSubscriptionName, partitionName, overrideConsumerConfiguration);
+          readers.add(readerForBrowserForNonPartitionedTopic);
+        }
+      }
+      return readers;
+    } catch (PulsarAdminException err) {
+      throw Utils.handleException(err);
+    }
+  }
+
+  private Reader<?> createReaderForBrowserForNonPartitionedTopic(
+      String queueSubscriptionName,
+      String fullQualifiedTopicName,
+      ConsumerConfiguration overrideConsumerConfiguration)
+      throws JMSException {
+    try {
+
+      // peekMessages works only for non-partitioned topics
       List<Message<byte[]>> messages =
-          getPulsarAdmin()
-              .topics()
-              .peekMessages(fullQualifiedTopicName, getQueueSubscriptionName(destination), 1);
+          getPulsarAdmin().topics().peekMessages(fullQualifiedTopicName, queueSubscriptionName, 1);
 
       MessageId seekMessageId;
       if (messages.isEmpty()) {
@@ -1204,17 +1271,21 @@ public class PulsarConnectionFactory
       if (log.isDebugEnabled()) {
         log.debug("createBrowser {} at {}", fullQualifiedTopicName, seekMessageId);
       }
+
       ConsumerConfiguration consumerConfiguration =
           getConsumerConfiguration(overrideConsumerConfiguration);
       Schema<?> schema = consumerConfiguration.getConsumerSchema();
       if (schema == null) {
         schema = Schema.BYTES;
       }
+      Map<String, Object> readerConfiguration =
+          Utils.deepCopyMap(consumerConfiguration.getConsumerConfiguration());
+      readerConfiguration.remove("batchIndexAckEnabled");
       ReaderBuilder<?> builder =
           pulsarClient
               .newReader(schema)
               // these properties can be overridden by the configuration
-              .loadConf(consumerConfiguration.getConsumerConfiguration())
+              .loadConf(readerConfiguration)
               // these properties cannot be overwritten by the configuration
               .readerName("jms-queue-browser-" + UUID.randomUUID())
               .startMessageId(seekMessageId)

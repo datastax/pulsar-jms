@@ -18,8 +18,11 @@ package com.datastax.oss.pulsar.jms;
 import com.datastax.oss.pulsar.jms.selectors.SelectorSupport;
 import java.io.IOException;
 import java.util.Enumeration;
+import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 import javax.jms.JMSException;
 import javax.jms.Queue;
 import javax.jms.QueueBrowser;
@@ -28,23 +31,31 @@ import org.apache.pulsar.client.api.Reader;
 
 @Slf4j
 final class PulsarQueueBrowser implements QueueBrowser {
+
+  private static final int BROWSER_READ_TIMEOUT = 1000;
+
   private final PulsarSession session;
   private final PulsarQueue queue;
-  private final Reader<?> reader;
+  private final List<Reader<?>> readers;
   private final SelectorSupport selectorSupport;
+  private final SelectorSupport selectorSupportOnSubscription;
 
   public PulsarQueueBrowser(PulsarSession session, Queue queue, String selector)
       throws JMSException {
     session.checkNotClosed();
     this.session = session;
     this.queue = (PulsarQueue) queue;
-    this.reader =
+    AtomicReference<String> serverSideSelector = new AtomicReference<>();
+    this.readers =
         session
             .getFactory()
-            .createReaderForBrowser(this.queue, session.getOverrideConsumerConfiguration());
+            .createReadersForBrowser(
+                this.queue, session.getOverrideConsumerConfiguration(), serverSideSelector);
+
     // we are reading messages and it is always safe to apply selectors
     // on the client side
     this.selectorSupport = SelectorSupport.build(selector, true);
+    this.selectorSupportOnSubscription = SelectorSupport.build(serverSideSelector.get(), true);
   }
 
   /**
@@ -70,7 +81,82 @@ final class PulsarQueueBrowser implements QueueBrowser {
    */
   @Override
   public String getMessageSelector() throws JMSException {
+    String selector = internalGetMessageSelector();
+    String selectorOnSubscription = internalGetMessageSelectorFromSubscription();
+    if (selectorOnSubscription == null) {
+      return selector;
+    }
+    if (selector == null) {
+      return selectorOnSubscription;
+    }
+    return "(" + selectorOnSubscription + ") AND (" + selector + ")";
+  }
+
+  private synchronized String internalGetMessageSelector() {
     return selectorSupport != null ? selectorSupport.getSelector() : null;
+  }
+
+  private synchronized String internalGetMessageSelectorFromSubscription() {
+    return selectorSupportOnSubscription != null
+        ? selectorSupportOnSubscription.getSelector()
+        : null;
+  }
+
+  private class MessageEnumeration implements Enumeration {
+    private final Reader reader;
+
+    public MessageEnumeration(Reader reader) {
+      this.reader = reader;
+    }
+
+    PulsarMessage nextMessage;
+    boolean finished;
+
+    @Override
+    public boolean hasMoreElements() {
+      ensureNext();
+      return !finished;
+    }
+
+    @Override
+    public Object nextElement() {
+      if (!hasMoreElements()) {
+        throw new NoSuchElementException();
+      }
+      PulsarMessage res = nextMessage;
+      nextMessage = null;
+      return res;
+    }
+
+    private void ensureNext() {
+      Utils.runtimeException(
+          () -> {
+            while (!finished && nextMessage == null) {
+              if (!reader.hasMessageAvailable()) {
+                finished = true;
+                return;
+              } else {
+                nextMessage =
+                    PulsarMessage.decode(
+                        null, reader.readNext(BROWSER_READ_TIMEOUT, TimeUnit.MILLISECONDS));
+                if (nextMessage == null) {
+                  finished = true;
+                  return;
+                }
+                if (selectorSupport != null && !selectorSupport.matches(nextMessage)) {
+                  log.debug("skip non matching message {}", nextMessage);
+                  nextMessage = null;
+                } else if (selectorSupportOnSubscription != null
+                    && !selectorSupportOnSubscription.matches(nextMessage)) {
+                  log.debug("skip non matching message {}", nextMessage);
+                  nextMessage = null;
+                } else {
+                  return;
+                }
+              }
+            }
+          });
+    }
   }
 
   /**
@@ -83,52 +169,12 @@ final class PulsarQueueBrowser implements QueueBrowser {
    */
   @Override
   public Enumeration getEnumeration() throws JMSException {
-    return new Enumeration() {
-      PulsarMessage nextMessage;
-      boolean finished;
-
-      @Override
-      public boolean hasMoreElements() {
-        ensureNext();
-        return !finished;
-      }
-
-      @Override
-      public Object nextElement() {
-        if (!hasMoreElements()) {
-          throw new NoSuchElementException();
-        }
-        PulsarMessage res = nextMessage;
-        nextMessage = null;
-        return res;
-      }
-
-      private void ensureNext() {
-        Utils.runtimeException(
-            () -> {
-              while (!finished && nextMessage == null) {
-                if (!reader.hasMessageAvailable()) {
-                  finished = true;
-                  return;
-                } else {
-                  nextMessage =
-                      PulsarMessage.decode(null, reader.readNext(1000, TimeUnit.MILLISECONDS));
-                  if (nextMessage == null) {
-                    log.info("no message received from browser in time");
-                    finished = true;
-                    return;
-                  }
-                  if (selectorSupport != null && !selectorSupport.matches(nextMessage)) {
-                    log.info("skip non matching message {}", nextMessage);
-                    nextMessage = null;
-                  } else {
-                    return;
-                  }
-                }
-              }
-            });
-      }
-    };
+    if (readers.size() == 1) {
+      return new MessageEnumeration(readers.get(0));
+    }
+    List<MessageEnumeration> enumerations =
+        readers.stream().map(MessageEnumeration::new).collect(Collectors.toList());
+    return new CompositeEnumeration(enumerations);
   }
 
   /**
@@ -143,11 +189,15 @@ final class PulsarQueueBrowser implements QueueBrowser {
    */
   @Override
   public void close() throws JMSException {
-    try {
-      reader.close();
-    } catch (IOException err) {
+    for (Reader reader : readers) {
+      try {
+        reader.close();
+      } catch (IOException err) {
+      }
     }
     session.removeBrowser(this);
-    session.getFactory().removeReader(reader);
+    for (Reader reader : readers) {
+      session.getFactory().removeReader(reader);
+    }
   }
 }

@@ -27,6 +27,7 @@ import com.datastax.oss.pulsar.jms.messages.PulsarTextMessage;
 import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,15 +38,18 @@ import javax.jms.CompletionListener;
 import javax.jms.Message;
 import javax.jms.MessageProducer;
 import javax.jms.Queue;
+import javax.jms.QueueBrowser;
 import javax.jms.TextMessage;
 import javax.jms.Topic;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.pulsar.client.api.Consumer;
+import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.api.SubscriptionMode;
 import org.apache.pulsar.client.api.SubscriptionType;
 import org.apache.pulsar.client.impl.BatchMessageIdImpl;
 import org.apache.pulsar.common.policies.data.ManagedLedgerInternalStats;
+import org.apache.pulsar.common.policies.data.PartitionedTopicStats;
 import org.apache.pulsar.common.policies.data.PersistentTopicInternalStats;
 import org.apache.pulsar.common.policies.data.TopicStats;
 import org.apache.pulsar.common.util.FutureUtil;
@@ -732,7 +736,19 @@ public abstract class SelectorsTestsBase {
   }
 
   @Test
-  public void sendUsingExistingPulsarSubscriptionWithServerSideFilterForTopic() throws Exception {
+  public void sendUsingExistingPulsarSubscriptionWithServerSideFilterForPartitionedTopic()
+      throws Exception {
+    sendUsingExistingPulsarSubscriptionWithServerSideFilterForTopic(4);
+  }
+
+  @Test
+  public void sendUsingExistingPulsarSubscriptionWithServerSideFilterForNonPartitionedTopic()
+      throws Exception {
+    sendUsingExistingPulsarSubscriptionWithServerSideFilterForTopic(0);
+  }
+
+  private void sendUsingExistingPulsarSubscriptionWithServerSideFilterForTopic(int numPartitions)
+      throws Exception {
 
     assumeTrue(useServerSideFiltering);
 
@@ -742,8 +758,17 @@ public abstract class SelectorsTestsBase {
     // because it is always safe
     properties.put("jms.enableClientSideEmulation", "false");
 
-    String topicName = "topic-with-sub-" + useServerSideFiltering + "_" + enableBatching;
-    cluster.getService().getAdminClient().topics().createNonPartitionedTopic(topicName);
+    String topicName =
+        "topic-with-sub-" + useServerSideFiltering + "_" + enableBatching + "_" + numPartitions;
+    if (numPartitions > 0) {
+      cluster
+          .getService()
+          .getAdminClient()
+          .topics()
+          .createPartitionedTopic(topicName, numPartitions);
+    } else {
+      cluster.getService().getAdminClient().topics().createNonPartitionedTopic(topicName);
+    }
 
     String subscriptionName = "the-sub";
     String selector = "keepme = TRUE";
@@ -753,20 +778,12 @@ public abstract class SelectorsTestsBase {
     subscriptionProperties.put("jms.filtering", "true");
 
     // create a Subscription with a selector
-    try (Consumer<byte[]> dummy =
-        cluster
-            .getService()
-            .getClient()
-            .newConsumer()
-            .subscriptionName(subscriptionName)
-            .subscriptionType(SubscriptionType.Shared)
-            .subscriptionMode(SubscriptionMode.Durable)
-            .subscriptionProperties(subscriptionProperties)
-            .topic(topicName)
-            .subscribe()) {
-      // in 2.10 there is no PulsarAdmin API to set subscriptions properties
-      // the only way is to create a dummy Consumer
-    }
+    cluster
+        .getService()
+        .getAdminClient()
+        .topics()
+        .createSubscription(
+            topicName, subscriptionName, MessageId.earliest, false, subscriptionProperties);
 
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (PulsarConnection connection = factory.createConnection()) {
@@ -793,10 +810,27 @@ public abstract class SelectorsTestsBase {
               }
             }
 
-            for (int i = 0; i < 10; i++) {
-              if (i % 2 == 0) {
-                TextMessage textMessage = (TextMessage) consumer1.receive();
-                assertEquals("foo-" + i, textMessage.getText());
+            if (numPartitions == 0) {
+              // with a non partitioned topic we can expect some order (even if it is not required)
+              for (int i = 0; i < 10; i++) {
+                if (i % 2 == 0) {
+                  TextMessage textMessage = (TextMessage) consumer1.receive();
+                  assertEquals("foo-" + i, textMessage.getText());
+                }
+              }
+            } else {
+              // with a partitioned topic we don't have control over ordering
+              List<String> received = new ArrayList<>();
+              for (int i = 0; i < 10; i++) {
+                if (i % 2 == 0) {
+                  TextMessage textMessage = (TextMessage) consumer1.receive();
+                  received.add(textMessage.getText());
+                }
+              }
+              for (int i = 0; i < 10; i++) {
+                if (i % 2 == 0) {
+                  assertTrue(received.contains("foo-" + i));
+                }
               }
             }
 
@@ -812,7 +846,19 @@ public abstract class SelectorsTestsBase {
   }
 
   @Test
-  public void sendUsingExistingPulsarSubscriptionWithServerSideFilterForQueue() throws Exception {
+  public void sendUsingExistingPulsarSubscriptionWithServerSideFilterForNonPartitionedQueue()
+      throws Exception {
+    sendUsingExistingPulsarSubscriptionWithServerSideFilterForQueue(0);
+  }
+
+  @Test
+  public void sendUsingExistingPulsarSubscriptionWithServerSideFilterForPartitionedQueue()
+      throws Exception {
+    sendUsingExistingPulsarSubscriptionWithServerSideFilterForQueue(4);
+  }
+
+  private void sendUsingExistingPulsarSubscriptionWithServerSideFilterForQueue(int numPartitions)
+      throws Exception {
 
     assumeTrue(useServerSideFiltering);
 
@@ -823,8 +869,19 @@ public abstract class SelectorsTestsBase {
     properties.put("jms.enableClientSideEmulation", "false");
 
     String topicName =
-        "sendUsingExistingPulsarSubscriptionWithServerSideFilterForQueue_" + enableBatching;
-    cluster.getService().getAdminClient().topics().createNonPartitionedTopic(topicName);
+        "sendUsingExistingPulsarSubscriptionWithServerSideFilterForQueue_"
+            + enableBatching
+            + "_"
+            + numPartitions;
+    if (numPartitions > 0) {
+      cluster
+          .getService()
+          .getAdminClient()
+          .topics()
+          .createPartitionedTopic(topicName, numPartitions);
+    } else {
+      cluster.getService().getAdminClient().topics().createNonPartitionedTopic(topicName);
+    }
 
     String subscriptionName = "the-sub";
     String selector = "keepme = TRUE";
@@ -834,23 +891,18 @@ public abstract class SelectorsTestsBase {
     subscriptionProperties.put("jms.filtering", "true");
 
     // create a Subscription with a selector
-    try (Consumer<byte[]> dummy =
-        cluster
-            .getService()
-            .getClient()
-            .newConsumer()
-            .subscriptionName(
-                topicName
-                    + ":"
-                    + subscriptionName) // real subscription name is short topic name + subname
-            .subscriptionType(SubscriptionType.Shared)
-            .subscriptionMode(SubscriptionMode.Durable)
-            .subscriptionProperties(subscriptionProperties)
-            .topic(topicName)
-            .subscribe()) {
-      // in 2.10 there is no PulsarAdmin API to set subscriptions properties
-      // the only way is to create a dummy Consumer
-    }
+    cluster
+        .getService()
+        .getAdminClient()
+        .topics()
+        .createSubscription(
+            topicName,
+            topicName
+                + ":"
+                + subscriptionName, // real subscription name is short topic name + subname
+            MessageId.earliest,
+            false,
+            subscriptionProperties);
 
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (PulsarConnection connection = factory.createConnection()) {
@@ -877,10 +929,39 @@ public abstract class SelectorsTestsBase {
               }
             }
 
-            for (int i = 0; i < 10; i++) {
-              if (i % 2 == 0) {
-                TextMessage textMessage = (TextMessage) consumer1.receive();
-                assertEquals("foo-" + i, textMessage.getText());
+            // test QueueBrowser with server-side filters
+            try (QueueBrowser browser = session.createBrowser(destination)) {
+              // this is downloaded from the server
+              assertEquals(selector, browser.getMessageSelector());
+              int count = 0;
+              for (Enumeration e = browser.getEnumeration(); e.hasMoreElements(); ) {
+                TextMessage message = (TextMessage) e.nextElement();
+                count++;
+              }
+              assertEquals(5, count);
+            }
+
+            if (numPartitions == 0) {
+              // with a non partitioned topic we can expect some order (even if it is not required)
+              for (int i = 0; i < 10; i++) {
+                if (i % 2 == 0) {
+                  TextMessage textMessage = (TextMessage) consumer1.receive();
+                  assertEquals("foo-" + i, textMessage.getText());
+                }
+              }
+            } else {
+              // with a partitioned topic we don't have control over ordering
+              List<String> received = new ArrayList<>();
+              for (int i = 0; i < 10; i++) {
+                if (i % 2 == 0) {
+                  TextMessage textMessage = (TextMessage) consumer1.receive();
+                  received.add(textMessage.getText());
+                }
+              }
+              for (int i = 0; i < 10; i++) {
+                if (i % 2 == 0) {
+                  assertTrue(received.contains("foo-" + i));
+                }
               }
             }
 
@@ -892,9 +973,15 @@ public abstract class SelectorsTestsBase {
           }
         }
 
-        // ensure subscription exists
-        TopicStats stats = cluster.getService().getAdminClient().topics().getStats(topicName);
-        assertNotNull(stats.getSubscriptions().get(topicName + ":" + subscriptionName));
+        if (numPartitions == 0) {
+          // ensure subscription exists
+          TopicStats stats = cluster.getService().getAdminClient().topics().getStats(topicName);
+          assertNotNull(stats.getSubscriptions().get(topicName + ":" + subscriptionName));
+        } else {
+          PartitionedTopicStats stats =
+              cluster.getService().getAdminClient().topics().getPartitionedStats(topicName, false);
+          assertNotNull(stats.getSubscriptions().get(topicName + ":" + subscriptionName));
+        }
       }
     }
   }
