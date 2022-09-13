@@ -25,11 +25,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import javax.jms.Connection;
+import javax.jms.Destination;
 import javax.jms.JMSException;
 import javax.jms.Message;
 import javax.jms.MessageConsumer;
 import javax.jms.MessageProducer;
-import javax.jms.Queue;
 import javax.jms.Session;
 import javax.jms.Topic;
 import lombok.extern.slf4j.Slf4j;
@@ -58,7 +58,7 @@ public class DeadLetterQueueTest {
   }
 
   @Test
-  public void deadLetterTest() throws Exception {
+  public void deadLetterTestForQueue() throws Exception {
 
     // basic test
     String topic = "persistent://public/default/test-" + UUID.randomUUID();
@@ -83,7 +83,35 @@ public class DeadLetterQueueTest {
     // while creating the producer to the DQL topic
     deadLetterPolicy.put("initialSubscriptionName", "dqlsub");
 
-    performTest(topic, deadLetterTopic, properties);
+    performTest(topic, deadLetterTopic, properties, false);
+  }
+
+  @Test
+  public void deadLetterTestForTopic() throws Exception {
+
+    // basic test
+    String topic = "persistent://public/default/test-" + UUID.randomUUID();
+    // this name is automatic, but you can configure it
+    // https://pulsar.apache.org/docs/concepts-messaging/#dead-letter-topic
+    String topicSubscriptionName = "thesub";
+    String deadLetterTopic = topic + "-" + topicSubscriptionName + "-DLQ";
+
+    Map<String, Object> properties = new HashMap<>();
+    properties.put("webServiceUrl", cluster.getAddress());
+
+    Map<String, Object> consumerConfig = new HashMap<>();
+    properties.put("consumerConfig", consumerConfig);
+
+    consumerConfig.put("ackTimeoutMillis", 1000);
+
+    Map<String, Object> deadLetterPolicy = new HashMap<>();
+    consumerConfig.put("deadLetterPolicy", deadLetterPolicy);
+    deadLetterPolicy.put("maxRedeliverCount", 1);
+    // this is the name of a subscription that is created
+    // while creating the producer to the DQL topic
+    deadLetterPolicy.put("initialSubscriptionName", "dqlsub");
+
+    performTest(topic, deadLetterTopic, properties, true, topicSubscriptionName);
   }
 
   @Test
@@ -120,38 +148,53 @@ public class DeadLetterQueueTest {
     ackTimeoutRedeliveryBackoff.put("maxDelayMs", 100);
     ackTimeoutRedeliveryBackoff.put("multiplier", 2.0);
 
-    performTest(topic, deadLetterTopic, properties);
+    performTest(topic, deadLetterTopic, properties, false);
   }
 
-  private void performTest(String topic, String deadLetterTopic, Map<String, Object> properties)
+  private void performTest(
+      String topic, String deadLetterTopic, Map<String, Object> properties, boolean useTopic)
+      throws JMSException {
+    performTest(topic, deadLetterTopic, properties, useTopic, null);
+  }
+
+  private void performTest(
+      String topic,
+      String deadLetterTopic,
+      Map<String, Object> properties,
+      boolean useTopic,
+      String topicSubscriptionName)
       throws JMSException {
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
         connection.start();
         try (Session session = connection.createSession(Session.CLIENT_ACKNOWLEDGE); ) {
-          Queue destination = session.createQueue(topic);
+          Destination destination =
+              useTopic ? session.createTopic(topic) : session.createQueue(topic);
 
-          try (MessageProducer producer = session.createProducer(destination); ) {
-            producer.send(session.createTextMessage("foo"));
-          }
-
-          try (MessageConsumer consumer1 = session.createConsumer(destination); ) {
-
-            Message message = consumer1.receive();
-            assertEquals("foo", message.getBody(String.class));
-            assertEquals(1, message.getIntProperty("JMSXDeliveryCount"));
-            assertFalse(message.getJMSRedelivered());
-
-            // message is re-delivered again after ackTimeoutMillis
-            message = consumer1.receive();
-            assertEquals("foo", message.getBody(String.class));
-            assertEquals(2, message.getIntProperty("JMSXDeliveryCount"));
-            assertTrue(message.getJMSRedelivered());
+          try (MessageConsumer consumer1 =
+              useTopic
+                  ? session.createSharedConsumer((Topic) destination, topicSubscriptionName)
+                  : session.createConsumer(destination)) {
 
             Topic destinationDeadletter = session.createTopic(deadLetterTopic);
 
             try (MessageConsumer consumerDeadLetter =
                 session.createSharedConsumer(destinationDeadletter, "dqlsub"); ) {
+
+              try (MessageProducer producer = session.createProducer(destination); ) {
+                producer.send(session.createTextMessage("foo"));
+              }
+
+              Message message = consumer1.receive();
+              assertEquals("foo", message.getBody(String.class));
+              assertEquals(1, message.getIntProperty("JMSXDeliveryCount"));
+              assertFalse(message.getJMSRedelivered());
+
+              // message is re-delivered again after ackTimeoutMillis
+              message = consumer1.receive();
+              assertEquals("foo", message.getBody(String.class));
+              assertEquals(2, message.getIntProperty("JMSXDeliveryCount"));
+              assertTrue(message.getJMSRedelivered());
 
               message = consumerDeadLetter.receive();
               assertEquals("foo", message.getBody(String.class));
