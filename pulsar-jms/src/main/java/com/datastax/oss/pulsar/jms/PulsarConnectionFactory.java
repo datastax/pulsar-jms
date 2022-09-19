@@ -67,8 +67,6 @@ import org.apache.pulsar.client.api.SubscriptionType;
 import org.apache.pulsar.client.api.TopicMetadata;
 import org.apache.pulsar.client.impl.auth.AuthenticationToken;
 import org.apache.pulsar.common.partition.PartitionedTopicMetadata;
-import org.apache.pulsar.common.policies.data.PartitionedTopicStats;
-import org.apache.pulsar.common.policies.data.SubscriptionStats;
 
 @Slf4j
 public class PulsarConnectionFactory
@@ -1167,43 +1165,56 @@ public class PulsarConnectionFactory
       String subscriptionName,
       SubscriptionMode subscriptionMode,
       AtomicReference<String> selectorOnSubscriptionReceiver)
-      throws PulsarAdminException {
-    if (isUseServerSideFiltering() && subscriptionMode == SubscriptionMode.Durable) {
+      throws PulsarAdminException, JMSException {
+    if (!isUseServerSideFiltering() || subscriptionMode != SubscriptionMode.Durable) {
+      return;
+    }
+    long start = System.currentTimeMillis();
+    while (true) {
       try {
-        Map<String, ? extends SubscriptionStats> subscriptions = null;
-        try {
-          PartitionedTopicStats partitionedStats =
-              pulsarAdmin.topics().getPartitionedStats(fullQualifiedTopicName, false);
-          subscriptions = partitionedStats.getSubscriptions();
-        } catch (PulsarAdminException.NotFoundException notFoundOrNonPartitioned) {
-        }
-        if (subscriptions == null) {
-          subscriptions = pulsarAdmin.topics().getStats(fullQualifiedTopicName).getSubscriptions();
-        }
-        SubscriptionStats subscriptionStats = subscriptions.get(subscriptionName);
-        if (subscriptionStats != null) {
-          Map<String, String> subscriptionPropertiesFromBroker =
-              subscriptionStats.getSubscriptionProperties();
-          if (subscriptionPropertiesFromBroker != null) {
-            log.debug("subscriptionPropertiesFromBroker {}", subscriptionPropertiesFromBroker);
-            boolean filtering =
-                "true".equals(subscriptionPropertiesFromBroker.get("jms.filtering"));
-            if (filtering) {
-              String selectorOnSubscription =
-                  subscriptionPropertiesFromBroker.getOrDefault("jms.selector", "");
-              if (!selectorOnSubscription.isEmpty()) {
-                log.info(
-                    "Detected selector {} on Subscription {} on topic {}",
-                    selectorOnSubscription,
-                    subscriptionName,
-                    fullQualifiedTopicName);
-                selectorOnSubscriptionReceiver.set(selectorOnSubscription);
-              }
+        Map<String, String> subscriptionPropertiesFromBroker =
+            pulsarAdmin
+                .topics()
+                .getSubscriptionProperties(fullQualifiedTopicName, subscriptionName);
+        if (subscriptionPropertiesFromBroker != null) {
+          log.debug("subscriptionPropertiesFromBroker {}", subscriptionPropertiesFromBroker);
+          boolean filtering = "true".equals(subscriptionPropertiesFromBroker.get("jms.filtering"));
+          if (filtering) {
+            String selectorOnSubscription =
+                subscriptionPropertiesFromBroker.getOrDefault("jms.selector", "");
+            if (!selectorOnSubscription.isEmpty()) {
+              log.info(
+                  "Detected selector {} on Subscription {} on topic {}",
+                  selectorOnSubscription,
+                  subscriptionName,
+                  fullQualifiedTopicName);
+              selectorOnSubscriptionReceiver.set(selectorOnSubscription);
             }
           }
         }
+        return;
       } catch (PulsarAdminException.NotFoundException notFoundException) {
-        log.info("Topic not found, cannot download server-side filters {}", fullQualifiedTopicName);
+        log.debug(
+            "Topic not found, cannot download server-side filters {}", fullQualifiedTopicName);
+        return;
+      } catch (PulsarAdminException.PreconditionFailedException notReady) {
+        // special handling for "PreconditionFailedException: Can't find owner for topic
+        // persistent://xxx/xx/xxxx"
+        long now = System.currentTimeMillis();
+        if (now - start > getWaitForServerStartupTimeout()) {
+          throw Utils.handleException(notReady);
+        } else {
+          log.info(
+              "Temporary error, cannot download server-side filters {}: {}",
+              fullQualifiedTopicName,
+              notReady + "");
+          try {
+            Thread.sleep(1000);
+          } catch (InterruptedException interruptedException) {
+            Thread.currentThread().interrupt();
+            throw Utils.handleException(notReady);
+          }
+        }
       }
     }
   }
