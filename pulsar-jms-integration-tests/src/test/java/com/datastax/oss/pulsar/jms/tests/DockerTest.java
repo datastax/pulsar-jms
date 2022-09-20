@@ -66,7 +66,7 @@ public class DockerTest {
   @Test
   public void testLunaStreaming210() throws Exception {
     // waiting for Apache Pulsar 2.10.1, in the meantime we use Luna Streaming 2.10.0.x
-    test("datastax/lunastreaming:2.10_0.6", false);
+    test("datastax/lunastreaming:2.10_1.6", false);
   }
 
   @Test
@@ -82,13 +82,13 @@ public class DockerTest {
   @Test
   public void testLunaStreaming210Transactions() throws Exception {
     // waiting for Apache Pulsar 2.10.1, in the meantime we use Luna Streaming 2.10.0.x
-    test("datastax/lunastreaming:2.10_0.6", true);
+    test("datastax/lunastreaming:2.10_1.6", true);
   }
 
   @Test
   public void testLunaStreaming210ServerSideSelectors() throws Exception {
     // waiting for Apache Pulsar 2.10.1, in the meantime we use Luna Streaming 2.10.0.6
-    test("datastax/lunastreaming:2.10_0.6", false, true);
+    test("datastax/lunastreaming:2.10_1.6", false, true);
   }
 
   @Test
