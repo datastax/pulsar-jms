@@ -41,6 +41,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 import javax.jms.*;
 import javax.jms.IllegalStateException;
+
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.admin.PulsarAdmin;
 import org.apache.pulsar.client.admin.PulsarAdminException;
@@ -1350,6 +1352,7 @@ public class PulsarConnectionFactory
     readers.remove(reader);
   }
 
+  @SuppressFBWarnings("REC_CATCH_EXCEPTION")
   public boolean deleteSubscription(PulsarDestination destination, String name)
       throws JMSException {
     String systemNamespace = getSystemNamespace();
