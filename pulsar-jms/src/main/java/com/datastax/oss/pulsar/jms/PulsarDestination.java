@@ -78,10 +78,24 @@ public abstract class PulsarDestination implements Destination {
     if (withoutPrefix.isEmpty()) {
       throw new InvalidDestinationException("Invalid destination " + topicName);
     }
+    String customSubscription = extractSubscriptionName(false);
+    if (customSubscription != null) {
+      withoutPrefix = withoutPrefix.substring(0, withoutPrefix.length() - customSubscription.length() - 1);
+    }
     String[] split = withoutPrefix.split(",");
     List<PulsarDestination> destinations = new ArrayList<>(split.length);
     for (String part : split) {
-      destinations.add(createSameType(part));
+      if (part.isEmpty()) {
+        throw new InvalidDestinationException("Invalid destination " + topicName);
+      }
+      if (customSubscription != null) {
+        destinations.add(createSameType(part + ":" + customSubscription));
+      } else {
+        destinations.add(createSameType(part));
+      }
+    }
+    if (destinations.isEmpty()) {
+      throw new InvalidDestinationException("Invalid destination " + topicName);
     }
     return destinations;
   }
