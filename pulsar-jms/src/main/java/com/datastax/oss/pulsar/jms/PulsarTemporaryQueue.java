@@ -21,7 +21,8 @@ import javax.jms.TemporaryQueue;
 
 class PulsarTemporaryQueue extends PulsarTemporaryDestination implements TemporaryQueue {
 
-  public PulsarTemporaryQueue(String topicName, PulsarSession session) throws InvalidDestinationException {
+  public PulsarTemporaryQueue(String topicName, PulsarSession session)
+      throws InvalidDestinationException {
     super(topicName, session);
   }
 

@@ -19,6 +19,7 @@ import static com.datastax.oss.pulsar.jms.Utils.getAndRemoveString;
 import static org.apache.pulsar.client.util.MathUtils.signSafeMod;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
@@ -38,12 +39,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.jms.*;
 import javax.jms.IllegalStateException;
-
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.admin.PulsarAdmin;
 import org.apache.pulsar.client.admin.PulsarAdminException;
@@ -1012,6 +1010,7 @@ public class PulsarConnectionFactory
       }
       return;
     }
+
     long start = System.currentTimeMillis();
 
     // please note that in the special jms-queue subscription we cannot
@@ -1130,11 +1129,11 @@ public class PulsarConnectionFactory
       }
       // for queues we have a single shared subscription
       String subscriptionName =
-              destination.isQueue() ? getQueueSubscriptionName(destination) : consumerName;
+          destination.isQueue() ? getQueueSubscriptionName(destination) : consumerName;
       SubscriptionInitialPosition initialPosition =
-              destination.isTopic()
-                      ? SubscriptionInitialPosition.Latest
-                      : SubscriptionInitialPosition.Earliest;
+          destination.isTopic()
+              ? SubscriptionInitialPosition.Latest
+              : SubscriptionInitialPosition.Earliest;
       ConsumerBuilder<?> builder =
           pulsarClient
               .newConsumer(schema)
@@ -1268,7 +1267,8 @@ public class PulsarConnectionFactory
       throws JMSException {
 
     if (destination.isVirtualDestination()) {
-      throw new InvalidDestinationException("QueueBrowser is not supported for virtual destinations");
+      throw new InvalidDestinationException(
+          "QueueBrowser is not supported for virtual destinations");
     }
 
     String fullQualifiedTopicName = getPulsarTopicName(destination);

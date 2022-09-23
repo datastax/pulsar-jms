@@ -21,7 +21,8 @@ import javax.jms.TemporaryTopic;
 
 class PulsarTemporaryTopic extends PulsarTemporaryDestination implements TemporaryTopic {
 
-  public PulsarTemporaryTopic(String topicName, PulsarSession session) throws InvalidDestinationException {
+  public PulsarTemporaryTopic(String topicName, PulsarSession session)
+      throws InvalidDestinationException {
     super(topicName, session);
   }
 

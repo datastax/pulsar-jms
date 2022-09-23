@@ -30,7 +30,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 import javax.jms.Connection;
 import javax.jms.InvalidDestinationException;
 import javax.jms.MessageConsumer;
@@ -48,7 +47,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 @Slf4j
-public class VirtualDestinationsConsumerTest {
+public class MultiTopicConsumerTest {
 
   @TempDir public static Path tempDir;
   private static PulsarCluster cluster;
@@ -73,26 +72,16 @@ public class VirtualDestinationsConsumerTest {
   }
 
   @Test
-  public void testMultiTopicNonPartitionedRegExp() throws Exception {
-    testMultiTopic(0, true);
+  public void testMultiTopicNonPartitioned() throws Exception {
+    testMultiTopic(0);
   }
 
   @Test
-  public void testMultiTopicPartitionedRegExp() throws Exception {
-    testMultiTopic(4, true);
+  public void testMultiTopicPartitioned() throws Exception {
+    testMultiTopic(4);
   }
 
-  @Test
-  public void testMultiTopicNonPartitionedMulti() throws Exception {
-    testMultiTopic(0, false);
-  }
-
-  @Test
-  public void testMultiTopicPartitionedMulti() throws Exception {
-    testMultiTopic(4, false);
-  }
-
-  private void testMultiTopic(int numPartitions, boolean useRegExp) throws Exception {
+  private void testMultiTopic(int numPartitions) throws Exception {
     int numMessagesPerDestination = 10;
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
@@ -127,22 +116,10 @@ public class VirtualDestinationsConsumerTest {
             }
           }
 
-          Queue destination;
-          if (useRegExp) {
-            destination =
-                session.createQueue("regex:persistent://public/default/test-" + prefix + "-.*");
-          } else {
-            String url =
-                destinationsToWrite
-                    .stream()
-                    .map(d -> Utils.runtimeException(() -> d.getTopicName()))
-                    .collect(Collectors.joining(",", "multi:", ""));
-            destination = session.createQueue(url);
-          }
+          Queue destination =
+              session.createQueue("regex:persistent://public/default/test-" + prefix + "-.*");
           PulsarDestination asPulsarDestination = (PulsarDestination) destination;
-          assertTrue(asPulsarDestination.isVirtualDestination());
-          assertEquals(!useRegExp, asPulsarDestination.isMultiTopic());
-          assertEquals(useRegExp, asPulsarDestination.isRegExp());
+          assertTrue(asPulsarDestination.isRegExp());
 
           try (MessageConsumer consumer = session.createConsumer(destination); ) {
             for (int i = 0; i < count; i++) {

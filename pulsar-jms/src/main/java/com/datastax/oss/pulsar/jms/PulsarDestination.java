@@ -52,7 +52,8 @@ public abstract class PulsarDestination implements Destination {
       return topicName.substring("regex:".length());
     }
     if (isMultiTopic()) {
-      throw new InvalidDestinationException("Cannot get internal topic name for a multi-topic destination");
+      throw new InvalidDestinationException(
+          "Cannot get internal topic name for a multi-topic destination");
     }
     return topicName;
   }
@@ -80,14 +81,14 @@ public abstract class PulsarDestination implements Destination {
     String[] split = withoutPrefix.split(",");
     List<PulsarDestination> destinations = new ArrayList<>(split.length);
     for (String part : split) {
-        destinations.add(createSameType(part));
+      destinations.add(createSameType(part));
     }
     return destinations;
   }
 
   protected PulsarDestination createSameType(String topicName) throws InvalidDestinationException {
-    throw new InvalidDestinationException("Multi topic syntax is not allowed " +
-            "for this kind of destination (" + getClass() + ")");
+    throw new InvalidDestinationException(
+        "Multi topic syntax is not allowed " + "for this kind of destination (" + getClass() + ")");
   }
 
   public abstract boolean isQueue();

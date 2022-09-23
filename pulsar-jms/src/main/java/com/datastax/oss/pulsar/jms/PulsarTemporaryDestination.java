@@ -25,7 +25,8 @@ abstract class PulsarTemporaryDestination extends PulsarDestination {
 
   private final PulsarSession session;
 
-  public PulsarTemporaryDestination(String topicName, PulsarSession session) throws InvalidDestinationException {
+  public PulsarTemporaryDestination(String topicName, PulsarSession session)
+      throws InvalidDestinationException {
     super(topicName);
     this.session = session;
     if (isVirtualDestination()) {

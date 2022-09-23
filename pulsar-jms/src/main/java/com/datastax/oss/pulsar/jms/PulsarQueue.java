@@ -89,6 +89,7 @@ public final class PulsarQueue extends PulsarDestination implements Queue {
     if (shortTopicName.startsWith("multi:")) {
       shortTopicName = shortTopicName.substring("multi:".length());
     }
+
     if (shortTopicName.startsWith("regex:")) {
       shortTopicName = shortTopicName.substring("regex:".length());
     }
