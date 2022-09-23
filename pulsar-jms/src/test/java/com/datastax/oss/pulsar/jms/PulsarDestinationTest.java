@@ -17,32 +17,64 @@ package com.datastax.oss.pulsar.jms;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import javax.jms.InvalidDestinationException;
 import org.junit.jupiter.api.Test;
 
 public class PulsarDestinationTest {
 
   @Test
-  public void testExtractSubscriptionNameForTopic() {
+  public void testExtractSubscriptionNameForTopic() throws Exception {
     PulsarTopic topic = new PulsarTopic("test");
-    assertNull(topic.extractSubscriptionName());
+    assertNull(topic.extractSubscriptionName(false));
 
     topic = new PulsarTopic("test:sub");
-    assertNull(topic.extractSubscriptionName());
+    assertNull(topic.extractSubscriptionName(false));
+    assertNull(topic.extractSubscriptionName(true));
   }
 
   @Test
-  public void testExtractSubscriptionNameForQueue() {
+  public void testExtractSubscriptionNameForQueuePrependName() throws Exception {
     PulsarQueue topic = new PulsarQueue("test");
-    assertNull(topic.extractSubscriptionName());
+    assertNull(topic.extractSubscriptionName(true));
 
     topic = new PulsarQueue("test:sub");
-    assertEquals("test:sub", topic.extractSubscriptionName());
+    assertEquals("test:sub", topic.extractSubscriptionName(true));
 
     topic = new PulsarQueue("test:sub");
-    assertEquals("test:sub", topic.extractSubscriptionName());
+    assertEquals("test:sub", topic.extractSubscriptionName(true));
 
     topic = new PulsarQueue("persistent://public/default/test:sub");
-    assertEquals("test:sub", topic.extractSubscriptionName());
+    assertEquals("test:sub", topic.extractSubscriptionName(true));
+
+    assertThrows(
+        InvalidDestinationException.class,
+        () -> {
+          PulsarQueue topic2 = new PulsarQueue("persistent://public/default/test:");
+          topic2.extractSubscriptionName(true);
+        });
+  }
+
+  @Test
+  public void testExtractSubscriptionNameForQueue() throws Exception {
+    PulsarQueue topic = new PulsarQueue("test");
+    assertNull(topic.extractSubscriptionName(false));
+
+    topic = new PulsarQueue("test:sub");
+    assertEquals("sub", topic.extractSubscriptionName(false));
+
+    topic = new PulsarQueue("test:sub");
+    assertEquals("sub", topic.extractSubscriptionName(false));
+
+    topic = new PulsarQueue("persistent://public/default/test:sub");
+    assertEquals("sub", topic.extractSubscriptionName(false));
+
+    assertThrows(
+        InvalidDestinationException.class,
+        () -> {
+          PulsarQueue topic2 = new PulsarQueue("persistent://public/default/test:");
+          topic2.extractSubscriptionName(false);
+        });
   }
 }

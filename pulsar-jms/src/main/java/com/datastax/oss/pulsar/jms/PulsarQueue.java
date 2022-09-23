@@ -15,6 +15,7 @@
  */
 package com.datastax.oss.pulsar.jms;
 
+import javax.jms.InvalidDestinationException;
 import javax.jms.JMSException;
 import javax.jms.Queue;
 
@@ -55,19 +56,33 @@ public final class PulsarQueue extends PulsarDestination implements Queue {
    *
    * @return the subscription name, if present
    */
-  public String extractSubscriptionName() {
+  public String extractSubscriptionName(boolean prependTopicNameToCustomQueueSubscriptionName)
+      throws InvalidDestinationException {
+    // only valid cases
+    // queue:subscription
+    // persistent://public/default/queue:subscription
     int pos = topicName.lastIndexOf(":");
     if (pos < 0) {
       return null;
     }
-    // only valid cases
-    // queue:subscription
-    // persistent://public/default/queue:subscription
-    int slash = topicName.lastIndexOf("/");
+    String subscriptionName = topicName.substring(pos + 1);
+    if (subscriptionName.isEmpty()) {
+      throw new InvalidDestinationException(
+          "Subscription name cannot be empty, original topic name is " + topicName);
+    }
+
+    // return only the "subscription" part
+    if (!prependTopicNameToCustomQueueSubscriptionName) {
+      return subscriptionName;
+    }
+
+    // prepend the topic name:
     // we include the short topic name in the subscription name
     // because in Pulsar subscription level permissions are namespace scoped
     // and not topic-scoped, so it is better that the subscription name
     // is unique in the scope of a namespace
+    int slash = topicName.lastIndexOf("/");
+
     if (slash < 0 || slash < pos) {
       if (slash < 0) {
         // queue:subscription

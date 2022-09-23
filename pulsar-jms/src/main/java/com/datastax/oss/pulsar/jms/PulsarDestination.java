@@ -17,6 +17,7 @@ package com.datastax.oss.pulsar.jms;
 
 import java.util.Objects;
 import javax.jms.Destination;
+import javax.jms.InvalidDestinationException;
 
 public abstract class PulsarDestination implements Destination {
   protected String topicName;
@@ -38,7 +39,8 @@ public abstract class PulsarDestination implements Destination {
    *
    * @return the subscription name, if present.
    */
-  public String extractSubscriptionName() {
+  public String extractSubscriptionName(boolean prependTopicNameToCustomQueueSubscriptionName)
+      throws InvalidDestinationException {
     return null;
   }
 
