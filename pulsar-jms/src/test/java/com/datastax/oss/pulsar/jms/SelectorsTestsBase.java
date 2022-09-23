@@ -829,9 +829,10 @@ public abstract class SelectorsTestsBase {
               }
               for (int i = 0; i < 10; i++) {
                 if (i % 2 == 0) {
-                  assertTrue(received.contains("foo-" + i));
+                  assertTrue(received.remove("foo-" + i));
                 }
               }
+              assertTrue(received.isEmpty());
             }
 
             assertEquals(5, consumer1.getReceivedMessages());

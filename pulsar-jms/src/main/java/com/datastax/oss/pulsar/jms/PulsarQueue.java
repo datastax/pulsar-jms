@@ -58,51 +58,93 @@ public final class PulsarQueue extends PulsarDestination implements Queue {
    */
   public String extractSubscriptionName(boolean prependTopicNameToCustomQueueSubscriptionName)
       throws InvalidDestinationException {
+
     // only valid cases
-    // queue:subscription
+    // regexp:persistent://public/default/queue:subscription
+    // regexp:non-persistent://public/default/queue:subscription
+    // regexp:public/default/queue:subscription
+    // regexp:queue:subscription
     // persistent://public/default/queue:subscription
-    int pos = topicName.lastIndexOf(":");
+    // non-persistent://public/default/queue:subscription
+    // public/default/queue:subscription
+    // queue:subscription
+
+    // regexp:persistent://public/default/queue
+    // regexp:non-persistent://public/default/queue
+    // regexp:public/default/queue
+    // regexp:queue
+    // persistent://public/default/queue
+    // non-persistent://public/default/queue
+    // public/default/queue
+    // queue
+
+    String shortTopicName = topicName;
+
+    if (shortTopicName.startsWith("regex:")) {
+      shortTopicName = shortTopicName.substring("regex:".length());
+    }
+    int endSchema = shortTopicName.indexOf("://");
+    if (endSchema > 0) {
+      shortTopicName = shortTopicName.substring(endSchema + 3);
+    }
+    int lastSlash = shortTopicName.lastIndexOf('/');
+    if (lastSlash > 0) {
+      shortTopicName = shortTopicName.substring(lastSlash + 1);
+    }
+
+    // here we have only
+    // queue
+    // queue:subscription
+
+    int pos = shortTopicName.lastIndexOf(":");
     if (pos < 0) {
       return null;
     }
-    String subscriptionName = topicName.substring(pos + 1);
+    String subscriptionName = shortTopicName.substring(pos + 1);
     if (subscriptionName.isEmpty()) {
-      throw new InvalidDestinationException(
-          "Subscription name cannot be empty, original topic name is " + topicName);
+      throw new InvalidDestinationException("Subscription name cannot be empty");
     }
-
-    // return only the "subscription" part
-    if (!prependTopicNameToCustomQueueSubscriptionName) {
+    if (prependTopicNameToCustomQueueSubscriptionName) {
+      return shortTopicName;
+    } else {
       return subscriptionName;
     }
-
-    // prepend the topic name:
-    // we include the short topic name in the subscription name
-    // because in Pulsar subscription level permissions are namespace scoped
-    // and not topic-scoped, so it is better that the subscription name
-    // is unique in the scope of a namespace
-    int slash = topicName.lastIndexOf("/");
-
-    if (slash < 0 || slash < pos) {
-      if (slash < 0) {
-        // queue:subscription
-        return topicName;
-      } else {
-        // persistent://public/default/queue:subscription
-        return topicName.substring(slash + 1);
-      }
-    }
-    return null;
   }
 
+  /**
+   * return the topic name, without the embedded subscription
+   *
+   * @return
+   */
   public String getInternalTopicName() {
+    String topicName = this.topicName;
+    // regexp:persistent://public/default/queue:subscription
+    // regexp:non-persistent://public/default/queue:subscription
+    // regexp:public/default/queue:subscription
+    // regexp:queue:subscription
+    // persistent://public/default/queue:subscription
+    // non-persistent://public/default/queue:subscription
+    // public/default/queue:subscription
+    // queue:subscription
+
+    // regexp:persistent://public/default/queue
+    // regexp:non-persistent://public/default/queue
+    // regexp:public/default/queue
+    // regexp:queue
+    // persistent://public/default/queue
+    // non-persistent://public/default/queue
+    // public/default/queue
+    // queue
+
+    if (topicName.startsWith("regex:")) {
+      topicName = topicName.substring("regex:".length());
+    }
+    // no colon, early exit
     int pos = topicName.lastIndexOf(":");
     if (pos < 0) {
       return topicName;
     }
-    // only valid cases
-    // queue:subscription
-    // persistent://public/default/queue:subscription
+
     int slash = topicName.lastIndexOf("/");
     if (slash < 0 || slash < pos) {
       return topicName.substring(0, pos);

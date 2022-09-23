@@ -38,10 +38,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import javax.jms.*;
 import javax.jms.IllegalStateException;
+
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.admin.PulsarAdmin;
 import org.apache.pulsar.client.admin.PulsarAdminException;
@@ -65,6 +66,7 @@ import org.apache.pulsar.client.api.SubscriptionInitialPosition;
 import org.apache.pulsar.client.api.SubscriptionMode;
 import org.apache.pulsar.client.api.SubscriptionType;
 import org.apache.pulsar.client.api.TopicMetadata;
+import org.apache.pulsar.client.impl.MultiTopicsConsumerImpl;
 import org.apache.pulsar.client.impl.auth.AuthenticationToken;
 import org.apache.pulsar.common.partition.PartitionedTopicMetadata;
 
@@ -999,29 +1001,32 @@ public class PulsarConnectionFactory
     if (!isPrecreateQueueSubscription()) {
       return;
     }
+    if (destination.isRegExp()) {
+      // for regexp we cannot create the subscriptions
+      return;
+    }
     long start = System.currentTimeMillis();
 
     // please note that in the special jms-queue subscription we cannot
     // set a selector, because it is shared among all the Consumers of the Queue
     String fullQualifiedTopicName = getPulsarTopicName(destination);
     while (true) {
+      String subscriptionName = getQueueSubscriptionName(destination);
       try {
         if (isUsePulsarAdmin()) {
           getPulsarAdmin()
               .topics()
-              .createSubscription(
-                  fullQualifiedTopicName,
-                  getQueueSubscriptionName(destination),
-                  MessageId.earliest);
+              .createSubscription(fullQualifiedTopicName, subscriptionName, MessageId.earliest);
         } else {
-          // if we cannot use PulsarAdmin or we want to set a selector,
+          // if we cannot use PulsarAdmin,
           // let's try to create a consumer with zero queue
           getPulsarClient()
               .newConsumer()
               .subscriptionType(getTopicSharedSubscriptionType())
-              .subscriptionName(getQueueSubscriptionName(destination))
+              .subscriptionName(subscriptionName)
               .subscriptionInitialPosition(SubscriptionInitialPosition.Earliest)
-              .receiverQueueSize(getPrecreateQueueSubscriptionConsumerQueueSize())
+              .receiverQueueSize(
+                  getPrecreateQueueSubscriptionConsumerQueueSize(destination.isRegExp()))
               .topic(fullQualifiedTopicName)
               .subscribe()
               .close();
@@ -1029,9 +1034,7 @@ public class PulsarConnectionFactory
         break;
       } catch (PulsarAdminException.ConflictException exists) {
         log.debug(
-            "Subscription {} already exists for {}",
-            getQueueSubscriptionName(destination),
-            fullQualifiedTopicName);
+            "Subscription {} already exists for {}", subscriptionName, fullQualifiedTopicName);
         break;
       } catch (PulsarAdminException | PulsarClientException err) {
         // special handling for server startup
@@ -1068,7 +1071,7 @@ public class PulsarConnectionFactory
       boolean noLocal,
       String jmsConnectionID,
       ConsumerConfiguration overrideConsumerConfiguration,
-      AtomicReference<String> selectorOnSubscriptionReceiver)
+      Map<String, String> selectorOnSubscriptionReceiver)
       throws JMSException {
     String fullQualifiedTopicName = getPulsarTopicName(destination);
     // for queues we have a single shared subscription
@@ -1121,12 +1124,6 @@ public class PulsarConnectionFactory
     }
 
     try {
-      downloadServerSideFilter(
-          fullQualifiedTopicName,
-          subscriptionName,
-          subscriptionMode,
-          selectorOnSubscriptionReceiver);
-
       ConsumerConfiguration consumerConfiguration =
           getConsumerConfiguration(overrideConsumerConfiguration);
       Schema<?> schema = consumerConfiguration.getConsumerSchema();
@@ -1145,8 +1142,12 @@ public class PulsarConnectionFactory
               .subscriptionMode(subscriptionMode)
               .subscriptionProperties(subscriptionProperties)
               .subscriptionType(subscriptionType)
-              .subscriptionName(subscriptionName)
-              .topic(fullQualifiedTopicName);
+              .subscriptionName(subscriptionName);
+      if (destination.isRegExp()) {
+        builder.topicsPattern(fullQualifiedTopicName);
+      } else {
+        builder.topic(fullQualifiedTopicName);
+      }
       if (consumerConfiguration.getDeadLetterPolicy() != null) {
         builder.deadLetterPolicy(consumerConfiguration.getDeadLetterPolicy());
       }
@@ -1160,6 +1161,26 @@ public class PulsarConnectionFactory
       Consumer<?> newConsumer = builder.subscribe();
       consumers.add(newConsumer);
 
+      if (newConsumer instanceof MultiTopicsConsumerImpl) {
+        MultiTopicsConsumerImpl multiTopicsConsumer = (MultiTopicsConsumerImpl) newConsumer;
+        if (log.isDebugEnabled()) {
+          log.debug("Partition names: {}", multiTopicsConsumer.getPartitions());
+        }
+        for (Object singleTopicName : multiTopicsConsumer.getPartitions()) {
+          downloadServerSideFilter(
+              singleTopicName.toString(),
+              subscriptionName,
+              subscriptionMode,
+              selectorOnSubscriptionReceiver);
+        }
+      } else {
+        downloadServerSideFilter(
+            fullQualifiedTopicName,
+            subscriptionName,
+            subscriptionMode,
+            selectorOnSubscriptionReceiver);
+      }
+
       return newConsumer;
     } catch (PulsarClientException | PulsarAdminException err) {
       throw Utils.handleException(err);
@@ -1170,7 +1191,7 @@ public class PulsarConnectionFactory
       String fullQualifiedTopicName,
       String subscriptionName,
       SubscriptionMode subscriptionMode,
-      AtomicReference<String> selectorOnSubscriptionReceiver)
+      Map<String, String> selectorOnSubscriptionReceiver)
       throws PulsarAdminException, JMSException {
     if (!isUseServerSideFiltering() || subscriptionMode != SubscriptionMode.Durable) {
       return;
@@ -1194,7 +1215,7 @@ public class PulsarConnectionFactory
                   selectorOnSubscription,
                   subscriptionName,
                   fullQualifiedTopicName);
-              selectorOnSubscriptionReceiver.set(selectorOnSubscription);
+              selectorOnSubscriptionReceiver.put(fullQualifiedTopicName, selectorOnSubscription);
             }
           }
         }
@@ -1228,20 +1249,15 @@ public class PulsarConnectionFactory
   public List<Reader<?>> createReadersForBrowser(
       PulsarQueue destination,
       ConsumerConfiguration overrideConsumerConfiguration,
-      AtomicReference<String> selectorOnSubscriptionReceiver)
+      Map<String, String> selectorOnSubscriptionReceiver)
       throws JMSException {
+
+    if (destination.isRegExp()) {
+      throw new InvalidDestinationException("QueueBrowser is not supported for WildCard queues");
+    }
 
     String fullQualifiedTopicName = getPulsarTopicName(destination);
     String queueSubscriptionName = getQueueSubscriptionName(destination);
-    try {
-      downloadServerSideFilter(
-          fullQualifiedTopicName,
-          queueSubscriptionName,
-          SubscriptionMode.Durable,
-          selectorOnSubscriptionReceiver);
-    } catch (PulsarAdminException err) {
-      throw Utils.handleException(err);
-    }
 
     try {
       PartitionedTopicMetadata partitionedTopicMetadata =
@@ -1251,6 +1267,11 @@ public class PulsarConnectionFactory
         Reader<?> readerForBrowserForNonPartitionedTopic =
             createReaderForBrowserForNonPartitionedTopic(
                 queueSubscriptionName, fullQualifiedTopicName, overrideConsumerConfiguration);
+        downloadServerSideFilter(
+            fullQualifiedTopicName,
+            queueSubscriptionName,
+            SubscriptionMode.Durable,
+            selectorOnSubscriptionReceiver);
         readers.add(readerForBrowserForNonPartitionedTopic);
       } else {
         for (int i = 0; i < partitionedTopicMetadata.partitions; i++) {
@@ -1258,6 +1279,11 @@ public class PulsarConnectionFactory
           Reader<?> readerForBrowserForNonPartitionedTopic =
               createReaderForBrowserForNonPartitionedTopic(
                   queueSubscriptionName, partitionName, overrideConsumerConfiguration);
+          downloadServerSideFilter(
+              partitionName,
+              queueSubscriptionName,
+              SubscriptionMode.Durable,
+              selectorOnSubscriptionReceiver);
           readers.add(readerForBrowserForNonPartitionedTopic);
         }
       }
@@ -1326,6 +1352,7 @@ public class PulsarConnectionFactory
     readers.remove(reader);
   }
 
+  @SuppressFBWarnings("REC_CATCH_EXCEPTION")
   public boolean deleteSubscription(PulsarDestination destination, String name)
       throws JMSException {
     String systemNamespace = getSystemNamespace();
@@ -1333,6 +1360,10 @@ public class PulsarConnectionFactory
     try {
 
       if (destination != null) {
+        if (destination.isRegExp()) {
+          throw new InvalidDestinationException(
+              "Regex destinations are not supported for unsubscribe");
+        }
         String fullQualifiedTopicName = getPulsarTopicName(destination);
         log.info("deleteSubscription topic {} name {}", fullQualifiedTopicName, name);
         try {
@@ -1421,6 +1452,11 @@ public class PulsarConnectionFactory
     String customSubscriptionName =
         destination.extractSubscriptionName(prependTopicNameToCustomQueueSubscriptionName);
     if (customSubscriptionName != null) {
+      if (destination.isRegExp() && prependTopicNameToCustomQueueSubscriptionName) {
+        throw new InvalidDestinationException(
+            "You cannot use WildCard destination with "
+                + "jms.prependTopicNameToCustomQueueSubscriptionName=true");
+      }
       return customSubscriptionName;
     }
     return queueSubscriptionName;
@@ -1459,7 +1495,10 @@ public class PulsarConnectionFactory
     return closed;
   }
 
-  private synchronized int getPrecreateQueueSubscriptionConsumerQueueSize() {
+  private synchronized int getPrecreateQueueSubscriptionConsumerQueueSize(boolean regExp) {
+    if (regExp) {
+      return Math.max(precreateQueueSubscriptionConsumerQueueSize, 1);
+    }
     return precreateQueueSubscriptionConsumerQueueSize;
   }
 

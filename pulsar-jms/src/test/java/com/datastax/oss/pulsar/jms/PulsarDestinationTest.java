@@ -48,6 +48,15 @@ public class PulsarDestinationTest {
     topic = new PulsarQueue("persistent://public/default/test:sub");
     assertEquals("test:sub", topic.extractSubscriptionName(true));
 
+    topic = new PulsarQueue("persistent://public/default/test");
+    assertEquals(null, topic.extractSubscriptionName(true));
+
+    topic = new PulsarQueue("regex:persistent://public/default/test");
+    assertEquals(null, topic.extractSubscriptionName(true));
+
+    topic = new PulsarQueue("regexp:persistent://public/default/test:sub");
+    assertEquals("test:sub", topic.extractSubscriptionName(true));
+
     assertThrows(
         InvalidDestinationException.class,
         () -> {
@@ -69,6 +78,15 @@ public class PulsarDestinationTest {
 
     topic = new PulsarQueue("persistent://public/default/test:sub");
     assertEquals("sub", topic.extractSubscriptionName(false));
+
+    topic = new PulsarQueue("regex:persistent://public/default/test:sub");
+    assertEquals("sub", topic.extractSubscriptionName(false));
+
+    topic = new PulsarQueue("persistent://public/default/test");
+    assertEquals(null, topic.extractSubscriptionName(false));
+
+    topic = new PulsarQueue("regex:persistent://public/default/test");
+    assertEquals(null, topic.extractSubscriptionName(false));
 
     assertThrows(
         InvalidDestinationException.class,

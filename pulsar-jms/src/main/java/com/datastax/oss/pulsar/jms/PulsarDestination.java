@@ -45,7 +45,14 @@ public abstract class PulsarDestination implements Destination {
   }
 
   public String getInternalTopicName() {
+    if (isRegExp()) {
+      return topicName.substring("regex:".length());
+    }
     return topicName;
+  }
+
+  public boolean isRegExp() {
+    return topicName.startsWith("regex:");
   }
 
   public abstract boolean isQueue();

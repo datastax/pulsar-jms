@@ -17,10 +17,12 @@ package com.datastax.oss.pulsar.jms;
 
 import com.datastax.oss.pulsar.jms.selectors.SelectorSupport;
 import java.time.Instant;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 import javax.jms.Destination;
 import javax.jms.IllegalStateException;
 import javax.jms.InvalidDestinationException;
@@ -50,7 +52,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
   private final PulsarSession session;
   private final PulsarDestination destination;
   private SelectorSupport selectorSupport;
-  private SelectorSupport selectorSupportOnSubscription;
+  private Map<String, SelectorSupport> selectorSupportOnSubscriptions = new HashMap<>();
   private final boolean noLocal;
   private Consumer<?> consumer;
   private MessageListener listener;
@@ -130,7 +132,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
       throw new IllegalStateException("Consumer is closed");
     }
     if (consumer == null) {
-      AtomicReference<String> selectorOnSubscriptionReceiver = new AtomicReference<>();
+      Map<String, String> downloadedSelectorsOnSubscriptions = new ConcurrentHashMap<>();
       String currentSelector = internalGetMessageSelector();
       consumer =
           session
@@ -145,10 +147,17 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
                   noLocal,
                   session.getConnection().getConnectionId(),
                   session.getOverrideConsumerConfiguration(),
-                  selectorOnSubscriptionReceiver);
-      String jmsSelectorOnSubscription = selectorOnSubscriptionReceiver.get();
-      if (jmsSelectorOnSubscription != null && !jmsSelectorOnSubscription.isEmpty()) {
-        selectorSupportOnSubscription = SelectorSupport.build(jmsSelectorOnSubscription, true);
+                  downloadedSelectorsOnSubscriptions);
+      if (!downloadedSelectorsOnSubscriptions.isEmpty()) {
+        for (Map.Entry<String, String> entry : downloadedSelectorsOnSubscriptions.entrySet()) {
+          String topicName = entry.getKey();
+          String jmsSelectorOnSubscription = entry.getValue();
+          if (jmsSelectorOnSubscription != null && !jmsSelectorOnSubscription.isEmpty()) {
+            SelectorSupport selectorSupportOnSubscription =
+                SelectorSupport.build(jmsSelectorOnSubscription, true);
+            selectorSupportOnSubscriptions.put(topicName, selectorSupportOnSubscription);
+          }
+        }
       }
     }
     return consumer;
@@ -186,9 +195,12 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
   }
 
   private synchronized String internalGetMessageSelectorFromSubscription() {
-    return selectorSupportOnSubscription != null
-        ? selectorSupportOnSubscription.getSelector()
-        : null;
+    if (selectorSupportOnSubscriptions.isEmpty()) {
+      return null;
+    }
+    // pick one
+    SelectorSupport next = selectorSupportOnSubscriptions.values().iterator().next();
+    return next.getSelector();
   }
 
   /**
@@ -385,7 +397,8 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
               + ",) cannot be converted to a "
               + expectedType);
     }
-    SelectorSupport selectorSupportOnSubscription = getSelectorSupportOnSubscription();
+    SelectorSupport selectorSupportOnSubscription =
+        getSelectorSupportOnSubscription(message.getTopicName());
     if (selectorSupportOnSubscription != null
         && requiresClientSideFiltering(message)
         && !selectorSupportOnSubscription.matches(result)) {
@@ -686,8 +699,8 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
     return selectorSupport;
   }
 
-  public synchronized SelectorSupport getSelectorSupportOnSubscription() {
-    return selectorSupportOnSubscription;
+  public synchronized SelectorSupport getSelectorSupportOnSubscription(String topicName) {
+    return selectorSupportOnSubscriptions.get(topicName);
   }
 
   Consumer<?> getInternalConsumer() {
