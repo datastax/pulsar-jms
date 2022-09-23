@@ -80,7 +80,8 @@ public abstract class PulsarDestination implements Destination {
     }
     String customSubscription = extractSubscriptionName(false);
     if (customSubscription != null) {
-      withoutPrefix = withoutPrefix.substring(0, withoutPrefix.length() - customSubscription.length() - 1);
+      withoutPrefix =
+          withoutPrefix.substring(0, withoutPrefix.length() - customSubscription.length() - 1);
     }
     String[] split = withoutPrefix.split(",");
     List<PulsarDestination> destinations = new ArrayList<>(split.length);

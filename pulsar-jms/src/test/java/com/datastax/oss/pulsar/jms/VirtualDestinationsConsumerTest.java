@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import javax.jms.Connection;
 import javax.jms.InvalidDestinationException;
 import javax.jms.MessageConsumer;
@@ -44,8 +45,10 @@ import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.api.SubscriptionType;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 @Slf4j
 public class VirtualDestinationsConsumerTest {
@@ -72,27 +75,17 @@ public class VirtualDestinationsConsumerTest {
     }
   }
 
-  @Test
-  public void testMultiTopicNonPartitionedRegExp() throws Exception {
-    testMultiTopic(0, true);
+  private static Stream<Arguments> combinationsTestMultiTopic() {
+    return Stream.of(
+        Arguments.of(0, true),
+        Arguments.of(4, true),
+        Arguments.of(0, false),
+        Arguments.of(4, false));
   }
 
-  @Test
-  public void testMultiTopicPartitionedRegExp() throws Exception {
-    testMultiTopic(4, true);
-  }
-
-  @Test
-  public void testMultiTopicNonPartitionedMulti() throws Exception {
-    testMultiTopic(0, false);
-  }
-
-  @Test
-  public void testMultiTopicPartitionedMulti() throws Exception {
-    testMultiTopic(4, false);
-  }
-
-  private void testMultiTopic(int numPartitions, boolean useRegExp) throws Exception {
+  @ParameterizedTest(name = "{index} numPartitions {0} useRegExp {1}")
+  @MethodSource("combinationsTestMultiTopic")
+  public void testMultiTopic(int numPartitions, boolean useRegExp) throws Exception {
     int numMessagesPerDestination = 10;
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
@@ -157,34 +150,23 @@ public class VirtualDestinationsConsumerTest {
     }
   }
 
-  @Test
-  public void sendUsingExistingPulsarSubscriptionWithServerSideFilterForNonPartitionedQueue()
-      throws Exception {
-    sendUsingExistingPulsarSubscriptionWithServerSideFilterForQueue(0, false);
+  private static Stream<Arguments>
+      combinationsSendUsingExistingPulsarSubscriptionWithServerSideFilterForQueue() {
+    return Stream.of(
+        Arguments.of(0, true, true),
+        Arguments.of(4, true, true),
+        Arguments.of(0, false, true),
+        Arguments.of(4, false, true),
+        Arguments.of(0, true, false),
+        Arguments.of(4, true, false),
+        Arguments.of(0, false, false),
+        Arguments.of(4, false, false));
   }
 
-  @Test
-  public void sendUsingExistingPulsarSubscriptionWithServerSideFilterForPartitionedQueue()
-      throws Exception {
-    sendUsingExistingPulsarSubscriptionWithServerSideFilterForQueue(4, false);
-  }
-
-  @Test
-  public void
-      sendUsingExistingPulsarSubscriptionWithServerSideFilterForNonPartitionedQueueWithCustomSubscription()
-          throws Exception {
-    sendUsingExistingPulsarSubscriptionWithServerSideFilterForQueue(0, true);
-  }
-
-  @Test
-  public void
-      sendUsingExistingPulsarSubscriptionWithServerSideFilterForPartitionedQueueWithCustomSubscription()
-          throws Exception {
-    sendUsingExistingPulsarSubscriptionWithServerSideFilterForQueue(4, true);
-  }
-
-  private void sendUsingExistingPulsarSubscriptionWithServerSideFilterForQueue(
-      int numPartitions, boolean embedSubscriptionName) throws Exception {
+  @ParameterizedTest(name = "{index} numPartitions {0} embedSubscriptionName {1} useRegExp {2}")
+  @MethodSource("combinationsSendUsingExistingPulsarSubscriptionWithServerSideFilterForQueue")
+  public void sendUsingExistingPulsarSubscriptionWithServerSideFilterForQueue(
+      int numPartitions, boolean embedSubscriptionName, boolean useRegExp) throws Exception {
 
     String prefix = "test-" + UUID.randomUUID();
     String subscriptionName = "the-sub";
@@ -204,7 +186,7 @@ public class VirtualDestinationsConsumerTest {
     subscriptionProperties.put("jms.selector", selector);
     subscriptionProperties.put("jms.filtering", "true");
 
-    List<Queue> destinationsToWrite = new ArrayList<>();
+    List<PulsarQueue> destinationsToWrite = new ArrayList<>();
     for (int i = 0; i < 4; i++) {
       String topicName = prefix + "-" + i;
       if (numPartitions > 0) {
@@ -232,11 +214,28 @@ public class VirtualDestinationsConsumerTest {
         connection.start();
         try (PulsarSession session = connection.createSession(); ) {
 
-          String pattern = "regex:persistent://public/default/" + prefix + ".*";
-          if (embedSubscriptionName) {
-            pattern = pattern + ":" + subscriptionName;
+          Queue wildcardDestination;
+          if (useRegExp) {
+            String pattern = "regex:persistent://public/default/" + prefix + ".*";
+            if (embedSubscriptionName) {
+              pattern = pattern + ":" + subscriptionName;
+            }
+            wildcardDestination = session.createQueue(pattern);
+          } else {
+            String url =
+                destinationsToWrite
+                    .stream()
+                    .map(d -> Utils.runtimeException(() -> d.getQueueName()))
+                    .collect(Collectors.joining(",", "multi:", ""));
+            if (embedSubscriptionName) {
+              url = url + ":" + subscriptionName;
+            }
+            wildcardDestination = session.createQueue(url);
           }
-          Queue wildcardDestination = session.createQueue(pattern);
+          PulsarDestination asPulsarDestination = (PulsarDestination) wildcardDestination;
+          assertTrue(asPulsarDestination.isVirtualDestination());
+          assertEquals(!useRegExp, asPulsarDestination.isMultiTopic());
+          assertEquals(useRegExp, asPulsarDestination.isRegExp());
 
           // do not set the selector, it will be loaded from the Subscription Properties
           try (PulsarMessageConsumer consumer1 = session.createConsumer(wildcardDestination); ) {
@@ -296,20 +295,20 @@ public class VirtualDestinationsConsumerTest {
     }
   }
 
-  @Test
-  public void sendUsingExistingPulsarSubscriptionWithClientSideFilterForNonPartitionedQueue()
-      throws Exception {
-    sendUsingExistingPulsarSubscriptionWithClientSideFilterForPartitionedQueue(0);
+  private static Stream<Arguments>
+      combinationsSendUsingExistingPulsarSubscriptionWithClientSideFilterForPartitionedQueue() {
+    return Stream.of(
+        Arguments.of(0, true),
+        Arguments.of(4, true),
+        Arguments.of(0, false),
+        Arguments.of(4, false));
   }
 
-  @Test
-  public void sendUsingExistingPulsarSubscriptionWithClientSideFilterForPartitionedQueue()
-      throws Exception {
-    sendUsingExistingPulsarSubscriptionWithClientSideFilterForPartitionedQueue(4);
-  }
-
-  private void sendUsingExistingPulsarSubscriptionWithClientSideFilterForPartitionedQueue(
-      int numPartitions) throws Exception {
+  @ParameterizedTest(name = "{index} numPartitions {0} useRegExp {1}")
+  @MethodSource(
+      "combinationsSendUsingExistingPulsarSubscriptionWithClientSideFilterForPartitionedQueue")
+  public void sendUsingExistingPulsarSubscriptionWithClientSideFilterForPartitionedQueue(
+      int numPartitions, boolean useRegExp) throws Exception {
 
     String prefix = "test-" + UUID.randomUUID();
     String subscriptionName = "the-sub";
@@ -350,8 +349,22 @@ public class VirtualDestinationsConsumerTest {
         connection.start();
         try (PulsarSession session = connection.createSession(); ) {
 
-          Queue wildcardDestination =
-              session.createQueue("regex:persistent://public/default/" + prefix + ".*");
+          Queue wildcardDestination;
+          if (useRegExp) {
+            String pattern = "regex:persistent://public/default/" + prefix + ".*";
+            wildcardDestination = session.createQueue(pattern);
+          } else {
+            String url =
+                destinationsToWrite
+                    .stream()
+                    .map(d -> Utils.runtimeException(() -> d.getQueueName()))
+                    .collect(Collectors.joining(",", "multi:", ""));
+            wildcardDestination = session.createQueue(url);
+          }
+          PulsarDestination asPulsarDestination = (PulsarDestination) wildcardDestination;
+          assertTrue(asPulsarDestination.isVirtualDestination());
+          assertEquals(!useRegExp, asPulsarDestination.isMultiTopic());
+          assertEquals(useRegExp, asPulsarDestination.isRegExp());
 
           // do not set the selector, it will be loaded from the Subscription Properties
           try (PulsarMessageConsumer consumer1 =
