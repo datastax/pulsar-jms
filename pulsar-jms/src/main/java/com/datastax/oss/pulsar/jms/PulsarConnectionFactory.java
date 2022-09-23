@@ -38,6 +38,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.jms.*;
 import javax.jms.IllegalStateException;
@@ -1005,6 +1006,12 @@ public class PulsarConnectionFactory
       // for regexp we cannot create the subscriptions
       return;
     }
+    if (destination.isMultiTopic()) {
+      for (PulsarDestination subDestination : destination.getDestinations()) {
+        ensureQueueSubscription(subDestination);
+      }
+      return;
+    }
     long start = System.currentTimeMillis();
 
     // please note that in the special jms-queue subscription we cannot
@@ -1073,24 +1080,15 @@ public class PulsarConnectionFactory
       ConsumerConfiguration overrideConsumerConfiguration,
       Map<String, String> selectorOnSubscriptionReceiver)
       throws JMSException {
-    String fullQualifiedTopicName = getPulsarTopicName(destination);
-    // for queues we have a single shared subscription
-    String subscriptionName =
-        destination.isQueue() ? getQueueSubscriptionName(destination) : consumerName;
-    SubscriptionInitialPosition initialPosition =
-        destination.isTopic()
-            ? SubscriptionInitialPosition.Latest
-            : SubscriptionInitialPosition.Earliest;
     if (destination.isQueue() && subscriptionMode != SubscriptionMode.Durable) {
       throw new IllegalStateException("only durable mode for queues");
     }
     if (destination.isQueue() && subscriptionType == SubscriptionType.Exclusive) {
       throw new IllegalStateException("only Shared SubscriptionType for queues");
     }
-
     log.debug(
         "createConsumer {} {} {} {}",
-        fullQualifiedTopicName,
+        destination,
         consumerName,
         subscriptionMode,
         subscriptionType,
@@ -1130,6 +1128,13 @@ public class PulsarConnectionFactory
       if (schema == null) {
         schema = Schema.BYTES;
       }
+      // for queues we have a single shared subscription
+      String subscriptionName =
+              destination.isQueue() ? getQueueSubscriptionName(destination) : consumerName;
+      SubscriptionInitialPosition initialPosition =
+              destination.isTopic()
+                      ? SubscriptionInitialPosition.Latest
+                      : SubscriptionInitialPosition.Earliest;
       ConsumerBuilder<?> builder =
           pulsarClient
               .newConsumer(schema)
@@ -1144,8 +1149,17 @@ public class PulsarConnectionFactory
               .subscriptionType(subscriptionType)
               .subscriptionName(subscriptionName);
       if (destination.isRegExp()) {
+        String fullQualifiedTopicName = getPulsarTopicName(destination);
         builder.topicsPattern(fullQualifiedTopicName);
+      } else if (destination.isMultiTopic()) {
+        List<? extends PulsarDestination> destinations = destination.getDestinations();
+        List<String> fullQualifiedTopicNames = new ArrayList<>(destinations.size());
+        for (PulsarDestination d : destinations) {
+          fullQualifiedTopicNames.add(getPulsarTopicName(d));
+        }
+        builder.topics(fullQualifiedTopicNames);
       } else {
+        String fullQualifiedTopicName = getPulsarTopicName(destination);
         builder.topic(fullQualifiedTopicName);
       }
       if (consumerConfiguration.getDeadLetterPolicy() != null) {
@@ -1174,6 +1188,7 @@ public class PulsarConnectionFactory
               selectorOnSubscriptionReceiver);
         }
       } else {
+        String fullQualifiedTopicName = getPulsarTopicName(destination);
         downloadServerSideFilter(
             fullQualifiedTopicName,
             subscriptionName,
@@ -1252,8 +1267,8 @@ public class PulsarConnectionFactory
       Map<String, String> selectorOnSubscriptionReceiver)
       throws JMSException {
 
-    if (destination.isRegExp()) {
-      throw new InvalidDestinationException("QueueBrowser is not supported for WildCard queues");
+    if (destination.isVirtualDestination()) {
+      throw new InvalidDestinationException("QueueBrowser is not supported for virtual destinations");
     }
 
     String fullQualifiedTopicName = getPulsarTopicName(destination);
@@ -1360,9 +1375,9 @@ public class PulsarConnectionFactory
     try {
 
       if (destination != null) {
-        if (destination.isRegExp()) {
+        if (destination.isVirtualDestination()) {
           throw new InvalidDestinationException(
-              "Regex destinations are not supported for unsubscribe");
+              "Virtual destinations are not supported for unsubscribe");
         }
         String fullQualifiedTopicName = getPulsarTopicName(destination);
         log.info("deleteSubscription topic {} name {}", fullQualifiedTopicName, name);
@@ -1452,9 +1467,9 @@ public class PulsarConnectionFactory
     String customSubscriptionName =
         destination.extractSubscriptionName(prependTopicNameToCustomQueueSubscriptionName);
     if (customSubscriptionName != null) {
-      if (destination.isRegExp() && prependTopicNameToCustomQueueSubscriptionName) {
+      if (destination.isVirtualDestination() && prependTopicNameToCustomQueueSubscriptionName) {
         throw new InvalidDestinationException(
-            "You cannot use WildCard destination with "
+            "You cannot use virtual destinations with "
                 + "jms.prependTopicNameToCustomQueueSubscriptionName=true");
       }
       return customSubscriptionName;

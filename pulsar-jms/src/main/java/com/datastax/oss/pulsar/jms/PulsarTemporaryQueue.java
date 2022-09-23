@@ -15,12 +15,13 @@
  */
 package com.datastax.oss.pulsar.jms;
 
+import javax.jms.InvalidDestinationException;
 import javax.jms.JMSException;
 import javax.jms.TemporaryQueue;
 
 class PulsarTemporaryQueue extends PulsarTemporaryDestination implements TemporaryQueue {
 
-  public PulsarTemporaryQueue(String topicName, PulsarSession session) {
+  public PulsarTemporaryQueue(String topicName, PulsarSession session) throws InvalidDestinationException {
     super(topicName, session);
   }
 

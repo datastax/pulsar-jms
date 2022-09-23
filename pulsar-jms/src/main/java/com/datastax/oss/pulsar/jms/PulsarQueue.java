@@ -42,6 +42,11 @@ public final class PulsarQueue extends PulsarDestination implements Queue {
   }
 
   @Override
+  protected PulsarDestination createSameType(String topicName) throws InvalidDestinationException {
+    return new PulsarQueue(topicName);
+  }
+
+  @Override
   public boolean isTopic() {
     return false;
   }
@@ -60,6 +65,7 @@ public final class PulsarQueue extends PulsarDestination implements Queue {
       throws InvalidDestinationException {
 
     // only valid cases
+    // multi:persistent://public/default/queue:subscription
     // regexp:persistent://public/default/queue:subscription
     // regexp:non-persistent://public/default/queue:subscription
     // regexp:public/default/queue:subscription
@@ -80,6 +86,9 @@ public final class PulsarQueue extends PulsarDestination implements Queue {
 
     String shortTopicName = topicName;
 
+    if (shortTopicName.startsWith("multi:")) {
+      shortTopicName = shortTopicName.substring("multi:".length());
+    }
     if (shortTopicName.startsWith("regex:")) {
       shortTopicName = shortTopicName.substring("regex:".length());
     }
@@ -138,6 +147,9 @@ public final class PulsarQueue extends PulsarDestination implements Queue {
 
     if (topicName.startsWith("regex:")) {
       topicName = topicName.substring("regex:".length());
+    }
+    if (topicName.startsWith("multi:")) {
+      topicName = topicName.substring("multi:".length());
     }
     // no colon, early exit
     int pos = topicName.lastIndexOf(":");

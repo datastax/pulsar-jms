@@ -15,6 +15,7 @@
  */
 package com.datastax.oss.pulsar.jms;
 
+import javax.jms.InvalidDestinationException;
 import javax.jms.JMSException;
 import javax.jms.Topic;
 
@@ -43,6 +44,11 @@ public final class PulsarTopic extends PulsarDestination implements Topic {
   @Override
   public boolean isTopic() {
     return true;
+  }
+
+  @Override
+  protected PulsarDestination createSameType(String topicName) throws InvalidDestinationException {
+    return new PulsarTopic(topicName);
   }
 
   @Override

@@ -15,6 +15,7 @@
  */
 package com.datastax.oss.pulsar.jms;
 
+import javax.jms.InvalidDestinationException;
 import javax.jms.JMSException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.common.policies.data.TopicStats;
@@ -24,9 +25,12 @@ abstract class PulsarTemporaryDestination extends PulsarDestination {
 
   private final PulsarSession session;
 
-  public PulsarTemporaryDestination(String topicName, PulsarSession session) {
+  public PulsarTemporaryDestination(String topicName, PulsarSession session) throws InvalidDestinationException {
     super(topicName);
     this.session = session;
+    if (isVirtualDestination()) {
+      throw new InvalidDestinationException("Temporary destinations cannot be virtual");
+    }
   }
 
   public PulsarSession getSession() {
