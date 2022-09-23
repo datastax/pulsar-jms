@@ -1018,20 +1018,15 @@ public class PulsarConnectionFactory
         } else {
           // if we cannot use PulsarAdmin,
           // let's try to create a consumer with zero queue
-          ConsumerBuilder<byte[]> builder =
               getPulsarClient()
                   .newConsumer()
                   .subscriptionType(getTopicSharedSubscriptionType())
                   .subscriptionName(subscriptionName)
                   .subscriptionInitialPosition(SubscriptionInitialPosition.Earliest)
                   .receiverQueueSize(
-                      getPrecreateQueueSubscriptionConsumerQueueSize(destination.isRegExp()));
-          if (destination.isRegExp()) {
-            builder.topicsPattern(fullQualifiedTopicName);
-          } else {
-            builder.topic(fullQualifiedTopicName);
-          }
-          builder.subscribe().close();
+                      getPrecreateQueueSubscriptionConsumerQueueSize(destination.isRegExp()))
+                  .topic(fullQualifiedTopicName)
+                  .subscribe().close();
         }
         break;
       } catch (PulsarAdminException.ConflictException exists) {
