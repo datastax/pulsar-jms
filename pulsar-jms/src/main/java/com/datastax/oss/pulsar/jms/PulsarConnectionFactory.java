@@ -1018,15 +1018,16 @@ public class PulsarConnectionFactory
         } else {
           // if we cannot use PulsarAdmin,
           // let's try to create a consumer with zero queue
-              getPulsarClient()
-                  .newConsumer()
-                  .subscriptionType(getTopicSharedSubscriptionType())
-                  .subscriptionName(subscriptionName)
-                  .subscriptionInitialPosition(SubscriptionInitialPosition.Earliest)
-                  .receiverQueueSize(
-                      getPrecreateQueueSubscriptionConsumerQueueSize(destination.isRegExp()))
-                  .topic(fullQualifiedTopicName)
-                  .subscribe().close();
+          getPulsarClient()
+              .newConsumer()
+              .subscriptionType(getTopicSharedSubscriptionType())
+              .subscriptionName(subscriptionName)
+              .subscriptionInitialPosition(SubscriptionInitialPosition.Earliest)
+              .receiverQueueSize(
+                  getPrecreateQueueSubscriptionConsumerQueueSize(destination.isRegExp()))
+              .topic(fullQualifiedTopicName)
+              .subscribe()
+              .close();
         }
         break;
       } catch (PulsarAdminException.ConflictException exists) {
@@ -1448,6 +1449,11 @@ public class PulsarConnectionFactory
     String customSubscriptionName =
         destination.extractSubscriptionName(prependTopicNameToCustomQueueSubscriptionName);
     if (customSubscriptionName != null) {
+      if (destination.isRegExp() && prependTopicNameToCustomQueueSubscriptionName) {
+        throw new InvalidDestinationException(
+            "You cannot use WildCard destination with "
+                + "jms.prependTopicNameToCustomQueueSubscriptionName=true");
+      }
       return customSubscriptionName;
     }
     return queueSubscriptionName;

@@ -100,7 +100,7 @@ public final class PulsarQueue extends PulsarDestination implements Queue {
     if (pos < 0) {
       return null;
     }
-    String subscriptionName  = shortTopicName.substring(pos + 1);
+    String subscriptionName = shortTopicName.substring(pos + 1);
     if (subscriptionName.isEmpty()) {
       throw new InvalidDestinationException("Subscription name cannot be empty");
     }
@@ -113,6 +113,7 @@ public final class PulsarQueue extends PulsarDestination implements Queue {
 
   /**
    * return the topic name, without the embedded subscription
+   *
    * @return
    */
   public String getInternalTopicName() {

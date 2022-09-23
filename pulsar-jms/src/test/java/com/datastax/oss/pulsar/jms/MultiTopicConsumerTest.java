@@ -24,7 +24,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -36,7 +35,6 @@ import javax.jms.InvalidDestinationException;
 import javax.jms.MessageConsumer;
 import javax.jms.MessageProducer;
 import javax.jms.Queue;
-import javax.jms.QueueBrowser;
 import javax.jms.Session;
 import javax.jms.TextMessage;
 import javax.jms.Topic;
@@ -149,19 +147,21 @@ public class MultiTopicConsumerTest {
   }
 
   @Test
-  public void sendUsingExistingPulsarSubscriptionWithServerSideFilterForNonPartitionedQueueWithCustomSubscription()
+  public void
+      sendUsingExistingPulsarSubscriptionWithServerSideFilterForNonPartitionedQueueWithCustomSubscription()
           throws Exception {
     sendUsingExistingPulsarSubscriptionWithServerSideFilterForQueue(0, true);
   }
 
   @Test
-  public void sendUsingExistingPulsarSubscriptionWithServerSideFilterForPartitionedQueueWithCustomSubscription()
+  public void
+      sendUsingExistingPulsarSubscriptionWithServerSideFilterForPartitionedQueueWithCustomSubscription()
           throws Exception {
     sendUsingExistingPulsarSubscriptionWithServerSideFilterForQueue(4, true);
   }
 
-  private void sendUsingExistingPulsarSubscriptionWithServerSideFilterForQueue(int numPartitions, boolean embedSubscriptionName)
-      throws Exception {
+  private void sendUsingExistingPulsarSubscriptionWithServerSideFilterForQueue(
+      int numPartitions, boolean embedSubscriptionName) throws Exception {
 
     String prefix = "test-" + UUID.randomUUID();
     String subscriptionName = "the-sub";
@@ -213,8 +213,7 @@ public class MultiTopicConsumerTest {
           if (embedSubscriptionName) {
             pattern = pattern + ":" + subscriptionName;
           }
-          Queue wildcardDestination =
-              session.createQueue(pattern);
+          Queue wildcardDestination = session.createQueue(pattern);
 
           // do not set the selector, it will be loaded from the Subscription Properties
           try (PulsarMessageConsumer consumer1 = session.createConsumer(wildcardDestination); ) {
@@ -238,7 +237,9 @@ public class MultiTopicConsumerTest {
               }
             }
 
-            assertThrows(InvalidDestinationException.class, () -> session.createBrowser(wildcardDestination));
+            assertThrows(
+                InvalidDestinationException.class,
+                () -> session.createBrowser(wildcardDestination));
 
             // with a partitioned/multi topic we don't have control over ordering
             List<String> received = new ArrayList<>();
