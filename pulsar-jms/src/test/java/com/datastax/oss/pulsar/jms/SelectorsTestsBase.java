@@ -898,9 +898,7 @@ public abstract class SelectorsTestsBase {
         .topics()
         .createSubscription(
             topicName,
-            topicName
-                + ":"
-                + subscriptionName, // real subscription name is short topic name + subname
+                subscriptionName, // real subscription name is short topic name + subname
             MessageId.earliest,
             false,
             subscriptionProperties);
@@ -977,11 +975,11 @@ public abstract class SelectorsTestsBase {
         if (numPartitions == 0) {
           // ensure subscription exists
           TopicStats stats = cluster.getService().getAdminClient().topics().getStats(topicName);
-          assertNotNull(stats.getSubscriptions().get(topicName + ":" + subscriptionName));
+          assertNotNull(stats.getSubscriptions().get(subscriptionName));
         } else {
           PartitionedTopicStats stats =
               cluster.getService().getAdminClient().topics().getPartitionedStats(topicName, false);
-          assertNotNull(stats.getSubscriptions().get(topicName + ":" + subscriptionName));
+          assertNotNull(stats.getSubscriptions().get(subscriptionName));
         }
       }
     }
@@ -1028,9 +1026,7 @@ public abstract class SelectorsTestsBase {
             .getClient()
             .newConsumer()
             .subscriptionName(
-                topicName
-                    + ":"
-                    + subscriptionName) // real subscription name is short topic name + subname
+                subscriptionName)
             .subscriptionType(SubscriptionType.Shared)
             .subscriptionMode(SubscriptionMode.Durable)
             .subscriptionProperties(subscriptionProperties)
@@ -1122,7 +1118,7 @@ public abstract class SelectorsTestsBase {
 
         // ensure subscription exists
         TopicStats stats = cluster.getService().getAdminClient().topics().getStats(topicName);
-        assertNotNull(stats.getSubscriptions().get(topicName + ":" + subscriptionName));
+        assertNotNull(stats.getSubscriptions().get(subscriptionName));
       }
     }
   }
@@ -1219,9 +1215,7 @@ public abstract class SelectorsTestsBase {
             .getClient()
             .newConsumer()
             .subscriptionName(
-                topicName
-                    + ":"
-                    + subscriptionName) // real subscription name is short topic name + subname
+                subscriptionName)
             .subscriptionType(SubscriptionType.Shared)
             .subscriptionMode(SubscriptionMode.Durable)
             .subscriptionProperties(subscriptionProperties)
@@ -1273,7 +1267,7 @@ public abstract class SelectorsTestsBase {
 
         // ensure subscription exists
         TopicStats stats = cluster.getService().getAdminClient().topics().getStats(topicName);
-        assertNotNull(stats.getSubscriptions().get(topicName + ":" + subscriptionName));
+        assertNotNull(stats.getSubscriptions().get(subscriptionName));
       }
     }
   }
@@ -1339,7 +1333,7 @@ public abstract class SelectorsTestsBase {
 
         // ensure subscription exists
         TopicStats stats = cluster.getService().getAdminClient().topics().getStats(topicName);
-        assertNotNull(stats.getSubscriptions().get(topicName + ":" + subscriptionName));
+        assertNotNull(stats.getSubscriptions().get(subscriptionName));
       }
     }
   }

@@ -117,7 +117,6 @@ public class PulsarConnectionFactory
   private transient long waitForServerStartupTimeout = 60000;
   private transient boolean usePulsarAdmin = true;
   private transient boolean precreateQueueSubscription = true;
-  private transient boolean prependTopicNameToCustomQueueSubscriptionName = true;
   private transient int precreateQueueSubscriptionConsumerQueueSize = 0;
   private transient boolean initialized;
   private transient boolean closed;
@@ -283,11 +282,6 @@ public class PulsarConnectionFactory
       this.precreateQueueSubscription =
           Boolean.parseBoolean(
               getAndRemoveString("jms.precreateQueueSubscription", "true", configurationCopy));
-
-      this.prependTopicNameToCustomQueueSubscriptionName =
-          Boolean.parseBoolean(
-              getAndRemoveString(
-                  "jms.prependTopicNameToCustomQueueSubscriptionName", "true", configurationCopy));
 
       this.precreateQueueSubscriptionConsumerQueueSize =
           Integer.parseInt(
@@ -1464,14 +1458,8 @@ public class PulsarConnectionFactory
 
   public synchronized String getQueueSubscriptionName(PulsarDestination destination)
       throws InvalidDestinationException {
-    String customSubscriptionName =
-        destination.extractSubscriptionName(prependTopicNameToCustomQueueSubscriptionName);
+    String customSubscriptionName = destination.extractSubscriptionName();
     if (customSubscriptionName != null) {
-      if (destination.isVirtualDestination() && prependTopicNameToCustomQueueSubscriptionName) {
-        throw new InvalidDestinationException(
-            "You cannot use virtual destinations with "
-                + "jms.prependTopicNameToCustomQueueSubscriptionName=true");
-      }
       return customSubscriptionName;
     }
     return queueSubscriptionName;

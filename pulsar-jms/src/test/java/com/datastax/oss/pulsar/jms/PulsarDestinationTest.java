@@ -31,122 +31,66 @@ public class PulsarDestinationTest {
   @Test
   public void testExtractSubscriptionNameForTopic() throws Exception {
     PulsarTopic topic = new PulsarTopic("test");
-    assertNull(topic.extractSubscriptionName(false));
+    assertNull(topic.extractSubscriptionName());
 
     topic = new PulsarTopic("test:sub");
-    assertNull(topic.extractSubscriptionName(false));
-    assertNull(topic.extractSubscriptionName(true));
-  }
-
-  @Test
-  public void testExtractSubscriptionNameForQueuePrependName() throws Exception {
-    PulsarQueue topic = new PulsarQueue("test");
-    assertNull(topic.extractSubscriptionName(true));
-
-    topic = new PulsarQueue("test:sub");
-    assertEquals("test:sub", topic.extractSubscriptionName(true));
-
-    topic = new PulsarQueue("test:sub");
-    assertEquals("test:sub", topic.extractSubscriptionName(true));
-
-    topic = new PulsarQueue("persistent://public/default/test:sub");
-    assertEquals("test:sub", topic.extractSubscriptionName(true));
-
-    topic = new PulsarQueue("persistent://public/default/test");
-    assertEquals(null, topic.extractSubscriptionName(true));
-
-    topic = new PulsarQueue("regex:persistent://public/default/test");
-    assertEquals(null, topic.extractSubscriptionName(true));
-
-    topic = new PulsarQueue("regexp:persistent://public/default/test:sub");
-    assertEquals("test:sub", topic.extractSubscriptionName(true));
-
-    assertThrows(
-        InvalidDestinationException.class,
-        () -> {
-          PulsarQueue topic2 = new PulsarQueue("persistent://public/default/test:");
-          topic2.extractSubscriptionName(true);
-        });
-
-    topic = new PulsarQueue("multi:test:sub");
-    assertEquals("test:sub", topic.extractSubscriptionName(true));
-
-    topic = new PulsarQueue("multi:test:sub");
-    assertEquals("test:sub", topic.extractSubscriptionName(true));
-
-    topic = new PulsarQueue("multi:persistent://public/default/test:sub");
-    assertEquals("test:sub", topic.extractSubscriptionName(true));
-
-    topic = new PulsarQueue("multi:persistent://public/default/test");
-    assertEquals(null, topic.extractSubscriptionName(true));
-
-    topic = new PulsarQueue("multi:regex:persistent://public/default/test");
-    assertEquals(null, topic.extractSubscriptionName(true));
-
-    topic = new PulsarQueue("multi:regexp:persistent://public/default/test:sub");
-    assertEquals("test:sub", topic.extractSubscriptionName(true));
-
-    assertThrows(
-        InvalidDestinationException.class,
-        () -> {
-          PulsarQueue topic2 = new PulsarQueue("multi:persistent://public/default/test:");
-          topic2.extractSubscriptionName(true);
-        });
+    assertNull(topic.extractSubscriptionName());
+    assertNull(topic.extractSubscriptionName());
   }
 
   @Test
   public void testExtractSubscriptionNameForQueue() throws Exception {
     PulsarQueue topic = new PulsarQueue("test");
-    assertNull(topic.extractSubscriptionName(false));
+    assertNull(topic.extractSubscriptionName());
 
     topic = new PulsarQueue("test:sub");
-    assertEquals("sub", topic.extractSubscriptionName(false));
+    assertEquals("sub", topic.extractSubscriptionName());
 
     topic = new PulsarQueue("test:sub");
-    assertEquals("sub", topic.extractSubscriptionName(false));
+    assertEquals("sub", topic.extractSubscriptionName());
 
     topic = new PulsarQueue("persistent://public/default/test:sub");
-    assertEquals("sub", topic.extractSubscriptionName(false));
+    assertEquals("sub", topic.extractSubscriptionName());
 
     topic = new PulsarQueue("regex:persistent://public/default/test:sub");
-    assertEquals("sub", topic.extractSubscriptionName(false));
+    assertEquals("sub", topic.extractSubscriptionName());
 
     topic = new PulsarQueue("persistent://public/default/test");
-    assertEquals(null, topic.extractSubscriptionName(false));
+    assertEquals(null, topic.extractSubscriptionName());
 
     topic = new PulsarQueue("regex:persistent://public/default/test");
-    assertEquals(null, topic.extractSubscriptionName(false));
+    assertEquals(null, topic.extractSubscriptionName());
 
     assertThrows(
         InvalidDestinationException.class,
         () -> {
           PulsarQueue topic2 = new PulsarQueue("persistent://public/default/test:");
-          topic2.extractSubscriptionName(false);
+          topic2.extractSubscriptionName();
         });
 
     topic = new PulsarQueue("multi:test:sub");
-    assertEquals("sub", topic.extractSubscriptionName(false));
+    assertEquals("sub", topic.extractSubscriptionName());
 
     topic = new PulsarQueue("multi:test:sub");
-    assertEquals("sub", topic.extractSubscriptionName(false));
+    assertEquals("sub", topic.extractSubscriptionName());
 
     topic = new PulsarQueue("multi:persistent://public/default/test:sub");
-    assertEquals("sub", topic.extractSubscriptionName(false));
+    assertEquals("sub", topic.extractSubscriptionName());
 
     topic = new PulsarQueue("multi:regex:persistent://public/default/test:sub");
-    assertEquals("sub", topic.extractSubscriptionName(false));
+    assertEquals("sub", topic.extractSubscriptionName());
 
     topic = new PulsarQueue("multi:persistent://public/default/test");
-    assertEquals(null, topic.extractSubscriptionName(false));
+    assertEquals(null, topic.extractSubscriptionName());
 
     topic = new PulsarQueue("multi:regex:persistent://public/default/test");
-    assertEquals(null, topic.extractSubscriptionName(false));
+    assertEquals(null, topic.extractSubscriptionName());
 
     assertThrows(
         InvalidDestinationException.class,
         () -> {
           PulsarQueue topic2 = new PulsarQueue("multi:persistent://public/default/test:");
-          topic2.extractSubscriptionName(false);
+          topic2.extractSubscriptionName();
         });
   }
 
