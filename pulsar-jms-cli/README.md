@@ -63,14 +63,6 @@ Some commands, like createDurableConsumer and createSharedDurableConsumer requir
 and not a Queue.
 In Starlight for JMS you connect to Pulsar topics and you interpret them as Queues or Topics only on the client, so you have to manually tell if you want to connect as a JMS Queue (-t queue) or as a JMS Topic (-t topic).
 
-If you are connecting in JMS Queue mode, then you can specify the subscription name using the special syntax queue:subscriptionName.
-In this case the subscription in Pulsar will be named "queue:subscriptionName".
-This is very useful to map Pulsar Subscription to JMS Queues.
-
-```
-java -jar jms-cli.jar createConsumer -d test:subscriptionName -n 0 -dt queue -c conf/sample.json -s "foo='bar'"
-```
-
 ### Create a JMS Subscription with Server Side Filtering
 
 ```
