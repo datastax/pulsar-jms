@@ -177,7 +177,6 @@ public class VirtualDestinationsConsumerTest {
     properties.put("jms.usePulsarAdmin", "true");
     properties.put("jms.useServerSideFiltering", "true");
 
-    properties.put("jms.prependTopicNameToCustomQueueSubscriptionName", "false");
     if (!embedSubscriptionName) {
       properties.put("jms.queueSubscriptionName", subscriptionName);
     }

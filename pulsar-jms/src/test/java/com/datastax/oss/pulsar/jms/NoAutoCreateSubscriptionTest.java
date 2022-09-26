@@ -98,7 +98,7 @@ public class NoAutoCreateSubscriptionTest {
               .getService()
               .getAdminClient()
               .topics()
-              .createSubscription(shortTopicName, shortTopicName + ":sub1", MessageId.earliest);
+              .createSubscription(shortTopicName, "sub1", MessageId.earliest);
 
           try (MessageConsumer consumer1 = session.createConsumer(destinationWithSubscription)) {
             for (int i = 0; i < 10; i++) {
@@ -109,7 +109,7 @@ public class NoAutoCreateSubscriptionTest {
             TopicStats stats =
                 cluster.getService().getAdminClient().topics().getStats(shortTopicName);
             log.info("Subscriptions {}", stats.getSubscriptions().keySet());
-            assertNotNull(stats.getSubscriptions().get(shortTopicName + ":sub1"));
+            assertNotNull(stats.getSubscriptions().get("sub1"));
           }
         }
       }

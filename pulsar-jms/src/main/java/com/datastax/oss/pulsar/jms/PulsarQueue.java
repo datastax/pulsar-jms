@@ -61,8 +61,7 @@ public final class PulsarQueue extends PulsarDestination implements Queue {
    *
    * @return the subscription name, if present
    */
-  public String extractSubscriptionName(boolean prependTopicNameToCustomQueueSubscriptionName)
-      throws InvalidDestinationException {
+  public String extractSubscriptionName() throws InvalidDestinationException {
 
     // only valid cases
     // multi:persistent://public/default/queue:subscription
@@ -114,11 +113,7 @@ public final class PulsarQueue extends PulsarDestination implements Queue {
     if (subscriptionName.isEmpty()) {
       throw new InvalidDestinationException("Subscription name cannot be empty");
     }
-    if (prependTopicNameToCustomQueueSubscriptionName) {
-      return shortTopicName;
-    } else {
-      return subscriptionName;
-    }
+    return subscriptionName;
   }
 
   /**

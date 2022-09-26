@@ -42,8 +42,7 @@ public abstract class PulsarDestination implements Destination {
    *
    * @return the subscription name, if present.
    */
-  public String extractSubscriptionName(boolean prependTopicNameToCustomQueueSubscriptionName)
-      throws InvalidDestinationException {
+  public String extractSubscriptionName() throws InvalidDestinationException {
     return null;
   }
 
@@ -78,7 +77,7 @@ public abstract class PulsarDestination implements Destination {
     if (withoutPrefix.isEmpty()) {
       throw new InvalidDestinationException("Invalid destination " + topicName);
     }
-    String customSubscription = extractSubscriptionName(false);
+    String customSubscription = extractSubscriptionName();
     if (customSubscription != null) {
       withoutPrefix =
           withoutPrefix.substring(0, withoutPrefix.length() - customSubscription.length() - 1);

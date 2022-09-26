@@ -354,21 +354,11 @@ public class QueueTest {
   }
 
   @Test
-  public void customSubscriptionNameWithTopicName() throws Exception {
-    customSubscriptionName(true);
-  }
-
-  @Test
-  public void customSubscriptionNameWithoutTopicName() throws Exception {
-    customSubscriptionName(false);
-  }
-
-  private void customSubscriptionName(boolean prependTopicName) throws Exception {
+  public void customSubscriptionName() throws Exception {
 
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
     properties.put("jms.queueSubscriptionName", "default-sub-name");
-    properties.put("jms.prependTopicNameToCustomQueueSubscriptionName", prependTopicName);
 
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
@@ -409,13 +399,8 @@ public class QueueTest {
                 cluster.getService().getAdminClient().topics().getStats(fullTopicName);
             log.info("Subscriptions {}", stats.getSubscriptions().keySet());
             assertNotNull(stats.getSubscriptions().get("default-sub-name"));
-            if (prependTopicName) {
-              assertNotNull(stats.getSubscriptions().get(shortTopicName + ":sub1"));
-              assertNotNull(stats.getSubscriptions().get(shortTopicName + ":sub2"));
-            } else {
-              assertNotNull(stats.getSubscriptions().get("sub1"));
-              assertNotNull(stats.getSubscriptions().get("sub2"));
-            }
+            assertNotNull(stats.getSubscriptions().get("sub1"));
+            assertNotNull(stats.getSubscriptions().get("sub2"));
           }
         }
       }
