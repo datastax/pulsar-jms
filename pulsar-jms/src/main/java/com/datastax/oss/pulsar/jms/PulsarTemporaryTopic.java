@@ -15,12 +15,14 @@
  */
 package com.datastax.oss.pulsar.jms;
 
+import javax.jms.InvalidDestinationException;
 import javax.jms.JMSException;
 import javax.jms.TemporaryTopic;
 
 class PulsarTemporaryTopic extends PulsarTemporaryDestination implements TemporaryTopic {
 
-  public PulsarTemporaryTopic(String topicName, PulsarSession session) {
+  public PulsarTemporaryTopic(String topicName, PulsarSession session)
+      throws InvalidDestinationException {
     super(topicName, session);
   }
 

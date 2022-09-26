@@ -15,6 +15,9 @@
  */
 package com.datastax.oss.pulsar.jms;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 import javax.jms.Destination;
 import javax.jms.InvalidDestinationException;
@@ -44,15 +47,63 @@ public abstract class PulsarDestination implements Destination {
     return null;
   }
 
-  public String getInternalTopicName() {
+  public String getInternalTopicName() throws InvalidDestinationException {
     if (isRegExp()) {
       return topicName.substring("regex:".length());
+    }
+    if (isMultiTopic()) {
+      throw new InvalidDestinationException(
+          "Cannot get internal topic name for a multi-topic destination");
     }
     return topicName;
   }
 
+  public final boolean isVirtualDestination() {
+    return isRegExp() || isMultiTopic();
+  }
+
   public boolean isRegExp() {
     return topicName.startsWith("regex:");
+  }
+
+  public boolean isMultiTopic() {
+    return topicName.startsWith("multi:");
+  }
+
+  public List<PulsarDestination> getDestinations() throws InvalidDestinationException {
+    if (!isMultiTopic()) {
+      return Collections.singletonList(this);
+    }
+    String withoutPrefix = topicName.substring("multi:".length());
+    if (withoutPrefix.isEmpty()) {
+      throw new InvalidDestinationException("Invalid destination " + topicName);
+    }
+    String customSubscription = extractSubscriptionName(false);
+    if (customSubscription != null) {
+      withoutPrefix =
+          withoutPrefix.substring(0, withoutPrefix.length() - customSubscription.length() - 1);
+    }
+    String[] split = withoutPrefix.split(",");
+    List<PulsarDestination> destinations = new ArrayList<>(split.length);
+    for (String part : split) {
+      if (part.isEmpty()) {
+        throw new InvalidDestinationException("Invalid destination " + topicName);
+      }
+      if (customSubscription != null) {
+        destinations.add(createSameType(part + ":" + customSubscription));
+      } else {
+        destinations.add(createSameType(part));
+      }
+    }
+    if (destinations.isEmpty()) {
+      throw new InvalidDestinationException("Invalid destination " + topicName);
+    }
+    return destinations;
+  }
+
+  protected PulsarDestination createSameType(String topicName) throws InvalidDestinationException {
+    throw new InvalidDestinationException(
+        "Multi topic syntax is not allowed " + "for this kind of destination (" + getClass() + ")");
   }
 
   public abstract boolean isQueue();
