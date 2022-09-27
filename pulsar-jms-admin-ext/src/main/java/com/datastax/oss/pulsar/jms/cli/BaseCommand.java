@@ -94,6 +94,14 @@ abstract class BaseCommand implements CustomCommand {
   }
 
   protected PulsarConnectionFactory getFactory() throws Exception {
+    return getFactory(false);
+  }
+
+  protected PulsarConnectionFactory getFactory(boolean createClient) throws Exception {
+    if (factory != null && createClient && factory.getPulsarClient() == null) {
+      factory.close();
+      factory = null;
+    }
     if (factory == null) {
       String config = getStringParameter("--jms-config", "");
 
@@ -114,15 +122,19 @@ abstract class BaseCommand implements CustomCommand {
         configuration.putAll(YAML_PARSER.readValue(file, Map.class));
       }
       log.debug("Configuration {}", configuration);
-      factory =
-          new PulsarConnectionFactory(configuration) {
-            @Override
-            protected PulsarClient buildPulsarClient(ClientBuilder builder)
-                throws PulsarClientException {
-              // PulsarClient is not needed, do not create it
-              return null;
-            }
-          };
+      if (createClient) {
+        factory = new PulsarConnectionFactory(configuration);
+      } else {
+        factory =
+            new PulsarConnectionFactory(configuration) {
+              @Override
+              protected PulsarClient buildPulsarClient(ClientBuilder builder)
+                  throws PulsarClientException {
+                // PulsarClient is not needed, do not create it
+                return null;
+              }
+            };
+      }
       closeables.add(factory);
     }
     return factory;
