@@ -16,8 +16,10 @@
 package com.datastax.oss.pulsar.jms.cli;
 
 import com.datastax.oss.pulsar.jms.PulsarConnectionFactory;
+import com.datastax.oss.pulsar.jms.PulsarDestination;
+import com.datastax.oss.pulsar.jms.TopicDiscoveryUtils;
+import java.util.List;
 import java.util.Map;
-import javax.jms.Destination;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.admin.PulsarAdmin;
 import org.apache.pulsar.common.policies.data.SubscriptionStats;
@@ -38,17 +40,57 @@ class DescribeCommand extends TopicBaseCommand {
   @Override
   protected void executeInternal() throws Exception {
 
-    Destination destination = getDestination(false);
+    PulsarDestination destination = getDestination(false);
+
+    if (destination.isMultiTopic()) {
+      List<PulsarDestination> destinations = destination.getDestinations();
+      println(
+          "JMS Destination {} is a virtual multi-topic destination, it maps to {} destinations",
+          destination,
+          destinations.size());
+      for (PulsarDestination sub : destinations) {
+        describeDestination(sub);
+      }
+    } else if (destination.isRegExp()) {
+      PulsarConnectionFactory factory = getFactory();
+      String topicName = factory.getPulsarTopicName(destination);
+      println(
+          "JMS Destination {} is a virtual regexp destination, the pattern is {}",
+          destination,
+          topicName);
+      List<String> topics =
+          TopicDiscoveryUtils.discoverTopicsByPattern(topicName, factory.getPulsarClient(), 10000);
+      for (String topic : topics) {
+        PulsarDestination sub = destination.createSameType(topicName);
+        describeDestination(sub);
+      }
+    } else {
+      describeDestination(destination);
+    }
+  }
+
+  private void describeDestination(PulsarDestination destination) throws Exception {
     PulsarConnectionFactory factory = getFactory();
-    String topicName = factory.getPulsarTopicName(destination);
-    println("JMS Destination {} maps to Pulsar Topic {}", destination, topicName);
     PulsarAdmin pulsarAdmin = factory.getPulsarAdmin();
+    String topicName = factory.getPulsarTopicName(destination);
+    String subscription = null;
+    if (destination.isQueue()) {
+      subscription = factory.getQueueSubscriptionName(destination);
+      println(
+          "JMS Destination {} maps to the subscription {} on Pulsar Topic {}",
+          destination,
+          subscription,
+          topicName);
+    } else {
+      println("JMS Destination {} maps to Pulsar Topic {}", destination, topicName);
+    }
     TopicStats stats = pulsarAdmin.topics().getStats(topicName);
     Map<String, ? extends SubscriptionStats> subscriptions = stats.getSubscriptions();
     if (subscriptions.isEmpty()) {
-      println("There are no subscriptions this Pulsar topic");
+      println("Currently there are no subscriptions on this Pulsar topic");
       return;
     }
+    println("Subscriptions on the Pulsar topic:");
     subscriptions.forEach(
         (name, sub) -> {
           println("Subscription: {}", name);

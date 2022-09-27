@@ -42,7 +42,7 @@ public final class PulsarQueue extends PulsarDestination implements Queue {
   }
 
   @Override
-  protected PulsarDestination createSameType(String topicName) throws InvalidDestinationException {
+  public PulsarDestination createSameType(String topicName) throws InvalidDestinationException {
     return new PulsarQueue(topicName);
   }
 

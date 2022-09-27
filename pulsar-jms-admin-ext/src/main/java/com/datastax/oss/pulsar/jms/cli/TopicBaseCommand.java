@@ -15,9 +15,9 @@
  */
 package com.datastax.oss.pulsar.jms.cli;
 
+import com.datastax.oss.pulsar.jms.PulsarDestination;
 import java.util.Arrays;
 import java.util.List;
-import javax.jms.Destination;
 import org.apache.pulsar.admin.cli.extensions.ParameterDescriptor;
 import org.apache.pulsar.admin.cli.extensions.ParameterType;
 
@@ -41,7 +41,7 @@ abstract class TopicBaseCommand extends BaseCommand {
             .build());
   }
 
-  protected Destination getDestination(boolean requireTopic) throws Exception {
+  protected PulsarDestination getDestination(boolean requireTopic) throws Exception {
     String destination = getStringParameter("--destination", "");
     String destinationType = getStringParameter("--destination-type", "queue");
     switch (destinationType) {
@@ -50,9 +50,9 @@ abstract class TopicBaseCommand extends BaseCommand {
           throw new IllegalArgumentException(
               "createSharedDurableConsumer is available only for JMS Topics, use -t topic");
         }
-        return getContext().createQueue(destination);
+        return (PulsarDestination) getContext().createQueue(destination);
       case "topic":
-        return getContext().createTopic(destination);
+        return (PulsarDestination) getContext().createTopic(destination);
       default:
         throw new IllegalArgumentException("Invalid destination type " + destinationType);
     }
