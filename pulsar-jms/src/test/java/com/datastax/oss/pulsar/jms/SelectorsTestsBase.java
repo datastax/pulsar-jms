@@ -898,7 +898,7 @@ public abstract class SelectorsTestsBase {
         .topics()
         .createSubscription(
             topicName,
-                subscriptionName, // real subscription name is short topic name + subname
+            subscriptionName, // real subscription name is short topic name + subname
             MessageId.earliest,
             false,
             subscriptionProperties);
@@ -1025,8 +1025,7 @@ public abstract class SelectorsTestsBase {
             .getService()
             .getClient()
             .newConsumer()
-            .subscriptionName(
-                subscriptionName)
+            .subscriptionName(subscriptionName)
             .subscriptionType(SubscriptionType.Shared)
             .subscriptionMode(SubscriptionMode.Durable)
             .subscriptionProperties(subscriptionProperties)
@@ -1214,8 +1213,7 @@ public abstract class SelectorsTestsBase {
             .getService()
             .getClient()
             .newConsumer()
-            .subscriptionName(
-                subscriptionName)
+            .subscriptionName(subscriptionName)
             .subscriptionType(SubscriptionType.Shared)
             .subscriptionMode(SubscriptionMode.Durable)
             .subscriptionProperties(subscriptionProperties)
