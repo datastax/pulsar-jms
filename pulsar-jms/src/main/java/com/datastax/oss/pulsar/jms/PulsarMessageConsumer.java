@@ -52,7 +52,8 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
   private final PulsarSession session;
   private final PulsarDestination destination;
   private SelectorSupport selectorSupport;
-  private Map<String, SelectorSupport> selectorSupportOnSubscriptions = new HashMap<>();
+  private final Map<String, SelectorSupport> selectorSupportOnSubscriptions = new HashMap<>();
+  private final boolean useServerSideFiltering;
   private final boolean noLocal;
   private Consumer<?> consumer;
   private MessageListener listener;
@@ -89,6 +90,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
     }
     this.subscriptionName = subscriptionName;
     this.session = session;
+    this.useServerSideFiltering = session.getFactory().isUseServerSideFiltering();
     this.destination = destination;
     this.subscriptionMode = destination.isQueue() ? SubscriptionMode.Durable : subscriptionMode;
     this.subscriptionType = destination.isQueue() ? SubscriptionType.Shared : subscriptionType;
@@ -146,17 +148,6 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
                   noLocal,
                   session,
                   downloadedSelectorsOnSubscriptions);
-      if (!downloadedSelectorsOnSubscriptions.isEmpty()) {
-        for (Map.Entry<String, String> entry : downloadedSelectorsOnSubscriptions.entrySet()) {
-          String topicName = entry.getKey();
-          String jmsSelectorOnSubscription = entry.getValue();
-          if (jmsSelectorOnSubscription != null && !jmsSelectorOnSubscription.isEmpty()) {
-            SelectorSupport selectorSupportOnSubscription =
-                SelectorSupport.build(jmsSelectorOnSubscription, true);
-            selectorSupportOnSubscriptions.put(topicName, selectorSupportOnSubscription);
-          }
-        }
-      }
     }
     return consumer;
   }
@@ -173,10 +164,6 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
   @Override
   public synchronized String getMessageSelector() throws JMSException {
     checkNotClosed();
-    if (destination.isQueue() && session.getFactory().isUseServerSideFiltering()) {
-      // ensure we download properly the selector from the server
-      getConsumer();
-    }
     String selector = internalGetMessageSelector();
     String selectorOnSubscription = internalGetMessageSelectorFromSubscription();
     if (selectorOnSubscription == null) {
@@ -193,12 +180,12 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
   }
 
   private synchronized String internalGetMessageSelectorFromSubscription() {
-    if (selectorSupportOnSubscriptions.isEmpty()) {
+    if (!useServerSideFiltering || selectorSupportOnSubscriptions.isEmpty()) {
       return null;
     }
     // pick one
     SelectorSupport next = selectorSupportOnSubscriptions.values().iterator().next();
-    return next.getSelector();
+    return next != null ? next.getSelector() : null;
   }
 
   /**
@@ -697,7 +684,22 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
     return selectorSupport;
   }
 
-  public synchronized SelectorSupport getSelectorSupportOnSubscription(String topicName) {
+  public synchronized SelectorSupport getSelectorSupportOnSubscription(String topicName)
+      throws JMSException {
+    if (!useServerSideFiltering) {
+      return null;
+    }
+    if (!selectorSupportOnSubscriptions.containsKey(topicName)) {
+      String subscriptionName =
+          destination.isQueue()
+              ? session.getFactory().getQueueSubscriptionName(destination)
+              : this.subscriptionName;
+      String selector =
+          session
+              .getFactory()
+              .downloadServerSideFilter(topicName, subscriptionName, subscriptionMode);
+      selectorSupportOnSubscriptions.put(topicName, SelectorSupport.build(selector, true));
+    }
     return selectorSupportOnSubscriptions.get(topicName);
   }
 

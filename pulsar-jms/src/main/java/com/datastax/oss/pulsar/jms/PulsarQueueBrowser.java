@@ -29,6 +29,7 @@ import javax.jms.Queue;
 import javax.jms.QueueBrowser;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.api.Reader;
+import org.apache.pulsar.client.api.SubscriptionMode;
 
 @Slf4j
 final class PulsarQueueBrowser implements QueueBrowser {
@@ -37,38 +38,27 @@ final class PulsarQueueBrowser implements QueueBrowser {
 
   private final PulsarSession session;
   private final PulsarQueue queue;
+  private final String subscriptionName;
   private final List<Reader<?>> readers;
   private final SelectorSupport selectorSupport;
   private final Map<String, SelectorSupport> selectorSupportOnSubscriptions = new HashMap<>();
+  private final boolean useServerSideFiltering;
 
   public PulsarQueueBrowser(PulsarSession session, Queue queue, String selector)
       throws JMSException {
     session.checkNotClosed();
     this.session = session;
+    this.useServerSideFiltering = session.getFactory().isUseServerSideFiltering();
     this.queue = (PulsarQueue) queue;
-    Map<String, String> downloadedSelectorsOnSubscriptions = new HashMap<>();
     this.readers =
         session
             .getFactory()
-            .createReadersForBrowser(
-                this.queue,
-                session.getOverrideConsumerConfiguration(),
-                downloadedSelectorsOnSubscriptions);
+            .createReadersForBrowser(this.queue, session.getOverrideConsumerConfiguration());
 
     // we are reading messages and it is always safe to apply selectors
     // on the client side
     this.selectorSupport = SelectorSupport.build(selector, true);
-    if (!downloadedSelectorsOnSubscriptions.isEmpty()) {
-      for (Map.Entry<String, String> entry : downloadedSelectorsOnSubscriptions.entrySet()) {
-        String topicName = entry.getKey();
-        String jmsSelectorOnSubscription = entry.getValue();
-        if (jmsSelectorOnSubscription != null && !jmsSelectorOnSubscription.isEmpty()) {
-          SelectorSupport selectorSupportOnSubscription =
-              SelectorSupport.build(jmsSelectorOnSubscription, true);
-          selectorSupportOnSubscriptions.put(topicName, selectorSupportOnSubscription);
-        }
-      }
-    }
+    this.subscriptionName = session.getFactory().getQueueSubscriptionName(this.queue);
   }
 
   /**
@@ -110,10 +100,26 @@ final class PulsarQueueBrowser implements QueueBrowser {
   }
 
   private synchronized String internalGetMessageSelectorFromSubscription() {
-    if (selectorSupportOnSubscriptions.isEmpty()) {
+    if (!useServerSideFiltering || selectorSupportOnSubscriptions.isEmpty()) {
       return null;
     }
-    return selectorSupportOnSubscriptions.values().iterator().next().getSelector();
+    SelectorSupport next = selectorSupportOnSubscriptions.values().iterator().next();
+    return next != null ? next.getSelector() : null;
+  }
+
+  public synchronized SelectorSupport getSelectorSupportOnSubscription(String topicName)
+      throws JMSException {
+    if (!useServerSideFiltering) {
+      return null;
+    }
+    if (!selectorSupportOnSubscriptions.containsKey(topicName)) {
+      String selector =
+          session
+              .getFactory()
+              .downloadServerSideFilter(topicName, subscriptionName, SubscriptionMode.Durable);
+      selectorSupportOnSubscriptions.put(topicName, SelectorSupport.build(selector, true));
+    }
+    return selectorSupportOnSubscriptions.get(topicName);
   }
 
   private class MessageEnumeration implements Enumeration {
@@ -162,7 +168,7 @@ final class PulsarQueueBrowser implements QueueBrowser {
                   nextMessage = null;
                 } else {
                   SelectorSupport selectorSupportOnSubscription =
-                      selectorSupportOnSubscriptions.get(
+                      getSelectorSupportOnSubscription(
                           nextMessage.getReceivedPulsarMessage().getTopicName());
                   if (selectorSupportOnSubscription != null
                       && !selectorSupportOnSubscription.matches(nextMessage)) {

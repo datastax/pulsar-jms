@@ -79,7 +79,6 @@ import org.apache.pulsar.client.api.SubscriptionInitialPosition;
 import org.apache.pulsar.client.api.SubscriptionMode;
 import org.apache.pulsar.client.api.SubscriptionType;
 import org.apache.pulsar.client.api.TopicMetadata;
-import org.apache.pulsar.client.impl.MultiTopicsConsumerImpl;
 import org.apache.pulsar.client.impl.auth.AuthenticationToken;
 import org.apache.pulsar.common.partition.PartitionedTopicMetadata;
 
@@ -1181,43 +1180,23 @@ public class PulsarConnectionFactory
       builder.intercept(session.getConsumerInterceptor());
       Consumer<?> newConsumer = builder.subscribe();
       consumers.add(newConsumer);
-
-      if (newConsumer instanceof MultiTopicsConsumerImpl) {
-        MultiTopicsConsumerImpl multiTopicsConsumer = (MultiTopicsConsumerImpl) newConsumer;
-        if (log.isDebugEnabled()) {
-          log.debug("Partition names: {}", multiTopicsConsumer.getPartitions());
-        }
-        for (Object singleTopicName : multiTopicsConsumer.getPartitions()) {
-          downloadServerSideFilter(
-              singleTopicName.toString(),
-              subscriptionName,
-              subscriptionMode,
-              selectorOnSubscriptionReceiver);
-        }
-      } else {
-        String fullQualifiedTopicName = getPulsarTopicName(destination);
-        downloadServerSideFilter(
-            fullQualifiedTopicName,
-            subscriptionName,
-            subscriptionMode,
-            selectorOnSubscriptionReceiver);
-      }
-
       return newConsumer;
-    } catch (PulsarClientException | PulsarAdminException err) {
+    } catch (PulsarClientException err) {
       throw Utils.handleException(err);
     }
   }
 
-  private void downloadServerSideFilter(
-      String fullQualifiedTopicName,
-      String subscriptionName,
-      SubscriptionMode subscriptionMode,
-      Map<String, String> selectorOnSubscriptionReceiver)
-      throws PulsarAdminException, JMSException {
+  public String downloadServerSideFilter(
+      String fullQualifiedTopicName, String subscriptionName, SubscriptionMode subscriptionMode)
+      throws JMSException {
     if (!isUseServerSideFiltering() || subscriptionMode != SubscriptionMode.Durable) {
-      return;
+      return null;
     }
+    log.info(
+        "downloadServerSideFilter {} {} {}",
+        fullQualifiedTopicName,
+        subscriptionName,
+        subscriptionMode);
     long start = System.currentTimeMillis();
     while (true) {
       try {
@@ -1237,15 +1216,11 @@ public class PulsarConnectionFactory
                   selectorOnSubscription,
                   subscriptionName,
                   fullQualifiedTopicName);
-              selectorOnSubscriptionReceiver.put(fullQualifiedTopicName, selectorOnSubscription);
+              return selectorOnSubscription;
             }
           }
         }
-        return;
-      } catch (PulsarAdminException.NotFoundException notFoundException) {
-        log.debug(
-            "Topic not found, cannot download server-side filters {}", fullQualifiedTopicName);
-        return;
+        return null;
       } catch (PulsarAdminException.PreconditionFailedException notReady) {
         // special handling for "PreconditionFailedException: Can't find owner for topic
         // persistent://xxx/xx/xxxx"
@@ -1264,14 +1239,14 @@ public class PulsarConnectionFactory
             throw Utils.handleException(notReady);
           }
         }
+      } catch (PulsarAdminException err) {
+        throw Utils.handleException(err);
       }
     }
   }
 
   public List<Reader<?>> createReadersForBrowser(
-      PulsarQueue destination,
-      ConsumerConfiguration overrideConsumerConfiguration,
-      Map<String, String> selectorOnSubscriptionReceiver)
+      PulsarQueue destination, ConsumerConfiguration overrideConsumerConfiguration)
       throws JMSException {
 
     if (destination.isVirtualDestination()) {
@@ -1290,11 +1265,6 @@ public class PulsarConnectionFactory
         Reader<?> readerForBrowserForNonPartitionedTopic =
             createReaderForBrowserForNonPartitionedTopic(
                 queueSubscriptionName, fullQualifiedTopicName, overrideConsumerConfiguration);
-        downloadServerSideFilter(
-            fullQualifiedTopicName,
-            queueSubscriptionName,
-            SubscriptionMode.Durable,
-            selectorOnSubscriptionReceiver);
         readers.add(readerForBrowserForNonPartitionedTopic);
       } else {
         for (int i = 0; i < partitionedTopicMetadata.partitions; i++) {
@@ -1302,11 +1272,6 @@ public class PulsarConnectionFactory
           Reader<?> readerForBrowserForNonPartitionedTopic =
               createReaderForBrowserForNonPartitionedTopic(
                   queueSubscriptionName, partitionName, overrideConsumerConfiguration);
-          downloadServerSideFilter(
-              partitionName,
-              queueSubscriptionName,
-              SubscriptionMode.Durable,
-              selectorOnSubscriptionReceiver);
           readers.add(readerForBrowserForNonPartitionedTopic);
         }
       }
