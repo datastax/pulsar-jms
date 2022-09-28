@@ -16,6 +16,7 @@
 package com.datastax.oss.pulsar.jms.cli;
 
 import com.datastax.oss.pulsar.jms.PulsarConnectionFactory;
+import com.datastax.oss.pulsar.jms.PulsarJMSContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import java.io.File;
@@ -25,7 +26,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import javax.jms.JMSContext;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.admin.cli.extensions.CommandExecutionContext;
 import org.apache.pulsar.admin.cli.extensions.CustomCommand;
@@ -87,13 +87,21 @@ abstract class BaseCommand implements CustomCommand {
 
   private ArrayList<AutoCloseable> closeables = new ArrayList<>();
   protected PulsarConnectionFactory factory;
-  protected JMSContext context;
+  protected PulsarJMSContext context;
 
   protected void println(String template, Object... parameters) {
     System.out.println(MessageFormatter.arrayFormat(template, parameters).getMessage());
   }
 
   protected PulsarConnectionFactory getFactory() throws Exception {
+    return getFactory(false);
+  }
+
+  protected PulsarConnectionFactory getFactory(boolean createClient) throws Exception {
+    if (factory != null && createClient && factory.getPulsarClient() == null) {
+      factory.close();
+      factory = null;
+    }
     if (factory == null) {
       String config = getStringParameter("--jms-config", "");
 
@@ -114,15 +122,19 @@ abstract class BaseCommand implements CustomCommand {
         configuration.putAll(YAML_PARSER.readValue(file, Map.class));
       }
       log.debug("Configuration {}", configuration);
-      factory =
-          new PulsarConnectionFactory(configuration) {
-            @Override
-            protected PulsarClient buildPulsarClient(ClientBuilder builder)
-                throws PulsarClientException {
-              // PulsarClient is not needed, do not create it
-              return null;
-            }
-          };
+      if (createClient) {
+        factory = new PulsarConnectionFactory(configuration);
+      } else {
+        factory =
+            new PulsarConnectionFactory(configuration) {
+              @Override
+              protected PulsarClient buildPulsarClient(ClientBuilder builder)
+                  throws PulsarClientException {
+                // PulsarClient is not needed, do not create it
+                return null;
+              }
+            };
+      }
       closeables.add(factory);
     }
     return factory;
@@ -142,12 +154,12 @@ abstract class BaseCommand implements CustomCommand {
     }
   }
 
-  protected JMSContext getContext() throws Exception {
+  protected PulsarJMSContext getContext() throws Exception {
     if (context != null) {
       return context;
     }
     PulsarConnectionFactory factory = getFactory();
-    context = factory.createContext();
+    context = (PulsarJMSContext) factory.createContext();
     closeables.add(context);
     return context;
   }

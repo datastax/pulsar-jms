@@ -16,10 +16,16 @@
 package com.datastax.oss.pulsar.jms.cli;
 
 import com.datastax.oss.pulsar.jms.PulsarConnectionFactory;
+import com.datastax.oss.pulsar.jms.PulsarDestination;
+import com.datastax.oss.pulsar.jms.TopicDiscoveryUtils;
+import java.util.List;
 import java.util.Map;
-import javax.jms.Destination;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.admin.PulsarAdmin;
+import org.apache.pulsar.client.admin.PulsarAdminException;
+import org.apache.pulsar.client.api.PulsarClient;
+import org.apache.pulsar.common.partition.PartitionedTopicMetadata;
+import org.apache.pulsar.common.policies.data.PartitionedTopicStats;
 import org.apache.pulsar.common.policies.data.SubscriptionStats;
 import org.apache.pulsar.common.policies.data.TopicStats;
 
@@ -38,17 +44,99 @@ class DescribeCommand extends TopicBaseCommand {
   @Override
   protected void executeInternal() throws Exception {
 
-    Destination destination = getDestination(false);
+    PulsarDestination destination = getDestination(false);
+
+    if (destination.isMultiTopic()) {
+      List<PulsarDestination> destinations = destination.getDestinations();
+      println(
+          "JMS Destination {} is a virtual multi-topic destination, it maps to {} destinations",
+          destination,
+          destinations.size());
+      if (destinations.isEmpty()) {
+        return;
+      }
+      println("Destinations:");
+      for (PulsarDestination sub : destinations) {
+        println("     {}", sub);
+      }
+      println("Details:");
+      for (PulsarDestination sub : destinations) {
+        describeDestination(sub);
+      }
+    } else if (destination.isRegExp()) {
+      PulsarConnectionFactory factory = getFactory(true);
+      // trigger internal creation of the PulsarClient
+      factory.createConnection().close();
+      PulsarClient pulsarClient = factory.getPulsarClient();
+      String topicName = factory.getPulsarTopicName(destination);
+      println(
+          "JMS Destination {} is a virtual regexp destination, the pattern is {}",
+          destination,
+          topicName);
+      List<String> topics =
+          TopicDiscoveryUtils.discoverTopicsByPattern(topicName, pulsarClient, 10000);
+      if (topics.isEmpty()) {
+        return;
+      }
+      println("Destinations:");
+      for (String sub : topics) {
+        println("     {}", sub);
+      }
+      println("Details:");
+      for (String topic : topics) {
+        PulsarDestination sub = destination.createSameType(topic);
+        describeDestination(sub);
+      }
+    } else {
+      describeDestination(destination);
+    }
+  }
+
+  private void describeDestination(PulsarDestination destination) throws Exception {
     PulsarConnectionFactory factory = getFactory();
-    String topicName = factory.getPulsarTopicName(destination);
-    println("JMS Destination {} maps to Pulsar Topic {}", destination, topicName);
     PulsarAdmin pulsarAdmin = factory.getPulsarAdmin();
-    TopicStats stats = pulsarAdmin.topics().getStats(topicName);
-    Map<String, ? extends SubscriptionStats> subscriptions = stats.getSubscriptions();
+    String topicName = factory.getPulsarTopicName(destination);
+    String subscription = null;
+    if (destination.isQueue()) {
+      subscription = factory.getQueueSubscriptionName(destination);
+      println(
+          "JMS Destination {} maps to the subscription {} on Pulsar Topic {}",
+          destination,
+          subscription,
+          topicName);
+    } else {
+      println("JMS Destination {} maps to Pulsar Topic {}", destination, topicName);
+    }
+    final Map<String, ? extends SubscriptionStats> subscriptions;
+    PartitionedTopicMetadata partitionedTopicMetadata =
+        pulsarAdmin.topics().getPartitionedTopicMetadata(topicName);
+    if (partitionedTopicMetadata.partitions > 0) {
+      println("The Topic {} has {} partitions", topicName, partitionedTopicMetadata.partitions);
+      try {
+        PartitionedTopicStats partitionedStats =
+            pulsarAdmin.topics().getPartitionedStats(topicName, false);
+        subscriptions = partitionedStats.getSubscriptions();
+      } catch (PulsarAdminException.NotFoundException notFound) {
+        // not partitioned?
+        println("The Topic {} does not exist", topicName);
+        return;
+      }
+    } else {
+      println("The Topic {} is not partitioned", topicName);
+      try {
+        TopicStats stats = pulsarAdmin.topics().getStats(topicName);
+        subscriptions = stats.getSubscriptions();
+      } catch (PulsarAdminException.NotFoundException notFound) {
+        println("The Topic {} does not exist", topicName);
+        return;
+      }
+    }
+
     if (subscriptions.isEmpty()) {
-      println("There are no subscriptions this Pulsar topic");
+      println("Currently there are no subscriptions on this Pulsar topic");
       return;
     }
+    println("Subscriptions on the Pulsar topic:");
     subscriptions.forEach(
         (name, sub) -> {
           println("Subscription: {}", name);

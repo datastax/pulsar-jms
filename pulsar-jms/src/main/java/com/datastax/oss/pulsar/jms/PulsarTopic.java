@@ -47,7 +47,7 @@ public final class PulsarTopic extends PulsarDestination implements Topic {
   }
 
   @Override
-  protected PulsarDestination createSameType(String topicName) throws InvalidDestinationException {
+  public PulsarDestination createSameType(String topicName) throws InvalidDestinationException {
     return new PulsarTopic(topicName);
   }
 

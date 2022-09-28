@@ -100,7 +100,7 @@ public abstract class PulsarDestination implements Destination {
     return destinations;
   }
 
-  protected PulsarDestination createSameType(String topicName) throws InvalidDestinationException {
+  public PulsarDestination createSameType(String topicName) throws InvalidDestinationException {
     throw new InvalidDestinationException(
         "Multi topic syntax is not allowed " + "for this kind of destination (" + getClass() + ")");
   }
