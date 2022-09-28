@@ -140,13 +140,11 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
               .createConsumer(
                   destination,
                   subscriptionName,
-                  session.getAcknowledgeMode(),
                   subscriptionMode,
                   subscriptionType,
                   currentSelector,
                   noLocal,
-                  session.getConnection().getConnectionId(),
-                  session.getOverrideConsumerConfiguration(),
+                  session,
                   downloadedSelectorsOnSubscriptions);
       if (!downloadedSelectorsOnSubscriptions.isEmpty()) {
         for (Map.Entry<String, String> entry : downloadedSelectorsOnSubscriptions.entrySet()) {

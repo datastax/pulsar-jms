@@ -40,8 +40,22 @@ import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
-import javax.jms.*;
+import javax.jms.ConnectionFactory;
+import javax.jms.Destination;
 import javax.jms.IllegalStateException;
+import javax.jms.InvalidClientIDException;
+import javax.jms.InvalidDestinationException;
+import javax.jms.JMSContext;
+import javax.jms.JMSException;
+import javax.jms.JMSRuntimeException;
+import javax.jms.JMSSecurityException;
+import javax.jms.JMSSecurityRuntimeException;
+import javax.jms.Queue;
+import javax.jms.QueueConnection;
+import javax.jms.QueueConnectionFactory;
+import javax.jms.Topic;
+import javax.jms.TopicConnection;
+import javax.jms.TopicConnectionFactory;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.admin.PulsarAdmin;
 import org.apache.pulsar.client.admin.PulsarAdminException;
@@ -1064,13 +1078,11 @@ public class PulsarConnectionFactory
   public Consumer<?> createConsumer(
       PulsarDestination destination,
       String consumerName,
-      int sessionMode,
       SubscriptionMode subscriptionMode,
       SubscriptionType subscriptionType,
       String messageSelector,
       boolean noLocal,
-      String jmsConnectionID,
-      ConsumerConfiguration overrideConsumerConfiguration,
+      PulsarSession session,
       Map<String, String> selectorOnSubscriptionReceiver)
       throws JMSException {
     if (destination.isQueue() && subscriptionMode != SubscriptionMode.Durable) {
@@ -1096,7 +1108,8 @@ public class PulsarConnectionFactory
       consumerMetadata.put("jms.filtering", "true");
       subscriptionProperties.put("jms.destination.type", destination.isQueue() ? "queue" : "topic");
       if (noLocal) {
-        consumerMetadata.put("jms.filter.JMSConnectionID", jmsConnectionID);
+        consumerMetadata.put(
+            "jms.filter.JMSConnectionID", session.getConnection().getConnectionId());
       }
     }
     if (isUseServerSideFiltering()) {
@@ -1116,7 +1129,7 @@ public class PulsarConnectionFactory
 
     try {
       ConsumerConfiguration consumerConfiguration =
-          getConsumerConfiguration(overrideConsumerConfiguration);
+          getConsumerConfiguration(session.getOverrideConsumerConfiguration());
       Schema<?> schema = consumerConfiguration.getConsumerSchema();
       if (schema == null) {
         schema = Schema.BYTES;
@@ -1165,6 +1178,7 @@ public class PulsarConnectionFactory
       if (consumerConfiguration.getAckTimeoutRedeliveryBackoff() != null) {
         builder.ackTimeoutRedeliveryBackoff(consumerConfiguration.getAckTimeoutRedeliveryBackoff());
       }
+      builder.intercept(session.getConsumerInterceptor());
       Consumer<?> newConsumer = builder.subscribe();
       consumers.add(newConsumer);
 

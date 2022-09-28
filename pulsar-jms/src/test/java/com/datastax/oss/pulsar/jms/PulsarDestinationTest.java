@@ -24,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 import java.util.List;
 import java.util.function.BiConsumer;
 import javax.jms.InvalidDestinationException;
+import javax.jms.InvalidDestinationRuntimeException;
 import org.junit.jupiter.api.Test;
 
 public class PulsarDestinationTest {
@@ -87,7 +88,7 @@ public class PulsarDestinationTest {
     assertEquals(null, topic.extractSubscriptionName());
 
     assertThrows(
-        InvalidDestinationException.class,
+        InvalidDestinationRuntimeException.class,
         () -> {
           PulsarQueue topic2 = new PulsarQueue("multi:persistent://public/default/test:");
           topic2.extractSubscriptionName();
@@ -99,7 +100,11 @@ public class PulsarDestinationTest {
       int expectedCount,
       BiConsumer<Integer, PulsarDestination> verifier)
       throws Exception {
-    assertTrue(destination.isMultiTopic());
+    assertEquals(expectedCount == 1 ? false : true, destination.isMultiTopic());
+    if (expectedCount == 1) {
+      verifier.accept(0, destination);
+      return;
+    }
     List<PulsarDestination> destinationList = destination.getDestinations();
     assertEquals(expectedCount, destinationList.size());
     for (int i = 0; i < destinationList.size(); i++) {
@@ -159,28 +164,28 @@ public class PulsarDestinationTest {
           }
         });
     assertThrows(
-        InvalidDestinationException.class,
+        InvalidDestinationRuntimeException.class,
         () -> {
           testMultiTopic(new PulsarQueue("multi:"), 0, (i, d) -> {});
         });
     assertThrows(
-        InvalidDestinationException.class,
+        InvalidDestinationRuntimeException.class,
         () -> {
           testMultiTopic(new PulsarQueue("multi:,"), 0, (i, d) -> {});
         });
     assertThrows(
-        InvalidDestinationException.class,
+        InvalidDestinationRuntimeException.class,
         () -> {
           testMultiTopic(new PulsarQueue("multi:,,"), 0, (i, d) -> {});
         });
     testMultiTopic(new PulsarQueue("multi:test,"), 1, (i, d) -> {});
     assertThrows(
-        InvalidDestinationException.class,
+        InvalidDestinationRuntimeException.class,
         () -> {
           testMultiTopic(new PulsarQueue("multi:,test"), 1, (i, d) -> {});
         });
     assertThrows(
-        InvalidDestinationException.class,
+        InvalidDestinationRuntimeException.class,
         () -> {
           testMultiTopic(new PulsarQueue("multi:test,,test"), 2, (i, d) -> {});
         });
@@ -234,28 +239,28 @@ public class PulsarDestinationTest {
           }
         });
     assertThrows(
-        InvalidDestinationException.class,
+        InvalidDestinationRuntimeException.class,
         () -> {
           testMultiTopic(new PulsarTopic("multi:"), 0, (i, d) -> {});
         });
     assertThrows(
-        InvalidDestinationException.class,
+        InvalidDestinationRuntimeException.class,
         () -> {
           testMultiTopic(new PulsarTopic("multi:,"), 0, (i, d) -> {});
         });
     assertThrows(
-        InvalidDestinationException.class,
+        InvalidDestinationRuntimeException.class,
         () -> {
           testMultiTopic(new PulsarTopic("multi:,,"), 0, (i, d) -> {});
         });
     testMultiTopic(new PulsarTopic("multi:test,"), 1, (i, d) -> {});
     assertThrows(
-        InvalidDestinationException.class,
+        InvalidDestinationRuntimeException.class,
         () -> {
           testMultiTopic(new PulsarTopic("multi:,test"), 1, (i, d) -> {});
         });
     assertThrows(
-        InvalidDestinationException.class,
+        InvalidDestinationRuntimeException.class,
         () -> {
           testMultiTopic(new PulsarTopic("multi:test,,test"), 2, (i, d) -> {});
         });
