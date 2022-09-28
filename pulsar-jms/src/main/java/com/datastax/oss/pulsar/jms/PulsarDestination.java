@@ -27,6 +27,16 @@ public abstract class PulsarDestination implements Destination {
 
   protected PulsarDestination(String topicName) {
     this.topicName = Objects.requireNonNull(topicName);
+    if (isMultiTopic()) {
+      // simplify multi-topic of 1 topic
+      Utils.runtimeException(
+          () -> {
+            List<PulsarDestination> destinations = getDestinations();
+            if (destinations.size() == 1) {
+              this.topicName = destinations.get(0).topicName;
+            }
+          });
+    }
   }
 
   public String getName() {

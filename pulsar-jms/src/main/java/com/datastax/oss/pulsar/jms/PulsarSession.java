@@ -29,6 +29,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -68,6 +69,8 @@ import javax.jms.TopicSubscriber;
 import javax.jms.TransactionRolledBackException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.api.Consumer;
+import org.apache.pulsar.client.api.ConsumerInterceptor;
+import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.api.Producer;
 import org.apache.pulsar.client.api.SubscriptionMode;
 import org.apache.pulsar.client.api.SubscriptionType;
@@ -104,6 +107,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   private int activitesBlockingTransactionOperations = 0;
   private boolean transactionOperationInProgress = false;
   private final AtomicLong transactionStickyKey = new AtomicLong();
+  private final ConsumersInterceptor consumerInterceptor = new ConsumersInterceptor();
 
   PulsarSession(
       int sessionMode,
@@ -1910,5 +1914,58 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     this.allowQueueOperations = queue;
     this.allowTopicOperations = topic;
     return this;
+  }
+
+  ConsumerInterceptor getConsumerInterceptor() {
+    return consumerInterceptor;
+  }
+
+  class ConsumersInterceptor implements ConsumerInterceptor<Object> {
+    @Override
+    public void close() {}
+
+    @Override
+    public org.apache.pulsar.client.api.Message<Object> beforeConsume(
+        Consumer<Object> consumer, org.apache.pulsar.client.api.Message<Object> message) {
+      return message;
+    }
+
+    @Override
+    public void onAcknowledge(
+        Consumer<Object> consumer, MessageId messageId, Throwable exception) {}
+
+    @Override
+    public void onAcknowledgeCumulative(
+        Consumer<Object> consumer, MessageId messageId, Throwable exception) {}
+
+    @Override
+    public void onNegativeAcksSend(Consumer<Object> consumer, Set<MessageId> messageIds) {}
+
+    @Override
+    public void onAckTimeoutSend(Consumer<Object> consumer, Set<MessageId> messageIds) {
+      if (log.isDebugEnabled()) {
+        log.debug("onAckTimeoutSend {}", messageIds);
+      }
+      synchronized (unackedMessages) {
+        for (Iterator<PulsarMessage> it = unackedMessages.iterator(); it.hasNext(); ) {
+          PulsarMessage msg = it.next();
+          MessageId messageId = msg.getReceivedPulsarMessage().getMessageId();
+          for (MessageId id : messageIds) {
+            // in Pulsar 2.10 the MessageIds are always MessageIdImpl and they don't contain the
+            // "batchIndex"
+            // this is because the DLQ works at Entry level and not at Message level
+            boolean found = Utils.sameEntryId(id, messageId);
+            if (found) {
+              it.remove();
+              break;
+            }
+          }
+          // continue scanning the full list of unackedMessages
+        }
+      }
+    }
+
+    @Override
+    public void onPartitionsChange(String topicName, int partitions) {}
   }
 }
