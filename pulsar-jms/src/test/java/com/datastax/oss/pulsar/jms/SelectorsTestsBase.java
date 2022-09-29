@@ -797,9 +797,6 @@ public abstract class SelectorsTestsBase {
             assertEquals(
                 SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
 
-            // this is downloaded from the server
-            assertEquals(selector, consumer1.getMessageSelector());
-
             try (MessageProducer producer = session.createProducer(destination); ) {
               for (int i = 0; i < 10; i++) {
                 TextMessage textMessage = session.createTextMessage("foo-" + i);
@@ -834,6 +831,9 @@ public abstract class SelectorsTestsBase {
               }
               assertTrue(received.isEmpty());
             }
+
+            // this is downloaded from the server
+            assertEquals(selector, consumer1.getMessageSelector());
 
             assertEquals(5, consumer1.getReceivedMessages());
             assertEquals(0, consumer1.getSkippedMessages());
@@ -915,9 +915,6 @@ public abstract class SelectorsTestsBase {
             assertEquals(
                 SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
 
-            // this is downloaded from the server
-            assertEquals(selector, consumer1.getMessageSelector());
-
             try (MessageProducer producer = session.createProducer(destination); ) {
               for (int i = 0; i < 10; i++) {
                 TextMessage textMessage = session.createTextMessage("foo-" + i);
@@ -930,14 +927,14 @@ public abstract class SelectorsTestsBase {
 
             // test QueueBrowser with server-side filters
             try (QueueBrowser browser = session.createBrowser(destination)) {
-              // this is downloaded from the server
-              assertEquals(selector, browser.getMessageSelector());
               int count = 0;
               for (Enumeration e = browser.getEnumeration(); e.hasMoreElements(); ) {
                 TextMessage message = (TextMessage) e.nextElement();
                 count++;
               }
               assertEquals(5, count);
+              // this is downloaded from the server
+              assertEquals(selector, browser.getMessageSelector());
             }
 
             if (numPartitions == 0) {
@@ -963,6 +960,9 @@ public abstract class SelectorsTestsBase {
                 }
               }
             }
+
+            // this is downloaded from the server
+            assertEquals(selector, consumer1.getMessageSelector());
 
             assertEquals(5, consumer1.getReceivedMessages());
             assertEquals(0, consumer1.getSkippedMessages());
@@ -1048,11 +1048,6 @@ public abstract class SelectorsTestsBase {
             assertEquals(
                 SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
 
-            // this is downloaded from the server
-            assertEquals(
-                "(" + selectorOnSubscription + ") AND (" + selectorOnClient + ")",
-                consumer1.getMessageSelector());
-
             List<CompletableFuture<Message>> handles = new ArrayList<>();
             try (MessageProducer producer = session.createProducer(destination); ) {
               for (int i = 0; i < 20; i++) {
@@ -1103,6 +1098,11 @@ public abstract class SelectorsTestsBase {
               receive = (TextMessage) consumer1.receive(1000);
             }
             assertFalse(failed);
+
+            // this is downloaded from the server
+            assertEquals(
+                "(" + selectorOnSubscription + ") AND (" + selectorOnClient + ")",
+                consumer1.getMessageSelector());
 
             if (enableBatching) {
               assertTrue(
@@ -1235,9 +1235,6 @@ public abstract class SelectorsTestsBase {
             assertEquals(
                 SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
 
-            // this is downloaded from the server
-            assertEquals(selector, consumer1.getMessageSelector());
-
             try (MessageProducer producer = session.createProducer(destination); ) {
               for (int i = 0; i < 1000; i++) {
                 TextMessage textMessage = session.createTextMessage("foo-" + i);
@@ -1254,6 +1251,9 @@ public abstract class SelectorsTestsBase {
                 assertEquals("foo-" + i, textMessage.getText());
               }
             }
+
+            // this is downloaded from the server, at the first message
+            assertEquals(selector, consumer1.getMessageSelector());
 
             assertEquals(500, consumer1.getReceivedMessages());
             assertEquals(0, consumer1.getSkippedMessages());

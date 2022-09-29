@@ -16,6 +16,7 @@
 package com.datastax.oss.pulsar.jms;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
 
@@ -25,6 +26,10 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
+import javax.jms.Destination;
+import javax.jms.JMSException;
+import javax.jms.MessageConsumer;
+import javax.jms.TextMessage;
 import javax.jms.Topic;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.admin.PulsarAdmin;
@@ -35,8 +40,9 @@ import org.apache.pulsar.client.api.SubscriptionType;
 import org.apache.pulsar.common.policies.data.AutoTopicCreationOverride;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.internal.util.reflection.Whitebox;
 
 @Slf4j
@@ -85,17 +91,9 @@ public class BasicServerSideFilterTest {
     return properties;
   }
 
-  @Test
-  public void downloadSubscriptionProperties() throws Exception {
-    downloadSubscriptionProperties(0);
-  }
-
-  @Test
-  public void downloadSubscriptionPropertiesPartitionedTopic() throws Exception {
-    downloadSubscriptionProperties(4);
-  }
-
-  private void downloadSubscriptionProperties(int numPartitions) throws Exception {
+  @ParameterizedTest(name = "numPartitions {0}")
+  @ValueSource(ints = {0, 4})
+  public void downloadSubscriptionProperties(int numPartitions) throws Exception {
 
     Map<String, Object> properties = buildProperties();
 
@@ -161,6 +159,9 @@ public class BasicServerSideFilterTest {
             assertEquals(
                 SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
 
+            produce(session, destination);
+            consume(consumer1);
+
             // this is downloaded from the server
             assertEquals(selector, consumer1.getMessageSelector());
           }
@@ -172,6 +173,10 @@ public class BasicServerSideFilterTest {
               session.createSharedDurableConsumer(destination, subscriptionName, null); ) {
             assertEquals(
                 SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
+
+            produce(session, destination);
+            consume(consumer1);
+
             // this is downloaded from the server
             assertEquals(selector, consumer1.getMessageSelector());
           }
@@ -181,6 +186,8 @@ public class BasicServerSideFilterTest {
               session.createSharedDurableConsumer(destination2, subscriptionName, null); ) {
             assertEquals(
                 SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
+            produce(session, destination2);
+            consume(consumer1);
             // this is downloaded from the server
             assertEquals(null, consumer1.getMessageSelector());
           }
@@ -191,6 +198,8 @@ public class BasicServerSideFilterTest {
                   destination2, subscriptionName + "non-existing", null); ) {
             assertEquals(
                 SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
+            produce(session, destination2);
+            consume(consumer1);
             // this is downloaded from the server
             assertEquals(null, consumer1.getMessageSelector());
           }
@@ -218,6 +227,8 @@ public class BasicServerSideFilterTest {
               session.createSharedDurableConsumer(destination, subscriptionName, null); ) {
             assertEquals(
                 SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
+            produce(session, destination);
+            consume(consumer1);
             // this is downloaded from the server
             assertEquals(selector, consumer1.getMessageSelector());
             assertTrue(done.get());
@@ -225,5 +236,15 @@ public class BasicServerSideFilterTest {
         }
       }
     }
+  }
+
+  private void produce(PulsarSession session, Destination destination) throws JMSException {
+    TextMessage text = session.createTextMessage("foo");
+    text.setBooleanProperty("keepme", true);
+    session.createProducer(null).send(destination, text);
+  }
+
+  private void consume(MessageConsumer consumer) throws JMSException {
+    assertNotNull(consumer.receive());
   }
 }

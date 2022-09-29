@@ -21,7 +21,10 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.datastax.oss.pulsar.jms.selectors.SelectorSupport;
 import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
+import com.google.common.collect.ImmutableMap;
+import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -45,6 +48,7 @@ import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.api.SubscriptionType;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -241,10 +245,6 @@ public class VirtualDestinationsConsumerTest {
             assertEquals(
                 SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
 
-            // this is downloaded from the server
-            // getMessageSelector returns any of the selectors actually
-            assertEquals(selector, consumer1.getMessageSelector());
-
             try (MessageProducer producer = session.createProducer(null); ) {
               for (int i = 0; i < 10; i++) {
                 TextMessage textMessage = session.createTextMessage("foo-" + i);
@@ -272,6 +272,11 @@ public class VirtualDestinationsConsumerTest {
                 received.add(textMessage.getText());
               }
             }
+
+            // this is downloaded from the server
+            // getMessageSelector returns any of the selectors actually
+            assertEquals(selector, consumer1.getMessageSelector());
+
             for (int i = 0; i < 10; i++) {
               for (int j = 0; j < destinationsToWrite.size(); j++) {
                 if (i % 2 == 0) {
@@ -371,8 +376,6 @@ public class VirtualDestinationsConsumerTest {
             assertEquals(
                 SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
 
-            assertEquals(selector, consumer1.getMessageSelector());
-
             int totalSent = 0;
             try (MessageProducer producer = session.createProducer(null); ) {
               for (int i = 0; i < 10; i++) {
@@ -407,6 +410,8 @@ public class VirtualDestinationsConsumerTest {
             }
             assertTrue(received.isEmpty());
 
+            assertEquals(selector, consumer1.getMessageSelector());
+
             // drain the last messages, the will be skipped on the client side
             assertNull(consumer1.receive(1000));
             assertNull(consumer1.receive(1000));
@@ -418,6 +423,97 @@ public class VirtualDestinationsConsumerTest {
 
             // no more messages
             assertNull(consumer1.receiveNoWait());
+          }
+        }
+      }
+    }
+  }
+
+  @Test
+  public void testPatternConsumerAddingTopicWithServerSideFilters() throws Exception {
+    int numMessagesPerDestination = 10;
+    Map<String, Object> properties = new HashMap<>();
+    properties.put("webServiceUrl", cluster.getAddress());
+    properties.put("jms.usePulsarAdmin", "true");
+    properties.put("jms.useServerSideFiltering", true);
+    // discover new topics every 5 seconds
+    properties.put("consumerConfig", ImmutableMap.of("patternAutoDiscoveryPeriod", "5"));
+
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+      try (Connection connection = factory.createConnection()) {
+        connection.start();
+        try (Session session = connection.createSession(Session.AUTO_ACKNOWLEDGE);
+            MessageProducer producer = session.createProducer(null)) {
+          String prefix = "aaa";
+
+          int nextDestinationId = 0;
+          List<Topic> destinationsToWrite = new ArrayList<>();
+          for (int i = 0; i < 4; i++) {
+            String topicName = "test-" + prefix + "-" + nextDestinationId;
+            factory.getPulsarAdmin().topics().createNonPartitionedTopic(topicName);
+            destinationsToWrite.add(session.createTopic(topicName));
+            nextDestinationId = i + 1;
+          }
+
+          Set<String> payloads = new HashSet<>();
+          int count = 0;
+          for (int i = 0; i < numMessagesPerDestination; i++) {
+            for (Topic destination : destinationsToWrite) {
+              String payload = "foo - " + count * i;
+              log.info("write {} to {}", payload, destination);
+              producer.send(destination, session.createTextMessage(payload));
+              count++;
+            }
+          }
+
+          Queue destination =
+              session.createQueue("regex:persistent://public/default/test-" + prefix + "-.*");
+
+          PulsarDestination asPulsarDestination = (PulsarDestination) destination;
+          assertTrue(asPulsarDestination.isVirtualDestination());
+          assertTrue(asPulsarDestination.isRegExp());
+
+          try (MessageConsumer consumer = session.createConsumer(destination); ) {
+            for (int i = 0; i < count; i++) {
+              String payload = consumer.receive().getBody(String.class);
+              log.info("Received {}, remaining {}", payload, payloads.size());
+              assertFalse(payloads.remove(payload));
+            }
+
+            assertTrue(payloads.isEmpty());
+
+            // add a new topic matching the pattern
+            // the new topic has server side filters on the jms-queue subscription
+            String topicName = "test-" + prefix + "-" + nextDestinationId;
+            factory.getPulsarAdmin().topics().createNonPartitionedTopic(topicName);
+            Map<String, String> subscriptionProperties = new HashMap<>();
+            subscriptionProperties.put("jms.selector", "keepme=TRUE");
+            subscriptionProperties.put("jms.filtering", "true");
+            cluster
+                .getService()
+                .getAdminClient()
+                .topics()
+                .createSubscription(
+                    topicName, "jms-queue", MessageId.earliest, false, subscriptionProperties);
+
+            Queue newDestination = session.createQueue(topicName);
+            TextMessage nextMessage = session.createTextMessage("new");
+            nextMessage.setBooleanProperty("keepme", true);
+            producer.send(newDestination, nextMessage);
+            log.info("id: {}", nextMessage.getJMSMessageID());
+
+            TextMessage received = (TextMessage) consumer.receive();
+            assertEquals("new", received.getText());
+
+            Field selectorSupportOnSubscriptions =
+                consumer.getClass().getDeclaredField("selectorSupportOnSubscriptions");
+            selectorSupportOnSubscriptions.setAccessible(true);
+            Map<String, SelectorSupport> downloaded =
+                (Map<String, SelectorSupport>) selectorSupportOnSubscriptions.get(consumer);
+            assertEquals(5, downloaded.size());
+            assertEquals(
+                "keepme=TRUE",
+                downloaded.get(factory.getPulsarTopicName(newDestination)).getSelector());
           }
         }
       }
