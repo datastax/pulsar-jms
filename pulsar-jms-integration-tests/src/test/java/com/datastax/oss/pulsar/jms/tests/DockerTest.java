@@ -22,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.datastax.oss.pulsar.jms.PulsarConnectionFactory;
+import com.datastax.oss.pulsar.jms.PulsarJMSConsumer;
 import com.datastax.oss.pulsar.jms.PulsarMessageConsumer;
 import com.datastax.oss.pulsar.jms.shaded.org.apache.pulsar.client.impl.auth.AuthenticationToken;
 import java.nio.charset.StandardCharsets;
@@ -157,8 +158,7 @@ public class DockerTest {
           context3.createProducer().setProperty("keepMessage", true).send(topic, "keepMe");
 
           assertEquals("keepMe", consumerWithSelector.receiveBody(String.class));
-          PulsarMessageConsumer.PulsarJMSConsumer pulsarJMSConsumer =
-              (PulsarMessageConsumer.PulsarJMSConsumer) consumerWithSelector;
+          PulsarJMSConsumer pulsarJMSConsumer = (PulsarJMSConsumer) consumerWithSelector;
           PulsarMessageConsumer inner = pulsarJMSConsumer.asPulsarMessageConsumer();
 
           if (useServerSideFiltering) {
