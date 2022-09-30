@@ -15,36 +15,33 @@
  */
 package com.datastax.oss.pulsar.jms;
 
-import com.datastax.oss.pulsar.jms.messages.PulsarTextMessage;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.pulsar.client.api.SubscriptionType;
-import org.apache.pulsar.client.impl.BatchMessageIdImpl;
-import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import javax.jms.CompletionListener;
-import javax.jms.Message;
-import javax.jms.MessageProducer;
-import javax.jms.Queue;
-import javax.jms.TextMessage;
+import com.datastax.oss.pulsar.jms.messages.PulsarTextMessage;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import javax.jms.CompletionListener;
+import javax.jms.Message;
+import javax.jms.MessageProducer;
+import javax.jms.Queue;
+import javax.jms.TextMessage;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.pulsar.client.api.SubscriptionType;
+import org.apache.pulsar.client.impl.BatchMessageIdImpl;
+import org.junit.jupiter.api.Test;
 
 @Slf4j
 public final class ServerSideWithoutBatchingTest extends SelectorsTestsBase {
   public ServerSideWithoutBatchingTest() {
     super(true, false);
   }
-
 
   @Test
   public void competingOnJMSPriority() throws Exception {
@@ -65,17 +62,20 @@ public final class ServerSideWithoutBatchingTest extends SelectorsTestsBase {
         connection.start();
         try (PulsarSession session = connection.createSession(); ) {
           Queue destination =
-                  session.createQueue("persistent://public/default/test-" + UUID.randomUUID());
+              session.createQueue("persistent://public/default/test-" + UUID.randomUUID());
 
           try (PulsarMessageConsumer consumerSlowLowPriority =
-                       session.createConsumer(destination, "JMSPriority = 4");
-               PulsarMessageConsumer consumerHighPriority =
-                       session.createConsumer(destination, "JMSPriority > 4"); ) {
+                  (PulsarMessageConsumer) session.createConsumer(destination, "JMSPriority = 4");
+              PulsarMessageConsumer consumerHighPriority =
+                  (PulsarMessageConsumer)
+                      session.createConsumer(destination, "JMSPriority > 4"); ) {
             assertEquals(
-                    SubscriptionType.Shared, ((PulsarMessageConsumer) consumerSlowLowPriority).getSubscriptionType());
+                SubscriptionType.Shared,
+                ((PulsarMessageConsumer) consumerSlowLowPriority).getSubscriptionType());
             assertEquals("JMSPriority = 4", consumerSlowLowPriority.getMessageSelector());
             assertEquals(
-                    SubscriptionType.Shared, ((PulsarMessageConsumer) consumerSlowLowPriority).getSubscriptionType());
+                SubscriptionType.Shared,
+                ((PulsarMessageConsumer) consumerSlowLowPriority).getSubscriptionType());
             assertEquals("JMSPriority > 4", consumerHighPriority.getMessageSelector());
 
             List<CompletableFuture<Message>> handles = new ArrayList<>();
@@ -95,18 +95,18 @@ public final class ServerSideWithoutBatchingTest extends SelectorsTestsBase {
                 }
                 CompletableFuture<Message> handle = new CompletableFuture<>();
                 producer.send(
-                        textMessage,
-                        new CompletionListener() {
-                          @Override
-                          public void onCompletion(Message message) {
-                            handle.complete(message);
-                          }
+                    textMessage,
+                    new CompletionListener() {
+                      @Override
+                      public void onCompletion(Message message) {
+                        handle.complete(message);
+                      }
 
-                          @Override
-                          public void onException(Message message, Exception e) {
-                            handle.completeExceptionally(e);
-                          }
-                        });
+                      @Override
+                      public void onException(Message message, Exception e) {
+                        handle.completeExceptionally(e);
+                      }
+                    });
                 handles.add(handle);
 
                 if (handles.size() % 1000 == 0) {
@@ -121,76 +121,76 @@ public final class ServerSideWithoutBatchingTest extends SelectorsTestsBase {
 
             CompletableFuture<String> thread1Result = new CompletableFuture();
             Thread thread1 =
-                    new Thread(
-                            () -> {
-                              try {
-                                while (!expected1.isEmpty()) {
-                                  log.info(
-                                          "{} messages left for consumer1", expected1.size());
-                                  PulsarTextMessage textMessage = (PulsarTextMessage) consumerSlowLowPriority.receive();
-                                  log.info(
-                                          "consumerSlowLowPriority received {} {}",
-                                          textMessage.getText(),
-                                          textMessage.getJMSPriority()
-                                  );
-                                  // ensure that we receive the message only ONCE
-                                  assertTrue(expected1.remove(textMessage.getText()));
+                new Thread(
+                    () -> {
+                      try {
+                        while (!expected1.isEmpty()) {
+                          log.info("{} messages left for consumer1", expected1.size());
+                          PulsarTextMessage textMessage =
+                              (PulsarTextMessage) consumerSlowLowPriority.receive();
+                          log.info(
+                              "consumerSlowLowPriority received {} {}",
+                              textMessage.getText(),
+                              textMessage.getJMSPriority());
+                          // ensure that we receive the message only ONCE
+                          assertTrue(expected1.remove(textMessage.getText()));
 
-                                  // ensure that it is a batch message
-                                  assertEquals(
-                                          enableBatching,
-                                          textMessage.getReceivedPulsarMessage().getMessageId()
-                                                  instanceof BatchMessageIdImpl);
+                          // ensure that it is a batch message
+                          assertEquals(
+                              enableBatching,
+                              textMessage.getReceivedPulsarMessage().getMessageId()
+                                  instanceof BatchMessageIdImpl);
 
-                                  Thread.sleep(10000);
-                                }
-                                // no more messages (this also drains some remaining messages to be skipped)
-                                assertNull(consumerSlowLowPriority.receive(1000));
+                          Thread.sleep(10000);
+                        }
+                        // no more messages (this also drains some remaining messages to be skipped)
+                        assertNull(consumerSlowLowPriority.receive(1000));
 
-                                thread1Result.complete("");
-                              } catch (Throwable t) {
-                                log.error("error thread1", t);
-                                thread1Result.completeExceptionally(t);
-                              }
-                            });
+                        thread1Result.complete("");
+                      } catch (Throwable t) {
+                        log.error("error thread1", t);
+                        thread1Result.completeExceptionally(t);
+                      }
+                    });
 
             CompletableFuture<String> thread2Result = new CompletableFuture();
             Thread thread2 =
-                    new Thread(
-                            () -> {
-                              try {
-                                while (!expected2.isEmpty()) {
-                                  log.info(
-                                          "{} messages left for consumerHighPriority", expected2.size());
-                                  PulsarTextMessage textMessage = (PulsarTextMessage) consumerHighPriority.receive();
-                                  log.info(
-                                          "consumerHighPriority received {} {}",
-                                          textMessage.getText(),
-                                          textMessage.getJMSPriority());
-                                  // ensure that we receive the message only ONCE
-                                  assertTrue(expected2.remove(textMessage.getText()));
+                new Thread(
+                    () -> {
+                      try {
+                        while (!expected2.isEmpty()) {
+                          log.info("{} messages left for consumerHighPriority", expected2.size());
+                          PulsarTextMessage textMessage =
+                              (PulsarTextMessage) consumerHighPriority.receive();
+                          log.info(
+                              "consumerHighPriority received {} {}",
+                              textMessage.getText(),
+                              textMessage.getJMSPriority());
+                          // ensure that we receive the message only ONCE
+                          assertTrue(expected2.remove(textMessage.getText()));
 
-                                  // ensure that it is a batch message
-                                  assertEquals(
-                                          enableBatching,
-                                          textMessage.getReceivedPulsarMessage().getMessageId()
-                                                  instanceof BatchMessageIdImpl);
-                                }
-                                // no more messages (this also drains some remaining messages to be skipped)
-                                assertNull(consumerHighPriority.receive(1000));
+                          // ensure that it is a batch message
+                          assertEquals(
+                              enableBatching,
+                              textMessage.getReceivedPulsarMessage().getMessageId()
+                                  instanceof BatchMessageIdImpl);
+                        }
+                        // no more messages (this also drains some remaining messages to be skipped)
+                        assertNull(consumerHighPriority.receive(1000));
 
-                                thread2Result.complete("");
-                              } catch (Throwable t) {
-                                log.error("error thread2", t);
-                                thread2Result.completeExceptionally(t);
-                              }
-                            });
+                        thread2Result.complete("");
+                      } catch (Throwable t) {
+                        log.error("error thread2", t);
+                        thread2Result.completeExceptionally(t);
+                      }
+                    });
 
             thread1.start();
             thread2.start();
 
             // fail if we don't consume all the high priority messages in a timely fashion
-            // 10 seconds seems bad, but it is only a hard limit, the test should take less than 5 seconds
+            // 10 seconds seems bad, but it is only a hard limit, the test should take less than 5
+            // seconds
             // but CI machines may be slower.
             thread2Result.get(10, TimeUnit.SECONDS);
             log.info("COMPLETED HIGH PRIORITY!!!");

@@ -29,10 +29,11 @@ import org.apache.pulsar.client.impl.MultiplierRedeliveryBackoff;
 final class ConsumerConfiguration {
 
   static ConsumerConfiguration DEFAULT =
-      new ConsumerConfiguration(Collections.emptyMap(), null, null, null, null);
+      new ConsumerConfiguration(Collections.emptyMap(), null, null, null, null, null);
 
   private final Map<String, Object> consumerConfiguration;
   private Schema<?> consumerSchema;
+  private Boolean emulateJMSPriority;
   private DeadLetterPolicy deadLetterPolicy;
   private RedeliveryBackoff negativeAckRedeliveryBackoff;
   private RedeliveryBackoff ackTimeoutRedeliveryBackoff;
@@ -40,11 +41,13 @@ final class ConsumerConfiguration {
   ConsumerConfiguration(
       Map<String, Object> consumerConfiguration,
       Schema<?> consumerSchema,
+      Boolean emulateJMSPriority,
       DeadLetterPolicy deadLetterPolicy,
       RedeliveryBackoff negativeAckRedeliveryBackoff,
       RedeliveryBackoff ackTimeoutRedeliveryBackoff) {
     this.consumerConfiguration = Objects.requireNonNull(consumerConfiguration);
     this.consumerSchema = consumerSchema;
+    this.emulateJMSPriority = emulateJMSPriority;
     this.deadLetterPolicy = deadLetterPolicy;
     this.negativeAckRedeliveryBackoff = negativeAckRedeliveryBackoff;
     this.ackTimeoutRedeliveryBackoff = ackTimeoutRedeliveryBackoff;
@@ -70,6 +73,10 @@ final class ConsumerConfiguration {
     return ackTimeoutRedeliveryBackoff;
   }
 
+  public Boolean isEmulateJMSPriority() {
+    return emulateJMSPriority;
+  }
+
   ConsumerConfiguration applyDefaults(ConsumerConfiguration defaultConsumerConfiguration) {
     Map<String, Object> mergedConsumerConfiguration = new HashMap<>();
     if (defaultConsumerConfiguration.consumerConfiguration != null) {
@@ -81,6 +88,10 @@ final class ConsumerConfiguration {
     }
     Schema<?> mergedConsumerSchema =
         consumerSchema != null ? consumerSchema : defaultConsumerConfiguration.consumerSchema;
+    Boolean mergedEmulateJMSPriority =
+        emulateJMSPriority != null
+            ? emulateJMSPriority
+            : defaultConsumerConfiguration.emulateJMSPriority;
     DeadLetterPolicy mergedDeadLetterPolicy =
         deadLetterPolicy != null ? deadLetterPolicy : defaultConsumerConfiguration.deadLetterPolicy;
     RedeliveryBackoff mergedNegativeAckRedeliveryBackoff =
@@ -95,6 +106,7 @@ final class ConsumerConfiguration {
     return new ConsumerConfiguration(
         mergedConsumerConfiguration,
         mergedConsumerSchema,
+        mergedEmulateJMSPriority,
         mergedDeadLetterPolicy,
         mergedNegativeAckRedeliveryBackoff,
         mergedAckTimeoutRedeliveryBackoff);
@@ -107,6 +119,7 @@ final class ConsumerConfiguration {
     }
     consumerConfigurationM = Utils.deepCopyMap(consumerConfigurationM);
 
+    boolean emulateJMSPriority = false;
     Schema<?> consumerSchema = null;
     Map<String, Object> consumerConfiguration = Collections.emptyMap();
     DeadLetterPolicy deadLetterPolicy = null;
@@ -127,6 +140,12 @@ final class ConsumerConfiguration {
         }
       }
 
+      if (consumerConfiguration.containsKey("emulateJMSPriority")) {
+        emulateJMSPriority =
+            Boolean.parseBoolean(
+                getAndRemoveString("emulateJMSPriority", "false", consumerConfiguration));
+      }
+
       deadLetterPolicy = getAndRemoveDeadLetterPolicy(consumerConfiguration);
       negativeAckRedeliveryBackoff =
           getAndRemoveRedeliveryBackoff("negativeAckRedeliveryBackoff", consumerConfiguration);
@@ -136,6 +155,7 @@ final class ConsumerConfiguration {
     return new ConsumerConfiguration(
         consumerConfiguration,
         consumerSchema,
+        emulateJMSPriority,
         deadLetterPolicy,
         negativeAckRedeliveryBackoff,
         ackTimeoutRedeliveryBackoff);

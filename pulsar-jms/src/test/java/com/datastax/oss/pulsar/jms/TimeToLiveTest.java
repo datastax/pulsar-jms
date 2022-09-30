@@ -117,7 +117,8 @@ public class TimeToLiveTest {
 
           // here we are creating the Consumer after Thread.sleep, so when the broker
           // dispatches the messages they are already expired
-          try (PulsarMessageConsumer consumer1 = session.createConsumer(destination); ) {
+          try (PulsarMessageConsumer consumer1 =
+              (PulsarMessageConsumer) session.createConsumer(destination); ) {
             assertEquals(SubscriptionType.Shared, consumer1.getSubscriptionType());
 
             // only foo-1, foo-3, foo-5... can be received
@@ -176,7 +177,8 @@ public class TimeToLiveTest {
           // so one message (receiverQueueSize=1) will be processed on the broker as soon as it has
           // been
           // produced
-          try (PulsarMessageConsumer consumer1 = session.createConsumer(destination); ) {
+          try (PulsarMessageConsumer consumer1 =
+              (PulsarMessageConsumer) session.createConsumer(destination); ) {
             assertEquals(SubscriptionType.Exclusive, consumer1.getSubscriptionType());
 
             try (MessageProducer producer = session.createProducer(destination); ) {
