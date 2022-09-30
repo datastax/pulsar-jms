@@ -127,6 +127,23 @@ public class PulsarPriorityAwareMessageConsumer implements IPulsarMessageConsume
   }
 
   @Override
+  public Message receiveWithTimeoutAndValidateType(long timeout, Class expectedType)
+      throws JMSException {
+    long start = System.currentTimeMillis();
+    while (System.currentTimeMillis() - start < timeout) {
+      PulsarMessageConsumer pulsarMessageConsumer = consumers.get(status.currentConsumer());
+      Message message = pulsarMessageConsumer.receiveWithTimeoutAndValidateType(1, expectedType);
+      if (message != null) {
+        status.matched();
+        return message;
+      } else {
+        status.notMatched();
+      }
+    }
+    return null;
+  }
+
+  @Override
   public Message receiveNoWait() throws JMSException {
     PulsarMessageConsumer pulsarMessageConsumer = consumers.get(status.currentConsumer());
     Message message = pulsarMessageConsumer.receive(1);
@@ -196,6 +213,6 @@ public class PulsarPriorityAwareMessageConsumer implements IPulsarMessageConsume
 
   @Override
   public JMSConsumer asJMSConsumer() {
-    throw new UnsupportedOperationException();
+    return new PulsarJMSConsumer(this);
   }
 }

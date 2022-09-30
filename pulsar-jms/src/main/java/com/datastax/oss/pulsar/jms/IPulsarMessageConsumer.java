@@ -16,10 +16,14 @@
 package com.datastax.oss.pulsar.jms;
 
 import javax.jms.JMSConsumer;
+import javax.jms.JMSException;
+import javax.jms.Message;
 import javax.jms.MessageConsumer;
 import javax.jms.QueueReceiver;
 import javax.jms.TopicSubscriber;
 
 public interface IPulsarMessageConsumer extends MessageConsumer, TopicSubscriber, QueueReceiver {
   JMSConsumer asJMSConsumer();
+
+  Message receiveWithTimeoutAndValidateType(long timeout, Class expectedType) throws JMSException;
 }
