@@ -67,7 +67,7 @@ public abstract class SelectorsTestsBase {
   private static PulsarCluster cluster;
 
   private final boolean useServerSideFiltering;
-  private final boolean enableBatching;
+  protected final boolean enableBatching;
 
   public SelectorsTestsBase(boolean useServerSideFiltering, boolean enableBatching) {
     this.useServerSideFiltering = useServerSideFiltering;
@@ -88,7 +88,7 @@ public abstract class SelectorsTestsBase {
     }
   }
 
-  private Map<String, Object> buildProperties() {
+  protected Map<String, Object> buildProperties() {
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
 
