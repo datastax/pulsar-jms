@@ -241,7 +241,8 @@ public class VirtualDestinationsConsumerTest {
           assertEquals(useRegExp, asPulsarDestination.isRegExp());
 
           // do not set the selector, it will be loaded from the Subscription Properties
-          try (PulsarMessageConsumer consumer1 = session.createConsumer(wildcardDestination); ) {
+          try (PulsarMessageConsumer consumer1 =
+              (PulsarMessageConsumer) session.createConsumer(wildcardDestination); ) {
             assertEquals(
                 SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
 
@@ -372,7 +373,7 @@ public class VirtualDestinationsConsumerTest {
 
           // do not set the selector, it will be loaded from the Subscription Properties
           try (PulsarMessageConsumer consumer1 =
-              session.createConsumer(wildcardDestination, selector); ) {
+              (PulsarMessageConsumer) session.createConsumer(wildcardDestination, selector); ) {
             assertEquals(
                 SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
 

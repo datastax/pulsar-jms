@@ -155,7 +155,8 @@ public class BasicServerSideFilterTest {
 
           // do not set the selector, it will be loaded from the Subscription Properties
           try (PulsarMessageConsumer consumer1 =
-              session.createSharedDurableConsumer(destination, subscriptionName, null); ) {
+              (PulsarMessageConsumer)
+                  session.createSharedDurableConsumer(destination, subscriptionName, null); ) {
             assertEquals(
                 SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
 
@@ -170,7 +171,8 @@ public class BasicServerSideFilterTest {
           cluster.getService().getAdminClient().topics().unload(topicName);
 
           try (PulsarMessageConsumer consumer1 =
-              session.createSharedDurableConsumer(destination, subscriptionName, null); ) {
+              (PulsarMessageConsumer)
+                  session.createSharedDurableConsumer(destination, subscriptionName, null); ) {
             assertEquals(
                 SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
 
@@ -183,7 +185,8 @@ public class BasicServerSideFilterTest {
 
           // non-existing topic, auto-created
           try (PulsarMessageConsumer consumer1 =
-              session.createSharedDurableConsumer(destination2, subscriptionName, null); ) {
+              (PulsarMessageConsumer)
+                  session.createSharedDurableConsumer(destination2, subscriptionName, null); ) {
             assertEquals(
                 SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
             produce(session, destination2);
@@ -194,8 +197,9 @@ public class BasicServerSideFilterTest {
 
           // non-existing subscription
           try (PulsarMessageConsumer consumer1 =
-              session.createSharedDurableConsumer(
-                  destination2, subscriptionName + "non-existing", null); ) {
+              (PulsarMessageConsumer)
+                  session.createSharedDurableConsumer(
+                      destination2, subscriptionName + "non-existing", null); ) {
             assertEquals(
                 SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
             produce(session, destination2);
@@ -224,7 +228,8 @@ public class BasicServerSideFilterTest {
           Whitebox.setInternalState(factory, "pulsarAdmin", mockPulsarAdmin);
 
           try (PulsarMessageConsumer consumer1 =
-              session.createSharedDurableConsumer(destination, subscriptionName, null); ) {
+              (PulsarMessageConsumer)
+                  session.createSharedDurableConsumer(destination, subscriptionName, null); ) {
             assertEquals(
                 SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
             produce(session, destination);

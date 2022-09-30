@@ -34,10 +34,8 @@ import javax.jms.MessageConsumer;
 import javax.jms.MessageFormatException;
 import javax.jms.MessageListener;
 import javax.jms.Queue;
-import javax.jms.QueueReceiver;
 import javax.jms.Session;
 import javax.jms.Topic;
-import javax.jms.TopicSubscriber;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.api.Consumer;
 import org.apache.pulsar.client.api.PulsarClientException;
@@ -46,7 +44,7 @@ import org.apache.pulsar.client.api.SubscriptionType;
 import org.apache.pulsar.client.impl.BatchMessageIdImpl;
 
 @Slf4j
-public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, QueueReceiver {
+public class PulsarMessageConsumer implements IPulsarMessageConsumer {
 
   final String subscriptionName;
   private final PulsarSession session;

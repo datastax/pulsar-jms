@@ -117,6 +117,7 @@ public class PulsarConnectionFactory
   private transient boolean enableClientSideEmulation = false;
   private transient boolean transactionsStickyPartitions = false;
   private transient boolean useServerSideFiltering = false;
+  private transient boolean emulateJMSPriority = false;
   private transient boolean forceDeleteTemporaryDestinations = false;
   private transient boolean useExclusiveSubscriptionsForSimpleConsumers = false;
   private transient boolean acknowledgeRejectedMessages = false;
@@ -214,7 +215,7 @@ public class PulsarConnectionFactory
     return copy;
   }
 
-  private synchronized ConsumerConfiguration getConsumerConfiguration(
+  synchronized ConsumerConfiguration getConsumerConfiguration(
       ConsumerConfiguration overrideConsumerConfiguration) {
     if (overrideConsumerConfiguration == null) {
       return defaultConsumerConfiguration;
