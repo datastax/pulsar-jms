@@ -1005,8 +1005,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
             subscriptionType,
             selector,
             unregisterSubscriptionOnClose,
-            noLocal,
-            PulsarMessage.DEFAULT_PRIORITY)
+            noLocal)
             .subscribe();
   }
 
