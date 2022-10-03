@@ -15,6 +15,7 @@
  */
 package com.datastax.oss.pulsar.jms;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -25,7 +26,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import javax.jms.*;
+
+import com.google.common.collect.ImmutableMap;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -103,6 +108,80 @@ public class PriorityTest {
     }
   }
 
+  /**
+   * Build a huge backlog (around 1.000.000 messages) of low priority messages.
+   * @throws Exception
+   */
+  @Test
+  public void basicPriorityBigBacklogTest() throws Exception {
+
+    Map<String, Object> properties = new HashMap<>();
+    properties.put("webServiceUrl", cluster.getAddress());
+    properties.put("jms.emulateJMSPriority", true);
+    properties.put("producerConfig", ImmutableMap.of("blockIfQueueFull", true));
+
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+      try (Connection connection = factory.createConnection()) {
+        connection.start();
+        try (Session session = connection.createSession(); ) {
+          Queue destination = session.createQueue("test-" + UUID.randomUUID());
+
+          int numHighPriority = 100;
+          int numMessages = 1_000_000;
+          CountDownLatch counter = new CountDownLatch(numMessages);
+          try (MessageProducer producer = session.createProducer(destination); ) {
+            for (int i = 0; i < numMessages; i++) {
+              TextMessage textMessage = session.createTextMessage("foo-" + i);
+              if (i < numMessages - numHighPriority) {
+                // the first messages are lower priority
+                producer.setPriority(1);
+              } else {
+                producer.setPriority(9);
+              }
+
+              producer.send(textMessage, new CompletionListener() {
+                @Override
+                public void onCompletion(Message message) {
+                  counter.countDown();
+                }
+
+                @Override
+                public void onException(Message message, Exception e) {
+
+                }
+              });
+            }
+            assertTrue(counter.await(10, TimeUnit.SECONDS));
+          }
+
+          try (MessageConsumer consumer1 = session.createConsumer(destination); ) {
+            int countLowPriority = 0;
+            int countHighPriority = 0;
+            List<TextMessage> received = new ArrayList<>();
+            for (int i = 0; i < numMessages; i++) {
+              TextMessage msg = (TextMessage) consumer1.receive();
+
+              received.add(msg);
+              if (msg.getJMSPriority() == 1) {
+                countLowPriority++;
+              }
+              if (msg.getJMSPriority() == 9) {
+                countHighPriority++;
+              }
+            }
+
+            // no more messages
+            assertNull(consumer1.receiveNoWait());
+
+            assertEquals(numMessages - numHighPriority, countLowPriority);
+            assertEquals(numHighPriority, countHighPriority);
+            verifyOrder(received);
+          }
+        }
+      }
+    }
+  }
+
   private static void verifyOrder(List<TextMessage> received) throws JMSException {
     // verify that some higher priority messages arrived before the low priority messages
     // please remember that we sent all the low priority messages and then the high priority ones
@@ -113,15 +192,20 @@ public class PriorityTest {
     // this happens because the topics are independent from each other
     boolean foundHighPriority = false;
     boolean foundLowPriorityAfterHighPriority = false;
+    int count = 0;
     for (TextMessage msg : received) {
       int priority = msg.getJMSPriority();
-      log.info("received {} priority {}", msg.getText(), priority);
+
       if (priority == 1 && foundHighPriority) {
+        log.info("received {} priority {} after {}", msg.getText(), priority, count);
         foundLowPriorityAfterHighPriority = true;
+        break;
       }
       if (priority == 9) {
+        log.info("received {} priority {} after {}", msg.getText(), priority, count);
         foundHighPriority = true;
       }
+      count++;
     }
     assertTrue(foundLowPriorityAfterHighPriority);
   }
