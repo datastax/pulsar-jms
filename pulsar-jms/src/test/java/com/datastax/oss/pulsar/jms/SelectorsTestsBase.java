@@ -67,7 +67,7 @@ public abstract class SelectorsTestsBase {
   private static PulsarCluster cluster;
 
   private final boolean useServerSideFiltering;
-  protected final boolean enableBatching;
+  private final boolean enableBatching;
 
   public SelectorsTestsBase(boolean useServerSideFiltering, boolean enableBatching) {
     this.useServerSideFiltering = useServerSideFiltering;
@@ -88,7 +88,7 @@ public abstract class SelectorsTestsBase {
     }
   }
 
-  protected Map<String, Object> buildProperties() {
+  private Map<String, Object> buildProperties() {
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
 
@@ -121,7 +121,7 @@ public abstract class SelectorsTestsBase {
               session.createQueue("persistent://public/default/test-" + UUID.randomUUID());
 
           try (PulsarMessageConsumer consumer1 =
-              (PulsarMessageConsumer) session.createConsumer(destination, "lastMessage=TRUE"); ) {
+              session.createConsumer(destination, "lastMessage=TRUE"); ) {
             assertEquals(
                 SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
             assertEquals("lastMessage=TRUE", consumer1.getMessageSelector());
@@ -176,7 +176,7 @@ public abstract class SelectorsTestsBase {
               .createNonPartitionedTopic(destination.getTopicName());
 
           try (PulsarMessageConsumer consumer1 =
-              (PulsarMessageConsumer) session.createConsumer(destination, "lastMessage=TRUE"); ) {
+              session.createConsumer(destination, "lastMessage=TRUE"); ) {
             assertEquals(
                 SubscriptionType.Exclusive,
                 ((PulsarMessageConsumer) consumer1).getSubscriptionType());
@@ -228,8 +228,7 @@ public abstract class SelectorsTestsBase {
               session.createTopic("persistent://public/default/test-" + UUID.randomUUID());
 
           try (PulsarMessageConsumer consumer1 =
-              (PulsarMessageConsumer)
-                  session.createDurableConsumer(destination, "sub1", "lastMessage=TRUE", false); ) {
+              session.createDurableConsumer(destination, "sub1", "lastMessage=TRUE", false); ) {
             assertEquals(
                 SubscriptionType.Exclusive,
                 ((PulsarMessageConsumer) consumer1).getSubscriptionType());
@@ -280,8 +279,7 @@ public abstract class SelectorsTestsBase {
               session.createTopic("persistent://public/default/test-" + UUID.randomUUID());
 
           try (PulsarMessageConsumer consumer1 =
-              (PulsarMessageConsumer)
-                  session.createSharedDurableConsumer(destination, "sub1", "lastMessage=TRUE"); ) {
+              session.createSharedDurableConsumer(destination, "sub1", "lastMessage=TRUE"); ) {
             assertEquals(
                 SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
             assertEquals("lastMessage=TRUE", consumer1.getMessageSelector());
@@ -336,7 +334,7 @@ public abstract class SelectorsTestsBase {
               session.createQueue("persistent://public/default/test-" + UUID.randomUUID());
 
           try (PulsarMessageConsumer consumer1 =
-              (PulsarMessageConsumer) session.createConsumer(destination, "keepMessage=TRUE"); ) {
+              session.createConsumer(destination, "keepMessage=TRUE"); ) {
             assertEquals(
                 SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
             assertEquals("keepMessage=TRUE", consumer1.getMessageSelector());
@@ -440,8 +438,7 @@ public abstract class SelectorsTestsBase {
               session.createTopic("persistent://public/default/test-" + UUID.randomUUID());
 
           try (PulsarMessageConsumer consumer1 =
-              (PulsarMessageConsumer)
-                  session.createSharedDurableConsumer(destination, "sub1", "keepMessage=TRUE"); ) {
+              session.createSharedDurableConsumer(destination, "sub1", "keepMessage=TRUE"); ) {
             assertEquals(
                 SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
             assertEquals("keepMessage=TRUE", consumer1.getMessageSelector());
@@ -529,10 +526,11 @@ public abstract class SelectorsTestsBase {
         try (PulsarSession session = connection.createSession(); ) {
           Queue destination =
               session.createQueue("persistent://public/default/test-" + UUID.randomUUID());
+
           try (PulsarMessageConsumer consumer1 =
-                  (PulsarMessageConsumer) session.createConsumer(destination, "consumer='one'");
+                  session.createConsumer(destination, "consumer='one'");
               PulsarMessageConsumer consumer2 =
-                  (PulsarMessageConsumer) session.createConsumer(destination, "consumer='two'"); ) {
+                  session.createConsumer(destination, "consumer='two'"); ) {
             assertEquals(
                 SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
             assertEquals("consumer='one'", consumer1.getMessageSelector());
@@ -674,8 +672,7 @@ public abstract class SelectorsTestsBase {
               session.createTopic("persistent://public/default/test-" + UUID.randomUUID());
 
           try (PulsarMessageConsumer consumer1 =
-              (PulsarMessageConsumer)
-                  session.createSharedDurableConsumer(destination, "sub1", "keepMessage=TRUE"); ) {
+              session.createSharedDurableConsumer(destination, "sub1", "keepMessage=TRUE"); ) {
             assertEquals(
                 SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
             assertEquals("keepMessage=TRUE", consumer1.getMessageSelector());
@@ -796,8 +793,7 @@ public abstract class SelectorsTestsBase {
 
           // do not set the selector, it will be loaded from the Subscription Properties
           try (PulsarMessageConsumer consumer1 =
-              (PulsarMessageConsumer)
-                  session.createSharedDurableConsumer(destination, subscriptionName, null); ) {
+              session.createSharedDurableConsumer(destination, subscriptionName, null); ) {
             assertEquals(
                 SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
 
@@ -915,8 +911,7 @@ public abstract class SelectorsTestsBase {
           Queue destination = session.createQueue(topicName + ":" + subscriptionName);
 
           // do not set the selector, it will be loaded from the Subscription Properties
-          try (PulsarMessageConsumer consumer1 =
-              (PulsarMessageConsumer) session.createConsumer(destination); ) {
+          try (PulsarMessageConsumer consumer1 = session.createConsumer(destination); ) {
             assertEquals(
                 SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
 
@@ -1049,7 +1044,7 @@ public abstract class SelectorsTestsBase {
 
           // the final local selector is the subscription selector AND the local selector
           try (PulsarMessageConsumer consumer1 =
-              (PulsarMessageConsumer) session.createConsumer(destination, selectorOnClient); ) {
+              session.createConsumer(destination, selectorOnClient); ) {
             assertEquals(
                 SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
 
@@ -1145,7 +1140,7 @@ public abstract class SelectorsTestsBase {
               session.createTopic("persistent://public/default/test-" + UUID.randomUUID());
 
           try (PulsarMessageConsumer consumer1 =
-              (PulsarMessageConsumer) session.createConsumer(destination, "lastMessage=TRUE"); ) {
+              session.createConsumer(destination, "lastMessage=TRUE"); ) {
             assertEquals(
                 SubscriptionType.Exclusive,
                 ((PulsarMessageConsumer) consumer1).getSubscriptionType());
@@ -1236,8 +1231,7 @@ public abstract class SelectorsTestsBase {
           Queue destination = session.createQueue(topicName + ":" + subscriptionName);
 
           // do not set the selector, it will be loaded from the Subscription Properties
-          try (PulsarMessageConsumer consumer1 =
-              (PulsarMessageConsumer) session.createConsumer(destination); ) {
+          try (PulsarMessageConsumer consumer1 = session.createConsumer(destination); ) {
             assertEquals(
                 SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
 
@@ -1304,8 +1298,7 @@ public abstract class SelectorsTestsBase {
           // since 2.0.1 you can set the Subscription name in the JMS Queue Name
           Queue destination = session.createQueue(topicName + ":" + subscriptionName);
 
-          try (PulsarMessageConsumer consumer1 =
-              (PulsarMessageConsumer) session.createConsumer(destination, selector); ) {
+          try (PulsarMessageConsumer consumer1 = session.createConsumer(destination, selector); ) {
             assertEquals(
                 SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
 

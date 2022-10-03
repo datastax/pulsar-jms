@@ -281,7 +281,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
     return receiveWithTimeoutAndValidateType(timeout, null);
   }
 
-  public synchronized Message receiveWithTimeoutAndValidateType(long timeout, Class expectedType)
+  synchronized Message receiveWithTimeoutAndValidateType(long timeout, Class expectedType)
       throws JMSException {
     checkNotClosed();
     if (listener != null) {
