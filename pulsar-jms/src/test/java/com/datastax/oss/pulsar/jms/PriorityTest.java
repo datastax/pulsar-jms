@@ -19,22 +19,13 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
-import com.google.common.collect.ImmutableMap;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import javax.jms.Connection;
-import javax.jms.JMSConsumer;
-import javax.jms.JMSContext;
-import javax.jms.JMSProducer;
-import javax.jms.MessageConsumer;
-import javax.jms.MessageProducer;
-import javax.jms.Queue;
-import javax.jms.Session;
-import javax.jms.TextMessage;
+import javax.jms.*;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -65,15 +56,13 @@ public class PriorityTest {
 
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
-    properties.put("jms.useServerSideFiltering", true);
     properties.put("jms.emulateJMSPriority", true);
 
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
         connection.start();
         try (Session session = connection.createSession(); ) {
-          Queue destination =
-              session.createQueue("test-" + UUID.randomUUID());
+          Queue destination = session.createQueue("test-" + UUID.randomUUID());
 
           int numMessages = 100;
           try (MessageProducer producer = session.createProducer(destination); ) {
@@ -92,34 +81,49 @@ public class PriorityTest {
 
           try (MessageConsumer consumer1 = session.createConsumer(destination); ) {
 
-            // wait for the broker to push the messages to the client
-            // the client reorders in memory the messages
-            Thread.sleep(2000);
-
             List<TextMessage> received = new ArrayList<>();
             for (int i = 0; i < numMessages; i++) {
               TextMessage msg = (TextMessage) consumer1.receive();
-              log.info("got msg {} prio {} from {} actually {}",
-                      msg.getText(), msg.getJMSPriority(), msg.getJMSDestination(),
-                      ((PulsarMessage) msg).getReceivedPulsarMessage().getTopicName());
+              log.info(
+                  "got msg {} prio {} from {} actually {}",
+                  msg.getText(),
+                  msg.getJMSPriority(),
+                  msg.getJMSDestination(),
+                  ((PulsarMessage) msg).getReceivedPulsarMessage().getTopicName());
               received.add(msg);
             }
 
             // no more messages
             assertNull(consumer1.receiveNoWait());
 
-            // verify that higher priority messages arrived before the others
-            int lastPriority = Integer.MAX_VALUE;
-            for (TextMessage msg : received) {
-              int priority = msg.getJMSPriority();
-              log.info("received {} priority {}", msg.getText(), priority);
-              assertTrue(priority <= lastPriority);
-              lastPriority = priority;
-            }
+            verifyOrder(received);
           }
         }
       }
     }
+  }
+
+  private static void verifyOrder(List<TextMessage> received) throws JMSException {
+    // verify that some higher priority messages arrived before the low priority messages
+    // please remember that we sent all the low priority messages and then the high priority ones
+    // so if we find some low priority message before the high priority messages
+    // it means that the priority has been takes into account
+    // we cannot make a stricter check because it is possible that the broker
+    // was able to dispatch some low priority messages before the high priority
+    // this happens because the topics are independent from each other
+    boolean foundHighPriority = false;
+    boolean foundLowPriorityAfterHighPriority = false;
+    for (TextMessage msg : received) {
+      int priority = msg.getJMSPriority();
+      log.info("received {} priority {}", msg.getText(), priority);
+      if (priority == 1 && foundHighPriority) {
+        foundLowPriorityAfterHighPriority = true;
+      }
+      if (priority == 9) {
+        foundHighPriority = true;
+      }
+    }
+    assertTrue(foundLowPriorityAfterHighPriority);
   }
 
   @Test
@@ -127,7 +131,6 @@ public class PriorityTest {
 
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
-    properties.put("jms.useServerSideFiltering", true);
     properties.put("jms.emulateJMSPriority", true);
 
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
@@ -135,14 +138,13 @@ public class PriorityTest {
         connection.start();
         try (Session session = connection.createSession(); ) {
           Queue destination1 =
-                  session.createQueue("persistent://public/default/test-topic1-" + UUID.randomUUID());
+              session.createQueue("persistent://public/default/test-topic1-" + UUID.randomUUID());
           Queue destination2 =
-                  session.createQueue("persistent://public/default/test-topic2-" + UUID.randomUUID());
+              session.createQueue("persistent://public/default/test-topic2-" + UUID.randomUUID());
 
           int numMessages = 100;
           try (MessageProducer producer1 = session.createProducer(destination1);
-               MessageProducer producer2 = session.createProducer(destination2);
-          ) {
+              MessageProducer producer2 = session.createProducer(destination2); ) {
             for (int i = 0; i < numMessages; i++) {
               TextMessage textMessage = session.createTextMessage("foo-" + i);
               if (i < numMessages / 2) {
@@ -163,7 +165,9 @@ public class PriorityTest {
             }
           }
 
-          Queue destination = session.createQueue("multi:" + destination1.getQueueName() + "," + destination2.getQueueName());
+          Queue destination =
+              session.createQueue(
+                  "multi:" + destination1.getQueueName() + "," + destination2.getQueueName());
           try (MessageConsumer consumer1 = session.createConsumer(destination); ) {
 
             // wait for the broker to push the messages to the client
@@ -173,23 +177,18 @@ public class PriorityTest {
             List<TextMessage> received = new ArrayList<>();
             for (int i = 0; i < numMessages; i++) {
               TextMessage msg = (TextMessage) consumer1.receive();
-              log.info("got msg {} prio {} from {} actually {}",
-                      msg.getText(), msg.getJMSPriority(), msg.getJMSDestination(),
-                      ((PulsarMessage) msg).getReceivedPulsarMessage().getTopicName());
+              log.info(
+                  "got msg {} prio {} from {} actually {}",
+                  msg.getText(),
+                  msg.getJMSPriority(),
+                  msg.getJMSDestination(),
+                  ((PulsarMessage) msg).getReceivedPulsarMessage().getTopicName());
               received.add(msg);
             }
 
             // no more messages
             assertNull(consumer1.receiveNoWait());
-
-            // verify that higher priority messages arrived before the others
-            int lastPriority = Integer.MAX_VALUE;
-            for (TextMessage msg : received) {
-              int priority = msg.getJMSPriority();
-              log.info("received {} priority {}", msg.getText(), priority);
-              assertTrue(priority <= lastPriority);
-              lastPriority = priority;
-            }
+            verifyOrder(received);
           }
         }
       }
@@ -201,7 +200,6 @@ public class PriorityTest {
 
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
-    properties.put("jms.useServerSideFiltering", true);
     properties.put("jms.emulateJMSPriority", true);
 
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
@@ -240,15 +238,7 @@ public class PriorityTest {
 
           // no more messages
           assertNull(consumer1.receiveNoWait());
-
-          // verify that higher priority messages arrived before the others
-          int lastPriority = Integer.MAX_VALUE;
-          for (TextMessage msg : received) {
-            int priority = msg.getJMSPriority();
-            log.info("received {} priority {}", msg.getText(), priority);
-            assertTrue(priority <= lastPriority);
-            lastPriority = priority;
-          }
+          verifyOrder(received);
         }
       }
     }

@@ -24,7 +24,6 @@ import com.datastax.oss.pulsar.jms.messages.PulsarTextMessage;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.Serializable;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -215,7 +214,8 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     return connection.getFactory();
   }
 
-  Producer<byte[]> getProducerForDestination(Destination destination, int jmsPriority) throws JMSException {
+  Producer<byte[]> getProducerForDestination(Destination destination, int jmsPriority)
+      throws JMSException {
     return getFactory().getProducerForDestination(destination, transacted, jmsPriority);
   }
 
@@ -968,8 +968,13 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
         for (PulsarDestination sub : destinations) {
           TopicName topicNameParsed = TopicName.get(sub.topicName);
           if (finalRegExTopicName == null) {
-            finalRegExTopicName = new StringBuilder("regex:"
-                    + topicNameParsed.getDomain().name() + "://" + topicNameParsed.getNamespace() + "/(");
+            finalRegExTopicName =
+                new StringBuilder(
+                    "regex:"
+                        + topicNameParsed.getDomain().name()
+                        + "://"
+                        + topicNameParsed.getNamespace()
+                        + "/(");
           }
           for (int jmsPriority = 9; jmsPriority >= 1; jmsPriority--) {
             String topicName = topicNameParsed.getLocalName();
@@ -982,8 +987,13 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
         }
       } else {
         TopicName topicNameParsed = TopicName.get(destination.topicName);
-        finalRegExTopicName = new StringBuilder("regex:"
-                + topicNameParsed.getDomain().name() + "://" + topicNameParsed.getNamespace() + "/(");
+        finalRegExTopicName =
+            new StringBuilder(
+                "regex:"
+                    + topicNameParsed.getDomain().name()
+                    + "://"
+                    + topicNameParsed.getNamespace()
+                    + "/(");
         for (int jmsPriority = 9; jmsPriority >= 1; jmsPriority--) {
           String topicName = topicNameParsed.getLocalName();
           if (jmsPriority != PulsarMessage.DEFAULT_PRIORITY) {
@@ -993,7 +1003,8 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
           finalRegExTopicName.append("|");
         }
       }
-      String finalDestination = finalRegExTopicName.substring(0, finalRegExTopicName.length() - 1) + ")";
+      String finalDestination =
+          finalRegExTopicName.substring(0, finalRegExTopicName.length() - 1) + ")";
       log.info("Using finalDestination {}", finalDestination);
       realDestination = destination.createSameType(finalDestination);
     }
@@ -1006,7 +1017,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
             selector,
             unregisterSubscriptionOnClose,
             noLocal)
-            .subscribe();
+        .subscribe();
   }
 
   /**

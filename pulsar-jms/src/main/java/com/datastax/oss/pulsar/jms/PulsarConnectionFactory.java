@@ -86,7 +86,6 @@ import org.apache.pulsar.client.impl.ConsumerBase;
 import org.apache.pulsar.client.impl.MultiTopicsConsumerImpl;
 import org.apache.pulsar.client.impl.auth.AuthenticationToken;
 import org.apache.pulsar.common.partition.PartitionedTopicMetadata;
-import org.apache.pulsar.common.util.collections.GrowableArrayBlockingQueue;
 
 @Slf4j
 public class PulsarConnectionFactory
@@ -348,8 +347,8 @@ public class PulsarConnectionFactory
               getAndRemoveString("jms.useServerSideFiltering", "false", configurationCopy));
 
       this.emulateJMSPriority =
-              Boolean.parseBoolean(
-                      getAndRemoveString("jms.emulateJMSPriority", "false", configurationCopy));
+          Boolean.parseBoolean(
+              getAndRemoveString("jms.emulateJMSPriority", "false", configurationCopy));
 
       // in Exclusive mode Pulsar does not support delayed messages
       // with this flag you force to not use Exclusive subscription and so to support
@@ -961,7 +960,8 @@ public class PulsarConnectionFactory
     return getPulsarTopicName(defaultDestination, PulsarMessage.DEFAULT_PRIORITY);
   }
 
-  public String getPulsarTopicName(Destination defaultDestination, int jmsPriority) throws JMSException {
+  public String getPulsarTopicName(Destination defaultDestination, int jmsPriority)
+      throws JMSException {
     PulsarDestination destination = toPulsarDestination(defaultDestination);
     String topicName = destination.getInternalTopicName();
     if (jmsPriority != PulsarMessage.DEFAULT_PRIORITY && isEmulateJMSPriority()) {
@@ -970,8 +970,8 @@ public class PulsarConnectionFactory
     return applySystemNamespace(topicName);
   }
 
-  Producer<byte[]> getProducerForDestination(Destination defaultDestination, boolean transactions, int jmsPriority)
-      throws JMSException {
+  Producer<byte[]> getProducerForDestination(
+      Destination defaultDestination, boolean transactions, int jmsPriority) throws JMSException {
     try {
       String fullQualifiedTopicName = getPulsarTopicName(defaultDestination, jmsPriority);
       String key = transactions ? fullQualifiedTopicName + "-tx" : fullQualifiedTopicName;
@@ -1227,17 +1227,20 @@ public class PulsarConnectionFactory
       incomingMessages.setAccessible(true);
 
       BlockingQueue<Message> oldQueue = (BlockingQueue<Message>) incomingMessages.get(consumerBase);
-      BlockingQueue<Message> newQueue = new PriorityBlockingQueue<Message>(10, new Comparator<Message>() {
-        @Override
-        public int compare(Message o1, Message o2) {
-          int priority1 = getPriority(o1);
-          int priority2 = getPriority(o2);
-          return Integer.compare(priority2, priority1);
-        }
+      BlockingQueue<Message> newQueue =
+          new PriorityBlockingQueue<Message>(
+              10,
+              new Comparator<Message>() {
+                @Override
+                public int compare(Message o1, Message o2) {
+                  int priority1 = getPriority(o1);
+                  int priority2 = getPriority(o2);
+                  return Integer.compare(priority2, priority1);
+                }
+              });
 
-      });
-
-      // drain messages that could have been pre-fetched (the Consumer is paused, so this should not happen)
+      // drain messages that could have been pre-fetched (the Consumer is paused, so this should not
+      // happen)
       oldQueue.drainTo(newQueue);
 
       incomingMessages.set(c, newQueue);
