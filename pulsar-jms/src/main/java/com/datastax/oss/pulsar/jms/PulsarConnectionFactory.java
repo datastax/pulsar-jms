@@ -1112,7 +1112,7 @@ public class PulsarConnectionFactory
       throw new IllegalStateException("only Shared SubscriptionType for queues");
     }
     log.debug(
-        "createConsumer {} {} {} {} {}",
+        "createConsumer {} {} {} {}",
         destination,
         consumerName,
         subscriptionMode,
