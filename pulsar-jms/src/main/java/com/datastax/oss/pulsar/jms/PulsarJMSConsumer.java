@@ -22,13 +22,13 @@ import javax.jms.MessageListener;
 
 public class PulsarJMSConsumer implements JMSConsumer {
 
-  private final IPulsarMessageConsumer pulsarMessageConsumer;
+  private final PulsarMessageConsumer pulsarMessageConsumer;
 
-  public PulsarJMSConsumer(IPulsarMessageConsumer pulsarMessageConsumer) {
+  public PulsarJMSConsumer(PulsarMessageConsumer pulsarMessageConsumer) {
     this.pulsarMessageConsumer = pulsarMessageConsumer;
   }
 
-  public IPulsarMessageConsumer asPulsarMessageConsumer() {
+  public PulsarMessageConsumer asPulsarMessageConsumer() {
     return pulsarMessageConsumer;
   }
 

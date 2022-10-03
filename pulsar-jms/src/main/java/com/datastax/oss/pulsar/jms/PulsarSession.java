@@ -77,6 +77,7 @@ import org.apache.pulsar.client.api.SubscriptionMode;
 import org.apache.pulsar.client.api.SubscriptionType;
 import org.apache.pulsar.client.api.transaction.Transaction;
 import org.apache.pulsar.client.api.transaction.TransactionCoordinatorClientException;
+import org.apache.pulsar.common.naming.TopicName;
 
 @Slf4j
 public class PulsarSession implements Session, QueueSession, TopicSession {
@@ -869,7 +870,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    * @since JMS 1.1
    */
   @Override
-  public IPulsarMessageConsumer createConsumer(Destination destination) throws JMSException {
+  public PulsarMessageConsumer createConsumer(Destination destination) throws JMSException {
     return createConsumer(destination, null);
   }
 
@@ -893,7 +894,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    * @since JMS 1.1
    */
   @Override
-  public IPulsarMessageConsumer createConsumer(Destination destination, String messageSelector)
+  public PulsarMessageConsumer createConsumer(Destination destination, String messageSelector)
       throws JMSException {
     if (destination == null) {
       throw new InvalidDestinationException("null destination");
@@ -931,7 +932,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    * @since JMS 1.1
    */
   @Override
-  public IPulsarMessageConsumer createConsumer(
+  public PulsarMessageConsumer createConsumer(
       Destination destination, String messageSelector, boolean noLocal) throws JMSException {
     if (destination == null) {
       throw new InvalidDestinationException("null destination");
@@ -947,7 +948,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
         noLocal);
   }
 
-  private IPulsarMessageConsumer buildConsumer(
+  private PulsarMessageConsumer buildConsumer(
       String subscriptionName,
       PulsarDestination destination,
       SubscriptionMode subscriptionMode,
@@ -956,42 +957,57 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
       boolean unregisterSubscriptionOnClose,
       boolean noLocal)
       throws JMSException {
+    PulsarDestination realDestination = destination;
     if (emulateJMSPriority) {
-      List<PulsarMessageConsumer> consumers = new ArrayList<>();
-      PulsarMessageConsumer defaultConsumer = null;
-      for (int jmsPriority = 9; jmsPriority >= 1; jmsPriority--) {
-        PulsarMessageConsumer consumerForPriorityLevel =
-                new PulsarMessageConsumer(
-                        subscriptionName,
-                        destination,
-                        this,
-                        subscriptionMode,
-                        subscriptionType,
-                        selector,
-                        unregisterSubscriptionOnClose,
-                        noLocal,
-                        jmsPriority)
-                        .subscribe();
-        if (jmsPriority == PulsarMessage.DEFAULT_PRIORITY) {
-          defaultConsumer = consumerForPriorityLevel;
-        }
-        consumers.add(consumerForPriorityLevel);
+      if (destination.isRegExp()) {
+        throw new InvalidDestinationException("Virtual Destinations with regex: are not supported");
       }
-      return new PulsarPriorityAwareMessageConsumer(defaultConsumer,
-          consumers);
-    } else {
-      return new PulsarMessageConsumer(
-              subscriptionName,
-              destination,
-              this,
-              subscriptionMode,
-              subscriptionType,
-              selector,
-              unregisterSubscriptionOnClose,
-              noLocal,
-              PulsarMessage.DEFAULT_PRIORITY)
-          .subscribe();
+      StringBuilder finalRegExTopicName = null;
+      if (destination.isMultiTopic()) {
+        List<PulsarDestination> destinations = destination.getDestinations();
+        for (PulsarDestination sub : destinations) {
+          TopicName topicNameParsed = TopicName.get(sub.topicName);
+          if (finalRegExTopicName == null) {
+            finalRegExTopicName = new StringBuilder("regex:"
+                    + topicNameParsed.getDomain().name() + "://" + topicNameParsed.getNamespace() + "/(");
+          }
+          for (int jmsPriority = 9; jmsPriority >= 1; jmsPriority--) {
+            String topicName = topicNameParsed.getLocalName();
+            if (jmsPriority != PulsarMessage.DEFAULT_PRIORITY) {
+              topicName = topicNameParsed.getLocalName() + "_jmspriority-" + jmsPriority;
+            }
+            finalRegExTopicName.append(topicName);
+            finalRegExTopicName.append("|");
+          }
+        }
+      } else {
+        TopicName topicNameParsed = TopicName.get(destination.topicName);
+        finalRegExTopicName = new StringBuilder("regex:"
+                + topicNameParsed.getDomain().name() + "://" + topicNameParsed.getNamespace() + "/(");
+        for (int jmsPriority = 9; jmsPriority >= 1; jmsPriority--) {
+          String topicName = topicNameParsed.getLocalName();
+          if (jmsPriority != PulsarMessage.DEFAULT_PRIORITY) {
+            topicName = topicNameParsed.getLocalName() + "_jmspriority-" + jmsPriority;
+          }
+          finalRegExTopicName.append(topicName);
+          finalRegExTopicName.append("|");
+        }
+      }
+      String finalDestination = finalRegExTopicName.substring(0, finalRegExTopicName.length() - 1) + ")";
+      log.info("Using finalDestination {}", finalDestination);
+      realDestination = destination.createSameType(finalDestination);
     }
+    return new PulsarMessageConsumer(
+            subscriptionName,
+            realDestination,
+            this,
+            subscriptionMode,
+            subscriptionType,
+            selector,
+            unregisterSubscriptionOnClose,
+            noLocal,
+            PulsarMessage.DEFAULT_PRIORITY)
+            .subscribe();
   }
 
   /**
@@ -1082,7 +1098,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    * @since JMS 2.0
    */
   @Override
-  public IPulsarMessageConsumer createSharedConsumer(
+  public PulsarMessageConsumer createSharedConsumer(
       Topic topic, String sharedSubscriptionName, String messageSelector) throws JMSException {
     if (topic == null) {
       throw new InvalidDestinationException("null destination");
@@ -1305,7 +1321,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     return createDurableSubscriber(topic, name, messageSelector, noLocal, false);
   }
 
-  private IPulsarMessageConsumer createDurableSubscriber(
+  private PulsarMessageConsumer createDurableSubscriber(
       Topic topic, String name, String messageSelector, boolean noLocal, boolean allowUnsetClientId)
       throws JMSException {
     checkTopicOperationEnabled();
@@ -1490,7 +1506,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    * @since JMS 2.0
    */
   @Override
-  public IPulsarMessageConsumer createDurableConsumer(
+  public PulsarMessageConsumer createDurableConsumer(
       Topic topic, String name, String messageSelector, boolean noLocal) throws JMSException {
     return createDurableSubscriber(topic, name, messageSelector, noLocal, false);
   }
@@ -1628,7 +1644,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    * @since JMS 2.0
    */
   @Override
-  public IPulsarMessageConsumer createSharedDurableConsumer(
+  public PulsarMessageConsumer createSharedDurableConsumer(
       Topic topic, String name, String messageSelector) throws JMSException {
     if (topic == null) {
       throw new InvalidDestinationException("null destination");

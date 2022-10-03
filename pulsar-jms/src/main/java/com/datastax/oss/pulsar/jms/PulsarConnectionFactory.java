@@ -26,19 +26,8 @@ import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentSkipListSet;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.TimeUnit;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.stream.Stream;
 import javax.jms.ConnectionFactory;
 import javax.jms.Destination;
@@ -79,8 +68,11 @@ import org.apache.pulsar.client.api.SubscriptionInitialPosition;
 import org.apache.pulsar.client.api.SubscriptionMode;
 import org.apache.pulsar.client.api.SubscriptionType;
 import org.apache.pulsar.client.api.TopicMetadata;
+import org.apache.pulsar.client.impl.ConsumerBase;
+import org.apache.pulsar.client.impl.MultiTopicsConsumerImpl;
 import org.apache.pulsar.client.impl.auth.AuthenticationToken;
 import org.apache.pulsar.common.partition.PartitionedTopicMetadata;
+import org.apache.pulsar.common.util.collections.GrowableArrayBlockingQueue;
 
 @Slf4j
 public class PulsarConnectionFactory
@@ -1198,11 +1190,67 @@ public class PulsarConnectionFactory
         builder.ackTimeoutRedeliveryBackoff(consumerConfiguration.getAckTimeoutRedeliveryBackoff());
       }
       builder.intercept(session.getConsumerInterceptor());
+      if (isEmulateJMSPriority()) {
+        builder.startPaused(true);
+      }
       Consumer<?> newConsumer = builder.subscribe();
+      if (newConsumer instanceof MultiTopicsConsumerImpl) {
+        MultiTopicsConsumerImpl multiTopicsConsumer = (MultiTopicsConsumerImpl) newConsumer;
+        log.info("Destaintions {}", multiTopicsConsumer.getPartitions());
+      }
       consumers.add(newConsumer);
+      if (isEmulateJMSPriority()) {
+        replaceIncomingMessageList(newConsumer);
+        newConsumer.resume();
+      }
       return newConsumer;
     } catch (PulsarClientException err) {
       throw Utils.handleException(err);
+    }
+  }
+
+  private static void replaceIncomingMessageList(Consumer c) {
+    try {
+      ConsumerBase consumerBase = (ConsumerBase) c;
+      Field incomingMessages = ConsumerBase.class.getDeclaredField("incomingMessages");
+      incomingMessages.setAccessible(true);
+
+      BlockingQueue<Message> oldQueue = (BlockingQueue<Message>) incomingMessages.get(consumerBase);
+      BlockingQueue<Message> newQueue = new PriorityBlockingQueue<Message>(10, new Comparator<Message>() {
+        @Override
+        public int compare(Message o1, Message o2) {
+          int priority1 = getPriority(o1);
+          int priority2 = getPriority(o2);
+          log.info("compare {} with {}", priority1, priority2);
+          return Integer.compare(priority2, priority1);
+        }
+
+      }) {
+        @Override
+        public boolean offer(Message message) {
+          log.info("offer {} {}", message.getTopicName(), message);
+          return super.offer(message);
+        }
+      };
+
+      // drain messages that could have been pre-fetched (the Consumer is paused, so this should not happen)
+      oldQueue.drainTo(newQueue);
+
+      incomingMessages.set(c, newQueue);
+    } catch (Exception err) {
+      throw new RuntimeException(err);
+    }
+  }
+
+  private static int getPriority(Message m) {
+    String jmsPriority = m.getProperty("JMSPriority");
+    if (jmsPriority == null || jmsPriority.isEmpty()) {
+      return PulsarMessage.DEFAULT_PRIORITY;
+    }
+    try {
+      return Integer.parseInt(jmsPriority);
+    } catch (NumberFormatException err) {
+      return PulsarMessage.DEFAULT_PRIORITY;
     }
   }
 

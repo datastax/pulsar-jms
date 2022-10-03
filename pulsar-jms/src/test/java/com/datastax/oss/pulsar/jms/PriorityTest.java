@@ -73,7 +73,7 @@ public class PriorityTest {
         connection.start();
         try (Session session = connection.createSession(); ) {
           Queue destination =
-              session.createQueue("persistent://public/default/test-" + UUID.randomUUID());
+              session.createQueue("test-" + UUID.randomUUID());
 
           int numMessages = 100;
           try (MessageProducer producer = session.createProducer(destination); ) {
@@ -91,10 +91,17 @@ public class PriorityTest {
           }
 
           try (MessageConsumer consumer1 = session.createConsumer(destination); ) {
+
+            // wait for the broker to push the messages to the client
+            // the client reorders in memory the messages
+            Thread.sleep(2000);
+
             List<TextMessage> received = new ArrayList<>();
             for (int i = 0; i < numMessages; i++) {
               TextMessage msg = (TextMessage) consumer1.receive();
-              log.info("got msg {} prio {}", msg.getText(), msg.getJMSPriority());
+              log.info("got msg {} prio {} from {} actually {}",
+                      msg.getText(), msg.getJMSPriority(), msg.getJMSDestination(),
+                      ((PulsarMessage) msg).getReceivedPulsarMessage().getTopicName());
               received.add(msg);
             }
 
@@ -158,6 +165,11 @@ public class PriorityTest {
 
           Queue destination = session.createQueue("multi:" + destination1.getQueueName() + "," + destination2.getQueueName());
           try (MessageConsumer consumer1 = session.createConsumer(destination); ) {
+
+            // wait for the broker to push the messages to the client
+            // the client reorders in memory the messages
+            Thread.sleep(2000);
+
             List<TextMessage> received = new ArrayList<>();
             for (int i = 0; i < numMessages; i++) {
               TextMessage msg = (TextMessage) consumer1.receive();
@@ -214,6 +226,11 @@ public class PriorityTest {
         }
 
         try (JMSConsumer consumer1 = context.createConsumer(destination); ) {
+
+          // wait for the broker to push the messages to the client
+          // the client reorders in memory the messages
+          Thread.sleep(2000);
+
           List<TextMessage> received = new ArrayList<>();
           for (int i = 0; i < numMessages; i++) {
             TextMessage msg = (TextMessage) consumer1.receive();
