@@ -1890,12 +1890,12 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
 
   @Override
   public QueueReceiver createReceiver(Queue queue) throws JMSException {
-    return (QueueReceiver) createConsumer(queue);
+    return createConsumer(queue);
   }
 
   @Override
   public QueueReceiver createReceiver(Queue queue, String s) throws JMSException {
-    return (QueueReceiver) createConsumer(queue, s);
+    return createConsumer(queue, s);
   }
 
   @Override
@@ -1905,12 +1905,12 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
 
   @Override
   public TopicSubscriber createSubscriber(Topic topic) throws JMSException {
-    return (TopicSubscriber) createConsumer(topic);
+    return createConsumer(topic);
   }
 
   @Override
   public TopicSubscriber createSubscriber(Topic topic, String s, boolean b) throws JMSException {
-    return (TopicSubscriber) createConsumer(topic, s, b);
+    return createConsumer(topic, s, b);
   }
 
   @Override
