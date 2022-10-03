@@ -66,8 +66,7 @@ public class PriorityTest {
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
     properties.put("jms.useServerSideFiltering", true);
-
-    properties.put("consumerConfig", ImmutableMap.of("emulateJMSPriority", true));
+    properties.put("jms.emulateJMSPriority", true);
 
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
@@ -122,8 +121,7 @@ public class PriorityTest {
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
     properties.put("jms.useServerSideFiltering", true);
-
-    properties.put("consumerConfig", ImmutableMap.of("emulateJMSPriority", true));
+    properties.put("jms.emulateJMSPriority", true);
 
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (JMSContext context = factory.createContext()) {

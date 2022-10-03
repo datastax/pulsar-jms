@@ -341,6 +341,10 @@ public class PulsarConnectionFactory
           Boolean.parseBoolean(
               getAndRemoveString("jms.useServerSideFiltering", "false", configurationCopy));
 
+      this.emulateJMSPriority =
+              Boolean.parseBoolean(
+                      getAndRemoveString("jms.emulateJMSPriority", "false", configurationCopy));
+
       // in Exclusive mode Pulsar does not support delayed messages
       // with this flag you force to not use Exclusive subscription and so to support
       // delayed messages are well
@@ -523,6 +527,10 @@ public class PulsarConnectionFactory
 
   public synchronized boolean isUseServerSideFiltering() {
     return useServerSideFiltering;
+  }
+
+  public synchronized boolean isEmulateJMSPriority() {
+    return emulateJMSPriority;
   }
 
   synchronized String getDefaultClientId() {
@@ -944,15 +952,22 @@ public class PulsarConnectionFactory
   }
 
   public String getPulsarTopicName(Destination defaultDestination) throws JMSException {
+    return getPulsarTopicName(defaultDestination, PulsarMessage.DEFAULT_PRIORITY);
+  }
+
+  public String getPulsarTopicName(Destination defaultDestination, int jmsPriority) throws JMSException {
     PulsarDestination destination = toPulsarDestination(defaultDestination);
     String topicName = destination.getInternalTopicName();
+    if (jmsPriority != PulsarMessage.DEFAULT_PRIORITY && isEmulateJMSPriority()) {
+      topicName = topicName + "_jmspriority-" + jmsPriority;
+    }
     return applySystemNamespace(topicName);
   }
 
-  Producer<byte[]> getProducerForDestination(Destination defaultDestination, boolean transactions)
+  Producer<byte[]> getProducerForDestination(Destination defaultDestination, boolean transactions, int jmsPriority)
       throws JMSException {
     try {
-      String fullQualifiedTopicName = getPulsarTopicName(defaultDestination);
+      String fullQualifiedTopicName = getPulsarTopicName(defaultDestination, jmsPriority);
       String key = transactions ? fullQualifiedTopicName + "-tx" : fullQualifiedTopicName;
       boolean transactionsStickyPartitions = isTransactionsStickyPartitions();
       return producers.computeIfAbsent(
@@ -1004,7 +1019,7 @@ public class PulsarConnectionFactory
     return precreateQueueSubscription;
   }
 
-  public void ensureQueueSubscription(PulsarDestination destination) throws JMSException {
+  public void ensureQueueSubscription(PulsarDestination destination, int jmsPriority) throws JMSException {
     if (!isPrecreateQueueSubscription()) {
       return;
     }
@@ -1014,7 +1029,7 @@ public class PulsarConnectionFactory
     }
     if (destination.isMultiTopic()) {
       for (PulsarDestination subDestination : destination.getDestinations()) {
-        ensureQueueSubscription(subDestination);
+        ensureQueueSubscription(subDestination, jmsPriority);
       }
       return;
     }
@@ -1023,7 +1038,7 @@ public class PulsarConnectionFactory
 
     // please note that in the special jms-queue subscription we cannot
     // set a selector, because it is shared among all the Consumers of the Queue
-    String fullQualifiedTopicName = getPulsarTopicName(destination);
+    String fullQualifiedTopicName = getPulsarTopicName(destination, jmsPriority);
     while (true) {
       String subscriptionName = getQueueSubscriptionName(destination);
       try {
@@ -1083,7 +1098,7 @@ public class PulsarConnectionFactory
       String messageSelector,
       boolean noLocal,
       PulsarSession session,
-      Map<String, String> selectorOnSubscriptionReceiver)
+      int jmsPriority)
       throws JMSException {
     if (destination.isQueue() && subscriptionMode != SubscriptionMode.Durable) {
       throw new IllegalStateException("only durable mode for queues");
@@ -1092,12 +1107,13 @@ public class PulsarConnectionFactory
       throw new IllegalStateException("only Shared SubscriptionType for queues");
     }
     log.debug(
-        "createConsumer {} {} {} {}",
+        "createConsumer {} {} {} {} {}",
         destination,
         consumerName,
         subscriptionMode,
         subscriptionType,
-        messageSelector);
+        messageSelector,
+        jmsPriority);
     Map<String, String> subscriptionProperties = new HashMap<>();
     Map<String, String> consumerMetadata = new HashMap<>();
     consumerMetadata.put("jms.destination.type", destination.isQueue() ? "queue" : "topic");
@@ -1155,17 +1171,20 @@ public class PulsarConnectionFactory
               .subscriptionType(subscriptionType)
               .subscriptionName(subscriptionName);
       if (destination.isRegExp()) {
+        if (jmsPriority != PulsarMessage.DEFAULT_PRIORITY) {
+          throw new InvalidDestinationException("JMSPriority is not handled with RegExp destionations");
+        }
         String fullQualifiedTopicName = getPulsarTopicName(destination);
         builder.topicsPattern(fullQualifiedTopicName);
       } else if (destination.isMultiTopic()) {
         List<? extends PulsarDestination> destinations = destination.getDestinations();
         List<String> fullQualifiedTopicNames = new ArrayList<>(destinations.size());
         for (PulsarDestination d : destinations) {
-          fullQualifiedTopicNames.add(getPulsarTopicName(d));
+          fullQualifiedTopicNames.add(getPulsarTopicName(d, jmsPriority));
         }
         builder.topics(fullQualifiedTopicNames);
       } else {
-        String fullQualifiedTopicName = getPulsarTopicName(destination);
+        String fullQualifiedTopicName = getPulsarTopicName(destination, jmsPriority);
         builder.topic(fullQualifiedTopicName);
       }
       if (consumerConfiguration.getDeadLetterPolicy() != null) {

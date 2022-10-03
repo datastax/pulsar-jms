@@ -46,6 +46,7 @@ import org.apache.pulsar.client.impl.BatchMessageIdImpl;
 public class PulsarMessageConsumer implements IPulsarMessageConsumer {
 
   final String subscriptionName;
+  final int jmsPriority;
   private final PulsarSession session;
   private final PulsarDestination destination;
   private SelectorSupport selectorSupport;
@@ -71,7 +72,8 @@ public class PulsarMessageConsumer implements IPulsarMessageConsumer {
       SubscriptionType subscriptionType,
       String selector,
       boolean unregisterSubscriptionOnClose,
-      boolean noLocal)
+      boolean noLocal,
+      int jmsPriority)
       throws JMSException {
     this.noLocal = noLocal;
     session.checkNotClosed();
@@ -86,6 +88,7 @@ public class PulsarMessageConsumer implements IPulsarMessageConsumer {
       }
     }
     this.subscriptionName = subscriptionName;
+    this.jmsPriority = jmsPriority;
     this.session = session;
     this.useServerSideFiltering = session.getFactory().isUseServerSideFiltering();
     this.destination = destination;
@@ -117,7 +120,7 @@ public class PulsarMessageConsumer implements IPulsarMessageConsumer {
     if (destination.isQueue()) {
       // to not create eagerly the Consumer for Queues
       // but create the shared subscription
-      session.getFactory().ensureQueueSubscription(destination);
+      session.getFactory().ensureQueueSubscription(destination, jmsPriority);
     } else {
       getConsumer();
     }
@@ -131,7 +134,6 @@ public class PulsarMessageConsumer implements IPulsarMessageConsumer {
       throw new IllegalStateException("Consumer is closed");
     }
     if (consumer == null) {
-      Map<String, String> downloadedSelectorsOnSubscriptions = new ConcurrentHashMap<>();
       String currentSelector = internalGetMessageSelector();
       consumer =
           session
@@ -144,7 +146,7 @@ public class PulsarMessageConsumer implements IPulsarMessageConsumer {
                   currentSelector,
                   noLocal,
                   session,
-                  downloadedSelectorsOnSubscriptions);
+                  jmsPriority);
     }
     return consumer;
   }

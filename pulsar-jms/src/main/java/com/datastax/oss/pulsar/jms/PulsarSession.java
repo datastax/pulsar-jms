@@ -132,14 +132,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     this.sessionMode = sessionMode;
     this.transacted = sessionMode == Session.SESSION_TRANSACTED;
     this.overrideConsumerConfiguration = overrideConsumerConfiguration;
-    Boolean emulateJMSPriority =
-        getFactory().getConsumerConfiguration(overrideConsumerConfiguration).isEmulateJMSPriority();
-    if (emulateJMSPriority != null) {
-      this.emulateJMSPriority = emulateJMSPriority;
-    } else {
-      this.emulateJMSPriority = false;
-    }
-
+    this.emulateJMSPriority = getFactory().isEmulateJMSPriority();
     if (transacted && connection.getFactory().isTransactionsStickyPartitions()) {
       generateNewTransactionStickyKey();
     }
@@ -221,8 +214,8 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     return connection.getFactory();
   }
 
-  Producer<byte[]> getProducerForDestination(Destination destination) throws JMSException {
-    return getFactory().getProducerForDestination(destination, transacted);
+  Producer<byte[]> getProducerForDestination(Destination destination, int jmsPriority) throws JMSException {
+    return getFactory().getProducerForDestination(destination, transacted, jmsPriority);
   }
 
   /**
@@ -964,40 +957,28 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
       boolean noLocal)
       throws JMSException {
     if (emulateJMSPriority) {
-      if (selector == null) {
-        selector = "";
+      List<PulsarMessageConsumer> consumers = new ArrayList<>();
+      PulsarMessageConsumer defaultConsumer = null;
+      for (int jmsPriority = 9; jmsPriority >= 1; jmsPriority--) {
+        PulsarMessageConsumer consumerForPriorityLevel =
+                new PulsarMessageConsumer(
+                        subscriptionName,
+                        destination,
+                        this,
+                        subscriptionMode,
+                        subscriptionType,
+                        selector,
+                        unregisterSubscriptionOnClose,
+                        noLocal,
+                        jmsPriority)
+                        .subscribe();
+        if (jmsPriority == PulsarMessage.DEFAULT_PRIORITY) {
+          defaultConsumer = consumerForPriorityLevel;
+        }
+        consumers.add(consumerForPriorityLevel);
       }
-      String normalSelector =
-          selector.isEmpty() ? "JMSPriority <= 4" : "JMSPriority <= 4 AND (" + selector + ")";
-      String highPrioritySelector =
-          selector.isEmpty() ? "JMSPriority > 4" : "JMSPriority > 4 AND (" + selector + ")";
-      PulsarMessageConsumer normalConsumer =
-          new PulsarMessageConsumer(
-                  subscriptionName,
-                  destination,
-                  this,
-                  subscriptionMode,
-                  subscriptionType,
-                  normalSelector,
-                  unregisterSubscriptionOnClose,
-                  noLocal)
-              .subscribe();
-
-      PulsarMessageConsumer highPriorityConsumer =
-          new PulsarMessageConsumer(
-                  subscriptionName,
-                  destination,
-                  this,
-                  subscriptionMode,
-                  subscriptionType,
-                  highPrioritySelector,
-                  unregisterSubscriptionOnClose,
-                  noLocal)
-              .subscribe();
-
-      return new PulsarPriorityAwareMessageConsumer(
-          Arrays.asList(highPriorityConsumer, normalConsumer), selector);
-
+      return new PulsarPriorityAwareMessageConsumer(defaultConsumer,
+          consumers);
     } else {
       return new PulsarMessageConsumer(
               subscriptionName,
@@ -1007,7 +988,8 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
               subscriptionType,
               selector,
               unregisterSubscriptionOnClose,
-              noLocal)
+              noLocal,
+              PulsarMessage.DEFAULT_PRIORITY)
           .subscribe();
     }
   }

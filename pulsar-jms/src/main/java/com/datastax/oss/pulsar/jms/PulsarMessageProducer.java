@@ -1195,7 +1195,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
     }
     session.executeCriticalOperation(
         () -> {
-          Producer<byte[]> producer = session.getProducerForDestination(defaultDestination);
+          Producer<byte[]> producer = session.getProducerForDestination(defaultDestination, message.getJMSPriority());
           message.setJMSDestination(defaultDestination);
           PulsarMessage pulsarMessage = prepareMessageForSend(message);
           final TypedMessageBuilder<byte[]> typedMessageBuilder;
@@ -1235,7 +1235,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
     }
     session.executeCriticalOperation(
         () -> {
-          Producer<byte[]> producer = session.getProducerForDestination(defaultDestination);
+          Producer<byte[]> producer = session.getProducerForDestination(defaultDestination, message.getJMSPriority());
           message.setJMSDestination(defaultDestination);
           PulsarMessage pulsarMessage = prepareMessageForSend(message);
           CompletionListener endActivityCompletionListener =

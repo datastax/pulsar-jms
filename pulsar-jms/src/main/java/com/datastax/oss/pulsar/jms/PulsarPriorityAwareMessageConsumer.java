@@ -24,38 +24,39 @@ import javax.jms.MessageListener;
 import javax.jms.Queue;
 import javax.jms.Topic;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.pulsar.client.impl.ConsumerBase;
 
 @Slf4j
 public class PulsarPriorityAwareMessageConsumer implements IPulsarMessageConsumer {
 
+  private final PulsarMessageConsumer defaultConsumer;
   private final List<PulsarMessageConsumer> consumers;
-  private final String selector;
   private final Status status;
 
-  public PulsarPriorityAwareMessageConsumer(List<PulsarMessageConsumer> consumers, String selector)
+  public PulsarPriorityAwareMessageConsumer(PulsarMessageConsumer defaultConsumer,
+                                            List<PulsarMessageConsumer> consumers)
       throws JMSException {
     this.consumers = consumers;
-    this.selector = selector;
+    this.defaultConsumer = defaultConsumer;
     this.status = new Status(consumers.size());
   }
 
   @Override
   public synchronized String getMessageSelector() throws JMSException {
-    checkNotClosed();
-    return selector;
+    return getDefaultConsumer().getMessageSelector();
   }
 
   @Override
   public synchronized MessageListener getMessageListener() throws JMSException {
-    return getFirst().getMessageListener();
+    return getDefaultConsumer().getMessageListener();
   }
 
-  private PulsarMessageConsumer getFirst() {
+  private PulsarMessageConsumer getDefaultConsumer() {
     return consumers.get(0);
   }
 
   synchronized void checkNotClosed() throws JMSException {
-    getFirst().checkNotClosed();
+    getDefaultConsumer().checkNotClosed();
   }
 
   @Override
@@ -100,12 +101,17 @@ public class PulsarPriorityAwareMessageConsumer implements IPulsarMessageConsume
   public Message receive() throws JMSException {
     while (true) {
       PulsarMessageConsumer pulsarMessageConsumer = consumers.get(status.currentConsumer());
-      Message message = pulsarMessageConsumer.receive(1000);
-      if (message != null) {
-        status.matched();
-        return message;
-      } else {
+      ConsumerBase consumerBase = (ConsumerBase) pulsarMessageConsumer.getConsumer();
+      if (consumerBase.getTotalIncomingMessages() <= 0) {
         status.notMatched();
+      } else {
+        Message message = pulsarMessageConsumer.receive(1000);
+        if (message != null) {
+          status.matched();
+          return message;
+        } else {
+          status.notMatched();
+        }
       }
     }
   }
@@ -115,12 +121,17 @@ public class PulsarPriorityAwareMessageConsumer implements IPulsarMessageConsume
     long start = System.currentTimeMillis();
     while (System.currentTimeMillis() - start < timeout) {
       PulsarMessageConsumer pulsarMessageConsumer = consumers.get(status.currentConsumer());
-      Message message = pulsarMessageConsumer.receive(1);
-      if (message != null) {
-        status.matched();
-        return message;
-      } else {
+      ConsumerBase consumerBase = (ConsumerBase) pulsarMessageConsumer.getConsumer();
+      if (consumerBase.getTotalIncomingMessages() <= 0) {
         status.notMatched();
+      } else {
+        Message message = pulsarMessageConsumer.receive(1);
+        if (message != null) {
+          status.matched();
+          return message;
+        } else {
+          status.notMatched();
+        }
       }
     }
     return null;
@@ -132,12 +143,17 @@ public class PulsarPriorityAwareMessageConsumer implements IPulsarMessageConsume
     long start = System.currentTimeMillis();
     while (System.currentTimeMillis() - start < timeout) {
       PulsarMessageConsumer pulsarMessageConsumer = consumers.get(status.currentConsumer());
-      Message message = pulsarMessageConsumer.receiveWithTimeoutAndValidateType(1, expectedType);
-      if (message != null) {
-        status.matched();
-        return message;
-      } else {
+      ConsumerBase consumerBase = (ConsumerBase) pulsarMessageConsumer.getConsumer();
+      if (consumerBase.getTotalIncomingMessages() <= 0) {
         status.notMatched();
+      } else {
+        Message message = pulsarMessageConsumer.receiveWithTimeoutAndValidateType(1, expectedType);
+        if (message != null) {
+          status.matched();
+          return message;
+        } else {
+          status.notMatched();
+        }
       }
     }
     return null;
@@ -145,15 +161,7 @@ public class PulsarPriorityAwareMessageConsumer implements IPulsarMessageConsume
 
   @Override
   public Message receiveNoWait() throws JMSException {
-    PulsarMessageConsumer pulsarMessageConsumer = consumers.get(status.currentConsumer());
-    Message message = pulsarMessageConsumer.receive(1);
-    if (message != null) {
-      status.matched();
-      return message;
-    } else {
-      status.notMatched();
-    }
-    return null;
+    return receive(1);
   }
 
   @Override
@@ -177,7 +185,7 @@ public class PulsarPriorityAwareMessageConsumer implements IPulsarMessageConsume
 
   @Override
   public String toString() {
-    PulsarMessageConsumer first = getFirst();
+    PulsarMessageConsumer first = getDefaultConsumer();
     return "PulsarPriorityAwareMessageConsumer{subscriptionName="
         + first.subscriptionName
         + ", destination="
@@ -188,13 +196,13 @@ public class PulsarPriorityAwareMessageConsumer implements IPulsarMessageConsume
   @Override
   public synchronized Topic getTopic() throws JMSException {
     checkNotClosed();
-    return getFirst().getTopic();
+    return getDefaultConsumer().getTopic();
   }
 
   @Override
   public synchronized Queue getQueue() throws JMSException {
     checkNotClosed();
-    return getFirst().getQueue();
+    return getDefaultConsumer().getQueue();
   }
 
   /**
@@ -208,7 +216,7 @@ public class PulsarPriorityAwareMessageConsumer implements IPulsarMessageConsume
   @Override
   public synchronized boolean getNoLocal() throws JMSException {
     checkNotClosed();
-    return getFirst().getNoLocal();
+    return getDefaultConsumer().getNoLocal();
   }
 
   @Override
