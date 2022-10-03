@@ -19,12 +19,23 @@ import com.datastax.oss.pulsar.jms.selectors.SelectorSupport;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import javax.jms.*;
+import javax.jms.Destination;
 import javax.jms.IllegalStateException;
+import javax.jms.InvalidDestinationException;
+import javax.jms.JMSConsumer;
+import javax.jms.JMSException;
+import javax.jms.Message;
+import javax.jms.MessageConsumer;
+import javax.jms.MessageFormatException;
+import javax.jms.MessageListener;
+import javax.jms.Queue;
+import javax.jms.QueueReceiver;
+import javax.jms.Session;
+import javax.jms.Topic;
+import javax.jms.TopicSubscriber;
 
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.api.Consumer;
@@ -34,10 +45,9 @@ import org.apache.pulsar.client.api.SubscriptionType;
 import org.apache.pulsar.client.impl.BatchMessageIdImpl;
 
 @Slf4j
-public class PulsarMessageConsumer implements TopicSubscriber, QueueReceiver, MessageConsumer {
+public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, QueueReceiver {
 
   final String subscriptionName;
-  final int jmsPriority;
   private final PulsarSession session;
   private final PulsarDestination destination;
   private SelectorSupport selectorSupport;
@@ -63,8 +73,7 @@ public class PulsarMessageConsumer implements TopicSubscriber, QueueReceiver, Me
       SubscriptionType subscriptionType,
       String selector,
       boolean unregisterSubscriptionOnClose,
-      boolean noLocal,
-      int jmsPriority)
+      boolean noLocal)
       throws JMSException {
     this.noLocal = noLocal;
     session.checkNotClosed();
@@ -79,7 +88,6 @@ public class PulsarMessageConsumer implements TopicSubscriber, QueueReceiver, Me
       }
     }
     this.subscriptionName = subscriptionName;
-    this.jmsPriority = jmsPriority;
     this.session = session;
     this.useServerSideFiltering = session.getFactory().isUseServerSideFiltering();
     this.destination = destination;
@@ -111,7 +119,7 @@ public class PulsarMessageConsumer implements TopicSubscriber, QueueReceiver, Me
     if (destination.isQueue()) {
       // to not create eagerly the Consumer for Queues
       // but create the shared subscription
-      session.getFactory().ensureQueueSubscription(destination, jmsPriority);
+      session.getFactory().ensureQueueSubscription(destination);
     } else {
       getConsumer();
     }
@@ -136,8 +144,7 @@ public class PulsarMessageConsumer implements TopicSubscriber, QueueReceiver, Me
                   subscriptionType,
                   currentSelector,
                   noLocal,
-                  session,
-                  jmsPriority);
+                  session);
     }
     return consumer;
   }

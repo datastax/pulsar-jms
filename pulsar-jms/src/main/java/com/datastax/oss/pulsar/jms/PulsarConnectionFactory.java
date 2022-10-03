@@ -26,8 +26,22 @@ import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.PriorityBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 import javax.jms.ConnectionFactory;
 import javax.jms.Destination;
@@ -1011,7 +1025,7 @@ public class PulsarConnectionFactory
     return precreateQueueSubscription;
   }
 
-  public void ensureQueueSubscription(PulsarDestination destination, int jmsPriority) throws JMSException {
+  public void ensureQueueSubscription(PulsarDestination destination) throws JMSException {
     if (!isPrecreateQueueSubscription()) {
       return;
     }
@@ -1021,7 +1035,7 @@ public class PulsarConnectionFactory
     }
     if (destination.isMultiTopic()) {
       for (PulsarDestination subDestination : destination.getDestinations()) {
-        ensureQueueSubscription(subDestination, jmsPriority);
+        ensureQueueSubscription(subDestination);
       }
       return;
     }
@@ -1030,7 +1044,7 @@ public class PulsarConnectionFactory
 
     // please note that in the special jms-queue subscription we cannot
     // set a selector, because it is shared among all the Consumers of the Queue
-    String fullQualifiedTopicName = getPulsarTopicName(destination, jmsPriority);
+    String fullQualifiedTopicName = getPulsarTopicName(destination);
     while (true) {
       String subscriptionName = getQueueSubscriptionName(destination);
       try {
@@ -1089,8 +1103,7 @@ public class PulsarConnectionFactory
       SubscriptionType subscriptionType,
       String messageSelector,
       boolean noLocal,
-      PulsarSession session,
-      int jmsPriority)
+      PulsarSession session)
       throws JMSException {
     if (destination.isQueue() && subscriptionMode != SubscriptionMode.Durable) {
       throw new IllegalStateException("only durable mode for queues");
@@ -1104,8 +1117,7 @@ public class PulsarConnectionFactory
         consumerName,
         subscriptionMode,
         subscriptionType,
-        messageSelector,
-        jmsPriority);
+        messageSelector);
     Map<String, String> subscriptionProperties = new HashMap<>();
     Map<String, String> consumerMetadata = new HashMap<>();
     consumerMetadata.put("jms.destination.type", destination.isQueue() ? "queue" : "topic");
@@ -1163,20 +1175,17 @@ public class PulsarConnectionFactory
               .subscriptionType(subscriptionType)
               .subscriptionName(subscriptionName);
       if (destination.isRegExp()) {
-        if (jmsPriority != PulsarMessage.DEFAULT_PRIORITY) {
-          throw new InvalidDestinationException("JMSPriority is not handled with RegExp destionations");
-        }
         String fullQualifiedTopicName = getPulsarTopicName(destination);
         builder.topicsPattern(fullQualifiedTopicName);
       } else if (destination.isMultiTopic()) {
         List<? extends PulsarDestination> destinations = destination.getDestinations();
         List<String> fullQualifiedTopicNames = new ArrayList<>(destinations.size());
         for (PulsarDestination d : destinations) {
-          fullQualifiedTopicNames.add(getPulsarTopicName(d, jmsPriority));
+          fullQualifiedTopicNames.add(getPulsarTopicName(d));
         }
         builder.topics(fullQualifiedTopicNames);
       } else {
-        String fullQualifiedTopicName = getPulsarTopicName(destination, jmsPriority);
+        String fullQualifiedTopicName = getPulsarTopicName(destination);
         builder.topic(fullQualifiedTopicName);
       }
       if (consumerConfiguration.getDeadLetterPolicy() != null) {
@@ -1194,9 +1203,11 @@ public class PulsarConnectionFactory
         builder.startPaused(true);
       }
       Consumer<?> newConsumer = builder.subscribe();
-      if (newConsumer instanceof MultiTopicsConsumerImpl) {
-        MultiTopicsConsumerImpl multiTopicsConsumer = (MultiTopicsConsumerImpl) newConsumer;
-        log.info("Destaintions {}", multiTopicsConsumer.getPartitions());
+      if (log.isDebugEnabled()) {
+        if (newConsumer instanceof MultiTopicsConsumerImpl) {
+          MultiTopicsConsumerImpl multiTopicsConsumer = (MultiTopicsConsumerImpl) newConsumer;
+          log.debug("Destinations {}", multiTopicsConsumer.getPartitions());
+        }
       }
       consumers.add(newConsumer);
       if (isEmulateJMSPriority()) {
@@ -1221,17 +1232,10 @@ public class PulsarConnectionFactory
         public int compare(Message o1, Message o2) {
           int priority1 = getPriority(o1);
           int priority2 = getPriority(o2);
-          log.info("compare {} with {}", priority1, priority2);
           return Integer.compare(priority2, priority1);
         }
 
-      }) {
-        @Override
-        public boolean offer(Message message) {
-          log.info("offer {} {}", message.getTopicName(), message);
-          return super.offer(message);
-        }
-      };
+      });
 
       // drain messages that could have been pre-fetched (the Consumer is paused, so this should not happen)
       oldQueue.drainTo(newQueue);
