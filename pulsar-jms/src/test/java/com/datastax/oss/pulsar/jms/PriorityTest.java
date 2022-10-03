@@ -20,6 +20,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -28,17 +30,25 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 import javax.jms.*;
-
-import com.google.common.collect.ImmutableMap;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.pulsar.common.policies.data.TenantInfo;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 @Slf4j
 public class PriorityTest {
+
+  private static final String SYSTEM_NAMESPACE_OVERRIDDEN = "foo/ns";
+
+  static int LOW_PRIORITY = 4;
+  static int HIGH_PRIORITY = 9;
 
   @TempDir public static Path tempDir;
   private static PulsarCluster cluster;
@@ -47,6 +57,18 @@ public class PriorityTest {
   public static void before() throws Exception {
     cluster = new PulsarCluster(tempDir);
     cluster.start();
+
+    cluster
+        .getService()
+        .getAdminClient()
+        .tenants()
+        .createTenant(
+            "foo",
+            TenantInfo.builder()
+                .allowedClusters(
+                    ImmutableSet.of(cluster.getService().getConfiguration().getClusterName()))
+                .build());
+    cluster.getService().getAdminClient().namespaces().createNamespace(SYSTEM_NAMESPACE_OVERRIDDEN);
   }
 
   @AfterAll
@@ -56,12 +78,18 @@ public class PriorityTest {
     }
   }
 
-  @Test
-  public void basicPriorityTest() throws Exception {
+  private static Stream<Arguments> basicCombinations() {
+    return Stream.of(Arguments.of(0, true), Arguments.of(4, false), Arguments.of(4, true));
+  }
+
+  @ParameterizedTest(name = "numPartitions {0} sideTopicPartitioned {1}")
+  @MethodSource("basicCombinations")
+  public void basicTest(int numPartitions, boolean sideTopicPartitioned) throws Exception {
 
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
     properties.put("jms.emulateJMSPriority", true);
+    properties.put("jms.systemNamespace", SYSTEM_NAMESPACE_OVERRIDDEN);
 
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
@@ -69,15 +97,42 @@ public class PriorityTest {
         try (Session session = connection.createSession(); ) {
           Queue destination = session.createQueue("test-" + UUID.randomUUID());
 
+          if (numPartitions > 0) {
+            // the main topic is partitioned
+            cluster
+                .getService()
+                .getAdminClient()
+                .topics()
+                .createPartitionedTopic(factory.getPulsarTopicName(destination), 4);
+
+            if (sideTopicPartitioned) {
+              cluster
+                  .getService()
+                  .getAdminClient()
+                  .topics()
+                  .createPartitionedTopic(
+                      factory.getPulsarTopicName(destination, HIGH_PRIORITY), 4);
+            } else {
+              cluster
+                  .getService()
+                  .getAdminClient()
+                  .topics()
+                  .createNonPartitionedTopic(
+                      factory.getPulsarTopicName(destination, HIGH_PRIORITY));
+            }
+          } else {
+            // auto-creation in case of non-partitioned topic
+          }
+
           int numMessages = 100;
           try (MessageProducer producer = session.createProducer(destination); ) {
             for (int i = 0; i < numMessages; i++) {
               TextMessage textMessage = session.createTextMessage("foo-" + i);
               if (i < numMessages / 2) {
                 // the first messages are lower priority
-                producer.setPriority(1);
+                producer.setPriority(LOW_PRIORITY);
               } else {
-                producer.setPriority(9);
+                producer.setPriority(HIGH_PRIORITY);
               }
               log.info("send {} prio {}", textMessage.getText(), producer.getPriority());
               producer.send(textMessage);
@@ -110,6 +165,7 @@ public class PriorityTest {
 
   /**
    * Build a huge backlog (around 1.000.000 messages) of low priority messages.
+   *
    * @throws Exception
    */
   @Test
@@ -134,22 +190,22 @@ public class PriorityTest {
               TextMessage textMessage = session.createTextMessage("foo-" + i);
               if (i < numMessages - numHighPriority) {
                 // the first messages are lower priority
-                producer.setPriority(1);
+                producer.setPriority(LOW_PRIORITY);
               } else {
-                producer.setPriority(9);
+                producer.setPriority(HIGH_PRIORITY);
               }
 
-              producer.send(textMessage, new CompletionListener() {
-                @Override
-                public void onCompletion(Message message) {
-                  counter.countDown();
-                }
+              producer.send(
+                  textMessage,
+                  new CompletionListener() {
+                    @Override
+                    public void onCompletion(Message message) {
+                      counter.countDown();
+                    }
 
-                @Override
-                public void onException(Message message, Exception e) {
-
-                }
-              });
+                    @Override
+                    public void onException(Message message, Exception e) {}
+                  });
             }
             assertTrue(counter.await(10, TimeUnit.SECONDS));
           }
@@ -162,10 +218,10 @@ public class PriorityTest {
               TextMessage msg = (TextMessage) consumer1.receive();
 
               received.add(msg);
-              if (msg.getJMSPriority() == 1) {
+              if (msg.getJMSPriority() == LOW_PRIORITY) {
                 countLowPriority++;
               }
-              if (msg.getJMSPriority() == 9) {
+              if (msg.getJMSPriority() == HIGH_PRIORITY) {
                 countHighPriority++;
               }
             }
@@ -196,12 +252,12 @@ public class PriorityTest {
     for (TextMessage msg : received) {
       int priority = msg.getJMSPriority();
 
-      if (priority == 1 && foundHighPriority) {
+      if (priority == LOW_PRIORITY && foundHighPriority) {
         log.info("received {} priority {} after {}", msg.getText(), priority, count);
         foundLowPriorityAfterHighPriority = true;
         break;
       }
-      if (priority == 9) {
+      if (priority == HIGH_PRIORITY) {
         log.info("received {} priority {} after {}", msg.getText(), priority, count);
         foundHighPriority = true;
       }
@@ -216,15 +272,18 @@ public class PriorityTest {
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
     properties.put("jms.emulateJMSPriority", true);
+    properties.put("jms.systemNamespace", SYSTEM_NAMESPACE_OVERRIDDEN);
+    String nameTopic1 = "test-topic1-" + UUID.randomUUID();
+    String nameTopic2 = "test-topic2-" + UUID.randomUUID();
 
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
         connection.start();
         try (Session session = connection.createSession(); ) {
           Queue destination1 =
-              session.createQueue("persistent://public/default/test-topic1-" + UUID.randomUUID());
+              session.createQueue("persistent://" + SYSTEM_NAMESPACE_OVERRIDDEN + "/" + nameTopic1);
           Queue destination2 =
-              session.createQueue("persistent://public/default/test-topic2-" + UUID.randomUUID());
+              session.createQueue("persistent://" + SYSTEM_NAMESPACE_OVERRIDDEN + "/" + nameTopic2);
 
           int numMessages = 100;
           try (MessageProducer producer1 = session.createProducer(destination1);
@@ -233,11 +292,11 @@ public class PriorityTest {
               TextMessage textMessage = session.createTextMessage("foo-" + i);
               if (i < numMessages / 2) {
                 // the first messages are lower priority
-                producer1.setPriority(1);
-                producer2.setPriority(1);
+                producer1.setPriority(LOW_PRIORITY);
+                producer2.setPriority(LOW_PRIORITY);
               } else {
-                producer1.setPriority(9);
-                producer2.setPriority(9);
+                producer1.setPriority(HIGH_PRIORITY);
+                producer2.setPriority(HIGH_PRIORITY);
               }
               if (i % 2 == 0) {
                 log.info("send1 {} prio {}", textMessage.getText(), producer1.getPriority());
@@ -249,33 +308,52 @@ public class PriorityTest {
             }
           }
 
-          Queue destination =
+          Queue destinationFullyQualified =
               session.createQueue(
-                  "multi:" + destination1.getQueueName() + "," + destination2.getQueueName());
-          try (MessageConsumer consumer1 = session.createConsumer(destination); ) {
+                  "multi:"
+                      + "persistent://"
+                      + SYSTEM_NAMESPACE_OVERRIDDEN
+                      + "/"
+                      + nameTopic1
+                      + ","
+                      + "persistent://"
+                      + SYSTEM_NAMESPACE_OVERRIDDEN
+                      + "/"
+                      + nameTopic2);
+          testMultiTopicConsumer(session, numMessages, destinationFullyQualified);
 
-            // wait for the broker to push the messages to the client
-            // the client reorders in memory the messages
-            Thread.sleep(2000);
-
-            List<TextMessage> received = new ArrayList<>();
-            for (int i = 0; i < numMessages; i++) {
-              TextMessage msg = (TextMessage) consumer1.receive();
-              log.info(
-                  "got msg {} prio {} from {} actually {}",
-                  msg.getText(),
-                  msg.getJMSPriority(),
-                  msg.getJMSDestination(),
-                  ((PulsarMessage) msg).getReceivedPulsarMessage().getTopicName());
-              received.add(msg);
-            }
-
-            // no more messages
-            assertNull(consumer1.receiveNoWait());
-            verifyOrder(received);
-          }
+          Queue destinationOnlyNamesInSystemNamespaceAndCustomSubscription =
+              session.createQueue("multi:" + nameTopic1 + "," + nameTopic2 + ":customsubscription");
+          testMultiTopicConsumer(
+              session, numMessages, destinationOnlyNamesInSystemNamespaceAndCustomSubscription);
         }
       }
+    }
+  }
+
+  private static void testMultiTopicConsumer(Session session, int numMessages, Queue destination)
+      throws JMSException, InterruptedException {
+    try (MessageConsumer consumer1 = session.createConsumer(destination); ) {
+
+      // wait for the broker to push the messages to the client
+      // the client reorders in memory the messages
+      Thread.sleep(2000);
+
+      List<TextMessage> received = new ArrayList<>();
+      for (int i = 0; i < numMessages; i++) {
+        TextMessage msg = (TextMessage) consumer1.receive();
+        log.info(
+            "got msg {} prio {} from {} actually {}",
+            msg.getText(),
+            msg.getJMSPriority(),
+            msg.getJMSDestination(),
+            ((PulsarMessage) msg).getReceivedPulsarMessage().getTopicName());
+        received.add(msg);
+      }
+
+      // no more messages
+      assertNull(consumer1.receiveNoWait());
+      verifyOrder(received);
     }
   }
 
@@ -298,9 +376,9 @@ public class PriorityTest {
           JMSProducer producer = context.createProducer();
           if (i < numMessages / 2) {
             // the first messages are lower priority
-            producer.setPriority(1);
+            producer.setPriority(LOW_PRIORITY);
           } else {
-            producer.setPriority(9);
+            producer.setPriority(HIGH_PRIORITY);
           }
           String text = "foo-" + i;
           log.info("send {} prio {}", text, producer.getPriority());
