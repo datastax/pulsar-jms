@@ -966,15 +966,13 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
       if (destination.isMultiTopic()) {
         List<PulsarDestination> destinations = destination.getDestinations();
         for (PulsarDestination sub : destinations) {
-          TopicName topicNameParsed = TopicName.get(sub.topicName);
+          String fullyQualifiedTopicName = getFactory().getPulsarTopicName(sub);
+          TopicName topicNameParsed = TopicName.get(fullyQualifiedTopicName);
           if (finalRegExTopicName == null) {
+            String namespace = getFactory().getSystemNamespace();
             finalRegExTopicName =
                 new StringBuilder(
-                    "regex:"
-                        + topicNameParsed.getDomain().name()
-                        + "://"
-                        + topicNameParsed.getNamespace()
-                        + "/(");
+                    "regex:" + topicNameParsed.getDomain().name() + "://" + namespace + "/(");
           }
           for (int jmsPriority = 9; jmsPriority >= 1; jmsPriority--) {
             String topicName = topicNameParsed.getLocalName();
@@ -986,7 +984,8 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
           }
         }
       } else {
-        TopicName topicNameParsed = TopicName.get(destination.topicName);
+        String fullyQualifiedTopicName = getFactory().getPulsarTopicName(destination);
+        TopicName topicNameParsed = TopicName.get(fullyQualifiedTopicName);
         finalRegExTopicName =
             new StringBuilder(
                 "regex:"
@@ -1003,9 +1002,15 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
           finalRegExTopicName.append("|");
         }
       }
+      String customSubscriptionName = getFactory().getQueueSubscriptionName(destination);
       String finalDestination =
-          finalRegExTopicName.substring(0, finalRegExTopicName.length() - 1) + ")";
-      log.info("Using finalDestination {}", finalDestination);
+          finalRegExTopicName.substring(0, finalRegExTopicName.length() - 1)
+              + ")"
+              + ":"
+              + customSubscriptionName;
+      if (log.isDebugEnabled()) {
+        log.debug("Using finalDestination {}", finalDestination);
+      }
       realDestination = destination.createSameType(finalDestination);
     }
     return new PulsarMessageConsumer(
