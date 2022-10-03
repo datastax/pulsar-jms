@@ -23,18 +23,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import javax.jms.Destination;
+import javax.jms.*;
 import javax.jms.IllegalStateException;
-import javax.jms.InvalidDestinationException;
-import javax.jms.JMSConsumer;
-import javax.jms.JMSException;
-import javax.jms.Message;
-import javax.jms.MessageConsumer;
-import javax.jms.MessageFormatException;
-import javax.jms.MessageListener;
-import javax.jms.Queue;
-import javax.jms.Session;
-import javax.jms.Topic;
+
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.api.Consumer;
 import org.apache.pulsar.client.api.PulsarClientException;
@@ -43,7 +34,7 @@ import org.apache.pulsar.client.api.SubscriptionType;
 import org.apache.pulsar.client.impl.BatchMessageIdImpl;
 
 @Slf4j
-public class PulsarMessageConsumer implements IPulsarMessageConsumer {
+public class PulsarMessageConsumer implements TopicSubscriber, QueueReceiver, MessageConsumer {
 
   final String subscriptionName;
   final int jmsPriority;
@@ -283,7 +274,6 @@ public class PulsarMessageConsumer implements IPulsarMessageConsumer {
     return receiveWithTimeoutAndValidateType(timeout, null);
   }
 
-  @Override
   public synchronized Message receiveWithTimeoutAndValidateType(long timeout, Class expectedType)
       throws JMSException {
     checkNotClosed();
