@@ -18,7 +18,6 @@ package com.datastax.oss.pulsar.jms;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.datastax.oss.pulsar.jms.selectors.SelectorSupport;
@@ -27,6 +26,7 @@ import com.google.common.collect.ImmutableMap;
 import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -36,10 +36,10 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.jms.Connection;
-import javax.jms.InvalidDestinationException;
 import javax.jms.MessageConsumer;
 import javax.jms.MessageProducer;
 import javax.jms.Queue;
+import javax.jms.QueueBrowser;
 import javax.jms.Session;
 import javax.jms.TextMessage;
 import javax.jms.Topic;
@@ -258,9 +258,15 @@ public class VirtualDestinationsConsumerTest {
               }
             }
 
-            assertThrows(
-                InvalidDestinationException.class,
-                () -> session.createBrowser(wildcardDestination));
+            try (QueueBrowser browser = session.createBrowser(wildcardDestination)) {
+              int count = 0;
+              Enumeration enumeration = browser.getEnumeration();
+              while (enumeration.hasMoreElements()) {
+                enumeration.nextElement();
+                count++;
+              }
+              assertEquals(5 * destinationsToWrite.size(), count);
+            }
 
             // with a partitioned/multi topic we don't have control over ordering
             List<String> received = new ArrayList<>();
