@@ -24,6 +24,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -91,11 +92,12 @@ public class PriorityTest {
     properties.put("jms.emulateJMSPriority", true);
     properties.put("jms.systemNamespace", SYSTEM_NAMESPACE_OVERRIDDEN);
 
+    String topicName = "test-" + UUID.randomUUID();
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
         connection.start();
         try (Session session = connection.createSession(); ) {
-          Queue destination = session.createQueue("test-" + UUID.randomUUID());
+          Queue destination = session.createQueue(topicName);
 
           if (numPartitions > 0) {
             // the main topic is partitioned
@@ -157,6 +159,28 @@ public class PriorityTest {
             assertNull(consumer1.receiveNoWait());
 
             verifyOrder(received);
+          }
+
+          Queue fromTheBeginning = session.createQueue(topicName + ":newSubscription");
+          try (QueueBrowser browserAll = session.createBrowser(fromTheBeginning); ) {
+            int count = 0;
+            Enumeration enumeration = browserAll.getEnumeration();
+            while (enumeration.hasMoreElements()) {
+              enumeration.nextElement();
+              count++;
+            }
+            assertEquals(numMessages, count);
+          }
+
+          try (QueueBrowser browserAll =
+              session.createBrowser(fromTheBeginning, "JMSPriority = " + LOW_PRIORITY); ) {
+            int count = 0;
+            Enumeration enumeration = browserAll.getEnumeration();
+            while (enumeration.hasMoreElements()) {
+              enumeration.nextElement();
+              count++;
+            }
+            assertEquals(numMessages / 2, count);
           }
         }
       }

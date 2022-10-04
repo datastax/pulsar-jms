@@ -957,6 +957,20 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
       boolean unregisterSubscriptionOnClose,
       boolean noLocal)
       throws JMSException {
+    PulsarDestination realDestination = computeDestination(destination);
+    return new PulsarMessageConsumer(
+            subscriptionName,
+            realDestination,
+            this,
+            subscriptionMode,
+            subscriptionType,
+            selector,
+            unregisterSubscriptionOnClose,
+            noLocal)
+        .subscribe();
+  }
+
+  private PulsarDestination computeDestination(PulsarDestination destination) throws JMSException {
     PulsarDestination realDestination = destination;
     if (emulateJMSPriority) {
       if (destination.isRegExp()) {
@@ -1013,16 +1027,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
       }
       realDestination = destination.createSameType(finalDestination);
     }
-    return new PulsarMessageConsumer(
-            subscriptionName,
-            realDestination,
-            this,
-            subscriptionMode,
-            subscriptionType,
-            selector,
-            unregisterSubscriptionOnClose,
-            noLocal)
-        .subscribe();
+    return realDestination;
   }
 
   /**
@@ -1712,6 +1717,8 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
       throw new InvalidDestinationException("invalid null queue");
     }
     checkQueueOperationEnabled();
+    PulsarDestination destination = PulsarConnectionFactory.toPulsarDestination(queue);
+    queue = (Queue) computeDestination(destination);
     PulsarQueueBrowser res = new PulsarQueueBrowser(this, queue, messageSelector);
     browsers.add(res);
     return res;

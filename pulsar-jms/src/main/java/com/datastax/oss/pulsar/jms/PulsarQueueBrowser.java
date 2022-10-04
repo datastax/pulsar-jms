@@ -54,7 +54,7 @@ final class PulsarQueueBrowser implements QueueBrowser {
         session
             .getFactory()
             .createReadersForBrowser(this.queue, session.getOverrideConsumerConfiguration());
-
+    log.info("created {} readers for {}", readers.size(), this.queue);
     // we are reading messages and it is always safe to apply selectors
     // on the client side
     this.selectorSupport = SelectorSupport.build(selector, true);

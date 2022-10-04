@@ -1324,37 +1324,57 @@ public class PulsarConnectionFactory
       PulsarQueue destination, ConsumerConfiguration overrideConsumerConfiguration)
       throws JMSException {
 
-    if (destination.isVirtualDestination()) {
-      throw new InvalidDestinationException(
-          "QueueBrowser is not supported for virtual destinations");
-    }
+    if (destination.isRegExp()) {
+      try {
+        String topicName = getPulsarTopicName(destination);
+        List<String> topicNames =
+            TopicDiscoveryUtils.discoverTopicsByPattern(topicName, getPulsarClient(), 1000);
+        log.info("createReadersForBrowser {} - {} - {}", destination, topicName, topicNames);
+        List<Reader<?>> res = new ArrayList<>();
+        for (String sub : topicNames) {
+          String queueName = sub + ":" + getQueueSubscriptionName(destination);
+          PulsarQueue queue = new PulsarQueue(queueName);
+          res.addAll(createReadersForBrowser(queue, overrideConsumerConfiguration));
+        }
+        return res;
+      } catch (Exception err) {
+        throw Utils.handleException(err);
+      }
+    } else if (destination.isMultiTopic()) {
+      List<Reader<?>> res = new ArrayList<>();
+      List<PulsarDestination> destinations = destination.getDestinations();
+      for (PulsarDestination sub : destinations) {
+        res.addAll(createReadersForBrowser((PulsarQueue) sub, overrideConsumerConfiguration));
+      }
+      return res;
+    } else {
+      String fullQualifiedTopicName = getPulsarTopicName(destination);
+      String queueSubscriptionName = getQueueSubscriptionName(destination);
 
-    String fullQualifiedTopicName = getPulsarTopicName(destination);
-    String queueSubscriptionName = getQueueSubscriptionName(destination);
-
-    try {
-      PartitionedTopicMetadata partitionedTopicMetadata =
-          getPulsarAdmin().topics().getPartitionedTopicMetadata(fullQualifiedTopicName);
-      List<Reader<?>> readers = new ArrayList<>();
-      if (partitionedTopicMetadata.partitions == 0) {
-        Reader<?> readerForBrowserForNonPartitionedTopic =
-            createReaderForBrowserForNonPartitionedTopic(
-                queueSubscriptionName, fullQualifiedTopicName, overrideConsumerConfiguration);
-        readers.add(readerForBrowserForNonPartitionedTopic);
-      } else {
-        for (int i = 0; i < partitionedTopicMetadata.partitions; i++) {
-          String partitionName = fullQualifiedTopicName + "-partition-" + i;
+      try {
+        PartitionedTopicMetadata partitionedTopicMetadata =
+            getPulsarAdmin().topics().getPartitionedTopicMetadata(fullQualifiedTopicName);
+        List<Reader<?>> readers = new ArrayList<>();
+        if (partitionedTopicMetadata.partitions == 0) {
           Reader<?> readerForBrowserForNonPartitionedTopic =
               createReaderForBrowserForNonPartitionedTopic(
-                  queueSubscriptionName, partitionName, overrideConsumerConfiguration);
+                  queueSubscriptionName, fullQualifiedTopicName, overrideConsumerConfiguration);
           readers.add(readerForBrowserForNonPartitionedTopic);
+        } else {
+          for (int i = 0; i < partitionedTopicMetadata.partitions; i++) {
+            String partitionName = fullQualifiedTopicName + "-partition-" + i;
+            Reader<?> readerForBrowserForNonPartitionedTopic =
+                createReaderForBrowserForNonPartitionedTopic(
+                    queueSubscriptionName, partitionName, overrideConsumerConfiguration);
+            readers.add(readerForBrowserForNonPartitionedTopic);
+          }
         }
+        return readers;
+      } catch (PulsarAdminException.NotFoundException err) {
+        return Collections.emptyList();
+      } catch (PulsarAdminException err) {
+        throw Utils.handleException(err);
       }
-      return readers;
-    } catch (PulsarAdminException.NotFoundException err) {
-      return Collections.emptyList();
-    } catch (PulsarAdminException err) {
-      throw Utils.handleException(err);
     }
   }
 
@@ -1379,6 +1399,7 @@ public class PulsarConnectionFactory
       if (log.isDebugEnabled()) {
         log.debug("createBrowser {} at {}", fullQualifiedTopicName, seekMessageId);
       }
+      log.info("createBrowser {} at {}", fullQualifiedTopicName, seekMessageId);
 
       ConsumerConfiguration consumerConfiguration =
           getConsumerConfiguration(overrideConsumerConfiguration);
