@@ -124,6 +124,8 @@ public class PulsarConnectionFactory
   private transient boolean useServerSideFiltering = false;
   private transient boolean emulateJMSPriority = false;
   private transient boolean forceDeleteTemporaryDestinations = false;
+  private transient boolean forceCreateMissingTopics = false;
+  private transient int forceCreateMissingTopicsPartitions = 0;
   private transient boolean useExclusiveSubscriptionsForSimpleConsumers = false;
   private transient boolean acknowledgeRejectedMessages = false;
   private transient String tckUsername = "";
@@ -374,6 +376,14 @@ public class PulsarConnectionFactory
               getAndRemoveString(
                   "jms.forceDeleteTemporaryDestinations", "false", configurationCopy));
 
+      this.forceCreateMissingTopics =
+          Boolean.parseBoolean(
+              getAndRemoveString("jms.forceCreateMissingTopics", "false", configurationCopy));
+
+      this.forceCreateMissingTopicsPartitions =
+          Integer.parseInt(
+              getAndRemoveString("jms.forceCreateMissingTopicsPartitions", "0", configurationCopy));
+
       this.enableTransaction =
           Boolean.parseBoolean(
               configurationCopy.getOrDefault("enableTransaction", "false").toString());
@@ -528,6 +538,14 @@ public class PulsarConnectionFactory
 
   public synchronized boolean isTransactionsStickyPartitions() {
     return transactionsStickyPartitions;
+  }
+
+  public synchronized boolean isForceCreateMissingTopics() {
+    return forceCreateMissingTopics;
+  }
+
+  public synchronized int getForceCreateMissingTopicsPartitions() {
+    return forceCreateMissingTopicsPartitions;
   }
 
   public synchronized boolean isUseServerSideFiltering() {
@@ -975,7 +993,11 @@ public class PulsarConnectionFactory
     try {
       String fullQualifiedTopicName = getPulsarTopicName(defaultDestination, jmsPriority);
       String key = transactions ? fullQualifiedTopicName + "-tx" : fullQualifiedTopicName;
-      boolean transactionsStickyPartitions = isTransactionsStickyPartitions();
+      boolean transactionsStickyPartitions = transactions && isTransactionsStickyPartitions();
+      boolean forceCreateMissingTopics =
+          jmsPriority != PulsarMessage.DEFAULT_PRIORITY && isForceCreateMissingTopics();
+      int forceCreateMissingTopicsPartitions =
+          forceCreateMissingTopics ? getForceCreateMissingTopicsPartitions() : 0;
       return producers.computeIfAbsent(
           key,
           d -> {
@@ -1003,10 +1025,27 @@ public class PulsarConnectionFactory
                               }
                             });
                       }
-                      // this is a limitation of Pulsar transaction support
-                      producerBuilder.sendTimeout(0, TimeUnit.MILLISECONDS);
                     }
-                    return producerBuilder.create();
+                    try {
+                      return producerBuilder.create();
+                    } catch (PulsarClientException.NotFoundException notExists) {
+                      if (forceCreateMissingTopics) {
+                        String fullQualifiedTopicNameNoPriority =
+                            getPulsarTopicName(defaultDestination, PulsarMessage.DEFAULT_PRIORITY);
+
+                        createMissingTopic(
+                            fullQualifiedTopicName,
+                            forceCreateMissingTopicsPartitions,
+                            fullQualifiedTopicNameNoPriority);
+                        return producerBuilder.create();
+                      } else {
+                        InvalidDestinationException t =
+                            new InvalidDestinationException(
+                                "Topic " + fullQualifiedTopicName + " does not exist");
+                        t.initCause(notExists);
+                        throw t;
+                      }
+                    }
                   });
             } catch (JMSException err) {
               throw new RuntimeException(err);
@@ -1014,6 +1053,45 @@ public class PulsarConnectionFactory
           });
     } catch (RuntimeException err) {
       throw (JMSException) err.getCause();
+    }
+  }
+
+  private void createMissingTopic(String fullQualifiedTopicName, int numPartitions)
+      throws JMSException {
+    createMissingTopic(fullQualifiedTopicName, numPartitions, null);
+  }
+
+  private void createMissingTopic(
+      String fullQualifiedTopicName, int numPartitions, String baseTopic) throws JMSException {
+    PulsarAdmin pulsarAdmin = getPulsarAdmin();
+    try {
+
+      // ensure that the base topic exists
+      if (baseTopic != null) {
+        try {
+          pulsarAdmin.topics().getPartitionedTopicMetadata(baseTopic);
+        } catch (PulsarAdminException.NotFoundException notFound) {
+          InvalidDestinationException e =
+              new InvalidDestinationException("Reference topic does not exist " + baseTopic);
+          e.initCause(notFound);
+          throw e;
+        }
+      }
+
+      if (numPartitions > 0) {
+        log.info(
+            "Force create partitioned topic {} with {} partitions",
+            fullQualifiedTopicName,
+            numPartitions);
+        pulsarAdmin.topics().createPartitionedTopic(fullQualifiedTopicName, numPartitions);
+      } else {
+        log.info("Force create non-partitioned topic {}", fullQualifiedTopicName);
+        pulsarAdmin.topics().createNonPartitionedTopic(fullQualifiedTopicName);
+      }
+    } catch (PulsarAdminException.ConflictException concurrentCreation) {
+      log.info("Detected concurrent creation of topic {}. Not a problem", fullQualifiedTopicName);
+    } catch (PulsarAdminException err) {
+      throw Utils.handleException(err);
     }
   }
 
@@ -1146,7 +1224,6 @@ public class PulsarConnectionFactory
     if (isAcknowledgeRejectedMessages()) {
       consumerMetadata.put("jms.force.drop.rejected", "true");
     }
-
     try {
       ConsumerConfiguration consumerConfiguration =
           getConsumerConfiguration(session.getOverrideConsumerConfiguration());
@@ -1213,6 +1290,32 @@ public class PulsarConnectionFactory
       if (isEmulateJMSPriority()) {
         replaceIncomingMessageList(newConsumer);
         newConsumer.resume();
+      }
+      if (consumerConfiguration.getDeadLetterPolicy() != null
+          && isForceCreateMissingTopics()
+          && !destination.isVirtualDestination()) {
+        String fullQualifiedTopicName = getPulsarTopicName(destination);
+        String deadLetterTopic = consumerConfiguration.getDeadLetterPolicy().getDeadLetterTopic();
+        if (deadLetterTopic != null) {
+          createMissingTopic(deadLetterTopic, getForceCreateMissingTopicsPartitions());
+        } else {
+          try {
+            PartitionedTopicMetadata partitionedTopicMetadata =
+                getPulsarAdmin().topics().getPartitionedTopicMetadata(fullQualifiedTopicName);
+            if (partitionedTopicMetadata.partitions == 0) {
+              deadLetterTopic = fullQualifiedTopicName + "-" + queueSubscriptionName + "-DLQ";
+              createMissingTopic(deadLetterTopic, 0);
+            } else {
+              for (int i = 0; i < partitionedTopicMetadata.partitions; i++) {
+                String partitionName = fullQualifiedTopicName + "-partition-" + i;
+                deadLetterTopic = partitionName + "-" + queueSubscriptionName + "-DLQ";
+                createMissingTopic(deadLetterTopic, 0);
+              }
+            }
+          } catch (PulsarAdminException err) {
+            throw Utils.handleException(err);
+          }
+        }
       }
       return newConsumer;
     } catch (PulsarClientException err) {
