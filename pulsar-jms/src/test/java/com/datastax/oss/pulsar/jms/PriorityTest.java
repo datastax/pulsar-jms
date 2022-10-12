@@ -29,12 +29,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.jms.*;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.common.policies.data.TenantInfo;
+import org.apache.pulsar.common.util.FutureUtil;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -208,8 +211,8 @@ public class PriorityTest {
 
           int numHighPriority = 100;
           int numMessages = 1_000_000;
-          CountDownLatch counter = new CountDownLatch(numMessages);
           try (MessageProducer producer = session.createProducer(destination); ) {
+            List<CompletableFuture<?>> handles = new ArrayList<>();
             for (int i = 0; i < numMessages; i++) {
               TextMessage textMessage = session.createTextMessage("foo-" + i);
               if (i < numMessages - numHighPriority) {
@@ -218,30 +221,38 @@ public class PriorityTest {
               } else {
                 producer.setPriority(HIGH_PRIORITY);
               }
-
+              CompletableFuture<?> handle = new CompletableFuture<>();
               producer.send(
                   textMessage,
                   new CompletionListener() {
                     @Override
                     public void onCompletion(Message message) {
-                      counter.countDown();
+                      handle.complete(null);
                     }
 
                     @Override
-                    public void onException(Message message, Exception e) {}
+                    public void onException(Message message, Exception e) {
+                      handle.completeExceptionally(e);
+                    }
                   });
+              handles.add(handle);
+              if (handles.size() == 2000) {
+                FutureUtil.waitForAll(handles).get();
+                handles.clear();
+                log.info("sent {} messages", i);
+              }
             }
-            assertTrue(counter.await(10, TimeUnit.SECONDS));
+            FutureUtil.waitForAll(handles).get();
           }
 
           try (MessageConsumer consumer1 = session.createConsumer(destination); ) {
             int countLowPriority = 0;
             int countHighPriority = 0;
-            List<TextMessage> received = new ArrayList<>();
+            List<Integer> received = new ArrayList<>();
             for (int i = 0; i < numMessages; i++) {
               TextMessage msg = (TextMessage) consumer1.receive();
 
-              received.add(msg);
+              received.add(msg.getJMSPriority());
               if (msg.getJMSPriority() == LOW_PRIORITY) {
                 countLowPriority++;
               }
@@ -255,7 +266,7 @@ public class PriorityTest {
 
             assertEquals(numMessages - numHighPriority, countLowPriority);
             assertEquals(numHighPriority, countHighPriority);
-            verifyOrder(received);
+            verifyPriorities(received);
           }
         }
       }
@@ -263,6 +274,12 @@ public class PriorityTest {
   }
 
   private static void verifyOrder(List<TextMessage> received) throws JMSException {
+    verifyPriorities(received.stream()
+            .map(m->Utils.noException(() -> m.getJMSPriority()))
+            .collect(Collectors.toList()));
+  }
+
+  private static void verifyPriorities(List<Integer> received) throws JMSException {
     // verify that some higher priority messages arrived before the low priority messages
     // please remember that we sent all the low priority messages and then the high priority ones
     // so if we find some low priority message before the high priority messages
@@ -273,16 +290,15 @@ public class PriorityTest {
     boolean foundHighPriority = false;
     boolean foundLowPriorityAfterHighPriority = false;
     int count = 0;
-    for (TextMessage msg : received) {
-      int priority = msg.getJMSPriority();
+    for (int priority : received) {
 
       if (priority == LOW_PRIORITY && foundHighPriority) {
-        log.info("received {} priority {} after {}", msg.getText(), priority, count);
+        log.info("received priority {} after {}", priority, count);
         foundLowPriorityAfterHighPriority = true;
         break;
       }
       if (priority == HIGH_PRIORITY) {
-        log.info("received {} priority {} after {}", msg.getText(), priority, count);
+        log.info("received priority {} after {}", priority, count);
         foundHighPriority = true;
       }
       count++;
