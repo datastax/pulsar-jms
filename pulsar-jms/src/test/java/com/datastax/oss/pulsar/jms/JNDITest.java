@@ -90,7 +90,7 @@ public class JNDITest {
         PulsarDestination topic = (PulsarDestination) jndiContext.lookup("topics/" + topicName);
 
         Producer<byte[]> producer =
-            factory.getProducerForDestination(queue, false, PulsarMessage.DEFAULT_PRIORITY);
+            factory.getProducerForDestination(queue, false);
         // test that configuration is fully passed
         assertEquals("the-name", producer.getProducerName());
 

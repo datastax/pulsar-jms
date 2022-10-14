@@ -45,6 +45,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 @Slf4j
 public class PriorityTest {
@@ -59,7 +60,11 @@ public class PriorityTest {
 
   @BeforeAll
   public static void before() throws Exception {
-    cluster = new PulsarCluster(tempDir);
+    cluster = new PulsarCluster(tempDir, config -> {
+      config.setAllowAutoTopicCreation(true);
+      config.setAllowAutoTopicCreationType("partitioned");
+      config.setDefaultNumPartitions(9);
+    });
     cluster.start();
 
     cluster
@@ -82,18 +87,16 @@ public class PriorityTest {
     }
   }
 
-  private static Stream<Arguments> basicCombinations() {
-    return Stream.of(Arguments.of(0, true), Arguments.of(4, false), Arguments.of(4, true));
-  }
 
-  @ParameterizedTest(name = "numPartitions {0} sideTopicPartitioned {1}")
-  @MethodSource("basicCombinations")
-  public void basicTest(int numPartitions, boolean sideTopicPartitioned) throws Exception {
+  @ParameterizedTest(name = "numPartitions {0}")
+  @ValueSource(ints = {4, 10})
+  public void basicTest(int numPartitions) throws Exception {
 
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
     properties.put("jms.emulateJMSPriority", true);
     properties.put("jms.systemNamespace", SYSTEM_NAMESPACE_OVERRIDDEN);
+    properties.put("consumerConfig", ImmutableMap.of("receiverQueueSize", 10));
 
     String topicName = "test-" + UUID.randomUUID();
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
@@ -102,32 +105,11 @@ public class PriorityTest {
         try (Session session = connection.createSession(); ) {
           Queue destination = session.createQueue(topicName);
 
-          if (numPartitions > 0) {
-            // the main topic is partitioned
-            cluster
+          cluster
                 .getService()
                 .getAdminClient()
                 .topics()
-                .createPartitionedTopic(factory.getPulsarTopicName(destination), 4);
-
-            if (sideTopicPartitioned) {
-              cluster
-                  .getService()
-                  .getAdminClient()
-                  .topics()
-                  .createPartitionedTopic(
-                      factory.getPulsarTopicName(destination, HIGH_PRIORITY), 4);
-            } else {
-              cluster
-                  .getService()
-                  .getAdminClient()
-                  .topics()
-                  .createNonPartitionedTopic(
-                      factory.getPulsarTopicName(destination, HIGH_PRIORITY));
-            }
-          } else {
-            // auto-creation in case of non-partitioned topic
-          }
+                .createPartitionedTopic(factory.getPulsarTopicName(destination), numPartitions);
 
           int numMessages = 100;
           try (MessageProducer producer = session.createProducer(destination); ) {
@@ -202,6 +184,8 @@ public class PriorityTest {
     properties.put("webServiceUrl", cluster.getAddress());
     properties.put("jms.emulateJMSPriority", true);
     properties.put("producerConfig", ImmutableMap.of("blockIfQueueFull", true));
+    properties.put("consumerConfig", ImmutableMap.of("receiverQueueSize", 10));
+
 
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
@@ -313,6 +297,7 @@ public class PriorityTest {
     properties.put("webServiceUrl", cluster.getAddress());
     properties.put("jms.emulateJMSPriority", true);
     properties.put("jms.systemNamespace", SYSTEM_NAMESPACE_OVERRIDDEN);
+    properties.put("consumerConfig", ImmutableMap.of("receiverQueueSize", 10));
     String nameTopic1 = "test-topic1-" + UUID.randomUUID();
     String nameTopic2 = "test-topic2-" + UUID.randomUUID();
 
@@ -403,6 +388,7 @@ public class PriorityTest {
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
     properties.put("jms.emulateJMSPriority", true);
+    properties.put("consumerConfig", ImmutableMap.of("receiverQueueSize", 10));
 
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (JMSContext context = factory.createContext()) {

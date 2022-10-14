@@ -214,9 +214,9 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     return connection.getFactory();
   }
 
-  Producer<byte[]> getProducerForDestination(Destination destination, int jmsPriority)
+  Producer<byte[]> getProducerForDestination(Destination destination)
       throws JMSException {
-    return getFactory().getProducerForDestination(destination, transacted, jmsPriority);
+    return getFactory().getProducerForDestination(destination, transacted);
   }
 
   /**
@@ -957,10 +957,9 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
       boolean unregisterSubscriptionOnClose,
       boolean noLocal)
       throws JMSException {
-    PulsarDestination realDestination = computeDestination(destination);
     return new PulsarMessageConsumer(
             subscriptionName,
-            realDestination,
+            destination,
             this,
             subscriptionMode,
             subscriptionType,
@@ -968,66 +967,6 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
             unregisterSubscriptionOnClose,
             noLocal)
         .subscribe();
-  }
-
-  private PulsarDestination computeDestination(PulsarDestination destination) throws JMSException {
-    PulsarDestination realDestination = destination;
-    if (emulateJMSPriority) {
-      if (destination.isRegExp()) {
-        throw new InvalidDestinationException("Virtual Destinations with regex: are not supported");
-      }
-      StringBuilder finalRegExTopicName = null;
-      if (destination.isMultiTopic()) {
-        List<PulsarDestination> destinations = destination.getDestinations();
-        for (PulsarDestination sub : destinations) {
-          String fullyQualifiedTopicName = getFactory().getPulsarTopicName(sub);
-          TopicName topicNameParsed = TopicName.get(fullyQualifiedTopicName);
-          if (finalRegExTopicName == null) {
-            String namespace = getFactory().getSystemNamespace();
-            finalRegExTopicName =
-                new StringBuilder(
-                    "regex:" + topicNameParsed.getDomain().name() + "://" + namespace + "/(");
-          }
-          for (int jmsPriority = 9; jmsPriority >= 1; jmsPriority--) {
-            String topicName = topicNameParsed.getLocalName();
-            if (jmsPriority != PulsarMessage.DEFAULT_PRIORITY) {
-              topicName = topicNameParsed.getLocalName() + "_jmspriority-" + jmsPriority;
-            }
-            finalRegExTopicName.append(topicName);
-            finalRegExTopicName.append("|");
-          }
-        }
-      } else {
-        String fullyQualifiedTopicName = getFactory().getPulsarTopicName(destination);
-        TopicName topicNameParsed = TopicName.get(fullyQualifiedTopicName);
-        finalRegExTopicName =
-            new StringBuilder(
-                "regex:"
-                    + topicNameParsed.getDomain().name()
-                    + "://"
-                    + topicNameParsed.getNamespace()
-                    + "/(");
-        for (int jmsPriority = 9; jmsPriority >= 1; jmsPriority--) {
-          String topicName = topicNameParsed.getLocalName();
-          if (jmsPriority != PulsarMessage.DEFAULT_PRIORITY) {
-            topicName = topicNameParsed.getLocalName() + "_jmspriority-" + jmsPriority;
-          }
-          finalRegExTopicName.append(topicName);
-          finalRegExTopicName.append("|");
-        }
-      }
-      String customSubscriptionName = getFactory().getQueueSubscriptionName(destination);
-      String finalDestination =
-          finalRegExTopicName.substring(0, finalRegExTopicName.length() - 1)
-              + ")"
-              + ":"
-              + customSubscriptionName;
-      if (log.isDebugEnabled()) {
-        log.debug("Using finalDestination {}", finalDestination);
-      }
-      realDestination = destination.createSameType(finalDestination);
-    }
-    return realDestination;
   }
 
   /**
@@ -1717,8 +1656,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
       throw new InvalidDestinationException("invalid null queue");
     }
     checkQueueOperationEnabled();
-    PulsarDestination destination = PulsarConnectionFactory.toPulsarDestination(queue);
-    queue = (Queue) computeDestination(destination);
+    queue = (Queue) PulsarConnectionFactory.toPulsarDestination(queue);
     PulsarQueueBrowser res = new PulsarQueueBrowser(this, queue, messageSelector);
     browsers.add(res);
     return res;

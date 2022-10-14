@@ -59,7 +59,7 @@ public class ConfigurationTest {
         PulsarConnection connection = factory.createConnection(); ) {
       PulsarDestination destination = new PulsarQueue("test-" + UUID.randomUUID());
       Producer<byte[]> producer =
-          factory.getProducerForDestination(destination, false, PulsarMessage.DEFAULT_PRIORITY);
+          factory.getProducerForDestination(destination, false);
       assertEquals("the-name", producer.getProducerName());
     }
   }
