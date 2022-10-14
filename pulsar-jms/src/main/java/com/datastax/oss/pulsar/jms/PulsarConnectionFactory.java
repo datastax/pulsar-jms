@@ -1208,7 +1208,6 @@ public class PulsarConnectionFactory
         builder.ackTimeoutRedeliveryBackoff(consumerConfiguration.getAckTimeoutRedeliveryBackoff());
       }
       builder.intercept(session.getConsumerInterceptor());
-      builder.properties(properties);
       Consumer<?> newConsumer = builder.subscribe();
       if (log.isDebugEnabled()) {
         if (newConsumer instanceof MultiTopicsConsumerImpl) {
