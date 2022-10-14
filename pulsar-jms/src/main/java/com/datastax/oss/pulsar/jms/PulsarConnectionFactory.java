@@ -985,7 +985,9 @@ public class PulsarConnectionFactory
                       producerBuilder.batcherBuilder(
                           (BatcherBuilder) producerConfiguration.get("batcherBuilder"));
                     }
+                    Map<String, String> properties = new HashMap<>();
                     if (emulateJMSPriority) {
+                      properties.put("jms.priority", "enabled");
                       producerBuilder.messageRouter(
                           new MessageRouter() {
                             @Override
@@ -1008,7 +1010,7 @@ public class PulsarConnectionFactory
                             }
                           });
                     }
-
+                    producerBuilder.properties(properties);
                     return producerBuilder.create();
                   });
             } catch (JMSException err) {
@@ -1177,6 +1179,10 @@ public class PulsarConnectionFactory
               .subscriptionProperties(subscriptionProperties)
               .subscriptionType(subscriptionType)
               .subscriptionName(subscriptionName);
+      if (isEmulateJMSPriority()) {
+        builder.startPaused(true);
+        consumerMetadata.put("jms.priority", "enabled");
+      }
       if (destination.isRegExp()) {
         String fullQualifiedTopicName = getPulsarTopicName(destination);
         builder.topicsPattern(fullQualifiedTopicName);
@@ -1202,9 +1208,7 @@ public class PulsarConnectionFactory
         builder.ackTimeoutRedeliveryBackoff(consumerConfiguration.getAckTimeoutRedeliveryBackoff());
       }
       builder.intercept(session.getConsumerInterceptor());
-      if (isEmulateJMSPriority()) {
-        builder.startPaused(true);
-      }
+      builder.properties(properties);
       Consumer<?> newConsumer = builder.subscribe();
       if (log.isDebugEnabled()) {
         if (newConsumer instanceof MultiTopicsConsumerImpl) {
