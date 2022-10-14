@@ -76,7 +76,6 @@ import org.apache.pulsar.client.api.SubscriptionMode;
 import org.apache.pulsar.client.api.SubscriptionType;
 import org.apache.pulsar.client.api.transaction.Transaction;
 import org.apache.pulsar.client.api.transaction.TransactionCoordinatorClientException;
-import org.apache.pulsar.common.naming.TopicName;
 
 @Slf4j
 public class PulsarSession implements Session, QueueSession, TopicSession {
@@ -214,8 +213,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     return connection.getFactory();
   }
 
-  Producer<byte[]> getProducerForDestination(Destination destination)
-      throws JMSException {
+  Producer<byte[]> getProducerForDestination(Destination destination) throws JMSException {
     return getFactory().getProducerForDestination(destination, transacted);
   }
 

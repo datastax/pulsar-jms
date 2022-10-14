@@ -956,16 +956,14 @@ public class PulsarConnectionFactory
     }
   }
 
-
-  public String getPulsarTopicName(Destination defaultDestination)
-      throws JMSException {
+  public String getPulsarTopicName(Destination defaultDestination) throws JMSException {
     PulsarDestination destination = toPulsarDestination(defaultDestination);
     String topicName = destination.getInternalTopicName();
     return applySystemNamespace(topicName);
   }
 
-  Producer<byte[]> getProducerForDestination(
-      Destination defaultDestination, boolean transactions) throws JMSException {
+  Producer<byte[]> getProducerForDestination(Destination defaultDestination, boolean transactions)
+      throws JMSException {
     try {
       String fullQualifiedTopicName = getPulsarTopicName(defaultDestination);
       String key = transactions ? fullQualifiedTopicName + "-tx" : fullQualifiedTopicName;
@@ -978,35 +976,36 @@ public class PulsarConnectionFactory
                   () -> {
                     Map<String, Object> producerConfiguration = getProducerConfiguration();
                     ProducerBuilder<byte[]> producerBuilder =
-                            pulsarClient
-                                    .newProducer()
-                                    .topic(applySystemNamespace(fullQualifiedTopicName))
-                                    .loadConf(producerConfiguration);
+                        pulsarClient
+                            .newProducer()
+                            .topic(applySystemNamespace(fullQualifiedTopicName))
+                            .loadConf(producerConfiguration);
                     if (producerConfiguration.containsKey("batcherBuilder")) {
                       producerBuilder.batcherBuilder(
-                              (BatcherBuilder) producerConfiguration.get("batcherBuilder"));
+                          (BatcherBuilder) producerConfiguration.get("batcherBuilder"));
                     }
                     if (emulateJMSPriority) {
                       producerBuilder.messageRouter(
-                              new MessageRouter() {
-                                @Override
-                                public int choosePartition(Message<?> msg, TopicMetadata metadata) {
-                                  String priority = msg.getProperty("JMSPriority");
-                                  long key = priority == null ? PulsarMessage.DEFAULT_PRIORITY
-                                          : Long.parseLong(msg.getProperty("JMSPriority"));
-                                  // TODO: better distribute the messages
-                                  return signSafeMod(key, metadata.numPartitions());
-                                }
-                              });
+                          new MessageRouter() {
+                            @Override
+                            public int choosePartition(Message<?> msg, TopicMetadata metadata) {
+                              String priority = msg.getProperty("JMSPriority");
+                              int key =
+                                  priority == null
+                                      ? PulsarMessage.DEFAULT_PRIORITY
+                                      : Integer.parseInt(msg.getProperty("JMSPriority"));
+                              return Utils.mapPriorityToPartition(key, metadata.numPartitions());
+                            }
+                          });
                     } else if (transactions && transactionsStickyPartitions) {
                       producerBuilder.messageRouter(
-                              new MessageRouter() {
-                                @Override
-                                public int choosePartition(Message<?> msg, TopicMetadata metadata) {
-                                  long key = Long.parseLong(msg.getProperty("JMSTX"));
-                                  return signSafeMod(key, metadata.numPartitions());
-                                }
-                              });
+                          new MessageRouter() {
+                            @Override
+                            public int choosePartition(Message<?> msg, TopicMetadata metadata) {
+                              long key = Long.parseLong(msg.getProperty("JMSTX"));
+                              return signSafeMod(key, metadata.numPartitions());
+                            }
+                          });
                     }
 
                     return producerBuilder.create();

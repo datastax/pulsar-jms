@@ -30,10 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import javax.jms.*;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.common.policies.data.TenantInfo;
@@ -43,8 +40,6 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 @Slf4j
@@ -60,11 +55,14 @@ public class PriorityTest {
 
   @BeforeAll
   public static void before() throws Exception {
-    cluster = new PulsarCluster(tempDir, config -> {
-      config.setAllowAutoTopicCreation(true);
-      config.setAllowAutoTopicCreationType("partitioned");
-      config.setDefaultNumPartitions(9);
-    });
+    cluster =
+        new PulsarCluster(
+            tempDir,
+            config -> {
+              config.setAllowAutoTopicCreation(true);
+              config.setAllowAutoTopicCreationType("partitioned");
+              config.setDefaultNumPartitions(9);
+            });
     cluster.start();
 
     cluster
@@ -87,7 +85,6 @@ public class PriorityTest {
     }
   }
 
-
   @ParameterizedTest(name = "numPartitions {0}")
   @ValueSource(ints = {4, 10})
   public void basicTest(int numPartitions) throws Exception {
@@ -106,10 +103,10 @@ public class PriorityTest {
           Queue destination = session.createQueue(topicName);
 
           cluster
-                .getService()
-                .getAdminClient()
-                .topics()
-                .createPartitionedTopic(factory.getPulsarTopicName(destination), numPartitions);
+              .getService()
+              .getAdminClient()
+              .topics()
+              .createPartitionedTopic(factory.getPulsarTopicName(destination), numPartitions);
 
           int numMessages = 100;
           try (MessageProducer producer = session.createProducer(destination); ) {
@@ -186,7 +183,6 @@ public class PriorityTest {
     properties.put("producerConfig", ImmutableMap.of("blockIfQueueFull", true));
     properties.put("consumerConfig", ImmutableMap.of("receiverQueueSize", 10));
 
-
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
         connection.start();
@@ -258,8 +254,10 @@ public class PriorityTest {
   }
 
   private static void verifyOrder(List<TextMessage> received) throws JMSException {
-    verifyPriorities(received.stream()
-            .map(m->Utils.noException(() -> m.getJMSPriority()))
+    verifyPriorities(
+        received
+            .stream()
+            .map(m -> Utils.noException(() -> m.getJMSPriority()))
             .collect(Collectors.toList()));
   }
 
