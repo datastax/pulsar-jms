@@ -350,12 +350,58 @@ public final class Utils {
    * @param numPartitions
    * @return the partition id
    */
-  public static int mapPriorityToPartition(int priority, int numPartitions) {
+  public static int mapPriorityToPartition(int priority, int numPartitions, boolean linear) {
+    if (linear) {
+      return mapPriorityToPartitionLinearly(priority, numPartitions);
+    } else {
+      return mapPriorityToPartitionNonLinearly(priority, numPartitions);
+    }
+  }
+
+  static int mapPriorityToPartitionLinearly(int priority, int numPartitions) {
     if (numPartitions <= 1) {
       return 0;
     }
-    if (priority <= 0) {
-      priority = 1;
+    if (numPartitions == 2) {
+      if (priority <= PulsarMessage.DEFAULT_PRIORITY) {
+        return 0;
+      } else {
+        return 1;
+      }
+    }
+    if (numPartitions == 3) {
+      if (priority < PulsarMessage.DEFAULT_PRIORITY) {
+        return 0;
+      } else if (priority == PulsarMessage.DEFAULT_PRIORITY) {
+        return 1;
+      } else {
+        return 2;
+      }
+    }
+    if (priority < 0) {
+      priority = 0;
+    } else if (priority > 9) {
+      priority = 9;
+    }
+
+    // from 0 to 9
+    double bucketSize = numPartitions / 10.0;
+    double start = Math.floor(bucketSize * priority);
+    double value = (start + ThreadLocalRandom.current().nextDouble(bucketSize));
+    int result = (int) Math.floor(value);
+    if (result >= numPartitions) {
+      return numPartitions - 1;
+    }
+    return result;
+
+  }
+
+  static int mapPriorityToPartitionNonLinearly(int priority, int numPartitions) {
+    if (numPartitions <= 1) {
+      return 0;
+    }
+    if (priority < 0) {
+      priority = 0;
     } else if (priority > 9) {
       priority = 9;
     }
@@ -367,6 +413,7 @@ public final class Utils {
     int slots;
 
     switch (priority) {
+      case 0:
       case 1:
       case 2:
       case 3:

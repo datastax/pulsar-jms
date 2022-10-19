@@ -87,7 +87,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   private final int sessionMode;
   private final boolean transacted;
   private final boolean emulateTransactions;
-  private final boolean emulateJMSPriority;
+  private final boolean enableJMSPriority;
   // this is to emulate QueueSession/TopicSession
   private boolean allowQueueOperations = true;
   private boolean allowTopicOperations = true;
@@ -131,7 +131,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     this.sessionMode = sessionMode;
     this.transacted = sessionMode == Session.SESSION_TRANSACTED;
     this.overrideConsumerConfiguration = overrideConsumerConfiguration;
-    this.emulateJMSPriority = getFactory().isEmulateJMSPriority();
+    this.enableJMSPriority = getFactory().isEnableJMSPriority();
     if (transacted && connection.getFactory().isTransactionsStickyPartitions()) {
       generateNewTransactionStickyKey();
     }

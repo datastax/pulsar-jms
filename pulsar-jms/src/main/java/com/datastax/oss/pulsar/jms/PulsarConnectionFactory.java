@@ -124,7 +124,9 @@ public class PulsarConnectionFactory
   private transient boolean enableClientSideEmulation = false;
   private transient boolean transactionsStickyPartitions = false;
   private transient boolean useServerSideFiltering = false;
-  private transient boolean emulateJMSPriority = false;
+  private transient boolean enableJMSPriority = false;
+
+  private transient boolean priorityUseLinearMapping = true;
   private transient boolean forceDeleteTemporaryDestinations = false;
   private transient boolean useExclusiveSubscriptionsForSimpleConsumers = false;
   private transient boolean acknowledgeRejectedMessages = false;
@@ -353,9 +355,24 @@ public class PulsarConnectionFactory
           Boolean.parseBoolean(
               getAndRemoveString("jms.useServerSideFiltering", "false", configurationCopy));
 
-      this.emulateJMSPriority =
+      this.enableJMSPriority =
           Boolean.parseBoolean(
-              getAndRemoveString("jms.emulateJMSPriority", "false", configurationCopy));
+              getAndRemoveString("jms.enableJMSPriority", "false", configurationCopy));
+
+      String priorityMapping =
+                      getAndRemoveString("jms.priorityMapping", "linear", configurationCopy);
+      switch (priorityMapping) {
+        case "linear":
+          this.priorityUseLinearMapping = true;
+          break;
+        case "non-linear":
+          this.priorityUseLinearMapping = false;
+          break;
+        default:
+          throw new IllegalArgumentException("jms.priorityMapping value '"+ priorityMapping +
+                  "' is not valid, only 'linear' and 'non-linear'");
+      }
+
 
       // in Exclusive mode Pulsar does not support delayed messages
       // with this flag you force to not use Exclusive subscription and so to support
@@ -552,8 +569,12 @@ public class PulsarConnectionFactory
     return useServerSideFiltering;
   }
 
-  public synchronized boolean isEmulateJMSPriority() {
-    return emulateJMSPriority;
+  public synchronized boolean isEnableJMSPriority() {
+    return enableJMSPriority;
+  }
+
+  public synchronized boolean isPriorityUseLinearMapping() {
+    return priorityUseLinearMapping;
   }
 
   synchronized String getDefaultClientId() {
@@ -986,7 +1007,8 @@ public class PulsarConnectionFactory
       String fullQualifiedTopicName = getPulsarTopicName(defaultDestination);
       String key = transactions ? fullQualifiedTopicName + "-tx" : fullQualifiedTopicName;
       boolean transactionsStickyPartitions = transactions && isTransactionsStickyPartitions();
-      boolean emulateJMSPriority = isEmulateJMSPriority();
+      boolean enableJMSPriority = isEnableJMSPriority();
+      boolean producerJMSPriorityUseLinearMapping = enableJMSPriority && isPriorityUseLinearMapping();
       return producers.computeIfAbsent(
           key,
           d -> {
@@ -1004,7 +1026,7 @@ public class PulsarConnectionFactory
                           (BatcherBuilder) producerConfiguration.get("batcherBuilder"));
                     }
                     Map<String, String> properties = new HashMap<>();
-                    if (emulateJMSPriority) {
+                    if (enableJMSPriority) {
                       properties.put("jms.priority", "enabled");
                       producerBuilder.messageRouter(
                           new MessageRouter() {
@@ -1015,7 +1037,7 @@ public class PulsarConnectionFactory
                                   priority == null
                                       ? PulsarMessage.DEFAULT_PRIORITY
                                       : Integer.parseInt(msg.getProperty("JMSPriority"));
-                              return Utils.mapPriorityToPartition(key, metadata.numPartitions());
+                              return Utils.mapPriorityToPartition(key, metadata.numPartitions(), producerJMSPriorityUseLinearMapping);
                             }
                           });
                     } else if (transactions && transactionsStickyPartitions) {
@@ -1197,7 +1219,7 @@ public class PulsarConnectionFactory
               .subscriptionProperties(subscriptionProperties)
               .subscriptionType(subscriptionType)
               .subscriptionName(subscriptionName);
-      if (isEmulateJMSPriority()) {
+      if (isEnableJMSPriority()) {
         builder.startPaused(true);
         consumerMetadata.put("jms.priority", "enabled");
       }
@@ -1234,7 +1256,7 @@ public class PulsarConnectionFactory
         }
       }
       consumers.add(newConsumer);
-      if (isEmulateJMSPriority()) {
+      if (isEnableJMSPriority()) {
         replaceIncomingMessageList(newConsumer);
         newConsumer.resume();
       }

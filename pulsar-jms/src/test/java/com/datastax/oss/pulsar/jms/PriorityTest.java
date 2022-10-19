@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import javax.jms.*;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.common.policies.data.TenantInfo;
@@ -40,6 +41,8 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 @Slf4j
@@ -61,7 +64,8 @@ public class PriorityTest {
             config -> {
               config.setAllowAutoTopicCreation(true);
               config.setAllowAutoTopicCreationType("partitioned");
-              config.setDefaultNumPartitions(9);
+              config.setDefaultNumPartitions(10);
+              config.setTransactionCoordinatorEnabled(false);
             });
     cluster.start();
 
@@ -85,19 +89,33 @@ public class PriorityTest {
     }
   }
 
-  @ParameterizedTest(name = "numPartitions {0}")
-  @ValueSource(ints = {4, 10})
-  public void basicTest(int numPartitions) throws Exception {
+  private static Stream<Arguments> combinations() {
+    return Stream.of(
+            Arguments.of(4, "linear"),
+            Arguments.of(4, "non-linear"),
+            Arguments.of(10, "linear"),
+            Arguments.of(10, "non-linear")
+            );
+  }
+
+  @ParameterizedTest(name = "numPartitions {0} mapping {1}")
+  @MethodSource("combinations")
+  public void basicTest(int numPartitions, String mapping) throws Exception {
 
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
-    properties.put("jms.emulateJMSPriority", true);
+    properties.put("jms.enableJMSPriority", true);
+    properties.put("jms.priorityMapping", mapping);
     properties.put("jms.systemNamespace", SYSTEM_NAMESPACE_OVERRIDDEN);
     properties.put("consumerConfig", ImmutableMap.of("receiverQueueSize", 10));
 
     String topicName = "test-" + UUID.randomUUID();
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
+
+        assertTrue(factory.isEnableJMSPriority());
+        assertEquals(mapping.equals("linear"), factory.isPriorityUseLinearMapping());
+
         connection.start();
         try (Session session = connection.createSession(); ) {
           Queue destination = session.createQueue(topicName);
@@ -174,20 +192,30 @@ public class PriorityTest {
    *
    * @throws Exception
    */
-  @Test
-  public void basicPriorityBigBacklogTest() throws Exception {
+  @ParameterizedTest(name = "mapping {0}")
+  @ValueSource(strings = {"linear", "non-linear"})
+  public void basicPriorityBigBacklogTest(String mapping) throws Exception {
 
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
-    properties.put("jms.emulateJMSPriority", true);
+    properties.put("jms.enableJMSPriority", true);
+    properties.put("jms.priorityMapping", mapping);
     properties.put("producerConfig", ImmutableMap.of("blockIfQueueFull", true));
     properties.put("consumerConfig", ImmutableMap.of("receiverQueueSize", 10));
 
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
+        assertTrue(factory.isEnableJMSPriority());
+        assertEquals(mapping.equals("linear"), factory.isPriorityUseLinearMapping());
         connection.start();
         try (Session session = connection.createSession(); ) {
           Queue destination = session.createQueue("test-" + UUID.randomUUID());
+
+          cluster
+                  .getService()
+                  .getAdminClient()
+                  .topics()
+                  .createPartitionedTopic(factory.getPulsarTopicName(destination), 10);
 
           int numHighPriority = 100;
           int numMessages = 1_000_000;
@@ -219,7 +247,6 @@ public class PriorityTest {
               if (handles.size() == 2000) {
                 FutureUtil.waitForAll(handles).get();
                 handles.clear();
-                log.info("sent {} messages", i);
               }
             }
             FutureUtil.waitForAll(handles).get();
@@ -293,7 +320,7 @@ public class PriorityTest {
 
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
-    properties.put("jms.emulateJMSPriority", true);
+    properties.put("jms.enableJMSPriority", true);
     properties.put("jms.systemNamespace", SYSTEM_NAMESPACE_OVERRIDDEN);
     properties.put("consumerConfig", ImmutableMap.of("receiverQueueSize", 10));
     String nameTopic1 = "test-topic1-" + UUID.randomUUID();
@@ -385,7 +412,7 @@ public class PriorityTest {
 
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
-    properties.put("jms.emulateJMSPriority", true);
+    properties.put("jms.enableJMSPriority", true);
     properties.put("consumerConfig", ImmutableMap.of("receiverQueueSize", 10));
 
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {

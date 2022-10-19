@@ -20,93 +20,347 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 
+import java.util.HashSet;
+import java.util.Set;
+
 @Slf4j
 public class UtilsTest {
 
   @Test
-  public void mapPriorityFewPartitions() {
+  public void mapPriority1Partition() {
+    int numPartitions = 1;
+    testNonLinearMapping(0, numPartitions, 0, 0);
+    testNonLinearMapping(1, numPartitions, 0, 0);
+    testNonLinearMapping(2, numPartitions, 0, 0);
+    testNonLinearMapping(3, numPartitions, 0, 0);
+    testNonLinearMapping(4, numPartitions, 0, 0);
+    testNonLinearMapping(5, numPartitions, 0, 0);
+    testNonLinearMapping(6, numPartitions, 0, 0);
+    testNonLinearMapping(7, numPartitions, 0, 0);
+    testNonLinearMapping(8, numPartitions, 0, 0);
+    testNonLinearMapping(9, numPartitions, 0, 0);
+
+
+    testLinearMapping(0, numPartitions, 0, 0);
+    testLinearMapping(1, numPartitions, 0, 0);
+    testLinearMapping(2, numPartitions, 0, 0);
+    testLinearMapping(3, numPartitions, 0, 0);
+    testLinearMapping(4, numPartitions, 0, 0);
+    testLinearMapping(5, numPartitions, 0, 0);
+    testLinearMapping(6, numPartitions, 0, 0);
+    testLinearMapping(7, numPartitions, 0, 0);
+    testLinearMapping(8, numPartitions, 0, 0);
+    testLinearMapping(9, numPartitions, 0, 0);
+  }
+
+
+  @Test
+  public void mapPriority2Partitions() {
+    int numPartitions = 2;
+    testNonLinearMapping(0, numPartitions, 0, 0);
+    testNonLinearMapping(1, numPartitions, 0, 0);
+    testNonLinearMapping(2, numPartitions, 0, 0);
+    testNonLinearMapping(3, numPartitions, 0, 0);
+    testNonLinearMapping(4, numPartitions, 0, 0);
+    testNonLinearMapping(5, numPartitions, 1, 1);
+    testNonLinearMapping(6, numPartitions, 1, 1);
+    testNonLinearMapping(7, numPartitions, 1, 1);
+    testNonLinearMapping(8, numPartitions, 1, 1);
+    testNonLinearMapping(9, numPartitions, 1, 1);
+
+
+    testLinearMapping(0, numPartitions, 0, 0);
+    testLinearMapping(1, numPartitions, 0, 0);
+    testLinearMapping(2, numPartitions, 0, 0);
+    testLinearMapping(3, numPartitions, 0, 0);
+    testLinearMapping(4, numPartitions, 0, 0);
+    testLinearMapping(5, numPartitions, 1, 1);
+    testLinearMapping(6, numPartitions, 1, 1);
+    testLinearMapping(7, numPartitions, 1, 1);
+    testLinearMapping(8, numPartitions, 1, 1);
+    testLinearMapping(9, numPartitions, 1, 1);
+  }
+
+  @Test
+  public void mapPriority3Partitions() {
     int numPartitions = 3;
-    test(1, numPartitions, 0, 0);
-    test(2, numPartitions, 0, 0);
-    test(3, numPartitions, 0, 0);
+    testNonLinearMapping(0, numPartitions, 0, 0);
+    testNonLinearMapping(1, numPartitions, 0, 0);
+    testNonLinearMapping(2, numPartitions, 0, 0);
+    testNonLinearMapping(3, numPartitions, 0, 0);
+    testNonLinearMapping(4, numPartitions, 1, 1);
+    testNonLinearMapping(5, numPartitions, 2, 2);
+    testNonLinearMapping(6, numPartitions, 2, 2);
+    testNonLinearMapping(7, numPartitions, 2, 2);
+    testNonLinearMapping(8, numPartitions, 2, 2);
+    testNonLinearMapping(9, numPartitions, 2, 2);
 
-    test(4, numPartitions, 1, 1);
-
-    test(5, numPartitions, 2, 2);
-    test(6, numPartitions, 2, 2);
-    test(7, numPartitions, 2, 2);
-    test(8, numPartitions, 2, 2);
-    test(9, numPartitions, 2, 2);
+    testLinearMapping(0, numPartitions, 0, 0);
+    testLinearMapping(1, numPartitions, 0, 0);
+    testLinearMapping(2, numPartitions, 0, 0);
+    testLinearMapping(3, numPartitions, 0, 0);
+    testLinearMapping(4, numPartitions, 1, 1);
+    testLinearMapping(5, numPartitions, 2, 2);
+    testLinearMapping(6, numPartitions, 2, 2);
+    testLinearMapping(7, numPartitions, 2, 2);
+    testLinearMapping(8, numPartitions, 2, 2);
+    testLinearMapping(9, numPartitions, 2, 2);
   }
 
   @Test
   public void mapPriority4Partitions() {
     int numPartitions = 4;
-    test(1, numPartitions, 0, 0);
-    test(2, numPartitions, 0, 0);
-    test(3, numPartitions, 0, 0);
+    testNonLinearMapping(0, numPartitions, 0, 0);
+    testNonLinearMapping(1, numPartitions, 0, 0);
+    testNonLinearMapping(2, numPartitions, 0, 0);
+    testNonLinearMapping(3, numPartitions, 0, 0);
+    testNonLinearMapping(4, numPartitions, 1, 2);
+    testNonLinearMapping(5, numPartitions, 3, 3);
+    testNonLinearMapping(6, numPartitions, 3, 3);
+    testNonLinearMapping(7, numPartitions, 3, 3);
+    testNonLinearMapping(8, numPartitions, 3, 3);
+    testNonLinearMapping(9, numPartitions, 3, 3);
 
-    test(4, numPartitions, 1, 2);
 
-    test(5, numPartitions, 3, 3);
-    test(6, numPartitions, 3, 3);
-    test(7, numPartitions, 3, 3);
-    test(8, numPartitions, 3, 3);
-    test(9, numPartitions, 3, 3);
+    testLinearMapping(0, numPartitions, 0, 0);
+    testLinearMapping(1, numPartitions, 0, 0);
+    testLinearMapping(2, numPartitions, 0, 0);
+    testLinearMapping(3, numPartitions, 1, 1);
+    testLinearMapping(4, numPartitions, 1, 1);
+    testLinearMapping(5, numPartitions, 2, 2);
+    testLinearMapping(6, numPartitions, 2, 2);
+    testLinearMapping(7, numPartitions, 2, 2);
+    testLinearMapping(8, numPartitions, 3, 3);
+    testLinearMapping(9, numPartitions, 3, 3);
+  }
+
+  @Test
+  public void mapPriority5Partitions() {
+    int numPartitions = 5;
+    testNonLinearMapping(0, numPartitions, 0, 1);
+    testNonLinearMapping(1, numPartitions, 0, 1);
+    testNonLinearMapping(2, numPartitions, 0, 1);
+    testNonLinearMapping(3, numPartitions, 0, 1);
+    testNonLinearMapping(4, numPartitions, 2, 4);
+    testNonLinearMapping(5, numPartitions, 4, 4);
+    testNonLinearMapping(6, numPartitions, 4, 4);
+    testNonLinearMapping(7, numPartitions, 4, 4);
+    testNonLinearMapping(8, numPartitions, 4, 4);
+    testNonLinearMapping(9, numPartitions, 4, 4);
+
+    testLinearMapping(0, numPartitions, 0, 0);
+    testLinearMapping(1, numPartitions, 0, 0);
+    testLinearMapping(2, numPartitions, 1, 1);
+    testLinearMapping(3, numPartitions, 1, 1);
+    testLinearMapping(4, numPartitions, 2, 2);
+    testLinearMapping(5, numPartitions, 2, 2);
+    testLinearMapping(6, numPartitions, 3, 3);
+    testLinearMapping(7, numPartitions, 3, 3);
+    testLinearMapping(8, numPartitions, 4, 4);
+    testLinearMapping(9, numPartitions, 4, 4);
   }
 
   @Test
   public void mapPriority6Partitions() {
     int numPartitions = 6;
-    test(1, numPartitions, 0, 1);
-    test(2, numPartitions, 0, 1);
-    test(3, numPartitions, 0, 1);
+    testNonLinearMapping(0, numPartitions, 0, 1);
+    testNonLinearMapping(1, numPartitions, 0, 1);
+    testNonLinearMapping(2, numPartitions, 0, 1);
+    testNonLinearMapping(3, numPartitions, 0, 1);
+    testNonLinearMapping(4, numPartitions, 2, 4);
+    testNonLinearMapping(5, numPartitions, 5, 5);
+    testNonLinearMapping(6, numPartitions, 5, 5);
+    testNonLinearMapping(7, numPartitions, 5, 5);
+    testNonLinearMapping(8, numPartitions, 5, 5);
+    testNonLinearMapping(9, numPartitions, 5, 5);
 
-    test(4, numPartitions, 2, 4);
+    testLinearMapping(0, numPartitions, 0, 0);
+    testLinearMapping(1, numPartitions, 0, 0);
+    testLinearMapping(2, numPartitions, 1, 1);
+    testLinearMapping(3, numPartitions, 1, 1);
+    testLinearMapping(4, numPartitions, 2, 2);
+    testLinearMapping(5, numPartitions, 3, 3);
+    testLinearMapping(6, numPartitions, 3, 3);
+    testLinearMapping(7, numPartitions, 4, 4);
+    testLinearMapping(8, numPartitions, 4, 4);
+    testLinearMapping(9, numPartitions, 5, 5);
+  }
 
-    test(5, numPartitions, 5, 5);
-    test(6, numPartitions, 5, 5);
-    test(7, numPartitions, 5, 5);
-    test(8, numPartitions, 5, 5);
-    test(9, numPartitions, 5, 5);
+  @Test
+  public void mapPriority7Partitions() {
+    int numPartitions = 7;
+    testNonLinearMapping(0, numPartitions, 0, 1);
+    testNonLinearMapping(1, numPartitions, 0, 1);
+    testNonLinearMapping(2, numPartitions, 0, 1);
+    testNonLinearMapping(3, numPartitions, 0, 1);
+    testNonLinearMapping(4, numPartitions, 2, 5);
+    testNonLinearMapping(5, numPartitions, 6, 6);
+    testNonLinearMapping(6, numPartitions, 6, 6);
+    testNonLinearMapping(7, numPartitions, 6, 6);
+    testNonLinearMapping(8, numPartitions, 6, 6);
+    testNonLinearMapping(9, numPartitions, 6, 6);
+
+
+    testLinearMapping(0, numPartitions, 0, 0);
+    testLinearMapping(1, numPartitions, 0, 0);
+    testLinearMapping(2, numPartitions, 1, 1);
+    testLinearMapping(3, numPartitions, 2, 2);
+    testLinearMapping(4, numPartitions, 2, 2);
+    testLinearMapping(5, numPartitions, 3, 3);
+    testLinearMapping(6, numPartitions, 4, 4);
+    testLinearMapping(7, numPartitions, 4, 4);
+    testLinearMapping(8, numPartitions, 5, 5);
+    testLinearMapping(9, numPartitions, 6, 6);
   }
 
   @Test
   public void mapPriority8Partitions() {
     int numPartitions = 8;
-    test(1, numPartitions, 0, 1);
-    test(2, numPartitions, 0, 1);
-    test(3, numPartitions, 0, 1);
+    testNonLinearMapping(0, numPartitions, 0, 1);
+    testNonLinearMapping(1, numPartitions, 0, 1);
+    testNonLinearMapping(2, numPartitions, 0, 1);
+    testNonLinearMapping(3, numPartitions, 0, 1);
+    testNonLinearMapping(4, numPartitions, 2, 5);
+    testNonLinearMapping(5, numPartitions, 6, 7);
+    testNonLinearMapping(6, numPartitions, 6, 7);
+    testNonLinearMapping(7, numPartitions, 6, 7);
+    testNonLinearMapping(8, numPartitions, 6, 7);
+    testNonLinearMapping(9, numPartitions, 6, 7);
 
-    test(4, numPartitions, 2, 5);
-
-    test(5, numPartitions, 6, 7);
-    test(6, numPartitions, 6, 7);
-    test(7, numPartitions, 6, 7);
-    test(8, numPartitions, 6, 7);
-    test(9, numPartitions, 6, 7);
+    testLinearMapping(0, numPartitions, 0, 0);
+    testLinearMapping(1, numPartitions, 0, 0);
+    testLinearMapping(2, numPartitions, 1, 1);
+    testLinearMapping(3, numPartitions, 2, 2);
+    testLinearMapping(4, numPartitions, 3, 3);
+    testLinearMapping(5, numPartitions, 4, 4);
+    testLinearMapping(6, numPartitions, 4, 4);
+    testLinearMapping(7, numPartitions, 5, 5);
+    testLinearMapping(8, numPartitions, 6, 6);
+    testLinearMapping(9, numPartitions, 7, 7);
   }
 
   @Test
-  public void mapPriorityManyPartitions() {
-    int numPartitions = 20;
-    test(1, numPartitions, 0, 4);
-    test(2, numPartitions, 0, 4);
-    test(3, numPartitions, 0, 4);
+  public void mapPriority9Partitions() {
+    int numPartitions = 9;
+    testNonLinearMapping(0, numPartitions, 0, 2);
+    testNonLinearMapping(1, numPartitions, 0, 2);
+    testNonLinearMapping(2, numPartitions, 0, 2);
+    testNonLinearMapping(3, numPartitions, 0, 2);
+    testNonLinearMapping(4, numPartitions, 3, 7);
+    testNonLinearMapping(5, numPartitions, 7, 8);
+    testNonLinearMapping(6, numPartitions, 7, 8);
+    testNonLinearMapping(7, numPartitions, 7, 8);
+    testNonLinearMapping(8, numPartitions, 7, 8);
+    testNonLinearMapping(9, numPartitions, 7, 8);
 
-    test(4, numPartitions, 5, 14);
-
-    test(5, numPartitions, 15, 19);
-    test(6, numPartitions, 15, 19);
-    test(7, numPartitions, 15, 19);
-    test(8, numPartitions, 15, 19);
-    test(9, numPartitions, 15, 19);
+    testLinearMapping(0, numPartitions, 0, 0);
+    testLinearMapping(1, numPartitions, 0, 0);
+    testLinearMapping(2, numPartitions, 1, 1);
+    testLinearMapping(3, numPartitions, 2, 2);
+    testLinearMapping(4, numPartitions, 3, 3);
+    testLinearMapping(5, numPartitions, 4, 4);
+    testLinearMapping(6, numPartitions, 5, 5);
+    testLinearMapping(7, numPartitions, 6, 6);
+    testLinearMapping(8, numPartitions, 7, 7);
+    testLinearMapping(9, numPartitions, 8, 8);
   }
 
-  private static void test(int priority, int numPartitions, int from, int to) {
+  @Test
+  public void mapPriority10Partitions() {
+    int numPartitions = 10;
+    testNonLinearMapping(0, numPartitions, 0, 2);
+    testNonLinearMapping(1, numPartitions, 0, 2);
+    testNonLinearMapping(2, numPartitions, 0, 2);
+    testNonLinearMapping(3, numPartitions, 0, 2);
+    testNonLinearMapping(4, numPartitions, 3, 7);
+    testNonLinearMapping(5, numPartitions, 8, 9);
+    testNonLinearMapping(6, numPartitions, 8, 9);
+    testNonLinearMapping(7, numPartitions, 8, 9);
+    testNonLinearMapping(8, numPartitions, 8, 9);
+    testNonLinearMapping(9, numPartitions, 8, 9);
+
+    testLinearMapping(0, numPartitions, 0, 0);
+    testLinearMapping(1, numPartitions, 1, 1);
+    testLinearMapping(2, numPartitions, 2, 2);
+    testLinearMapping(3, numPartitions, 3, 3);
+    testLinearMapping(4, numPartitions, 4, 4);
+    testLinearMapping(5, numPartitions, 5, 5);
+    testLinearMapping(6, numPartitions, 6, 6);
+    testLinearMapping(7, numPartitions, 7, 7);
+    testLinearMapping(8, numPartitions, 8, 8);
+    testLinearMapping(9, numPartitions, 9, 9);
+  }
+
+  @Test
+  public void mapPriority18Partitions() {
+    int numPartitions = 18;
+    testNonLinearMapping(0, numPartitions, 0, 4);
+    testNonLinearMapping(1, numPartitions, 0, 4);
+    testNonLinearMapping(2, numPartitions, 0, 4);
+    testNonLinearMapping(3, numPartitions, 0, 4);
+    testNonLinearMapping(4, numPartitions, 5, 13);
+    testNonLinearMapping(5, numPartitions, 14, 17);
+    testNonLinearMapping(6, numPartitions, 14, 17);
+    testNonLinearMapping(7, numPartitions, 14, 17);
+    testNonLinearMapping(8, numPartitions, 14, 17);
+    testNonLinearMapping(9, numPartitions, 14, 17);
+
+    testLinearMapping(0, numPartitions, 0, 1);
+    testLinearMapping(1, numPartitions, 1, 2);
+    testLinearMapping(2, numPartitions, 3, 4);
+    testLinearMapping(3, numPartitions, 5, 6);
+    testLinearMapping(4, numPartitions, 7, 8);
+    testLinearMapping(5, numPartitions, 9, 10);
+    testLinearMapping(6, numPartitions, 10, 11);
+    testLinearMapping(7, numPartitions, 12, 13);
+    testLinearMapping(8, numPartitions, 14, 15);
+    testLinearMapping(9, numPartitions, 16, 17);
+  }
+
+  @Test
+  public void mapPriority20Partitions() {
+    int numPartitions = 20;
+    testNonLinearMapping(0, numPartitions, 0, 4);
+    testNonLinearMapping(1, numPartitions, 0, 4);
+    testNonLinearMapping(2, numPartitions, 0, 4);
+    testNonLinearMapping(3, numPartitions, 0, 4);
+    testNonLinearMapping(4, numPartitions, 5, 14);
+    testNonLinearMapping(5, numPartitions, 15, 19);
+    testNonLinearMapping(6, numPartitions, 15, 19);
+    testNonLinearMapping(7, numPartitions, 15, 19);
+    testNonLinearMapping(8, numPartitions, 15, 19);
+    testNonLinearMapping(9, numPartitions, 15, 19);
+
+    testLinearMapping(0, numPartitions, 0, 1);
+    testLinearMapping(1, numPartitions, 2, 3);
+    testLinearMapping(2, numPartitions, 4, 5);
+    testLinearMapping(3, numPartitions, 6, 7);
+    testLinearMapping(4, numPartitions, 8, 9);
+    testLinearMapping(5, numPartitions, 10, 11);
+    testLinearMapping(6, numPartitions, 12, 13);
+    testLinearMapping(7, numPartitions, 14, 15);
+    testLinearMapping(8, numPartitions, 16, 17);
+    testLinearMapping(9, numPartitions, 18, 19);
+  }
+
+  private static void testNonLinearMapping(int priority, int numPartitions, int from, int to) {
+    test(priority, numPartitions, from, to, false);
+  }
+
+  private static void testLinearMapping(int priority, int numPartitions, int from, int to) {
+    test(priority, numPartitions, from, to, true);
+  }
+  private static void test(int priority, int numPartitions, int from, int to, boolean linearMapping) {
     // run the test many times, because we are using random values
-    for (int i = 0; i < numPartitions * 5; i++) {
-      assertRange(Utils.mapPriorityToPartition(priority, numPartitions), from, to);
+    Set<Integer> values = new HashSet<>();
+    for (int i = 0; i < numPartitions * 100; i++) {
+      int res = Utils.mapPriorityToPartition(priority, numPartitions, linearMapping);
+      values.add(res);
+    }
+    assertTrue(values.contains(from), "value " + from + " was never returned, seen values " + values);
+    assertTrue(values.contains(to), "value " + to + " was never returned, seen values " + values);
+    for (int value : values) {
+      assertRange(value, from, to);
     }
   }
 
