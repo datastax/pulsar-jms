@@ -25,6 +25,7 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.jms.Destination;
 import javax.jms.JMSException;
@@ -38,6 +39,7 @@ import org.apache.pulsar.client.admin.Topics;
 import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.api.SubscriptionType;
 import org.apache.pulsar.common.policies.data.AutoTopicCreationOverride;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.io.TempDir;
@@ -72,11 +74,14 @@ public class BasicServerSideFilterTest {
     }
   }
 
+  static int refreshServerSideFiltersPeriod = 10;
+
   private Map<String, Object> buildProperties() {
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
 
     properties.put("jms.useServerSideFiltering", "true");
+    properties.put("jms.refreshServerSideFiltersPeriod", refreshServerSideFiltersPeriod);
     properties.put("jms.enableClientSideEmulation", "false");
 
     Map<String, Object> producerConfig = new HashMap<>();
@@ -232,6 +237,61 @@ public class BasicServerSideFilterTest {
             // this is downloaded from the server
             assertEquals(selector, consumer1.getMessageSelector());
             assertTrue(done.get());
+          }
+
+          try (PulsarMessageConsumer consumer1 =
+              session.createSharedDurableConsumer(destination, subscriptionName, null); ) {
+            produce(session, destination);
+            consume(consumer1);
+            // this is downloaded from the server
+            assertEquals(selector, consumer1.getMessageSelector());
+
+            // update the properties on the server
+            String newSelector = "keepme = TRUE or 1=1";
+            subscriptionProperties = new HashMap<>();
+            subscriptionProperties.put("jms.selector", newSelector);
+            subscriptionProperties.put("jms.filtering", "true");
+
+            cluster
+                .getService()
+                .getAdminClient()
+                .topics()
+                .updateSubscriptionProperties(topicName, subscriptionName, subscriptionProperties);
+
+            Awaitility.await()
+                .atMost(refreshServerSideFiltersPeriod * 2, TimeUnit.SECONDS)
+                .untilAsserted(
+                    () -> {
+                      if (numPartitions > 0) {
+                        consumer1.getSelectorSupportOnSubscription(topicName + "-partition-0");
+                      } else {
+                        consumer1.getSelectorSupportOnSubscription(topicName);
+                      }
+                      assertEquals(newSelector, consumer1.getMessageSelector());
+                    });
+
+            // disable server side selector
+            subscriptionProperties = new HashMap<>();
+            subscriptionProperties.put("jms.selector", newSelector);
+            subscriptionProperties.put("jms.filtering", "false");
+
+            cluster
+                .getService()
+                .getAdminClient()
+                .topics()
+                .updateSubscriptionProperties(topicName, subscriptionName, subscriptionProperties);
+
+            Awaitility.await()
+                .atMost(refreshServerSideFiltersPeriod * 2, TimeUnit.SECONDS)
+                .untilAsserted(
+                    () -> {
+                      if (numPartitions > 0) {
+                        consumer1.getSelectorSupportOnSubscription(topicName + "-partition-0");
+                      } else {
+                        consumer1.getSelectorSupportOnSubscription(topicName);
+                      }
+                      assertEquals(null, consumer1.getMessageSelector());
+                    });
           }
         }
       }

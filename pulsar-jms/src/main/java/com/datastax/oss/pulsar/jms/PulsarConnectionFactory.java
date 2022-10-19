@@ -41,6 +41,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.PriorityBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 import javax.jms.ConnectionFactory;
@@ -84,6 +85,7 @@ import org.apache.pulsar.client.api.SubscriptionType;
 import org.apache.pulsar.client.api.TopicMetadata;
 import org.apache.pulsar.client.impl.ConsumerBase;
 import org.apache.pulsar.client.impl.MultiTopicsConsumerImpl;
+import org.apache.pulsar.client.impl.PulsarClientImpl;
 import org.apache.pulsar.client.impl.auth.AuthenticationToken;
 import org.apache.pulsar.common.partition.PartitionedTopicMetadata;
 
@@ -140,6 +142,7 @@ public class PulsarConnectionFactory
   private transient boolean initialized;
   private transient boolean closed;
   private transient boolean startPulsarClient = true;
+  private transient int refreshServerSideFiltersPeriod = 300;
 
   private transient Map<String, Object> configuration = Collections.emptyMap();
 
@@ -307,6 +310,10 @@ public class PulsarConnectionFactory
               getAndRemoveString(
                   "jms.precreateQueueSubscriptionConsumerQueueSize", "0", configurationCopy));
 
+      this.refreshServerSideFiltersPeriod =
+          Integer.parseInt(
+              getAndRemoveString("jms.refreshServerSideFiltersPeriod", "300", configurationCopy));
+
       final String rawTopicSharedSubscriptionType =
           getAndRemoveString(
               "jms.topicSharedSubscriptionType", SubscriptionType.Shared.name(), configurationCopy);
@@ -471,6 +478,17 @@ public class PulsarConnectionFactory
         }
 
         pulsarClient = buildPulsarClient(clientBuilder);
+
+        if (pulsarClient != null && refreshServerSideFiltersPeriod > 0 && useServerSideFiltering) {
+          PulsarClientImpl impl = (PulsarClientImpl) pulsarClient;
+          ScheduledExecutorService timer =
+              (ScheduledExecutorService) impl.getScheduledExecutorProvider().getExecutor();
+          timer.scheduleWithFixedDelay(
+              this::refreshServerSideSelectors,
+              refreshServerSideFiltersPeriod,
+              refreshServerSideFiltersPeriod,
+              TimeUnit.SECONDS);
+        }
 
       } catch (PulsarClientException err) {
         if (pulsarAdmin != null) {
@@ -1647,5 +1665,12 @@ public class PulsarConnectionFactory
 
     this.initialized = false;
     this.closed = false;
+  }
+
+  private void refreshServerSideSelectors() {
+    connections.forEach(
+        c -> {
+          c.refreshServerSideSelectors();
+        });
   }
 }

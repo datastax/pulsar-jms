@@ -1984,4 +1984,11 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     @Override
     public void onPartitionsChange(String topicName, int partitions) {}
   }
+
+  void refreshServerSideSelectors() {
+    this.consumers.forEach(
+        c -> {
+          c.refreshServerSideSelectors();
+        });
+  }
 }

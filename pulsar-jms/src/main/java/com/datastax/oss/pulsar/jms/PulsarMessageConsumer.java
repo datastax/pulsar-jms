@@ -718,4 +718,12 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
   public long getSkippedMessages() {
     return skippedMessages.get();
   }
+
+  synchronized void refreshServerSideSelectors() {
+    int size = selectorSupportOnSubscriptions.size();
+    if (size > 0) {
+      selectorSupportOnSubscriptions.clear();
+      log.info("Refreshing {} server-side filters on {}", size, destination);
+    }
+  }
 }

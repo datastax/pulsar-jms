@@ -983,4 +983,11 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
     serverSession.start();
     return connectionConsumer;
   }
+
+  void refreshServerSideSelectors() {
+    sessions.forEach(
+        s -> {
+          s.refreshServerSideSelectors();
+        });
+  }
 }
