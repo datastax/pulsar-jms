@@ -350,6 +350,9 @@ public class JMSFilter implements EntryFilter {
                 // cannot decode priority, not a big deal as it is not supported in Pulsar
                 return Message.DEFAULT_PRIORITY;
               }
+            } else {
+              // we are not setting JMSPriority if it is the default value
+              return Message.DEFAULT_PRIORITY;
             }
           }
         case "JMSDeliveryMode":

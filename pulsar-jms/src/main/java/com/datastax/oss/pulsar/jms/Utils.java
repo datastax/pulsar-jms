@@ -22,6 +22,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 import javax.jms.IllegalStateException;
 import javax.jms.IllegalStateRuntimeException;
@@ -340,5 +341,120 @@ public final class Utils {
     MessageIdImpl a1 = MessageIdImpl.convertToMessageIdImpl(a);
     MessageIdImpl b1 = MessageIdImpl.convertToMessageIdImpl(b);
     return a1.getLedgerId() == b1.getLedgerId() && a1.getEntryId() == b1.getEntryId();
+  }
+
+  /**
+   * Map the JMS Priority to a partition.
+   *
+   * @param priority
+   * @param numPartitions
+   * @return the partition id
+   */
+  public static int mapPriorityToPartition(int priority, int numPartitions, boolean linear) {
+    if (linear) {
+      return mapPriorityToPartitionLinearly(priority, numPartitions);
+    } else {
+      return mapPriorityToPartitionNonLinearly(priority, numPartitions);
+    }
+  }
+
+  static int mapPriorityToPartitionLinearly(int priority, int numPartitions) {
+    if (numPartitions <= 1) {
+      return 0;
+    }
+    if (numPartitions == 2) {
+      if (priority <= PulsarMessage.DEFAULT_PRIORITY) {
+        return 0;
+      } else {
+        return 1;
+      }
+    }
+    if (numPartitions == 3) {
+      if (priority < PulsarMessage.DEFAULT_PRIORITY) {
+        return 0;
+      } else if (priority == PulsarMessage.DEFAULT_PRIORITY) {
+        return 1;
+      } else {
+        return 2;
+      }
+    }
+    if (priority < 0) {
+      priority = 0;
+    } else if (priority > 9) {
+      priority = 9;
+    }
+
+    // from 0 to 9
+    double bucketSize = numPartitions / 10.0;
+    double start = Math.floor(bucketSize * priority);
+    double value = (start + ThreadLocalRandom.current().nextDouble(bucketSize));
+    int result = (int) Math.floor(value);
+    if (result >= numPartitions) {
+      return numPartitions - 1;
+    }
+    return result;
+  }
+
+  static int mapPriorityToPartitionNonLinearly(int priority, int numPartitions) {
+    if (numPartitions <= 1) {
+      return 0;
+    }
+    if (priority < 0) {
+      priority = 0;
+    } else if (priority > 9) {
+      priority = 9;
+    }
+    double bucketSize = numPartitions / 4.0;
+    if (bucketSize <= 0) {
+      bucketSize = 1;
+    }
+    double bucketStart;
+    int slots;
+
+    switch (priority) {
+      case 0:
+      case 1:
+      case 2:
+      case 3:
+        // low priority, 1/4 of the partitions
+        bucketStart = 0;
+        slots = 1;
+        if (numPartitions <= 3) {
+          return 0;
+        }
+        break;
+      case 4:
+        // mid-priority, 1/2 of the partitions
+        bucketStart = Math.ceil(bucketSize);
+        if (numPartitions <= 2) {
+          return 0;
+        } else if (numPartitions == 3) {
+          return 1;
+        } else {
+          slots = 2;
+        }
+        break;
+      case 5:
+      case 6:
+      case 7:
+      case 8:
+      case 9:
+        // high priority, 1/4 of the partitions
+        if (numPartitions <= 3) {
+          return numPartitions - 1;
+        }
+        bucketStart = Math.ceil(bucketSize * 3);
+        slots = 1;
+        break;
+      default:
+        throw new java.lang.IllegalStateException();
+    }
+
+    double value = (bucketStart + ThreadLocalRandom.current().nextDouble(bucketSize * slots));
+    int result = (int) Math.floor(value);
+    if (result >= numPartitions) {
+      return numPartitions - 1;
+    }
+    return result;
   }
 }

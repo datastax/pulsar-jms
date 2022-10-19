@@ -87,6 +87,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   private final int sessionMode;
   private final boolean transacted;
   private final boolean emulateTransactions;
+  private final boolean enableJMSPriority;
   // this is to emulate QueueSession/TopicSession
   private boolean allowQueueOperations = true;
   private boolean allowTopicOperations = true;
@@ -130,6 +131,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     this.sessionMode = sessionMode;
     this.transacted = sessionMode == Session.SESSION_TRANSACTED;
     this.overrideConsumerConfiguration = overrideConsumerConfiguration;
+    this.enableJMSPriority = getFactory().isEnableJMSPriority();
     if (transacted && connection.getFactory().isTransactionsStickyPartitions()) {
       generateNewTransactionStickyKey();
     }
@@ -934,14 +936,33 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
       throw new InvalidDestinationException("null destination");
     }
     PulsarDestination pulsarDestination = PulsarConnectionFactory.toPulsarDestination(destination);
+    return buildConsumer(
+        UUID.randomUUID().toString(),
+        pulsarDestination,
+        SubscriptionMode.NonDurable,
+        getFactory().getExclusiveSubscriptionTypeForSimpleConsumers(destination),
+        messageSelector,
+        false,
+        noLocal);
+  }
+
+  private PulsarMessageConsumer buildConsumer(
+      String subscriptionName,
+      PulsarDestination destination,
+      SubscriptionMode subscriptionMode,
+      SubscriptionType subscriptionType,
+      String selector,
+      boolean unregisterSubscriptionOnClose,
+      boolean noLocal)
+      throws JMSException {
     return new PulsarMessageConsumer(
-            UUID.randomUUID().toString(),
-            pulsarDestination,
+            subscriptionName,
+            destination,
             this,
-            SubscriptionMode.NonDurable,
-            getFactory().getExclusiveSubscriptionTypeForSimpleConsumers(destination),
-            messageSelector,
-            false,
+            subscriptionMode,
+            subscriptionType,
+            selector,
+            unregisterSubscriptionOnClose,
             noLocal)
         .subscribe();
   }
@@ -986,7 +1007,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    * @since JMS 2.0
    */
   @Override
-  public PulsarMessageConsumer createSharedConsumer(Topic topic, String sharedSubscriptionName)
+  public MessageConsumer createSharedConsumer(Topic topic, String sharedSubscriptionName)
       throws JMSException {
     return createSharedConsumer(topic, sharedSubscriptionName, null);
   }
@@ -1043,16 +1064,14 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     sharedSubscriptionName = connection.prependClientId(sharedSubscriptionName, true);
     PulsarDestination pulsarDestination = PulsarConnectionFactory.toPulsarDestination(topic);
     registerSubscriptionName(pulsarDestination, sharedSubscriptionName, true);
-    return new PulsarMessageConsumer(
-            sharedSubscriptionName,
-            pulsarDestination,
-            this,
-            SubscriptionMode.NonDurable,
-            getFactory().getTopicSharedSubscriptionType(),
-            messageSelector,
-            true,
-            false)
-        .subscribe();
+    return buildConsumer(
+        sharedSubscriptionName,
+        pulsarDestination,
+        SubscriptionMode.NonDurable,
+        getFactory().getTopicSharedSubscriptionType(),
+        messageSelector,
+        true,
+        false);
   }
 
   /**
@@ -1254,7 +1273,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    * @since JMS 1.1
    */
   @Override
-  public PulsarMessageConsumer createDurableSubscriber(
+  public TopicSubscriber createDurableSubscriber(
       Topic topic, String name, String messageSelector, boolean noLocal) throws JMSException {
     return createDurableSubscriber(topic, name, messageSelector, noLocal, false);
   }
@@ -1270,16 +1289,14 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     name = connection.prependClientId(name, allowUnsetClientId);
     registerSubscriptionName(pulsarTopic, name, false);
 
-    return new PulsarMessageConsumer(
-            name,
-            pulsarTopic,
-            this,
-            SubscriptionMode.Durable,
-            SubscriptionType.Exclusive,
-            messageSelector,
-            true,
-            noLocal)
-        .subscribe();
+    return buildConsumer(
+        name,
+        pulsarTopic,
+        SubscriptionMode.Durable,
+        SubscriptionType.Exclusive,
+        messageSelector,
+        true,
+        noLocal);
   }
 
   private void registerSubscriptionName(PulsarDestination topic, String name, boolean shared)
@@ -1365,7 +1382,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    * @since JMS 2.0
    */
   @Override
-  public PulsarMessageConsumer createDurableConsumer(Topic topic, String name) throws JMSException {
+  public MessageConsumer createDurableConsumer(Topic topic, String name) throws JMSException {
     return createDurableConsumer(topic, name, null, false);
   }
 
@@ -1593,16 +1610,14 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     PulsarTopic pulsarTopic = (PulsarTopic) PulsarConnectionFactory.toPulsarDestination(topic);
     name = connection.prependClientId(name, true);
     registerSubscriptionName(pulsarTopic, name, true);
-    return new PulsarMessageConsumer(
-            name,
-            pulsarTopic,
-            this,
-            SubscriptionMode.Durable,
-            getFactory().getTopicSharedSubscriptionType(),
-            messageSelector,
-            true,
-            false)
-        .subscribe();
+    return buildConsumer(
+        name,
+        pulsarTopic,
+        SubscriptionMode.Durable,
+        getFactory().getTopicSharedSubscriptionType(),
+        messageSelector,
+        true,
+        false);
   }
 
   /**
@@ -1639,6 +1654,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
       throw new InvalidDestinationException("invalid null queue");
     }
     checkQueueOperationEnabled();
+    queue = (Queue) PulsarConnectionFactory.toPulsarDestination(queue);
     PulsarQueueBrowser res = new PulsarQueueBrowser(this, queue, messageSelector);
     browsers.add(res);
     return res;

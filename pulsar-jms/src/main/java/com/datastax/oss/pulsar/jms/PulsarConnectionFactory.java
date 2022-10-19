@@ -28,6 +28,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -35,9 +36,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
@@ -80,6 +83,8 @@ import org.apache.pulsar.client.api.SubscriptionInitialPosition;
 import org.apache.pulsar.client.api.SubscriptionMode;
 import org.apache.pulsar.client.api.SubscriptionType;
 import org.apache.pulsar.client.api.TopicMetadata;
+import org.apache.pulsar.client.impl.ConsumerBase;
+import org.apache.pulsar.client.impl.MultiTopicsConsumerImpl;
 import org.apache.pulsar.client.impl.PulsarClientImpl;
 import org.apache.pulsar.client.impl.auth.AuthenticationToken;
 import org.apache.pulsar.common.partition.PartitionedTopicMetadata;
@@ -119,6 +124,9 @@ public class PulsarConnectionFactory
   private transient boolean enableClientSideEmulation = false;
   private transient boolean transactionsStickyPartitions = false;
   private transient boolean useServerSideFiltering = false;
+  private transient boolean enableJMSPriority = false;
+
+  private transient boolean priorityUseLinearMapping = true;
   private transient boolean forceDeleteTemporaryDestinations = false;
   private transient boolean useExclusiveSubscriptionsForSimpleConsumers = false;
   private transient boolean acknowledgeRejectedMessages = false;
@@ -217,7 +225,7 @@ public class PulsarConnectionFactory
     return copy;
   }
 
-  private synchronized ConsumerConfiguration getConsumerConfiguration(
+  synchronized ConsumerConfiguration getConsumerConfiguration(
       ConsumerConfiguration overrideConsumerConfiguration) {
     if (overrideConsumerConfiguration == null) {
       return defaultConsumerConfiguration;
@@ -346,6 +354,26 @@ public class PulsarConnectionFactory
       this.useServerSideFiltering =
           Boolean.parseBoolean(
               getAndRemoveString("jms.useServerSideFiltering", "false", configurationCopy));
+
+      this.enableJMSPriority =
+          Boolean.parseBoolean(
+              getAndRemoveString("jms.enableJMSPriority", "false", configurationCopy));
+
+      String priorityMapping =
+          getAndRemoveString("jms.priorityMapping", "linear", configurationCopy);
+      switch (priorityMapping) {
+        case "linear":
+          this.priorityUseLinearMapping = true;
+          break;
+        case "non-linear":
+          this.priorityUseLinearMapping = false;
+          break;
+        default:
+          throw new IllegalArgumentException(
+              "jms.priorityMapping value '"
+                  + priorityMapping
+                  + "' is not valid, only 'linear' and 'non-linear'");
+      }
 
       // in Exclusive mode Pulsar does not support delayed messages
       // with this flag you force to not use Exclusive subscription and so to support
@@ -540,6 +568,14 @@ public class PulsarConnectionFactory
 
   public synchronized boolean isUseServerSideFiltering() {
     return useServerSideFiltering;
+  }
+
+  public synchronized boolean isEnableJMSPriority() {
+    return enableJMSPriority;
+  }
+
+  public synchronized boolean isPriorityUseLinearMapping() {
+    return priorityUseLinearMapping;
   }
 
   synchronized String getDefaultClientId() {
@@ -971,7 +1007,10 @@ public class PulsarConnectionFactory
     try {
       String fullQualifiedTopicName = getPulsarTopicName(defaultDestination);
       String key = transactions ? fullQualifiedTopicName + "-tx" : fullQualifiedTopicName;
-      boolean transactionsStickyPartitions = isTransactionsStickyPartitions();
+      boolean transactionsStickyPartitions = transactions && isTransactionsStickyPartitions();
+      boolean enableJMSPriority = isEnableJMSPriority();
+      boolean producerJMSPriorityUseLinearMapping =
+          enableJMSPriority && isPriorityUseLinearMapping();
       return producers.computeIfAbsent(
           key,
           d -> {
@@ -988,20 +1027,38 @@ public class PulsarConnectionFactory
                       producerBuilder.batcherBuilder(
                           (BatcherBuilder) producerConfiguration.get("batcherBuilder"));
                     }
-                    if (transactions) {
-                      if (transactionsStickyPartitions) {
-                        producerBuilder.messageRouter(
-                            new MessageRouter() {
-                              @Override
-                              public int choosePartition(Message<?> msg, TopicMetadata metadata) {
-                                long key = Long.parseLong(msg.getProperty("JMSTX"));
-                                return signSafeMod(key, metadata.numPartitions());
-                              }
-                            });
-                      }
-                      // this is a limitation of Pulsar transaction support
-                      producerBuilder.sendTimeout(0, TimeUnit.MILLISECONDS);
+                    Map<String, String> properties = new HashMap<>();
+                    if (enableJMSPriority) {
+                      properties.put("jms.priority", "enabled");
+                      properties.put(
+                          "jms.priorityMapping",
+                          producerJMSPriorityUseLinearMapping ? "linear" : "non-linear");
+                      producerBuilder.messageRouter(
+                          new MessageRouter() {
+                            @Override
+                            public int choosePartition(Message<?> msg, TopicMetadata metadata) {
+                              String priority = msg.getProperty("JMSPriority");
+                              int key =
+                                  priority == null
+                                      ? PulsarMessage.DEFAULT_PRIORITY
+                                      : Integer.parseInt(msg.getProperty("JMSPriority"));
+                              return Utils.mapPriorityToPartition(
+                                  key,
+                                  metadata.numPartitions(),
+                                  producerJMSPriorityUseLinearMapping);
+                            }
+                          });
+                    } else if (transactions && transactionsStickyPartitions) {
+                      producerBuilder.messageRouter(
+                          new MessageRouter() {
+                            @Override
+                            public int choosePartition(Message<?> msg, TopicMetadata metadata) {
+                              long key = Long.parseLong(msg.getProperty("JMSTX"));
+                              return signSafeMod(key, metadata.numPartitions());
+                            }
+                          });
                     }
+                    producerBuilder.properties(properties);
                     return producerBuilder.create();
                   });
             } catch (JMSException err) {
@@ -1099,8 +1156,7 @@ public class PulsarConnectionFactory
       SubscriptionType subscriptionType,
       String messageSelector,
       boolean noLocal,
-      PulsarSession session,
-      Map<String, String> selectorOnSubscriptionReceiver)
+      PulsarSession session)
       throws JMSException {
     if (destination.isQueue() && subscriptionMode != SubscriptionMode.Durable) {
       throw new IllegalStateException("only durable mode for queues");
@@ -1171,6 +1227,10 @@ public class PulsarConnectionFactory
               .subscriptionProperties(subscriptionProperties)
               .subscriptionType(subscriptionType)
               .subscriptionName(subscriptionName);
+      if (isEnableJMSPriority()) {
+        builder.startPaused(true);
+        consumerMetadata.put("jms.priority", "enabled");
+      }
       if (destination.isRegExp()) {
         String fullQualifiedTopicName = getPulsarTopicName(destination);
         builder.topicsPattern(fullQualifiedTopicName);
@@ -1197,10 +1257,61 @@ public class PulsarConnectionFactory
       }
       builder.intercept(session.getConsumerInterceptor());
       Consumer<?> newConsumer = builder.subscribe();
+      if (log.isDebugEnabled()) {
+        if (newConsumer instanceof MultiTopicsConsumerImpl) {
+          MultiTopicsConsumerImpl multiTopicsConsumer = (MultiTopicsConsumerImpl) newConsumer;
+          log.debug("Destinations {}", multiTopicsConsumer.getPartitions());
+        }
+      }
       consumers.add(newConsumer);
+      if (isEnableJMSPriority()) {
+        replaceIncomingMessageList(newConsumer);
+        newConsumer.resume();
+      }
       return newConsumer;
     } catch (PulsarClientException err) {
       throw Utils.handleException(err);
+    }
+  }
+
+  private static void replaceIncomingMessageList(Consumer c) {
+    try {
+      ConsumerBase consumerBase = (ConsumerBase) c;
+      Field incomingMessages = ConsumerBase.class.getDeclaredField("incomingMessages");
+      incomingMessages.setAccessible(true);
+
+      BlockingQueue<Message> oldQueue = (BlockingQueue<Message>) incomingMessages.get(consumerBase);
+      BlockingQueue<Message> newQueue =
+          new PriorityBlockingQueue<Message>(
+              10,
+              new Comparator<Message>() {
+                @Override
+                public int compare(Message o1, Message o2) {
+                  int priority1 = getPriority(o1);
+                  int priority2 = getPriority(o2);
+                  return Integer.compare(priority2, priority1);
+                }
+              });
+
+      // drain messages that could have been pre-fetched (the Consumer is paused, so this should not
+      // happen)
+      oldQueue.drainTo(newQueue);
+
+      incomingMessages.set(c, newQueue);
+    } catch (Exception err) {
+      throw new RuntimeException(err);
+    }
+  }
+
+  private static int getPriority(Message m) {
+    String jmsPriority = m.getProperty("JMSPriority");
+    if (jmsPriority == null || jmsPriority.isEmpty()) {
+      return PulsarMessage.DEFAULT_PRIORITY;
+    }
+    try {
+      return Integer.parseInt(jmsPriority);
+    } catch (NumberFormatException err) {
+      return PulsarMessage.DEFAULT_PRIORITY;
     }
   }
 
@@ -1267,37 +1378,57 @@ public class PulsarConnectionFactory
       PulsarQueue destination, ConsumerConfiguration overrideConsumerConfiguration)
       throws JMSException {
 
-    if (destination.isVirtualDestination()) {
-      throw new InvalidDestinationException(
-          "QueueBrowser is not supported for virtual destinations");
-    }
+    if (destination.isRegExp()) {
+      try {
+        String topicName = getPulsarTopicName(destination);
+        List<String> topicNames =
+            TopicDiscoveryUtils.discoverTopicsByPattern(topicName, getPulsarClient(), 1000);
+        log.info("createReadersForBrowser {} - {} - {}", destination, topicName, topicNames);
+        List<Reader<?>> res = new ArrayList<>();
+        for (String sub : topicNames) {
+          String queueName = sub + ":" + getQueueSubscriptionName(destination);
+          PulsarQueue queue = new PulsarQueue(queueName);
+          res.addAll(createReadersForBrowser(queue, overrideConsumerConfiguration));
+        }
+        return res;
+      } catch (Exception err) {
+        throw Utils.handleException(err);
+      }
+    } else if (destination.isMultiTopic()) {
+      List<Reader<?>> res = new ArrayList<>();
+      List<PulsarDestination> destinations = destination.getDestinations();
+      for (PulsarDestination sub : destinations) {
+        res.addAll(createReadersForBrowser((PulsarQueue) sub, overrideConsumerConfiguration));
+      }
+      return res;
+    } else {
+      String fullQualifiedTopicName = getPulsarTopicName(destination);
+      String queueSubscriptionName = getQueueSubscriptionName(destination);
 
-    String fullQualifiedTopicName = getPulsarTopicName(destination);
-    String queueSubscriptionName = getQueueSubscriptionName(destination);
-
-    try {
-      PartitionedTopicMetadata partitionedTopicMetadata =
-          getPulsarAdmin().topics().getPartitionedTopicMetadata(fullQualifiedTopicName);
-      List<Reader<?>> readers = new ArrayList<>();
-      if (partitionedTopicMetadata.partitions == 0) {
-        Reader<?> readerForBrowserForNonPartitionedTopic =
-            createReaderForBrowserForNonPartitionedTopic(
-                queueSubscriptionName, fullQualifiedTopicName, overrideConsumerConfiguration);
-        readers.add(readerForBrowserForNonPartitionedTopic);
-      } else {
-        for (int i = 0; i < partitionedTopicMetadata.partitions; i++) {
-          String partitionName = fullQualifiedTopicName + "-partition-" + i;
+      try {
+        PartitionedTopicMetadata partitionedTopicMetadata =
+            getPulsarAdmin().topics().getPartitionedTopicMetadata(fullQualifiedTopicName);
+        List<Reader<?>> readers = new ArrayList<>();
+        if (partitionedTopicMetadata.partitions == 0) {
           Reader<?> readerForBrowserForNonPartitionedTopic =
               createReaderForBrowserForNonPartitionedTopic(
-                  queueSubscriptionName, partitionName, overrideConsumerConfiguration);
+                  queueSubscriptionName, fullQualifiedTopicName, overrideConsumerConfiguration);
           readers.add(readerForBrowserForNonPartitionedTopic);
+        } else {
+          for (int i = 0; i < partitionedTopicMetadata.partitions; i++) {
+            String partitionName = fullQualifiedTopicName + "-partition-" + i;
+            Reader<?> readerForBrowserForNonPartitionedTopic =
+                createReaderForBrowserForNonPartitionedTopic(
+                    queueSubscriptionName, partitionName, overrideConsumerConfiguration);
+            readers.add(readerForBrowserForNonPartitionedTopic);
+          }
         }
+        return readers;
+      } catch (PulsarAdminException.NotFoundException err) {
+        return Collections.emptyList();
+      } catch (PulsarAdminException err) {
+        throw Utils.handleException(err);
       }
-      return readers;
-    } catch (PulsarAdminException.NotFoundException err) {
-      return Collections.emptyList();
-    } catch (PulsarAdminException err) {
-      throw Utils.handleException(err);
     }
   }
 
@@ -1322,6 +1453,7 @@ public class PulsarConnectionFactory
       if (log.isDebugEnabled()) {
         log.debug("createBrowser {} at {}", fullQualifiedTopicName, seekMessageId);
       }
+      log.info("createBrowser {} at {}", fullQualifiedTopicName, seekMessageId);
 
       ConsumerConfiguration consumerConfiguration =
           getConsumerConfiguration(overrideConsumerConfiguration);
