@@ -17,11 +17,10 @@ package com.datastax.oss.pulsar.jms;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import lombok.extern.slf4j.Slf4j;
-import org.junit.jupiter.api.Test;
-
 import java.util.HashSet;
 import java.util.Set;
+import lombok.extern.slf4j.Slf4j;
+import org.junit.jupiter.api.Test;
 
 @Slf4j
 public class UtilsTest {
@@ -40,7 +39,6 @@ public class UtilsTest {
     testNonLinearMapping(8, numPartitions, 0, 0);
     testNonLinearMapping(9, numPartitions, 0, 0);
 
-
     testLinearMapping(0, numPartitions, 0, 0);
     testLinearMapping(1, numPartitions, 0, 0);
     testLinearMapping(2, numPartitions, 0, 0);
@@ -52,7 +50,6 @@ public class UtilsTest {
     testLinearMapping(8, numPartitions, 0, 0);
     testLinearMapping(9, numPartitions, 0, 0);
   }
-
 
   @Test
   public void mapPriority2Partitions() {
@@ -67,7 +64,6 @@ public class UtilsTest {
     testNonLinearMapping(7, numPartitions, 1, 1);
     testNonLinearMapping(8, numPartitions, 1, 1);
     testNonLinearMapping(9, numPartitions, 1, 1);
-
 
     testLinearMapping(0, numPartitions, 0, 0);
     testLinearMapping(1, numPartitions, 0, 0);
@@ -120,7 +116,6 @@ public class UtilsTest {
     testNonLinearMapping(7, numPartitions, 3, 3);
     testNonLinearMapping(8, numPartitions, 3, 3);
     testNonLinearMapping(9, numPartitions, 3, 3);
-
 
     testLinearMapping(0, numPartitions, 0, 0);
     testLinearMapping(1, numPartitions, 0, 0);
@@ -199,7 +194,6 @@ public class UtilsTest {
     testNonLinearMapping(7, numPartitions, 6, 6);
     testNonLinearMapping(8, numPartitions, 6, 6);
     testNonLinearMapping(9, numPartitions, 6, 6);
-
 
     testLinearMapping(0, numPartitions, 0, 0);
     testLinearMapping(1, numPartitions, 0, 0);
@@ -350,14 +344,17 @@ public class UtilsTest {
   private static void testLinearMapping(int priority, int numPartitions, int from, int to) {
     test(priority, numPartitions, from, to, true);
   }
-  private static void test(int priority, int numPartitions, int from, int to, boolean linearMapping) {
+
+  private static void test(
+      int priority, int numPartitions, int from, int to, boolean linearMapping) {
     // run the test many times, because we are using random values
     Set<Integer> values = new HashSet<>();
     for (int i = 0; i < numPartitions * 100; i++) {
       int res = Utils.mapPriorityToPartition(priority, numPartitions, linearMapping);
       values.add(res);
     }
-    assertTrue(values.contains(from), "value " + from + " was never returned, seen values " + values);
+    assertTrue(
+        values.contains(from), "value " + from + " was never returned, seen values " + values);
     assertTrue(values.contains(to), "value " + to + " was never returned, seen values " + values);
     for (int value : values) {
       assertRange(value, from, to);

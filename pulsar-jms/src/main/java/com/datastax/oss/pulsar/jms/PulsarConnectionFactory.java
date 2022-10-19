@@ -360,7 +360,7 @@ public class PulsarConnectionFactory
               getAndRemoveString("jms.enableJMSPriority", "false", configurationCopy));
 
       String priorityMapping =
-                      getAndRemoveString("jms.priorityMapping", "linear", configurationCopy);
+          getAndRemoveString("jms.priorityMapping", "linear", configurationCopy);
       switch (priorityMapping) {
         case "linear":
           this.priorityUseLinearMapping = true;
@@ -369,10 +369,11 @@ public class PulsarConnectionFactory
           this.priorityUseLinearMapping = false;
           break;
         default:
-          throw new IllegalArgumentException("jms.priorityMapping value '"+ priorityMapping +
-                  "' is not valid, only 'linear' and 'non-linear'");
+          throw new IllegalArgumentException(
+              "jms.priorityMapping value '"
+                  + priorityMapping
+                  + "' is not valid, only 'linear' and 'non-linear'");
       }
-
 
       // in Exclusive mode Pulsar does not support delayed messages
       // with this flag you force to not use Exclusive subscription and so to support
@@ -1008,7 +1009,8 @@ public class PulsarConnectionFactory
       String key = transactions ? fullQualifiedTopicName + "-tx" : fullQualifiedTopicName;
       boolean transactionsStickyPartitions = transactions && isTransactionsStickyPartitions();
       boolean enableJMSPriority = isEnableJMSPriority();
-      boolean producerJMSPriorityUseLinearMapping = enableJMSPriority && isPriorityUseLinearMapping();
+      boolean producerJMSPriorityUseLinearMapping =
+          enableJMSPriority && isPriorityUseLinearMapping();
       return producers.computeIfAbsent(
           key,
           d -> {
@@ -1037,7 +1039,10 @@ public class PulsarConnectionFactory
                                   priority == null
                                       ? PulsarMessage.DEFAULT_PRIORITY
                                       : Integer.parseInt(msg.getProperty("JMSPriority"));
-                              return Utils.mapPriorityToPartition(key, metadata.numPartitions(), producerJMSPriorityUseLinearMapping);
+                              return Utils.mapPriorityToPartition(
+                                  key,
+                                  metadata.numPartitions(),
+                                  producerJMSPriorityUseLinearMapping);
                             }
                           });
                     } else if (transactions && transactionsStickyPartitions) {

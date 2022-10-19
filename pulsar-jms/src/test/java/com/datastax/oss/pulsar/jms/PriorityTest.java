@@ -91,11 +91,10 @@ public class PriorityTest {
 
   private static Stream<Arguments> combinations() {
     return Stream.of(
-            Arguments.of(4, "linear"),
-            Arguments.of(4, "non-linear"),
-            Arguments.of(10, "linear"),
-            Arguments.of(10, "non-linear")
-            );
+        Arguments.of(4, "linear"),
+        Arguments.of(4, "non-linear"),
+        Arguments.of(10, "linear"),
+        Arguments.of(10, "non-linear"));
   }
 
   @ParameterizedTest(name = "numPartitions {0} mapping {1}")
@@ -212,10 +211,10 @@ public class PriorityTest {
           Queue destination = session.createQueue("test-" + UUID.randomUUID());
 
           cluster
-                  .getService()
-                  .getAdminClient()
-                  .topics()
-                  .createPartitionedTopic(factory.getPulsarTopicName(destination), 10);
+              .getService()
+              .getAdminClient()
+              .topics()
+              .createPartitionedTopic(factory.getPulsarTopicName(destination), 10);
 
           int numHighPriority = 100;
           int numMessages = 1_000_000;

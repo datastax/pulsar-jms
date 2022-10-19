@@ -393,7 +393,6 @@ public final class Utils {
       return numPartitions - 1;
     }
     return result;
-
   }
 
   static int mapPriorityToPartitionNonLinearly(int priority, int numPartitions) {
