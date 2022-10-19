@@ -1030,6 +1030,9 @@ public class PulsarConnectionFactory
                     Map<String, String> properties = new HashMap<>();
                     if (enableJMSPriority) {
                       properties.put("jms.priority", "enabled");
+                      properties.put(
+                          "jms.priorityMapping",
+                          producerJMSPriorityUseLinearMapping ? "linear" : "non-linear");
                       producerBuilder.messageRouter(
                           new MessageRouter() {
                             @Override
