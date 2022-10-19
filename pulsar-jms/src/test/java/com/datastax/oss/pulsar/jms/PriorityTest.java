@@ -18,6 +18,7 @@ package com.datastax.oss.pulsar.jms;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
 import com.google.common.collect.ImmutableMap;
@@ -26,8 +27,10 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
@@ -201,13 +204,14 @@ public class PriorityTest {
     properties.put("jms.priorityMapping", mapping);
     properties.put("producerConfig", ImmutableMap.of("blockIfQueueFull", true));
     properties.put("consumerConfig", ImmutableMap.of("receiverQueueSize", 10));
+    log.info("running basicPriorityBigBacklogTest with {}", properties);
 
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
         assertTrue(factory.isEnableJMSPriority());
         assertEquals(mapping.equals("linear"), factory.isPriorityUseLinearMapping());
         connection.start();
-        try (Session session = connection.createSession(); ) {
+        try (Session session = connection.createSession(Session.AUTO_ACKNOWLEDGE); ) {
           Queue destination = session.createQueue("test-" + UUID.randomUUID());
 
           cluster
@@ -254,6 +258,7 @@ public class PriorityTest {
           try (MessageConsumer consumer1 = session.createConsumer(destination); ) {
             int countLowPriority = 0;
             int countHighPriority = 0;
+            Set<String> receivedTexts = new HashSet<>();
             List<Integer> received = new ArrayList<>();
             for (int i = 0; i < numMessages; i++) {
               TextMessage msg = (TextMessage) consumer1.receive();
@@ -264,6 +269,18 @@ public class PriorityTest {
               }
               if (msg.getJMSPriority() == HIGH_PRIORITY) {
                 countHighPriority++;
+              }
+              if (!receivedTexts.add(msg.getText())) {
+                fail(
+                    "received message "
+                        + msg.getText()
+                        + " twice,"
+                        + " priority is "
+                        + msg.getJMSPriority()
+                        + " countLowPriority="
+                        + countLowPriority
+                        + " countHighPriority="
+                        + countHighPriority);
               }
             }
 
