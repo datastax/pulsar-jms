@@ -37,8 +37,11 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.jms.*;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.pulsar.common.policies.data.PartitionedTopicStats;
+import org.apache.pulsar.common.policies.data.PersistentTopicInternalStats;
 import org.apache.pulsar.common.policies.data.TenantInfo;
 import org.apache.pulsar.common.util.FutureUtil;
+import org.apache.pulsar.common.util.ObjectMapperFactory;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -109,6 +112,8 @@ public class PriorityTest {
     properties.put("jms.enableJMSPriority", true);
     properties.put("jms.priorityMapping", mapping);
     properties.put("jms.systemNamespace", SYSTEM_NAMESPACE_OVERRIDDEN);
+    properties.put(
+        "producerConfig", ImmutableMap.of("blockIfQueueFull", true, "batchingEnabled", false));
     properties.put("consumerConfig", ImmutableMap.of("receiverQueueSize", 10));
 
     String topicName = "test-" + UUID.randomUUID();
@@ -202,7 +207,8 @@ public class PriorityTest {
     properties.put("webServiceUrl", cluster.getAddress());
     properties.put("jms.enableJMSPriority", true);
     properties.put("jms.priorityMapping", mapping);
-    properties.put("producerConfig", ImmutableMap.of("blockIfQueueFull", true));
+    properties.put(
+        "producerConfig", ImmutableMap.of("blockIfQueueFull", true, "batchingEnabled", false));
     properties.put("consumerConfig", ImmutableMap.of("receiverQueueSize", 10));
     log.info("running basicPriorityBigBacklogTest with {}", properties);
 
@@ -271,6 +277,27 @@ public class PriorityTest {
                 countHighPriority++;
               }
               if (!receivedTexts.add(msg.getText())) {
+                String topicName = factory.getPulsarTopicName(destination);
+                PartitionedTopicStats partitionedStats =
+                    cluster
+                        .getService()
+                        .getAdminClient()
+                        .topics()
+                        .getPartitionedStats(topicName, true);
+                log.info("topicName {}", topicName);
+                log.info(
+                    "stats {}",
+                    ObjectMapperFactory.getThreadLocal().writeValueAsString(partitionedStats));
+                for (int j = 0; j < 10; j++) {
+                  String partition = topicName + "-partition-" + j;
+                  PersistentTopicInternalStats internalStats =
+                      cluster.getService().getAdminClient().topics().getInternalStats(partition);
+
+                  log.info("partition {}", partition);
+                  log.info(
+                      "stats {}",
+                      ObjectMapperFactory.getThreadLocal().writeValueAsString(internalStats));
+                }
                 fail(
                     "received message "
                         + msg.getText()
@@ -339,6 +366,8 @@ public class PriorityTest {
     properties.put("jms.enableJMSPriority", true);
     properties.put("jms.systemNamespace", SYSTEM_NAMESPACE_OVERRIDDEN);
     properties.put("consumerConfig", ImmutableMap.of("receiverQueueSize", 10));
+    properties.put(
+        "producerConfig", ImmutableMap.of("blockIfQueueFull", true, "batchingEnabled", false));
     String nameTopic1 = "test-topic1-" + UUID.randomUUID();
     String nameTopic2 = "test-topic2-" + UUID.randomUUID();
 
@@ -430,6 +459,8 @@ public class PriorityTest {
     properties.put("webServiceUrl", cluster.getAddress());
     properties.put("jms.enableJMSPriority", true);
     properties.put("consumerConfig", ImmutableMap.of("receiverQueueSize", 10));
+    properties.put(
+        "producerConfig", ImmutableMap.of("blockIfQueueFull", true, "batchingEnabled", false));
 
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (JMSContext context = factory.createContext()) {
