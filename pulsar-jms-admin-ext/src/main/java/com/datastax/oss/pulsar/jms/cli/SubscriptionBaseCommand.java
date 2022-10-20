@@ -15,11 +15,9 @@
  */
 package com.datastax.oss.pulsar.jms.cli;
 
-import com.datastax.oss.pulsar.jms.selectors.SelectorSupport;
 import java.util.Arrays;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.activemq.selector.ParseException;
 import org.apache.pulsar.admin.cli.extensions.ParameterDescriptor;
 import org.apache.pulsar.admin.cli.extensions.ParameterType;
 
@@ -55,12 +53,12 @@ public abstract class SubscriptionBaseCommand extends TopicBaseCommand {
     super.defineParameters(list);
     if (allowOverrideSubscriptionName) {
       list.add(
-              ParameterDescriptor.builder()
-                      .description("Subscription")
-                      .type(ParameterType.STRING)
-                      .names(Arrays.asList("--subscription", "-sub"))
-                      .required(true)
-                      .build());
+          ParameterDescriptor.builder()
+              .description("Subscription")
+              .type(ParameterType.STRING)
+              .names(Arrays.asList("--subscription", "-sub"))
+              .required(true)
+              .build());
     }
     list.add(
         ParameterDescriptor.builder()

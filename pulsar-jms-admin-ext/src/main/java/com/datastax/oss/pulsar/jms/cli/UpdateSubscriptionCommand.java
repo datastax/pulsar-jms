@@ -15,19 +15,10 @@
  */
 package com.datastax.oss.pulsar.jms.cli;
 
-import com.datastax.oss.pulsar.jms.PulsarConnectionFactory;
-import java.util.HashMap;
-import java.util.Map;
-import javax.jms.Destination;
-import javax.jms.Queue;
-import javax.jms.Topic;
-
 import com.datastax.oss.pulsar.jms.api.JMSAdmin;
+import javax.jms.Destination;
+import javax.jms.Topic;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.pulsar.client.admin.PulsarAdmin;
-import org.apache.pulsar.client.admin.PulsarAdminException;
-import org.apache.pulsar.common.policies.data.SubscriptionStats;
-import org.apache.pulsar.common.policies.data.TopicStats;
 
 @Slf4j
 public class UpdateSubscriptionCommand extends SubscriptionBaseCommand {
@@ -50,7 +41,7 @@ public class UpdateSubscriptionCommand extends SubscriptionBaseCommand {
     JMSAdmin admin = getAdmin();
 
     String subscription = getSubscription();
-    admin.setSubscriptionSelector((Topic) destination, subscription, isEnableFiltering(), getSelector());
-
+    admin.setSubscriptionSelector(
+        (Topic) destination, subscription, isEnableFiltering(), getSelector());
   }
 }

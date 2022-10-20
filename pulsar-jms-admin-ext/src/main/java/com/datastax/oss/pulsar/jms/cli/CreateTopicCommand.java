@@ -15,15 +15,13 @@
  */
 package com.datastax.oss.pulsar.jms.cli;
 
+import java.util.Arrays;
+import java.util.List;
+import javax.jms.Destination;
+import javax.jms.Topic;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.admin.cli.extensions.ParameterDescriptor;
 import org.apache.pulsar.admin.cli.extensions.ParameterType;
-
-import javax.jms.Destination;
-import javax.jms.Queue;
-import javax.jms.Topic;
-import java.util.Arrays;
-import java.util.List;
 
 @Slf4j
 public class CreateTopicCommand extends TopicBaseCommand {
@@ -46,12 +44,12 @@ public class CreateTopicCommand extends TopicBaseCommand {
   protected void defineParameters(List<ParameterDescriptor> list) {
     super.defineParameters(list);
     list.add(
-            ParameterDescriptor.builder()
-                    .description("Number of Partitions")
-                    .type(ParameterType.INTEGER)
-                    .names(Arrays.asList("--num-partitions", "-np"))
-                    .required(false)
-                    .build());
+        ParameterDescriptor.builder()
+            .description("Number of Partitions")
+            .type(ParameterType.INTEGER)
+            .names(Arrays.asList("--num-partitions", "-np"))
+            .required(false)
+            .build());
   }
 
   protected int getNumPartitions() {

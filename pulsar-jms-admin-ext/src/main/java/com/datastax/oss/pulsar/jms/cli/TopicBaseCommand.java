@@ -33,12 +33,12 @@ abstract class TopicBaseCommand extends BaseCommand {
     if (defaultDestinationType == null) {
       // if there is a default we don't let the use choose
       list.add(
-              ParameterDescriptor.builder()
-                      .description("Destination type")
-                      .type(ParameterType.STRING)
-                      .names(Arrays.asList("--destination-type", "-dt"))
-                      .required(false)
-                      .build());
+          ParameterDescriptor.builder()
+              .description("Destination type")
+              .type(ParameterType.STRING)
+              .names(Arrays.asList("--destination-type", "-dt"))
+              .required(false)
+              .build());
     }
     list.add(
         ParameterDescriptor.builder()
@@ -50,7 +50,8 @@ abstract class TopicBaseCommand extends BaseCommand {
             .build());
   }
 
-  protected PulsarDestination getDestination(boolean requireTopic, boolean requireQueue) throws Exception {
+  protected PulsarDestination getDestination(boolean requireTopic, boolean requireQueue)
+      throws Exception {
     String destination = getStringParameter("--destination", "");
     String destinationType = getStringParameter("--destination-type", this.defaultDestinationType);
     switch (destinationType) {

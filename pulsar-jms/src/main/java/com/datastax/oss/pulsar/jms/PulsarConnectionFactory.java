@@ -1707,6 +1707,7 @@ public class PulsarConnectionFactory
 
   /**
    * Access to the high level Admin JMS API
+   *
    * @return the handle to the Admin API.
    */
   public JMSAdmin getAdmin() {

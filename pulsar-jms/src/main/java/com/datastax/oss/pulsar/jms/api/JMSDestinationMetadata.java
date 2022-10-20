@@ -16,9 +16,6 @@
 package com.datastax.oss.pulsar.jms.api;
 
 /**
- * Admin API for JMS features.
- * This is meant to be like an extension of the PulsarAdmin Java API.
+ * Admin API for JMS features. This is meant to be like an extension of the PulsarAdmin Java API.
  */
-public interface JMSDestinationMetadata {
-
-}
+public interface JMSDestinationMetadata {}

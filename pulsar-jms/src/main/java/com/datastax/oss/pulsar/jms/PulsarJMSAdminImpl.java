@@ -18,185 +18,209 @@ package com.datastax.oss.pulsar.jms;
 import com.datastax.oss.pulsar.jms.api.JMSAdmin;
 import com.datastax.oss.pulsar.jms.api.JMSDestinationMetadata;
 import com.datastax.oss.pulsar.jms.selectors.SelectorSupport;
-import org.apache.pulsar.client.admin.PulsarAdminException;
-import org.apache.pulsar.client.admin.Topics;
-import org.apache.pulsar.client.api.MessageId;
-import org.apache.pulsar.common.partition.PartitionedTopicMetadata;
-
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.function.Supplier;
 import javax.jms.Destination;
 import javax.jms.IllegalStateException;
 import javax.jms.InvalidDestinationException;
 import javax.jms.JMSException;
 import javax.jms.Queue;
 import javax.jms.Topic;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.function.Function;
-import java.util.function.Supplier;
+import org.apache.pulsar.client.admin.PulsarAdminException;
+import org.apache.pulsar.client.admin.Topics;
+import org.apache.pulsar.client.api.MessageId;
+import org.apache.pulsar.common.partition.PartitionedTopicMetadata;
 
 class PulsarJMSAdminImpl implements JMSAdmin {
-    private final PulsarConnectionFactory factory;
+  private final PulsarConnectionFactory factory;
 
-    PulsarJMSAdminImpl(PulsarConnectionFactory factory) {
-        this.factory = factory;
+  PulsarJMSAdminImpl(PulsarConnectionFactory factory) {
+    this.factory = factory;
+  }
+
+  @Override
+  public Queue getQueue(String queue) throws JMSException {
+    return new PulsarQueue(queue);
+  }
+
+  @Override
+  public Topic getTopic(String topic) throws JMSException {
+    return new PulsarTopic(topic);
+  }
+
+  @Override
+  public JMSDestinationMetadata describe(Destination destination) throws JMSException {
+    return null;
+  }
+
+  void checkDestination(
+      Destination destination, Function<Destination, Boolean> condition, String message)
+      throws JMSException {
+    if (!condition.apply(destination)) {
+      throw new InvalidDestinationException(message);
     }
+  }
 
-
-    @Override
-    public Queue getQueue(String queue) throws JMSException {
-        return new PulsarQueue(queue);
+  void checkArgument(Supplier<Boolean> condition, String message) throws JMSException {
+    if (!condition.get()) {
+      throw new IllegalStateException(message);
     }
+  }
 
-    @Override
-    public Topic getTopic(String topic) throws JMSException {
-        return new PulsarTopic(topic);
+  void validateSelector(boolean enableFilters, String selector) throws JMSException {
+    if (enableFilters) {
+      SelectorSupport.build(selector, true);
     }
+  }
 
-    @Override
-    public JMSDestinationMetadata describe(Destination destination) throws JMSException {
-        return null;
+  @Override
+  public void createSubscription(
+      Topic destination,
+      String subscriptionName,
+      boolean enableFilters,
+      String selector,
+      boolean fromBeginning)
+      throws JMSException {
+    try {
+      PulsarDestination dest = PulsarConnectionFactory.toPulsarDestination(destination);
+      validateSelector(enableFilters, selector);
+      Map<String, String> properties = new HashMap<>();
+      if (enableFilters) {
+        properties.put("jms.filtering", "true");
+        properties.put("jms.selector", selector);
+      }
+      String topicName = factory.getPulsarTopicName(dest);
+      Topics topics = factory.getPulsarAdmin().topics();
+      topics.createSubscription(
+          topicName,
+          subscriptionName,
+          fromBeginning ? MessageId.earliest : MessageId.latest,
+          false,
+          properties);
+    } catch (PulsarAdminException error) {
+      throw Utils.handleException(error);
     }
+  }
 
-    void checkDestination(Destination destination, Function<Destination, Boolean> condition, String message) throws JMSException {
-        if (!condition.apply(destination)) {
-            throw new InvalidDestinationException(message);
-        }
+  @Override
+  public void createQueue(Queue destination, int partitions, boolean enableFilters, String selector)
+      throws JMSException {
+    checkArgument(() -> partitions >= 0, "Invalid number of partitions " + partitions);
+    validateSelector(enableFilters, selector);
+    try {
+      PulsarDestination dest = PulsarConnectionFactory.toPulsarDestination(destination);
+      checkDestination(
+          destination, d -> !dest.isVirtualDestination(), "Cannot create a VirtualDestination");
+
+      String topicName = factory.getPulsarTopicName(dest);
+      Topics topics = factory.getPulsarAdmin().topics();
+      try {
+        PartitionedTopicMetadata partitionedTopicMetadata =
+            topics.getPartitionedTopicMetadata(topicName);
+        checkDestination(
+            destination,
+            d -> partitionedTopicMetadata.partitions != partitions,
+            "Destination exists and it has a different number of partitions "
+                + partitionedTopicMetadata.partitions
+                + " is different from "
+                + partitions);
+      } catch (PulsarAdminException.NotFoundException notFound) {
+        // ok
+      }
+      String subscriptionName = factory.getQueueSubscriptionName(dest);
+      if (partitions > 0) {
+        topics.createPartitionedTopic(topicName, partitions);
+      } else {
+        topics.createNonPartitionedTopic(topicName);
+      }
+      Map<String, String> properties = new HashMap<>();
+      if (enableFilters) {
+        properties.put("jms.filtering", "true");
+        properties.put("jms.selector", selector);
+      }
+      topics.createSubscription(topicName, subscriptionName, MessageId.earliest, false, properties);
+    } catch (PulsarAdminException error) {
+      throw Utils.handleException(error);
     }
-    void checkArgument(Supplier<Boolean> condition, String message) throws JMSException {
-        if (!condition.get()) {
-            throw new IllegalStateException(message);
-        }
+  }
+
+  @Override
+  public void createTopic(Topic destination, int partitions) throws JMSException {
+    checkArgument(() -> partitions >= 0, "Invalid number of partitions " + partitions);
+    try {
+      PulsarDestination dest = PulsarConnectionFactory.toPulsarDestination(destination);
+      checkDestination(
+          destination, d -> !dest.isVirtualDestination(), "Cannot create a VirtualDestination");
+
+      String topicName = factory.getPulsarTopicName(dest);
+      Topics topics = factory.getPulsarAdmin().topics();
+      try {
+        PartitionedTopicMetadata partitionedTopicMetadata =
+            topics.getPartitionedTopicMetadata(topicName);
+        checkDestination(
+            destination,
+            d -> partitionedTopicMetadata.partitions != partitions,
+            "Destination exists and it has a different number of partitions "
+                + partitionedTopicMetadata.partitions
+                + " is different from "
+                + partitions);
+      } catch (PulsarAdminException.NotFoundException notFound) {
+        // ok
+      }
+      if (partitions > 0) {
+        topics.createPartitionedTopic(topicName, partitions);
+      } else {
+        topics.createNonPartitionedTopic(topicName);
+      }
+    } catch (PulsarAdminException error) {
+      throw Utils.handleException(error);
     }
+  }
 
-    void validateSelector(boolean enableFilters, String selector) throws JMSException {
-        if (enableFilters) {
-            SelectorSupport.build(selector, true);
-        }
+  @Override
+  public void setSubscriptionSelector(Queue destination, boolean enableFilters, String selector)
+      throws JMSException {
+    try {
+      PulsarDestination dest = PulsarConnectionFactory.toPulsarDestination(destination);
+      String topicName = factory.getPulsarTopicName(dest);
+      String subscriptionName = factory.getQueueSubscriptionName(dest);
+      doUpdateSubscriptionSelector(enableFilters, selector, topicName, subscriptionName);
+    } catch (PulsarAdminException error) {
+      throw Utils.handleException(error);
     }
+  }
 
-    @Override
-    public void createSubscription(Topic destination, String subscriptionName, boolean enableFilters, String selector, boolean fromBeginning) throws JMSException {
-        try {
-            PulsarDestination dest = PulsarConnectionFactory.toPulsarDestination(destination);
-            validateSelector(enableFilters, selector);
-            Map<String, String> properties = new HashMap<>();
-            if (enableFilters) {
-                properties.put("jms.filtering", "true");
-                properties.put("jms.selector", selector);
-            }
-            String topicName = factory.getPulsarTopicName(dest);
-            Topics topics = factory.getPulsarAdmin().topics();
-            topics.createSubscription(topicName, subscriptionName, fromBeginning ? MessageId.earliest : MessageId.latest,
-                    false, properties);
-        } catch (PulsarAdminException error) {
-            throw Utils.handleException(error);
-        }
+  private void doUpdateSubscriptionSelector(
+      boolean enableFilters, String selector, String topicName, String subscriptionName)
+      throws JMSException, PulsarAdminException {
+    validateSelector(enableFilters, selector);
+    Topics topics = factory.getPulsarAdmin().topics();
+    Map<String, String> currentProperties = new HashMap<>();
+    try {
+      currentProperties = topics.getSubscriptionProperties(topicName, subscriptionName);
+    } catch (PulsarAdminException.NotFoundException notFoundException) {
     }
-
-    @Override
-    public void createQueue(Queue destination, int partitions, boolean enableFilters, String selector) throws JMSException {
-        checkArgument(() -> partitions >= 0, "Invalid number of partitions " + partitions);
-        validateSelector(enableFilters, selector);
-        try {
-            PulsarDestination dest = PulsarConnectionFactory.toPulsarDestination(destination);
-            checkDestination(destination, d-> !dest.isVirtualDestination(), "Cannot create a VirtualDestination");
-
-            String topicName = factory.getPulsarTopicName(dest);
-            Topics topics = factory.getPulsarAdmin().topics();
-            try {
-                PartitionedTopicMetadata partitionedTopicMetadata = topics.getPartitionedTopicMetadata(topicName);
-                checkDestination(destination, d-> partitionedTopicMetadata.partitions != partitions,
-                        "Destination exists and it has a different number of partitions " +
-                        partitionedTopicMetadata.partitions +
-                                " is different from " +
-                                partitions);
-            } catch (PulsarAdminException.NotFoundException notFound) {
-                // ok
-            }
-            String subscriptionName = factory.getQueueSubscriptionName(dest);
-            if (partitions > 0) {
-                topics.createPartitionedTopic(topicName, partitions);
-            } else {
-                topics.createNonPartitionedTopic(topicName);
-            }
-            Map<String, String> properties = new HashMap<>();
-            if (enableFilters) {
-                properties.put("jms.filtering", "true");
-                properties.put("jms.selector", selector);
-            }
-            topics.createSubscription(topicName, subscriptionName, MessageId.earliest, false, properties);
-        } catch (PulsarAdminException error) {
-            throw Utils.handleException(error);
-        }
+    currentProperties.put("jms.filtering", enableFilters + "");
+    if (enableFilters) {
+      currentProperties.put("jms.selector", selector);
+    } else {
+      currentProperties.remove("jms.selector");
     }
+    topics.updateSubscriptionProperties(topicName, subscriptionName, currentProperties);
+  }
 
-    @Override
-    public void createTopic(Topic destination, int partitions) throws JMSException {
-        checkArgument(() -> partitions >= 0, "Invalid number of partitions " + partitions);
-        try {
-            PulsarDestination dest = PulsarConnectionFactory.toPulsarDestination(destination);
-            checkDestination(destination, d-> !dest.isVirtualDestination(), "Cannot create a VirtualDestination");
-
-            String topicName = factory.getPulsarTopicName(dest);
-            Topics topics = factory.getPulsarAdmin().topics();
-            try {
-                PartitionedTopicMetadata partitionedTopicMetadata = topics.getPartitionedTopicMetadata(topicName);
-                checkDestination(destination, d-> partitionedTopicMetadata.partitions != partitions,
-                        "Destination exists and it has a different number of partitions " +
-                                partitionedTopicMetadata.partitions +
-                                " is different from " +
-                                partitions);
-            } catch (PulsarAdminException.NotFoundException notFound) {
-                // ok
-            }
-            if (partitions > 0) {
-                topics.createPartitionedTopic(topicName, partitions);
-            } else {
-                topics.createNonPartitionedTopic(topicName);
-            }
-        } catch (PulsarAdminException error) {
-            throw Utils.handleException(error);
-        }
+  @Override
+  public void setSubscriptionSelector(
+      Topic destination, String subscriptionName, boolean enableFilters, String selector)
+      throws JMSException {
+    try {
+      PulsarDestination dest = PulsarConnectionFactory.toPulsarDestination(destination);
+      String topicName = factory.getPulsarTopicName(dest);
+      doUpdateSubscriptionSelector(enableFilters, selector, topicName, subscriptionName);
+    } catch (PulsarAdminException error) {
+      throw Utils.handleException(error);
     }
-
-    @Override
-    public void setSubscriptionSelector(Queue destination, boolean enableFilters, String selector) throws JMSException {
-        try {
-            PulsarDestination dest = PulsarConnectionFactory.toPulsarDestination(destination);
-            String topicName = factory.getPulsarTopicName(dest);
-            String subscriptionName = factory.getQueueSubscriptionName(dest);
-            doUpdateSubscriptionSelector(enableFilters, selector, topicName, subscriptionName);
-        } catch (PulsarAdminException error) {
-            throw Utils.handleException(error);
-        }
-    }
-
-    private void doUpdateSubscriptionSelector(boolean enableFilters, String selector, String topicName, String subscriptionName)
-            throws JMSException, PulsarAdminException {
-        validateSelector(enableFilters, selector);
-        Topics topics = factory.getPulsarAdmin().topics();
-        Map<String, String> currentProperties = new HashMap<>();
-        try {
-            currentProperties = topics.getSubscriptionProperties(topicName, subscriptionName);
-        } catch (PulsarAdminException.NotFoundException notFoundException) {
-        }
-        currentProperties.put("jms.filtering", enableFilters + "");
-        if (enableFilters) {
-            currentProperties.put("jms.selector", selector);
-        } else {
-            currentProperties.remove("jms.selector");
-        }
-        topics.updateSubscriptionProperties(topicName, subscriptionName, currentProperties);
-    }
-
-    @Override
-    public void setSubscriptionSelector(Topic destination, String subscriptionName, boolean enableFilters, String selector) throws JMSException {
-        try {
-            PulsarDestination dest = PulsarConnectionFactory.toPulsarDestination(destination);
-            String topicName = factory.getPulsarTopicName(dest);
-            doUpdateSubscriptionSelector(enableFilters, selector, topicName, subscriptionName);
-        } catch (PulsarAdminException error) {
-            throw Utils.handleException(error);
-        }
-    }
+  }
 }

@@ -16,11 +16,9 @@
 package com.datastax.oss.pulsar.jms.cli;
 
 import com.datastax.oss.pulsar.jms.api.JMSAdmin;
-import lombok.extern.slf4j.Slf4j;
-
 import javax.jms.Destination;
 import javax.jms.Queue;
-import javax.jms.Topic;
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class UpdateQueueCommand extends SubscriptionBaseCommand {

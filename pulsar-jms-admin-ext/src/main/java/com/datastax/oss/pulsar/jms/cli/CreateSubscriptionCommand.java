@@ -15,19 +15,9 @@
  */
 package com.datastax.oss.pulsar.jms.cli;
 
-import com.datastax.oss.pulsar.jms.PulsarConnectionFactory;
-import java.util.HashMap;
-import java.util.Map;
 import javax.jms.Destination;
-import javax.jms.Queue;
 import javax.jms.Topic;
-
 import lombok.extern.slf4j.Slf4j;
-import org.apache.pulsar.client.admin.PulsarAdmin;
-import org.apache.pulsar.client.admin.PulsarAdminException;
-import org.apache.pulsar.client.api.MessageId;
-import org.apache.pulsar.common.policies.data.SubscriptionStats;
-import org.apache.pulsar.common.policies.data.TopicStats;
 
 @Slf4j
 public class CreateSubscriptionCommand extends SubscriptionBaseCommand {
@@ -48,6 +38,8 @@ public class CreateSubscriptionCommand extends SubscriptionBaseCommand {
   public void executeInternal() throws Exception {
     String subscription = getSubscription();
     Destination destination = getDestination(true, false);
-    getAdmin().createSubscription((Topic) destination, subscription, isEnableFiltering(), getSelector(), false);
+    getAdmin()
+        .createSubscription(
+            (Topic) destination, subscription, isEnableFiltering(), getSelector(), false);
   }
 }
