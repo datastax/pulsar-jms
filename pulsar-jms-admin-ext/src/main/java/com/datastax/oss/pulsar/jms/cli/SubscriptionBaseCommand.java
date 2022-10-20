@@ -26,6 +26,13 @@ import org.apache.pulsar.admin.cli.extensions.ParameterType;
 @Slf4j
 public abstract class SubscriptionBaseCommand extends TopicBaseCommand {
 
+  private final boolean allowOverrideSubscriptionName;
+
+  public SubscriptionBaseCommand(boolean allowOverrideSubscriptionName, String destinationType) {
+    super(destinationType);
+    this.allowOverrideSubscriptionName = allowOverrideSubscriptionName;
+  }
+
   @Override
   public String description() {
     return "Create a Subscription with optionally a JMS Selector";
@@ -43,41 +50,18 @@ public abstract class SubscriptionBaseCommand extends TopicBaseCommand {
     return Boolean.parseBoolean(getStringParameter("--enable-filtering", "true"));
   }
 
-  protected void validateSelector() throws Exception {
-    String selector = getSelector();
-    boolean enableFiltering = isEnableFiltering();
-    if (!selector.isEmpty()) {
-      if (!enableFiltering) {
-        throw new IllegalArgumentException("If you set a selector you have to enable filtering");
-      }
-      // validated selector syntax
-      try {
-        SelectorSupport.build(selector, true);
-      } catch (javax.jms.InvalidSelectorException err) {
-        if (err.getCause() != null && err.getCause() instanceof ParseException) {
-          throw new IllegalArgumentException(
-              "Selector is not valid: " + err.getCause().getMessage());
-        } else {
-          throw new IllegalArgumentException("Selector is not valid: " + err, err);
-        }
-      }
-    } else {
-      if (enableFiltering) {
-        throw new IllegalArgumentException("If you enable filtering you have to set a selector");
-      }
-    }
-  }
-
   @Override
   protected void defineParameters(List<ParameterDescriptor> list) {
     super.defineParameters(list);
-    list.add(
-        ParameterDescriptor.builder()
-            .description("Subscription")
-            .type(ParameterType.STRING)
-            .names(Arrays.asList("--subscription", "-sub"))
-            .required(true)
-            .build());
+    if (allowOverrideSubscriptionName) {
+      list.add(
+              ParameterDescriptor.builder()
+                      .description("Subscription")
+                      .type(ParameterType.STRING)
+                      .names(Arrays.asList("--subscription", "-sub"))
+                      .required(true)
+                      .build());
+    }
     list.add(
         ParameterDescriptor.builder()
             .description("Enable filtering")

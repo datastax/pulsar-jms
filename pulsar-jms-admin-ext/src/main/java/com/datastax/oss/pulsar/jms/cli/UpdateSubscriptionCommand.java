@@ -19,6 +19,10 @@ import com.datastax.oss.pulsar.jms.PulsarConnectionFactory;
 import java.util.HashMap;
 import java.util.Map;
 import javax.jms.Destination;
+import javax.jms.Queue;
+import javax.jms.Topic;
+
+import com.datastax.oss.pulsar.jms.api.JMSAdmin;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.admin.PulsarAdmin;
 import org.apache.pulsar.client.admin.PulsarAdminException;
@@ -27,6 +31,9 @@ import org.apache.pulsar.common.policies.data.TopicStats;
 
 @Slf4j
 public class UpdateSubscriptionCommand extends SubscriptionBaseCommand {
+  public UpdateSubscriptionCommand() {
+    super(true, "topic");
+  }
 
   @Override
   public String name() {
@@ -35,56 +42,15 @@ public class UpdateSubscriptionCommand extends SubscriptionBaseCommand {
 
   @Override
   public String description() {
-    return "Update a JMS Subscription";
+    return "Update a Subscription on a JMS Topic";
   }
 
   public void executeInternal() throws Exception {
-    validateSelector();
+    Destination destination = getDestination(false, false);
+    JMSAdmin admin = getAdmin();
+
     String subscription = getSubscription();
-    String selector = getSelector();
-    Destination destination = getDestination(false);
-    PulsarConnectionFactory factory = getFactory();
-    String topicName = factory.getPulsarTopicName(destination);
-    println("JMS Destination {} maps to Pulsar Topic {}", destination, topicName);
-    PulsarAdmin pulsarAdmin = factory.getPulsarAdmin();
-    Map<String, String> currentProperties = null;
-    try {
-      TopicStats stats = pulsarAdmin.topics().getStats(topicName);
-      Map<String, ? extends SubscriptionStats> subscriptions = stats.getSubscriptions();
-      if (!subscriptions.containsKey(subscription)) {
-        throw new IllegalArgumentException(
-            "Pulsar topic " + topicName + " does not have a subscription named " + subscription);
-      }
-      currentProperties = subscriptions.get(subscription).getSubscriptionProperties();
-      if (currentProperties == null) {
-        currentProperties = new HashMap<>();
-      }
-    } catch (PulsarAdminException.NotFoundException ok) {
-      throw new IllegalArgumentException("Topic " + topicName + " does not exist");
-    }
+    admin.setSubscriptionSelector((Topic) destination, subscription, isEnableFiltering(), getSelector());
 
-    Map<String, String> subscriptionProperties = new HashMap<>(currentProperties);
-    if (selector != null && !selector.isEmpty() && isEnableFiltering()) {
-      subscriptionProperties.put("jms.selector", selector);
-      subscriptionProperties.put("jms.filtering", "true");
-      println(
-          "Activating filtering with selector {}. Subscription properties {}",
-          selector,
-          subscriptionProperties);
-    } else {
-      subscriptionProperties.put("jms.selector", "");
-      subscriptionProperties.put("jms.filtering", "false");
-      println("Disabling filtering. Subscription properties {}", selector, subscriptionProperties);
-    }
-
-    println(
-        "Updating subscription {} on {} properties {}",
-        subscription,
-        topicName,
-        subscriptionProperties);
-
-    pulsarAdmin
-        .topics()
-        .updateSubscriptionProperties(topicName, subscription, subscriptionProperties);
   }
 }

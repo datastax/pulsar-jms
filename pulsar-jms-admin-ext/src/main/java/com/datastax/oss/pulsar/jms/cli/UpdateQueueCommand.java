@@ -15,39 +15,32 @@
  */
 package com.datastax.oss.pulsar.jms.cli;
 
-import com.datastax.oss.pulsar.jms.PulsarConnectionFactory;
-import java.util.HashMap;
-import java.util.Map;
+import com.datastax.oss.pulsar.jms.api.JMSAdmin;
+import lombok.extern.slf4j.Slf4j;
+
 import javax.jms.Destination;
 import javax.jms.Queue;
 import javax.jms.Topic;
 
-import lombok.extern.slf4j.Slf4j;
-import org.apache.pulsar.client.admin.PulsarAdmin;
-import org.apache.pulsar.client.admin.PulsarAdminException;
-import org.apache.pulsar.client.api.MessageId;
-import org.apache.pulsar.common.policies.data.SubscriptionStats;
-import org.apache.pulsar.common.policies.data.TopicStats;
-
 @Slf4j
-public class CreateSubscriptionCommand extends SubscriptionBaseCommand {
-  public CreateSubscriptionCommand() {
-    super(true, "topic");
+public class UpdateQueueCommand extends SubscriptionBaseCommand {
+  public UpdateQueueCommand() {
+    super(false, "queue");
   }
 
   @Override
   public String name() {
-    return "create-subscription";
+    return "update-queue";
   }
 
   @Override
   public String description() {
-    return "Create a JMS Subscription on a Topic";
+    return "Update a JMS Queue";
   }
 
   public void executeInternal() throws Exception {
-    String subscription = getSubscription();
-    Destination destination = getDestination(true, false);
-    getAdmin().createSubscription((Topic) destination, subscription, isEnableFiltering(), getSelector(), false);
+    Destination destination = getDestination(false, true);
+    JMSAdmin admin = getAdmin();
+    admin.setSubscriptionSelector((Queue) destination, isEnableFiltering(), getSelector());
   }
 }

@@ -18,6 +18,7 @@ package com.datastax.oss.pulsar.jms;
 import static com.datastax.oss.pulsar.jms.Utils.getAndRemoveString;
 import static org.apache.pulsar.client.util.MathUtils.signSafeMod;
 
+import com.datastax.oss.pulsar.jms.api.JMSAdmin;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.IOException;
@@ -1702,5 +1703,13 @@ public class PulsarConnectionFactory
         c -> {
           c.refreshServerSideSelectors();
         });
+  }
+
+  /**
+   * Access to the high level Admin JMS API
+   * @return the handle to the Admin API.
+   */
+  public JMSAdmin getAdmin() {
+    return new PulsarJMSAdminImpl(this);
   }
 }

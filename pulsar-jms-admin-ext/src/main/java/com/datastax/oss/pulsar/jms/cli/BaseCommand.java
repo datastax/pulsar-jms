@@ -17,6 +17,7 @@ package com.datastax.oss.pulsar.jms.cli;
 
 import com.datastax.oss.pulsar.jms.PulsarConnectionFactory;
 import com.datastax.oss.pulsar.jms.PulsarJMSContext;
+import com.datastax.oss.pulsar.jms.api.JMSAdmin;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import java.io.File;
@@ -95,6 +96,10 @@ abstract class BaseCommand implements CustomCommand {
 
   protected PulsarConnectionFactory getFactory() throws Exception {
     return getFactory(false);
+  }
+
+  protected JMSAdmin getAdmin() throws Exception {
+    return getFactory().getAdmin();
   }
 
   protected PulsarConnectionFactory getFactory(boolean createClient) throws Exception {

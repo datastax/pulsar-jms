@@ -31,6 +31,11 @@ import org.apache.pulsar.common.policies.data.TopicStats;
 
 @Slf4j
 class DescribeCommand extends TopicBaseCommand {
+
+  public DescribeCommand() {
+    super(null);
+  }
+
   @Override
   public String name() {
     return "describe";
@@ -44,7 +49,7 @@ class DescribeCommand extends TopicBaseCommand {
   @Override
   protected void executeInternal() throws Exception {
 
-    PulsarDestination destination = getDestination(false);
+    PulsarDestination destination = getDestination(false, false);
 
     if (destination.isMultiTopic()) {
       List<PulsarDestination> destinations = destination.getDestinations();
