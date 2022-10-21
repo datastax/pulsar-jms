@@ -26,89 +26,148 @@ import lombok.Setter;
  * Admin API for JMS features. This is meant to be like an extension of the PulsarAdmin Java API.
  */
 @Setter
-public class JMSDestinationMetadata {
-  private final PulsarDestination destination;
+public abstract class JMSDestinationMetadata {
+  protected final PulsarDestination destination;
 
   public JMSDestinationMetadata(PulsarDestination destination) {
     this.destination = destination;
   }
 
-  private boolean exists;
-  private String pulsarTopic;
-  private String queueSubscription;
+  public abstract static class PhysicalPulsarTopicMetadata extends JMSDestinationMetadata {
+    public PhysicalPulsarTopicMetadata(
+        PulsarDestination destination,
+        boolean exists,
+        String pulsarTopic,
+        List<ProducerMetadata> producers,
+        int partitions) {
+      super(destination);
+      this.exists = exists;
+      this.pulsarTopic = pulsarTopic;
+      this.producers = producers;
+      this.partitions = partitions;
+    }
 
-  private boolean queueSubscriptionExists;
+    private final boolean exists;
+    private final String pulsarTopic;
+    private final List<ProducerMetadata> producers;
+    private final int partitions;
 
-  public boolean isQueueSubscriptionExists() {
-    return queueSubscriptionExists;
+    public boolean isPartitioned() {
+      return partitions > 0;
+    }
+
+    public String getPulsarTopic() {
+      return pulsarTopic;
+    }
+
+    public boolean isExists() {
+      return exists;
+    }
+
+    public int getPartitions() {
+      return partitions;
+    }
+
+    public List<ProducerMetadata> getProducers() {
+      return producers;
+    }
   }
 
-  public boolean isExists() {
-    return exists;
+  public static final class TopicMetadata extends PhysicalPulsarTopicMetadata {
+
+    public TopicMetadata(
+        PulsarDestination destination,
+        boolean exists,
+        String pulsarTopic,
+        List<ProducerMetadata> producers,
+        int partitions,
+        List<SubscriptionMetadata> subscriptions) {
+      super(destination, exists, pulsarTopic, producers, partitions);
+      this.subscriptions = subscriptions;
+    }
+
+    private final List<SubscriptionMetadata> subscriptions;
+
+    public List<SubscriptionMetadata> getSubscriptions() {
+      return subscriptions;
+    }
   }
 
-  public String getPulsarTopic() {
-    return pulsarTopic;
+  public static final class QueueMetadata extends PhysicalPulsarTopicMetadata {
+    public QueueMetadata(
+        PulsarDestination destination,
+        boolean exists,
+        String pulsarTopic,
+        List<ProducerMetadata> producers,
+        int partitions,
+        String queueSubscription,
+        boolean queueSubscriptionExists,
+        SubscriptionMetadata subscriptionMetadata) {
+      super(destination, exists, pulsarTopic, producers, partitions);
+      this.queueSubscription = queueSubscription;
+      this.queueSubscriptionExists = queueSubscriptionExists;
+      this.subscriptionMetadata = subscriptionMetadata;
+    }
+
+    private final String queueSubscription;
+
+    private final boolean queueSubscriptionExists;
+
+    private final SubscriptionMetadata subscriptionMetadata;
+
+    public boolean isQueueSubscriptionExists() {
+      return queueSubscriptionExists;
+    }
+
+    public String getQueueSubscription() {
+      return queueSubscription;
+    }
+
+    public SubscriptionMetadata getSubscriptionMetadata() {
+      return subscriptionMetadata;
+    }
   }
 
-  public String getQueueSubscription() {
-    return queueSubscription;
+  public static final class VirtualDestinationMetadata extends JMSDestinationMetadata {
+    public VirtualDestinationMetadata(
+        PulsarDestination destination, List<JMSDestinationMetadata> destinations) {
+      super(destination);
+      this.destinations = destinations;
+    }
+
+    public final boolean isRegex() {
+      return destination.isRegExp();
+    }
+
+    public final boolean isMultiTopic() {
+      return destination.isMultiTopic();
+    }
+
+    private final List<JMSDestinationMetadata> destinations;
+
+    public List<JMSDestinationMetadata> getDestinations() {
+      return destinations;
+    }
   }
 
-  public int getPartitions() {
-    return partitions;
-  }
-
-  public List<JMSDestinationMetadata> getDestinations() {
-    return destinations;
-  }
-
-  public List<SubscriptionMetadata> getSubscriptions() {
-    return subscriptions;
-  }
-
-  public List<ProducerMetadata> getProducers() {
-    return producers;
-  }
-
-  private int partitions;
-
-  public String getDestination() {
+  public final String getDestination() {
     return destination.getName();
   }
 
-  public boolean isPartitioned() {
-    return partitions > 0;
-  }
-
-  public boolean isQueue() {
+  public final boolean isQueue() {
     return destination.isQueue();
   }
 
-  public boolean isTopic() {
+  public final boolean isTopic() {
     return destination.isTopic();
   }
 
-  public boolean isVirtualDestination() {
+  public final boolean isVirtualDestination() {
     return destination.isVirtualDestination();
   }
 
-  public boolean isRegex() {
-    return destination.isRegExp();
-  }
-
-  public boolean isMultiTopic() {
-    return destination.isMultiTopic();
-  }
-
-  private List<JMSDestinationMetadata> destinations;
-
-  private List<SubscriptionMetadata> subscriptions;
-
-  private List<ProducerMetadata> producers;
-
   @Data
-  public static class SubscriptionMetadata {
+  public static final class SubscriptionMetadata {
     private final String subscriptionName;
 
     public SubscriptionMetadata(String subscriptionName) {
@@ -122,9 +181,8 @@ public class JMSDestinationMetadata {
   }
 
   @Data
-  public static class ConsumerMetadata {
-    @Getter
-    private final String consumerName;
+  public static final class ConsumerMetadata {
+    @Getter private final String consumerName;
 
     public ConsumerMetadata(String consumerName) {
       this.consumerName = consumerName;
@@ -139,9 +197,8 @@ public class JMSDestinationMetadata {
   }
 
   @Data
-  public static class ProducerMetadata {
-    @Getter
-    private final String producerName;
+  public static final class ProducerMetadata {
+    @Getter private final String producerName;
 
     public ProducerMetadata(String producerName) {
       this.producerName = producerName;
