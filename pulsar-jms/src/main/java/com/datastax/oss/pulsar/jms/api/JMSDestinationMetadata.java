@@ -15,27 +15,31 @@
  */
 package com.datastax.oss.pulsar.jms.api;
 
-import com.datastax.oss.pulsar.jms.PulsarDestination;
 import java.util.List;
 import java.util.Map;
 import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
 
-/**
- * Admin API for JMS features. This is meant to be like an extension of the PulsarAdmin Java API.
- */
+/** High level description of a JMS Destination. */
 @Setter
 public abstract class JMSDestinationMetadata {
-  protected final PulsarDestination destination;
+  private final String destination;
 
-  public JMSDestinationMetadata(PulsarDestination destination) {
+  public abstract boolean isQueue();
+
+  public abstract boolean isTopic();
+
+  public abstract boolean isVirtualDestination();
+
+  protected JMSDestinationMetadata(String destination) {
     this.destination = destination;
   }
 
+  /** The destination maps to a physical topic, partitioned or non-partitioned. */
   public abstract static class PhysicalPulsarTopicMetadata extends JMSDestinationMetadata {
     public PhysicalPulsarTopicMetadata(
-        PulsarDestination destination,
+        String destination,
         boolean exists,
         String pulsarTopic,
         List<ProducerMetadata> producers,
@@ -71,12 +75,18 @@ public abstract class JMSDestinationMetadata {
     public List<ProducerMetadata> getProducers() {
       return producers;
     }
+
+    @Override
+    public boolean isVirtualDestination() {
+      return false;
+    }
   }
 
+  /** The destination is a JMS Topic, that maps to a Pulsar Topic with a set of Subscriptions. */
   public static final class TopicMetadata extends PhysicalPulsarTopicMetadata {
 
     public TopicMetadata(
-        PulsarDestination destination,
+        String destination,
         boolean exists,
         String pulsarTopic,
         List<ProducerMetadata> producers,
@@ -91,11 +101,22 @@ public abstract class JMSDestinationMetadata {
     public List<SubscriptionMetadata> getSubscriptions() {
       return subscriptions;
     }
+
+    @Override
+    public boolean isQueue() {
+      return false;
+    }
+
+    @Override
+    public boolean isTopic() {
+      return true;
+    }
   }
 
+  /** The destination is a JMS Queue. A Queue is mapped to a single Pulsar Subscription. */
   public static final class QueueMetadata extends PhysicalPulsarTopicMetadata {
     public QueueMetadata(
-        PulsarDestination destination,
+        String destination,
         boolean exists,
         String pulsarTopic,
         List<ProducerMetadata> producers,
@@ -126,46 +147,71 @@ public abstract class JMSDestinationMetadata {
     public SubscriptionMetadata getSubscriptionMetadata() {
       return subscriptionMetadata;
     }
+
+    @Override
+    public boolean isQueue() {
+      return true;
+    }
+
+    @Override
+    public boolean isTopic() {
+      return false;
+    }
   }
 
+  /** The Destination is a Virtual Destination, with the set of actual physical destinations. */
   public static final class VirtualDestinationMetadata extends JMSDestinationMetadata {
+    private final boolean multiTopic;
+    private final boolean regex;
+    private final boolean queue;
+    private final List<JMSDestinationMetadata> destinations;
+
     public VirtualDestinationMetadata(
-        PulsarDestination destination, List<JMSDestinationMetadata> destinations) {
+        String destination,
+        boolean queue,
+        boolean multiTopic,
+        boolean regex,
+        List<JMSDestinationMetadata> destinations) {
       super(destination);
       this.destinations = destinations;
+      this.queue = queue;
+      this.regex = regex;
+      this.multiTopic = multiTopic;
     }
 
-    public final boolean isRegex() {
-      return destination.isRegExp();
+    public boolean isRegex() {
+      return regex;
     }
 
-    public final boolean isMultiTopic() {
-      return destination.isMultiTopic();
+    public boolean isMultiTopic() {
+      return multiTopic;
     }
-
-    private final List<JMSDestinationMetadata> destinations;
 
     public List<JMSDestinationMetadata> getDestinations() {
       return destinations;
     }
+
+    @Override
+    public boolean isQueue() {
+      return queue;
+    }
+
+    @Override
+    public boolean isTopic() {
+      return !queue;
+    }
+
+    @Override
+    public boolean isVirtualDestination() {
+      return true;
+    }
   }
 
   public final String getDestination() {
-    return destination.getName();
+    return destination;
   }
 
-  public final boolean isQueue() {
-    return destination.isQueue();
-  }
-
-  public final boolean isTopic() {
-    return destination.isTopic();
-  }
-
-  public final boolean isVirtualDestination() {
-    return destination.isVirtualDestination();
-  }
-
+  /** Metadata about a Pulsar Subscription. */
   @Data
   public static final class SubscriptionMetadata {
     private final String subscriptionName;
@@ -180,6 +226,7 @@ public abstract class JMSDestinationMetadata {
     private List<ConsumerMetadata> consumers;
   }
 
+  /** Metadata about a Pulsar Consumer. */
   @Data
   public static final class ConsumerMetadata {
     @Getter private final String consumerName;
@@ -196,6 +243,7 @@ public abstract class JMSDestinationMetadata {
     private String clientVersion;
   }
 
+  /** Metadata about a Pulsar Producer. */
   @Data
   public static final class ProducerMetadata {
     @Getter private final String producerName;

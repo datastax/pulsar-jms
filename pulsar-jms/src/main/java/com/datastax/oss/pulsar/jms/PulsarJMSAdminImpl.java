@@ -74,7 +74,11 @@ class PulsarJMSAdminImpl implements JMSAdmin {
         subDestinationsMetadata.add(subDestinationMetadata);
       }
       return new JMSDestinationMetadata.VirtualDestinationMetadata(
-          destination, subDestinationsMetadata);
+          destination.getName(),
+          destination.isQueue(),
+          destination.isMultiTopic(),
+          destination.isRegExp(),
+          subDestinationsMetadata);
     } else if (destination.isRegExp()) {
 
       List<JMSDestinationMetadata> subDestinationsMetadata = new ArrayList<>();
@@ -92,7 +96,11 @@ class PulsarJMSAdminImpl implements JMSAdmin {
         subDestinationsMetadata.add(subDestinationMetadata);
       }
       return new JMSDestinationMetadata.VirtualDestinationMetadata(
-          destination, subDestinationsMetadata);
+          destination.getName(),
+          destination.isQueue(),
+          destination.isMultiTopic(),
+          destination.isRegExp(),
+          subDestinationsMetadata);
     } else {
       return describeDestination(destination);
     }
@@ -215,7 +223,7 @@ class PulsarJMSAdminImpl implements JMSAdmin {
       JMSDestinationMetadata.SubscriptionMetadata subscriptionMetadata =
           subscriptionMetadataList.isEmpty() ? null : subscriptionMetadataList.get(0);
       return new JMSDestinationMetadata.QueueMetadata(
-          destination,
+          destination.getName(),
           exists,
           pulsarTopic,
           producerMetadataList,
@@ -225,7 +233,7 @@ class PulsarJMSAdminImpl implements JMSAdmin {
           subscriptionMetadata);
     } else {
       return new JMSDestinationMetadata.TopicMetadata(
-          destination,
+          destination.getName(),
           exists,
           pulsarTopic,
           producerMetadataList,
