@@ -257,4 +257,19 @@ public abstract class JMSDestinationMetadata {
     private String address;
     private String clientVersion;
   }
+
+  /**
+   * Utility method to convert to a specific subclass
+   *
+   * @param clazz the desired class
+   * @return this object
+   * @param <T> the type
+   */
+  public <T extends JMSDestinationMetadata> T unwrap(Class<T> clazz) {
+    if (clazz.isInstance(this)) {
+      return (T) this;
+    }
+    throw new IllegalArgumentException(
+        "A instance of " + this.getClass() + " cannot be converted to " + clazz);
+  }
 }

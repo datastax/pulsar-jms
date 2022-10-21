@@ -117,8 +117,8 @@ class PulsarJMSAdminImpl implements JMSAdmin {
       queueSubscription = null;
     }
     boolean exists = false;
-    Map<String, ? extends SubscriptionStats> subscriptions;
-    List<? extends PublisherStats> publishers;
+    Map<String, ? extends SubscriptionStats> subscriptions = Collections.emptyMap();
+    List<? extends PublisherStats> publishers = Collections.emptyList();
     PartitionedTopicMetadata partitionedTopicMetadata;
     try {
       partitionedTopicMetadata = pulsarAdmin.topics().getPartitionedTopicMetadata(pulsarTopic);
@@ -130,26 +130,27 @@ class PulsarJMSAdminImpl implements JMSAdmin {
     }
     int partitions = partitionedTopicMetadata.partitions;
 
-    try {
-      if (partitionedTopicMetadata.partitions > 0) {
-        PartitionedTopicStats partitionedStats =
-            pulsarAdmin.topics().getPartitionedStats(pulsarTopic, false);
-        subscriptions = partitionedStats.getSubscriptions();
-        publishers = partitionedStats.getPublishers();
-      } else {
-        TopicStats stats = pulsarAdmin.topics().getStats(pulsarTopic);
-        subscriptions = stats.getSubscriptions();
-        publishers = stats.getPublishers();
+    if (exists) {
+      try {
+        if (partitionedTopicMetadata.partitions > 0) {
+          PartitionedTopicStats partitionedStats =
+              pulsarAdmin.topics().getPartitionedStats(pulsarTopic, false);
+          subscriptions = partitionedStats.getSubscriptions();
+          publishers = partitionedStats.getPublishers();
+        } else {
+          TopicStats stats = pulsarAdmin.topics().getStats(pulsarTopic);
+          subscriptions = stats.getSubscriptions();
+          publishers = stats.getPublishers();
+        }
+        if (subscriptions == null) {
+          subscriptions = Collections.emptyMap();
+        }
+        if (publishers == null) {
+          publishers = Collections.emptyList();
+        }
+      } catch (PulsarAdminException err) {
+        throw Utils.handleException(err);
       }
-    } catch (PulsarAdminException err) {
-      throw Utils.handleException(err);
-    }
-
-    if (subscriptions == null) {
-      subscriptions = Collections.emptyMap();
-    }
-    if (publishers == null) {
-      publishers = Collections.emptyList();
     }
 
     List<JMSDestinationMetadata.SubscriptionMetadata> subscriptionMetadataList = new ArrayList<>();
@@ -309,7 +310,7 @@ class PulsarJMSAdminImpl implements JMSAdmin {
             topics.getPartitionedTopicMetadata(topicName);
         checkDestination(
             destination,
-            d -> partitionedTopicMetadata.partitions != partitions,
+            d -> partitionedTopicMetadata.partitions == partitions,
             "Destination exists and it has a different number of partitions "
                 + partitionedTopicMetadata.partitions
                 + " is different from "
