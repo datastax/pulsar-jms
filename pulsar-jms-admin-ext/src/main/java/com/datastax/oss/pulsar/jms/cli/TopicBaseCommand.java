@@ -23,23 +23,13 @@ import org.apache.pulsar.admin.cli.extensions.ParameterType;
 
 abstract class TopicBaseCommand extends BaseCommand {
 
-  final String defaultDestinationType;
+  final String destinationType;
 
-  public TopicBaseCommand(String defaultDestinationType) {
-    this.defaultDestinationType = defaultDestinationType;
+  public TopicBaseCommand(String destinationType) {
+    this.destinationType = destinationType;
   }
 
   protected void defineParameters(List<ParameterDescriptor> list) {
-    if (defaultDestinationType == null) {
-      // if there is a default we don't let the use choose
-      list.add(
-          ParameterDescriptor.builder()
-              .description("Destination type")
-              .type(ParameterType.STRING)
-              .names(Arrays.asList("--destination-type", "-dt"))
-              .required(false)
-              .build());
-    }
     list.add(
         ParameterDescriptor.builder()
             .description("Destination")
@@ -50,20 +40,12 @@ abstract class TopicBaseCommand extends BaseCommand {
             .build());
   }
 
-  protected PulsarDestination getDestination(boolean requireTopic, boolean requireQueue)
-      throws Exception {
+  protected PulsarDestination getDestination() throws Exception {
     String destination = getStringParameter("--destination", "");
-    String destinationType = getStringParameter("--destination-type", this.defaultDestinationType);
     switch (destinationType) {
       case "queue":
-        if (requireTopic) {
-          throw new IllegalArgumentException("this command is supported only on JMS Topics");
-        }
         return (PulsarDestination) getContext().createQueue(destination);
       case "topic":
-        if (requireQueue) {
-          throw new IllegalArgumentException("this command is supported only on JMS Queues");
-        }
         return (PulsarDestination) getContext().createTopic(destination);
       default:
         throw new IllegalArgumentException("Invalid destination type " + destinationType);

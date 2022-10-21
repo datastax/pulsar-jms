@@ -16,9 +16,12 @@
 package com.datastax.oss.pulsar.jms;
 
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import javax.jms.JMSException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.api.PulsarClient;
 import org.apache.pulsar.client.impl.LookupService;
@@ -31,16 +34,20 @@ import org.apache.pulsar.common.naming.TopicName;
 public class TopicDiscoveryUtils {
 
   public static List<String> discoverTopicsByPattern(String regex, PulsarClient client, int timeout)
-      throws Exception {
+      throws JMSException {
     TopicName destination = TopicName.get(regex);
     NamespaceName namespaceName = destination.getNamespaceObject();
 
     LookupService lookup = ((PulsarClientImpl) client).getLookup();
-    List<String> list =
-        lookup
-            .getTopicsUnderNamespace(namespaceName, CommandGetTopicsOfNamespace.Mode.PERSISTENT)
-            .get(timeout, TimeUnit.MILLISECONDS);
-    return topicsPatternFilter(list, Pattern.compile(regex));
+    try {
+      List<String> list =
+          lookup
+              .getTopicsUnderNamespace(namespaceName, CommandGetTopicsOfNamespace.Mode.PERSISTENT)
+              .get(timeout, TimeUnit.MILLISECONDS);
+      return topicsPatternFilter(list, Pattern.compile(regex));
+    } catch (InterruptedException | TimeoutException | ExecutionException err) {
+      throw Utils.handleException(err);
+    }
   }
 
   // get topics that match 'topicsPattern' from original topics list

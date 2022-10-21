@@ -27,6 +27,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import javax.jms.JMSException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.admin.cli.extensions.CommandExecutionContext;
 import org.apache.pulsar.admin.cli.extensions.CustomCommand;
@@ -70,6 +71,10 @@ abstract class BaseCommand implements CustomCommand {
     this.currentContext = context;
     try {
       executeInternal();
+    } catch (JMSException err) {
+      println("Error: " + err.getMessage());
+      log.debug("Error", err);
+      return false;
     } finally {
       this.currentParameters = null;
       this.currentContext = null;
@@ -100,6 +105,10 @@ abstract class BaseCommand implements CustomCommand {
 
   protected JMSAdmin getAdmin() throws Exception {
     return getFactory().getAdmin();
+  }
+
+  protected JMSAdmin getAdmin(boolean createClient) throws Exception {
+    return getFactory(createClient).getAdmin();
   }
 
   protected PulsarConnectionFactory getFactory(boolean createClient) throws Exception {

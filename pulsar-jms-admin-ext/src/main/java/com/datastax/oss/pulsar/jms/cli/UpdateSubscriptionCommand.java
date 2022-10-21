@@ -37,7 +37,7 @@ public class UpdateSubscriptionCommand extends SubscriptionBaseCommand {
   }
 
   public void executeInternal() throws Exception {
-    Destination destination = getDestination(false, false);
+    Destination destination = getDestination();
     JMSAdmin admin = getAdmin();
 
     String subscription = getSubscription();

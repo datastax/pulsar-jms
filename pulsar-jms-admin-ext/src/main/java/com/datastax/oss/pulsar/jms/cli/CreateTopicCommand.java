@@ -32,7 +32,7 @@ public class CreateTopicCommand extends TopicBaseCommand {
 
   @Override
   public String name() {
-    return "create-jms-topic";
+    return "create-topic";
   }
 
   @Override
@@ -57,7 +57,7 @@ public class CreateTopicCommand extends TopicBaseCommand {
   }
 
   public void executeInternal() throws Exception {
-    Destination destination = getDestination(true, false);
+    Destination destination = getDestination();
     getAdmin().createTopic((Topic) destination, getNumPartitions());
   }
 }

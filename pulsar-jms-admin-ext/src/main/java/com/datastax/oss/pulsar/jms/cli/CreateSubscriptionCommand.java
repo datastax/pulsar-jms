@@ -32,12 +32,12 @@ public class CreateSubscriptionCommand extends SubscriptionBaseCommand {
 
   @Override
   public String description() {
-    return "Create a JMS Subscription on a Topic";
+    return "Create a Subscription on a JMS Topic";
   }
 
   public void executeInternal() throws Exception {
     String subscription = getSubscription();
-    Destination destination = getDestination(true, false);
+    Destination destination = getDestination();
     getAdmin()
         .createSubscription(
             (Topic) destination, subscription, isEnableFiltering(), getSelector(), false);

@@ -37,7 +37,7 @@ public class UpdateQueueCommand extends SubscriptionBaseCommand {
   }
 
   public void executeInternal() throws Exception {
-    Destination destination = getDestination(false, true);
+    Destination destination = getDestination();
     JMSAdmin admin = getAdmin();
     admin.setSubscriptionSelector((Queue) destination, isEnableFiltering(), getSelector());
   }

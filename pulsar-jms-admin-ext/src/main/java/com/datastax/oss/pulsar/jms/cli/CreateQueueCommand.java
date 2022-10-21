@@ -32,7 +32,7 @@ public class CreateQueueCommand extends SubscriptionBaseCommand {
 
   @Override
   public String name() {
-    return "create-jms-queue";
+    return "create-queue";
   }
 
   @Override
@@ -57,7 +57,7 @@ public class CreateQueueCommand extends SubscriptionBaseCommand {
   }
 
   public void executeInternal() throws Exception {
-    Destination destination = getDestination(false, true);
+    Destination destination = getDestination();
     getAdmin()
         .createQueue((Queue) destination, getNumPartitions(), isEnableFiltering(), getSelector());
   }

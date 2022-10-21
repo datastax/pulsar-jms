@@ -1713,4 +1713,18 @@ public class PulsarConnectionFactory
   public JMSAdmin getAdmin() {
     return new PulsarJMSAdminImpl(this);
   }
+
+  /**
+   * Internal method to ensure the the PulsarClient is started
+   *
+   * @throws JMSException
+   */
+  PulsarClient ensureClient() throws JMSException {
+    createConnection().close();
+    if (pulsarClient == null) {
+      throw new IllegalStateException(
+          "This PulsarConnectionFactory is not configured to bootstrap a PulsarClient");
+    }
+    return pulsarClient;
+  }
 }
