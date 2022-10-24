@@ -49,8 +49,9 @@ import javax.jms.TextMessage;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 @Slf4j
 public class MessageListenerTest {
@@ -71,11 +72,14 @@ public class MessageListenerTest {
     }
   }
 
-  @Test
-  public void receiveWithListener() throws Exception {
+  @ParameterizedTest(name = "sessionListenersThreads {0}")
+  @ValueSource(ints = {0, 4})
+  public void receiveWithListener(int sessionListenersThreads) throws Exception {
 
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
+    properties.put("jms.sessionListenersThreads", sessionListenersThreads);
+
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
         connection.start();
@@ -104,11 +108,13 @@ public class MessageListenerTest {
     }
   }
 
-  @Test
-  public void listenerForbiddenMethods() throws Exception {
+  @ParameterizedTest(name = "sessionListenersThreads {0}")
+  @ValueSource(ints = {0, 4})
+  public void listenerForbiddenMethods(int sessionListenersThreads) throws Exception {
 
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
+    properties.put("jms.sessionListenersThreads", sessionListenersThreads);
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
         connection.start();
@@ -174,11 +180,13 @@ public class MessageListenerTest {
     }
   }
 
-  @Test
-  public void multipleListenersSameSession() throws Exception {
+  @ParameterizedTest(name = "sessionListenersThreads {0}")
+  @ValueSource(ints = {0, 4})
+  public void multipleListenersSameSession(int sessionListenersThreads) throws Exception {
 
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
+    properties.put("jms.sessionListenersThreads", sessionListenersThreads);
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
         connection.start();
@@ -219,11 +227,13 @@ public class MessageListenerTest {
     }
   }
 
-  @Test
-  public void testJMSContextWithListener() throws Exception {
+  @ParameterizedTest(name = "sessionListenersThreads {0}")
+  @ValueSource(ints = {0, 4})
+  public void testJMSContextWithListener(int sessionListenersThreads) throws Exception {
 
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
+    properties.put("jms.sessionListenersThreads", sessionListenersThreads);
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (JMSContext context = factory.createContext()) {
 
@@ -249,11 +259,13 @@ public class MessageListenerTest {
     }
   }
 
-  @Test
-  public void testJMSContextWithListenerBadMethods() throws Exception {
+  @ParameterizedTest(name = "sessionListenersThreads {0}")
+  @ValueSource(ints = {0, 4})
+  public void testJMSContextWithListenerBadMethods(int sessionListenersThreads) throws Exception {
 
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
+    properties.put("jms.sessionListenersThreads", sessionListenersThreads);
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
 
       try (JMSContext context2 = factory.createContext()) {
@@ -317,11 +329,14 @@ public class MessageListenerTest {
     }
   }
 
-  @Test
-  public void testJMSContextAsyncCompletionListenerBadMethods() throws Exception {
+  @ParameterizedTest(name = "sessionListenersThreads {0}")
+  @ValueSource(ints = {0, 4})
+  public void testJMSContextAsyncCompletionListenerBadMethods(int sessionListenersThreads)
+      throws Exception {
 
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
+    properties.put("jms.sessionListenersThreads", sessionListenersThreads);
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
 
       try (JMSContext context2 = factory.createContext()) {
@@ -392,11 +407,13 @@ public class MessageListenerTest {
     }
   }
 
-  @Test
-  public void queueSendRecvMessageListenerTest() throws Exception {
+  @ParameterizedTest(name = "sessionListenersThreads {0}")
+  @ValueSource(ints = {0, 4})
+  public void queueSendRecvMessageListenerTest(int sessionListenersThreads) throws Exception {
 
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
+    properties.put("jms.sessionListenersThreads", sessionListenersThreads);
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
 
       Queue destination = new PulsarQueue("persistent://public/default/test-" + UUID.randomUUID());
@@ -428,11 +445,13 @@ public class MessageListenerTest {
     }
   }
 
-  @Test
-  public void closeConsumerOnMessageListener() throws Exception {
+  @ParameterizedTest(name = "sessionListenersThreads {0}")
+  @ValueSource(ints = {0, 4})
+  public void closeConsumerOnMessageListener(int sessionListenersThreads) throws Exception {
 
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
+    properties.put("jms.sessionListenersThreads", sessionListenersThreads);
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
 
       Queue destination = new PulsarQueue("persistent://public/default/test-" + UUID.randomUUID());
@@ -471,11 +490,13 @@ public class MessageListenerTest {
     }
   }
 
-  @Test
-  public void messageListenerInternalError() throws Exception {
+  @ParameterizedTest(name = "sessionListenersThreads {0}")
+  @ValueSource(ints = {0, 4})
+  public void messageListenerInternalError(int sessionListenersThreads) throws Exception {
 
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
+    properties.put("jms.sessionListenersThreads", sessionListenersThreads);
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
 
       Queue destination = new PulsarQueue("persistent://public/default/test-" + UUID.randomUUID());

@@ -34,6 +34,9 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
@@ -114,7 +117,12 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   private final List<PulsarMessage> unackedMessages = new ArrayList<>();
   private final Map<String, PulsarDestination> destinationBySubscription = new HashMap<>();
   private volatile boolean closed;
-  private volatile ListenerThread listenerThread;
+  private volatile ListenerThread dedicatedListenerThread;
+
+  private final ScheduledExecutorService threadPool;
+
+  private volatile Future<?> listenersExecutorsCycleHandle;
+
   // this collection is accessed by the Listener thread
   private final List<PulsarMessageConsumer> consumers = new CopyOnWriteArrayList<>();
   private final List<PulsarQueueBrowser> browsers = new CopyOnWriteArrayList<>();
@@ -149,6 +157,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     this.transacted = sessionMode == Session.SESSION_TRANSACTED;
     this.overrideConsumerConfiguration = overrideConsumerConfiguration;
     this.enableJMSPriority = getFactory().isEnableJMSPriority();
+    this.threadPool = getFactory().getSessionListenersThreadPool();
     if (transacted && connection.getFactory().isTransactionsStickyPartitions()) {
       generateNewTransactionStickyKey();
     }
@@ -706,18 +715,22 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
         browser.close();
       }
       browsers.clear();
+      if (listenersExecutorsCycleHandle != null) {
+        listenersExecutorsCycleHandle.cancel(false);
+        listenersExecutorsCycleHandle = null;
+      }
     } finally {
       closeLock.writeLock().unlock();
       connection.unregisterSession(this);
     }
     // wait for the thread to complete
-    if (listenerThread != null) {
+    if (dedicatedListenerThread != null) {
       try {
-        listenerThread.join();
+        dedicatedListenerThread.join();
       } catch (InterruptedException err) {
         // ignore
       } finally {
-        listenerThread = null;
+        dedicatedListenerThread = null;
       }
     }
   }
@@ -1924,10 +1937,46 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     }
   }
 
-  void ensureListenerThread() {
-    if (listenerThread == null) {
-      listenerThread = new ListenerThread();
-      listenerThread.start();
+  void startDedicatedListenerThread() {
+    if (dedicatedListenerThread != null) {
+      return;
+    }
+    dedicatedListenerThread = new ListenerThread();
+    dedicatedListenerThread.start();
+  }
+
+  boolean isDedicatedListenerThread() {
+    return threadPool == null;
+  }
+
+  void scheduleConsumerListenerCycle(PulsarMessageConsumer consumer, boolean immediate) {
+    if (!connection.isStarted()) {
+      // try again later
+      threadPool.schedule(
+          () -> {
+            scheduleConsumerListenerCycle(consumer, true);
+          },
+          100,
+          TimeUnit.MILLISECONDS);
+    } else {
+      // submit execution of the listener
+      if (immediate) {
+        threadPool.submit(consumer::runListenerNoWait);
+      } else {
+        threadPool.schedule(consumer::runListenerNoWait, 100, TimeUnit.MILLISECONDS);
+      }
+    }
+  }
+
+  void ensureListenerThread(PulsarMessageConsumer consumer) {
+    if (isClosed()) {
+      // session is closed, no need to schedule Listeners
+      return;
+    }
+    if (isDedicatedListenerThread()) {
+      startDedicatedListenerThread();
+    } else {
+      scheduleConsumerListenerCycle(consumer, true);
     }
   }
 

@@ -42,6 +42,7 @@ import org.apache.pulsar.client.api.PulsarClientException;
 import org.apache.pulsar.client.api.SubscriptionMode;
 import org.apache.pulsar.client.api.SubscriptionType;
 import org.apache.pulsar.client.impl.BatchMessageIdImpl;
+import org.apache.pulsar.client.impl.ConsumerBase;
 
 @Slf4j
 public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, QueueReceiver {
@@ -53,10 +54,12 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
   private final Map<String, SelectorSupport> selectorSupportOnSubscriptions = new HashMap<>();
   private final boolean useServerSideFiltering;
   private final boolean noLocal;
-  private Consumer<?> consumer;
+  private ConsumerBase<?> consumer;
   private MessageListener listener;
   private final SubscriptionMode subscriptionMode;
   private final SubscriptionType subscriptionType;
+
+  private final boolean dedicatedListenerThread;
   final boolean unregisterSubscriptionOnClose;
   private boolean closed;
   private boolean requestClose;
@@ -88,6 +91,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
     }
     this.subscriptionName = subscriptionName;
     this.session = session;
+    this.dedicatedListenerThread = session.isDedicatedListenerThread();
     this.useServerSideFiltering = session.getFactory().isUseServerSideFiltering();
     this.destination = destination;
     this.subscriptionMode = destination.isQueue() ? SubscriptionMode.Durable : subscriptionMode;
@@ -127,7 +131,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
   }
 
   // Visible for testing
-  synchronized Consumer<?> getConsumer() throws JMSException {
+  synchronized ConsumerBase<?> getConsumer() throws JMSException {
     if (closed) {
       throw new IllegalStateException("Consumer is closed");
     }
@@ -241,7 +245,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
   public synchronized void setMessageListener(MessageListener listener) throws JMSException {
     checkNotClosed();
     this.listener = listener;
-    session.ensureListenerThread();
+    session.ensureListenerThread(this);
   }
 
   /**
@@ -595,40 +599,64 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
     }
   }
 
+  void runListenerNoWait() {
+    runListener(0);
+  }
+
   synchronized void runListener(int timeout) {
     if (closed || listener == null) {
+      // no rescheduleCallback
       return;
     }
-    // activate checks about methods that cannot be called inside a listener
-    // and block any concurrent "close()" operations
-    Utils.executeMessageListenerInSessionContext(
-        session,
-        this,
-        () -> {
-          if (closed) {
-            return;
-          }
-          try {
-            Consumer<?> consumer = getConsumer();
-            org.apache.pulsar.client.api.Message<?> message =
-                consumer.receive(timeout, TimeUnit.MILLISECONDS);
-            if (message == null) {
-              return;
-            }
-            handleReceivedMessage(
-                message,
-                null,
-                (pmessage) -> {
-                  listener.onMessage(pmessage);
-                },
-                noLocal);
-          } catch (PulsarClientException.AlreadyClosedException closed) {
-            log.error("Error while receiving message con Closed consumer {}", this);
-          } catch (JMSException | PulsarClientException err) {
-            log.error("Error while receiving message con consumer {}", this, err);
-            session.onError(err);
-          }
-        });
+    final MessageListener messageListener = this.listener;
+    boolean executeAgain = true;
+    boolean someMessageFound = true;
+    while (executeAgain) {
+      // activate checks about methods that cannot be called inside a listener
+      // and block any concurrent "close()" operations
+      boolean messageFound =
+          Utils.executeMessageListenerInSessionContext(
+              session,
+              this,
+              () -> {
+                try {
+                  ConsumerBase<?> consumer = getConsumer();
+                  int waitTime = timeout;
+                  if (timeout == 0) { // we don't want to wait
+                    if (consumer.getTotalIncomingMessages() <= 0) {
+                      return false;
+                    } else {
+                      // this is the same thing that happens in ConsumerBase
+                      // in the native Pulsar client
+                      // process all the messages in the internal buffer
+                      waitTime = 0;
+                    }
+                  }
+                  org.apache.pulsar.client.api.Message<?> message =
+                      consumer.receive(waitTime, TimeUnit.MILLISECONDS);
+                  if (message == null) {
+                    return false;
+                  }
+                  handleReceivedMessage(message, null, messageListener::onMessage, noLocal);
+                  return true;
+                } catch (PulsarClientException.AlreadyClosedException closed) {
+                  log.error("Error while receiving message on Closed consumer {}", this);
+                } catch (JMSException | PulsarClientException err) {
+                  log.error("Error while receiving message on consumer {}", this, err);
+                  session.onError(err);
+                }
+                return false;
+              });
+      if (!dedicatedListenerThread && messageFound) {
+        executeAgain = true;
+        someMessageFound = true;
+      } else {
+        executeAgain = false;
+      }
+    }
+    if (!dedicatedListenerThread && !closed) {
+      session.scheduleConsumerListenerCycle(this, someMessageFound);
+    }
   }
 
   void closeDuringRollback() throws JMSException {
@@ -640,11 +668,18 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
     }
   }
 
-  public void closeInternal() throws JMSException {
+  private synchronized boolean checkAndSetClosed() {
     if (closed) {
-      return;
+      return false;
     }
     closed = true;
+    return true;
+  }
+
+  public void closeInternal() throws JMSException {
+    if (!checkAndSetClosed()) {
+      return;
+    }
     requestClose = false;
     try {
       if (consumer != null) {

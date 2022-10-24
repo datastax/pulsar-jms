@@ -43,7 +43,11 @@ import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import javax.jms.ConnectionFactory;
 import javax.jms.Destination;
@@ -144,10 +148,11 @@ public class PulsarConnectionFactory
   private transient int precreateQueueSubscriptionConsumerQueueSize = 0;
   private transient boolean initialized;
   private transient boolean closed;
-  private transient boolean startPulsarClient = true;
   private transient int refreshServerSideFiltersPeriod = 300;
 
   private transient Map<String, Object> configuration = Collections.emptyMap();
+
+  private transient ScheduledExecutorService sessionListenersThreadPool;
 
   public PulsarConnectionFactory() throws JMSException {
     this(new HashMap<>());
@@ -316,6 +321,23 @@ public class PulsarConnectionFactory
       this.refreshServerSideFiltersPeriod =
           Integer.parseInt(
               getAndRemoveString("jms.refreshServerSideFiltersPeriod", "300", configurationCopy));
+
+      int sessionListenersThreads =
+          Integer.parseInt(
+              getAndRemoveString(
+                  "jms.sessionListenersThreads",
+                  (Runtime.getRuntime().availableProcessors() * 2) + "",
+                  configurationCopy));
+
+      if (sessionListenersThreads > 0) {
+        sessionListenersThreadPool =
+            new ScheduledThreadPoolExecutor(
+                sessionListenersThreads,
+                new SessionListenersThreadFactory(),
+                new ThreadPoolExecutor.DiscardPolicy());
+      } else {
+        sessionListenersThreadPool = null;
+      }
 
       final String rawTopicSharedSubscriptionType =
           getAndRemoveString(
@@ -983,6 +1005,11 @@ public class PulsarConnectionFactory
     } catch (PulsarClientException err) {
       log.info("Error closing PulsarClient", err);
     }
+
+    if (sessionListenersThreadPool != null) {
+      sessionListenersThreadPool.shutdown();
+      sessionListenersThreadPool = null;
+    }
   }
 
   public static PulsarDestination toPulsarDestination(Destination destination) throws JMSException {
@@ -1155,7 +1182,7 @@ public class PulsarConnectionFactory
     }
   }
 
-  public Consumer<?> createConsumer(
+  public ConsumerBase<?> createConsumer(
       PulsarDestination destination,
       String consumerName,
       SubscriptionMode subscriptionMode,
@@ -1282,7 +1309,7 @@ public class PulsarConnectionFactory
         replaceIncomingMessageList(newConsumer);
         newConsumer.resume();
       }
-      return newConsumer;
+      return (ConsumerBase) newConsumer;
     } catch (PulsarClientException err) {
       throw Utils.handleException(err);
     }
@@ -1718,6 +1745,7 @@ public class PulsarConnectionFactory
         });
   }
 
+
   /**
    * Access to the high level Admin JMS API
    *
@@ -1745,8 +1773,34 @@ public class PulsarConnectionFactory
     createConnection().close();
     if (pulsarAdmin == null) {
       throw new IllegalStateException(
-          "This PulsarConnectionFactory is not configured to bootstrap a PulsarAdmin");
+              "This PulsarConnectionFactory is not configured to bootstrap a PulsarAdmin");
     }
     return pulsarAdmin;
   }
+
+  public ScheduledExecutorService getSessionListenersThreadPool() {
+    return sessionListenersThreadPool;
+  }
+
+  private static class SessionListenersThreadFactory implements ThreadFactory {
+    private static final AtomicInteger sessionThreadNumber = new AtomicInteger();
+
+    public SessionListenersThreadFactory() {}
+
+    @Override
+    public Thread newThread(Runnable r) {
+      String name = "jms-session-thread-" + sessionThreadNumber.getAndIncrement();
+      Thread thread = new Thread(r, name);
+      thread.setDaemon(false);
+      thread.setUncaughtExceptionHandler(
+          new Thread.UncaughtExceptionHandler() {
+            @Override
+            public void uncaughtException(Thread t, Throwable e) {
+              log.error("Internal error in JMS Session thread {}", t, e);
+            }
+          });
+      return thread;
+    }
+  }
+
 }
