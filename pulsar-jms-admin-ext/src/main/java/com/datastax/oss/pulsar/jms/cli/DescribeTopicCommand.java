@@ -15,33 +15,29 @@
  */
 package com.datastax.oss.pulsar.jms.cli;
 
-import com.datastax.oss.pulsar.jms.api.JMSAdmin;
-import javax.jms.Destination;
-import javax.jms.Topic;
+import com.datastax.oss.pulsar.jms.PulsarDestination;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class UpdateSubscriptionCommand extends SubscriptionBaseCommand {
-  public UpdateSubscriptionCommand() {
-    super(true, "topic");
+class DescribeTopicCommand extends TopicBaseCommand {
+
+  public DescribeTopicCommand() {
+    super("topic");
   }
 
   @Override
   public String name() {
-    return "update-subscription";
+    return "describe-topic";
   }
 
   @Override
   public String description() {
-    return "Update a Subscription on a JMS Topic";
+    return "Describe a JMS Topic";
   }
 
-  public void executeInternal() throws Exception {
-    Destination destination = getDestination();
-    JMSAdmin admin = getAdmin();
-
-    String subscription = getSubscription();
-    admin.setSubscriptionSelector(
-        (Topic) destination, subscription, isEnableFiltering(), getSelector());
+  @Override
+  protected void executeInternal() throws Exception {
+    PulsarDestination destination = getDestination();
+    printDestinationDescription(destination);
   }
 }

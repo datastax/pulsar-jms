@@ -18,37 +18,47 @@ package com.datastax.oss.pulsar.jms.cli;
 import com.datastax.oss.pulsar.jms.PulsarDestination;
 import java.util.Arrays;
 import java.util.List;
+import javax.jms.Queue;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.admin.cli.extensions.ParameterDescriptor;
 import org.apache.pulsar.admin.cli.extensions.ParameterType;
 
-abstract class TopicBaseCommand extends BaseCommand {
+@Slf4j
+public class CreateQueueCommand extends SubscriptionBaseCommand {
 
-  final String destinationType;
-
-  public TopicBaseCommand(String destinationType) {
-    this.destinationType = destinationType;
+  public CreateQueueCommand() {
+    super(false, "queue");
   }
 
+  @Override
+  public String name() {
+    return "create-queue";
+  }
+
+  @Override
+  public String description() {
+    return "Create a JMS Queue";
+  }
+
+  @Override
   protected void defineParameters(List<ParameterDescriptor> list) {
+    super.defineParameters(list);
     list.add(
         ParameterDescriptor.builder()
-            .description("Destination")
-            .type(ParameterType.STRING)
-            .mainParameter(true)
-            .names(Arrays.asList("--destination", "-d"))
-            .required(true)
+            .description("Number of Partitions")
+            .type(ParameterType.INTEGER)
+            .names(Arrays.asList("--num-partitions", "-np"))
+            .required(false)
             .build());
   }
 
-  protected PulsarDestination getDestination() throws Exception {
-    String destination = getStringParameter("--destination", "");
-    switch (destinationType) {
-      case "queue":
-        return (PulsarDestination) getContext().createQueue(destination);
-      case "topic":
-        return (PulsarDestination) getContext().createTopic(destination);
-      default:
-        throw new IllegalArgumentException("Invalid destination type " + destinationType);
-    }
+  protected int getNumPartitions() {
+    return Integer.parseInt(getStringParameter("--num-partitions", "0"));
+  }
+
+  public void executeInternal() throws Exception {
+    PulsarDestination destination = getDestination();
+    getAdmin()
+        .createQueue((Queue) destination, getNumPartitions(), isEnableFiltering(), getSelector());
   }
 }

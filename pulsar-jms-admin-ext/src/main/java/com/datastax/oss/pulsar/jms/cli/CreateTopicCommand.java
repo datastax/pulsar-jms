@@ -15,33 +15,49 @@
  */
 package com.datastax.oss.pulsar.jms.cli;
 
-import com.datastax.oss.pulsar.jms.api.JMSAdmin;
+import java.util.Arrays;
+import java.util.List;
 import javax.jms.Destination;
 import javax.jms.Topic;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.pulsar.admin.cli.extensions.ParameterDescriptor;
+import org.apache.pulsar.admin.cli.extensions.ParameterType;
 
 @Slf4j
-public class UpdateSubscriptionCommand extends SubscriptionBaseCommand {
-  public UpdateSubscriptionCommand() {
-    super(true, "topic");
+public class CreateTopicCommand extends TopicBaseCommand {
+
+  public CreateTopicCommand() {
+    super("topic");
   }
 
   @Override
   public String name() {
-    return "update-subscription";
+    return "create-topic";
   }
 
   @Override
   public String description() {
-    return "Update a Subscription on a JMS Topic";
+    return "Create a JMS Topic";
+  }
+
+  @Override
+  protected void defineParameters(List<ParameterDescriptor> list) {
+    super.defineParameters(list);
+    list.add(
+        ParameterDescriptor.builder()
+            .description("Number of Partitions")
+            .type(ParameterType.INTEGER)
+            .names(Arrays.asList("--num-partitions", "-np"))
+            .required(false)
+            .build());
+  }
+
+  protected int getNumPartitions() {
+    return Integer.parseInt(getStringParameter("--num-partitions", "0"));
   }
 
   public void executeInternal() throws Exception {
     Destination destination = getDestination();
-    JMSAdmin admin = getAdmin();
-
-    String subscription = getSubscription();
-    admin.setSubscriptionSelector(
-        (Topic) destination, subscription, isEnableFiltering(), getSelector());
+    getAdmin().createTopic((Topic) destination, getNumPartitions());
   }
 }

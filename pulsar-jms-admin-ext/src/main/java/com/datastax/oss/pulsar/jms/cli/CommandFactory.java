@@ -44,7 +44,13 @@ public class CommandFactory implements CustomCommandFactory {
     @Override
     public List<CustomCommand> commands(CommandExecutionContext context) {
       return Arrays.asList(
-          new DescribeCommand(), new CreateSubscriptionCommand(), new UpdateSubscriptionCommand());
+          new DescribeQueueCommand(),
+          new CreateQueueCommand(),
+          new UpdateQueueCommand(),
+          new DescribeTopicCommand(),
+          new CreateTopicCommand(),
+          new CreateSubscriptionCommand(),
+          new UpdateSubscriptionCommand());
     }
   }
 }
