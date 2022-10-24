@@ -21,8 +21,11 @@ import com.datastax.oss.pulsar.jms.PulsarMessage;
 import com.datastax.oss.pulsar.jms.PulsarQueue;
 import com.datastax.oss.pulsar.jms.PulsarTopic;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.Hashtable;
+import java.util.List;
 import javax.jms.Destination;
+import javax.jms.IllegalStateRuntimeException;
 import javax.jms.JMSContext;
 import javax.jms.JMSException;
 import javax.jms.Message;
@@ -44,7 +47,7 @@ public class PulsarMessageEndpoint implements MessageListener {
   private final PulsarConnectionFactory pulsarConnectionFactory;
   private final MessageEndpointFactory messageEndpointFactory;
   private final PulsarActivationSpec activationSpec;
-  private final JMSContext context;
+  private final List<JMSContext> sessions;
 
   private static final Method ON_MESSAGE;
 
@@ -63,7 +66,7 @@ public class PulsarMessageEndpoint implements MessageListener {
     this.pulsarConnectionFactory = pulsarConnectionFactory;
     this.messageEndpointFactory = messageEndpointFactory;
     this.activationSpec = activationSpec;
-    this.context = pulsarConnectionFactory.createContext(JMSContext.CLIENT_ACKNOWLEDGE);
+    this.sessions = new ArrayList<>();
   }
 
   public MessageEndpointFactory getMessageEndpointFactory() {
@@ -95,9 +98,22 @@ public class PulsarMessageEndpoint implements MessageListener {
   }
 
   public void start() {
+    for (int i = 0; i < activationSpec.getNumSessions(); i++) {
+      startSession();
+    }
+  }
+
+  void startSession() {
+    JMSContext context = pulsarConnectionFactory.createContext(JMSContext.CLIENT_ACKNOWLEDGE);
+    sessions.add(context);
     PulsarDestination pulsarDestination =
         getPulsarDestination(activationSpec.getDestinationType(), activationSpec.getDestination());
     if (pulsarDestination.isQueue()) {
+      switch (activationSpec.getSubscriptionMode()) {
+        case "Exclusive":
+          throw new IllegalStateRuntimeException(
+              "Cannot use Exclusive subscriptionMode on a Queue");
+      }
       context.createConsumer(pulsarDestination).setMessageListener(this);
     } else {
       switch (activationSpec.getSubscriptionType()) {
@@ -105,6 +121,12 @@ public class PulsarMessageEndpoint implements MessageListener {
           {
             switch (activationSpec.getSubscriptionMode()) {
               case "Exclusive":
+                if (activationSpec.getNumSessions() > 1) {
+                  throw new IllegalStateRuntimeException(
+                      "numSessions cannot be "
+                          + activationSpec.getNumSessions()
+                          + " on a Exclusive subscription");
+                }
                 context.createConsumer(pulsarDestination).setMessageListener(this);
                 return;
               case "Shared":
@@ -120,6 +142,12 @@ public class PulsarMessageEndpoint implements MessageListener {
         default:
           switch (activationSpec.getSubscriptionMode()) {
             case "Exclusive":
+              if (activationSpec.getNumSessions() > 1) {
+                throw new IllegalStateRuntimeException(
+                    "numSessions cannot be "
+                        + activationSpec.getNumSessions()
+                        + " on a Exclusive subscription");
+              }
               context
                   .createDurableConsumer(
                       (Topic) pulsarDestination, activationSpec.getSubscriptionName())
@@ -138,7 +166,7 @@ public class PulsarMessageEndpoint implements MessageListener {
   }
 
   public void stop() {
-    context.close();
+    sessions.forEach(c -> c.close());
   }
 
   @Override

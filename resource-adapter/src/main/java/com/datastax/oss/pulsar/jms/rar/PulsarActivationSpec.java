@@ -37,6 +37,8 @@ public class PulsarActivationSpec implements ActivationSpec, ResourceAdapterAsso
   private String subscriptionMode = "Shared";
   private String subscriptionName = "";
 
+  private int numSessions = 1;
+
   public String getConfiguration() {
     return configuration;
   }
@@ -92,6 +94,14 @@ public class PulsarActivationSpec implements ActivationSpec, ResourceAdapterAsso
 
   public void setSubscriptionMode(String subscriptionMode) {
     this.subscriptionMode = subscriptionMode;
+  }
+
+  public int getNumSessions() {
+    return numSessions;
+  }
+
+  public void setNumSessions(int numSessions) {
+    this.numSessions = numSessions;
   }
 
   @Override

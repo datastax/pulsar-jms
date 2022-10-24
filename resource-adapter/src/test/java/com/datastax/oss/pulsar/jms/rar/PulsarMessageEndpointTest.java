@@ -19,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -36,6 +37,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import javax.jms.Destination;
+import javax.jms.IllegalStateRuntimeException;
 import javax.jms.JMSConsumer;
 import javax.jms.JMSContext;
 import javax.jms.Message;
@@ -314,6 +316,7 @@ public class PulsarMessageEndpointTest {
         "queue",
         "Durable",
         "Shared",
+        1,
         context -> {
           verify(context, times(1)).createConsumer(any());
         });
@@ -322,6 +325,7 @@ public class PulsarMessageEndpointTest {
         "topic",
         "Durable",
         "Shared",
+        1,
         context -> {
           verify(context, times(1)).createSharedDurableConsumer(any(), eq("subname"));
         });
@@ -330,6 +334,7 @@ public class PulsarMessageEndpointTest {
         "topic",
         "Durable",
         "Exclusive",
+        1,
         context -> {
           verify(context, times(1)).createDurableConsumer(any(), eq("subname"));
         });
@@ -338,6 +343,7 @@ public class PulsarMessageEndpointTest {
         "topic",
         "NonDurable",
         "Exclusive",
+        1,
         context -> {
           verify(context, times(1)).createConsumer(any());
         });
@@ -346,15 +352,71 @@ public class PulsarMessageEndpointTest {
         "topic",
         "NonDurable",
         "Shared",
+        1,
         context -> {
           verify(context, times(1)).createSharedConsumer(any(), eq("subname"));
         });
+  }
+
+  @Test
+  public void testNumSessions() throws Exception {
+    testCreateConsumer(
+        "queue",
+        "Durable",
+        "Shared",
+        1,
+        context -> {
+          verify(context, times(1)).createConsumer(any());
+        });
+
+    testCreateConsumer(
+        "queue",
+        "Durable",
+        "Shared",
+        5,
+        context -> {
+          verify(context, times(5)).createConsumer(any());
+        });
+
+    testCreateConsumer(
+        "topic",
+        "Durable",
+        "Shared",
+        5,
+        context -> {
+          verify(context, times(5)).createSharedDurableConsumer(any(), any());
+        });
+
+    assertThrows(
+        IllegalStateRuntimeException.class,
+        () ->
+            testCreateConsumer(
+                "topic",
+                "Durable",
+                "Exclusive",
+                5,
+                context -> {
+                  //
+                }));
+
+    assertThrows(
+        IllegalStateRuntimeException.class,
+        () ->
+            testCreateConsumer(
+                "topic",
+                "NonDurable",
+                "Exclusive",
+                5,
+                context -> {
+                  //
+                }));
   }
 
   private void testCreateConsumer(
       String destinationType,
       String subscriptionType,
       String subscriptionMode,
+      int numSessions,
       Consumer<JMSContext> verifier)
       throws Exception {
     DummyEndpoint listener = new DummyEndpoint(true);
@@ -375,6 +437,7 @@ public class PulsarMessageEndpointTest {
     activationSpec.setDestinationType(destinationType);
     activationSpec.setSubscriptionType(subscriptionType);
     activationSpec.setSubscriptionMode(subscriptionMode);
+    activationSpec.setNumSessions(numSessions);
 
     PulsarMessageEndpoint endpoint =
         new PulsarMessageEndpoint(pulsarConnectionFactory, messageEndpointFactory, activationSpec);
