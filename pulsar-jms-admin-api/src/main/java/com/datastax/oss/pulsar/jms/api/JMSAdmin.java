@@ -47,11 +47,18 @@ public interface JMSAdmin {
   Topic getTopic(String topic) throws JMSException;
 
   /**
-   * Describe a Destination.
+   * Describe a Destination. This method always returns a description, even if the physical Pulsar
+   * topic does not exist. Please check {@link
+   * JMSDestinationMetadata.PhysicalPulsarTopicMetadata#isExists()})
    *
    * @param destination the destination
-   * @return
+   * @return Depending on the destination type this function returns * one of the subclasses of
+   *     {@link JMSDestinationMetadata}
    * @throws JMSException
+   * @see com.datastax.oss.pulsar.jms.api.JMSDestinationMetadata.QueueMetadata
+   * @see com.datastax.oss.pulsar.jms.api.JMSDestinationMetadata.TopicMetadata
+   * @see com.datastax.oss.pulsar.jms.api.JMSDestinationMetadata.VirtualDestinationMetadata
+   * @see com.datastax.oss.pulsar.jms.api.JMSDestinationMetadata.PhysicalPulsarTopicMetadata
    */
   JMSDestinationMetadata describe(Destination destination) throws JMSException;
 
@@ -71,9 +78,9 @@ public interface JMSAdmin {
       throws JMSException;
 
   /**
-   * Create a new Pulsar topic and set-up it as a Queue. A Topic maps to a Pulsar Topic. Create the
-   * topic if it does not exist. If the topic already exists the API fails in case it doesn't match
-   * the expected number of partitions.
+   * Create a new Pulsar topic. A JMS Topic maps to a Pulsar Topic. Create the topic if it does not
+   * exist. If the topic already exists the API fails in case it doesn't match the expected number
+   * of partitions.
    *
    * @param topic the destination
    * @param partitions the number of partitions, 0 to create a non-partitioned topic
@@ -90,11 +97,11 @@ public interface JMSAdmin {
    * @param selector the selector
    * @throws JMSException
    */
-  void setSubscriptionSelector(Queue destination, boolean enableFilters, String selector)
+  void setQueueSubscriptionSelector(Queue destination, boolean enableFilters, String selector)
       throws JMSException;
 
   /**
-   * Create a subscription on a JMS Topic.
+   * Create a Subscription on a JMS Topic.
    *
    * @param destination the destination
    * @param subscriptionName the subscription name

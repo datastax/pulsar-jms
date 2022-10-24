@@ -16,10 +16,7 @@
 package com.datastax.oss.pulsar.jms.cli;
 
 import com.datastax.oss.pulsar.jms.PulsarDestination;
-import com.datastax.oss.pulsar.jms.api.JMSDestinationMetadata;
-import com.fasterxml.jackson.databind.SerializationFeature;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.pulsar.common.util.ObjectMapperFactory;
 
 @Slf4j
 class DescribeTopicCommand extends TopicBaseCommand {
@@ -40,15 +37,7 @@ class DescribeTopicCommand extends TopicBaseCommand {
 
   @Override
   protected void executeInternal() throws Exception {
-
     PulsarDestination destination = getDestination();
-
-    JMSDestinationMetadata describe = getAdmin(destination.isRegExp()).describe(destination);
-    String json =
-        ObjectMapperFactory.create()
-            .configure(SerializationFeature.INDENT_OUTPUT, true)
-            .configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true)
-            .writeValueAsString(describe);
-    println(json);
+    printDestinationDescription(destination);
   }
 }

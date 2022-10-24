@@ -15,7 +15,7 @@
  */
 package com.datastax.oss.pulsar.jms.cli;
 
-import javax.jms.Destination;
+import com.datastax.oss.pulsar.jms.PulsarDestination;
 import javax.jms.Topic;
 import lombok.extern.slf4j.Slf4j;
 
@@ -37,7 +37,7 @@ public class CreateSubscriptionCommand extends SubscriptionBaseCommand {
 
   public void executeInternal() throws Exception {
     String subscription = getSubscription();
-    Destination destination = getDestination();
+    PulsarDestination destination = getDestination();
     getAdmin()
         .createSubscription(
             (Topic) destination, subscription, isEnableFiltering(), getSelector(), false);

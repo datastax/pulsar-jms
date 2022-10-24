@@ -15,9 +15,9 @@
  */
 package com.datastax.oss.pulsar.jms.cli;
 
+import com.datastax.oss.pulsar.jms.PulsarDestination;
 import java.util.Arrays;
 import java.util.List;
-import javax.jms.Destination;
 import javax.jms.Queue;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.admin.cli.extensions.ParameterDescriptor;
@@ -57,7 +57,7 @@ public class CreateQueueCommand extends SubscriptionBaseCommand {
   }
 
   public void executeInternal() throws Exception {
-    Destination destination = getDestination();
+    PulsarDestination destination = getDestination();
     getAdmin()
         .createQueue((Queue) destination, getNumPartitions(), isEnableFiltering(), getSelector());
   }

@@ -438,8 +438,8 @@ class PulsarJMSAdminImpl implements JMSAdmin {
   }
 
   @Override
-  public void setSubscriptionSelector(Queue destination, boolean enableFilters, String selector)
-      throws JMSException {
+  public void setQueueSubscriptionSelector(
+      Queue destination, boolean enableFilters, String selector) throws JMSException {
     try {
       PulsarDestination dest = PulsarConnectionFactory.toPulsarDestination(destination);
       String topicName = factory.getPulsarTopicName(dest);

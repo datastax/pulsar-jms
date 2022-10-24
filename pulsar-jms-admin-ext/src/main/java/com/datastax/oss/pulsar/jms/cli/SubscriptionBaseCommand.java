@@ -31,11 +31,6 @@ public abstract class SubscriptionBaseCommand extends TopicBaseCommand {
     this.allowOverrideSubscriptionName = allowOverrideSubscriptionName;
   }
 
-  @Override
-  public String description() {
-    return "Create a Subscription with optionally a JMS Selector";
-  }
-
   protected String getSubscription() {
     return getStringParameter("--subscription", "");
   }

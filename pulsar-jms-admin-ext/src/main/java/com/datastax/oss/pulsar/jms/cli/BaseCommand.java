@@ -16,9 +16,12 @@
 package com.datastax.oss.pulsar.jms.cli;
 
 import com.datastax.oss.pulsar.jms.PulsarConnectionFactory;
+import com.datastax.oss.pulsar.jms.PulsarDestination;
 import com.datastax.oss.pulsar.jms.PulsarJMSContext;
 import com.datastax.oss.pulsar.jms.api.JMSAdmin;
+import com.datastax.oss.pulsar.jms.api.JMSDestinationMetadata;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import java.io.File;
 import java.util.ArrayList;
@@ -36,6 +39,7 @@ import org.apache.pulsar.admin.cli.extensions.ParameterType;
 import org.apache.pulsar.client.api.ClientBuilder;
 import org.apache.pulsar.client.api.PulsarClient;
 import org.apache.pulsar.client.api.PulsarClientException;
+import org.apache.pulsar.common.util.ObjectMapperFactory;
 import org.slf4j.helpers.MessageFormatter;
 
 @Slf4j
@@ -63,6 +67,16 @@ abstract class BaseCommand implements CustomCommand {
   }
 
   protected abstract void executeInternal() throws Exception;
+
+  protected void printDestinationDescription(PulsarDestination destination) throws Exception {
+    JMSDestinationMetadata describe = getAdmin(destination.isRegExp()).describe(destination);
+    String json =
+        ObjectMapperFactory.create()
+            .configure(SerializationFeature.INDENT_OUTPUT, true)
+            .configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true)
+            .writeValueAsString(describe);
+    println(json);
+  }
 
   @Override
   public boolean execute(Map<String, Object> parameters, CommandExecutionContext context)
