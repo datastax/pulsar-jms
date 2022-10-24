@@ -80,6 +80,23 @@ import org.apache.pulsar.client.api.transaction.TransactionCoordinatorClientExce
 @Slf4j
 public class PulsarSession implements Session, QueueSession, TopicSession {
 
+  static String ACKNOWLEDGE_MODE_TO_STRING(int mode) {
+    switch (mode) {
+      case DUPS_OK_ACKNOWLEDGE:
+        return "DUPS_OK_ACKNOWLEDGE";
+      case AUTO_ACKNOWLEDGE:
+        return "AUTO_ACKNOWLEDGE";
+      case CLIENT_ACKNOWLEDGE:
+        return "CLIENT_ACKNOWLEDGE";
+      case SESSION_TRANSACTED:
+        return "SESSION_TRANSACTED";
+      case PulsarJMSConstants.INDIVIDUAL_ACKNOWLEDGE:
+        return "INDIVIDUAL_ACKNOWLEDGE";
+      default:
+        return "?" + mode;
+    }
+  }
+
   private static final AtomicLong STICKY_KEY_GENERATOR = new AtomicLong();
   private final PulsarConnection connection;
   private boolean jms20;

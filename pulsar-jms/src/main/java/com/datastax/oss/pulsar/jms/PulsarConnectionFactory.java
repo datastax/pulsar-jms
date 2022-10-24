@@ -1029,6 +1029,11 @@ public class PulsarConnectionFactory
                           (BatcherBuilder) producerConfiguration.get("batcherBuilder"));
                     }
                     Map<String, String> properties = new HashMap<>();
+                    if (transactions) {
+                      properties.put("jms.transactions", "enabled");
+                    } else {
+                      properties.put("jms.transactions", "disabled");
+                    }
                     if (enableJMSPriority) {
                       properties.put("jms.priority", "enabled");
                       properties.put(
@@ -1175,6 +1180,9 @@ public class PulsarConnectionFactory
     Map<String, String> subscriptionProperties = new HashMap<>();
     Map<String, String> consumerMetadata = new HashMap<>();
     consumerMetadata.put("jms.destination.type", destination.isQueue() ? "queue" : "topic");
+    consumerMetadata.put(
+        "jms.acknowledgeMode",
+        PulsarSession.ACKNOWLEDGE_MODE_TO_STRING(session.getAcknowledgeMode()));
     if (isUseServerSideFiltering()) {
       // this flag enables filtering on the subscription/consumer
       // the plugin will apply filtering only on these subscriptions/consumers,
@@ -1199,6 +1207,12 @@ public class PulsarConnectionFactory
     }
     if (isAcknowledgeRejectedMessages()) {
       consumerMetadata.put("jms.force.drop.rejected", "true");
+    }
+
+    boolean enablePriority = false;
+    if (isEnableJMSPriority()) {
+      enablePriority = true;
+      consumerMetadata.put("jms.priority", "enabled");
     }
 
     try {
@@ -1228,9 +1242,8 @@ public class PulsarConnectionFactory
               .subscriptionProperties(subscriptionProperties)
               .subscriptionType(subscriptionType)
               .subscriptionName(subscriptionName);
-      if (isEnableJMSPriority()) {
+      if (enablePriority) {
         builder.startPaused(true);
-        consumerMetadata.put("jms.priority", "enabled");
       }
       if (destination.isRegExp()) {
         String fullQualifiedTopicName = getPulsarTopicName(destination);
@@ -1726,5 +1739,14 @@ public class PulsarConnectionFactory
           "This PulsarConnectionFactory is not configured to bootstrap a PulsarClient");
     }
     return pulsarClient;
+  }
+
+  PulsarAdmin ensurePulsarAdmin() throws JMSException {
+    createConnection().close();
+    if (pulsarAdmin == null) {
+      throw new IllegalStateException(
+          "This PulsarConnectionFactory is not configured to bootstrap a PulsarAdmin");
+    }
+    return pulsarAdmin;
   }
 }

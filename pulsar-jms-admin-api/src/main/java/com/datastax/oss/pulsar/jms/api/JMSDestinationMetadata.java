@@ -20,9 +20,11 @@ import java.util.Map;
 import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.ToString;
 
 /** High level description of a JMS Destination. */
 @Setter
+@ToString
 public abstract class JMSDestinationMetadata {
   private final String destination;
 
@@ -37,6 +39,7 @@ public abstract class JMSDestinationMetadata {
   }
 
   /** The destination maps to a physical topic, partitioned or non-partitioned. */
+  @ToString
   public abstract static class PhysicalPulsarTopicMetadata extends JMSDestinationMetadata {
     public PhysicalPulsarTopicMetadata(
         String destination,
@@ -83,6 +86,7 @@ public abstract class JMSDestinationMetadata {
   }
 
   /** The destination is a JMS Topic, that maps to a Pulsar Topic with a set of Subscriptions. */
+  @ToString
   public static final class TopicMetadata extends PhysicalPulsarTopicMetadata {
 
     public TopicMetadata(
@@ -114,6 +118,7 @@ public abstract class JMSDestinationMetadata {
   }
 
   /** The destination is a JMS Queue. A Queue is mapped to a single Pulsar Subscription. */
+  @ToString
   public static final class QueueMetadata extends PhysicalPulsarTopicMetadata {
     public QueueMetadata(
         String destination,
@@ -160,6 +165,7 @@ public abstract class JMSDestinationMetadata {
   }
 
   /** The Destination is a Virtual Destination, with the set of actual physical destinations. */
+  @ToString
   public static final class VirtualDestinationMetadata extends JMSDestinationMetadata {
     private final boolean multiTopic;
     private final boolean regex;
@@ -213,6 +219,7 @@ public abstract class JMSDestinationMetadata {
 
   /** Metadata about a Pulsar Subscription. */
   @Data
+  @ToString
   public static final class SubscriptionMetadata {
     private final String subscriptionName;
 
@@ -228,6 +235,7 @@ public abstract class JMSDestinationMetadata {
 
   /** Metadata about a Pulsar Consumer. */
   @Data
+  @ToString
   public static final class ConsumerMetadata {
     @Getter private final String consumerName;
 
@@ -235,6 +243,9 @@ public abstract class JMSDestinationMetadata {
       this.consumerName = consumerName;
     }
 
+    private String pulsarTopic;
+    private String subscriptionName;
+    private String acknowledgeMode;
     private Map<String, String> metadata;
     private boolean enableFilters;
     private boolean enablePriority;
@@ -245,6 +256,7 @@ public abstract class JMSDestinationMetadata {
 
   /** Metadata about a Pulsar Producer. */
   @Data
+  @ToString
   public static final class ProducerMetadata {
     @Getter private final String producerName;
 
@@ -252,8 +264,11 @@ public abstract class JMSDestinationMetadata {
       this.producerName = producerName;
     }
 
+    private String pulsarTopic;
     private Map<String, String> metadata;
     private boolean enablePriority;
+    private boolean transacted;
+    private String priorityMapping;
     private String address;
     private String clientVersion;
   }

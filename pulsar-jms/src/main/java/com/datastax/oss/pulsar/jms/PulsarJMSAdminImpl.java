@@ -38,6 +38,7 @@ import org.apache.pulsar.client.admin.Topics;
 import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.api.PulsarClient;
 import org.apache.pulsar.common.partition.PartitionedTopicMetadata;
+import org.apache.pulsar.common.policies.data.ConsumerStats;
 import org.apache.pulsar.common.policies.data.PartitionedTopicStats;
 import org.apache.pulsar.common.policies.data.PublisherStats;
 import org.apache.pulsar.common.policies.data.SubscriptionStats;
@@ -108,7 +109,7 @@ class PulsarJMSAdminImpl implements JMSAdmin {
 
   private JMSDestinationMetadata describeDestination(PulsarDestination destination)
       throws JMSException {
-    PulsarAdmin pulsarAdmin = factory.getPulsarAdmin();
+    PulsarAdmin pulsarAdmin = factory.ensurePulsarAdmin();
     String pulsarTopic = factory.getPulsarTopicName(destination);
     String queueSubscription;
     if (destination.isQueue()) {
@@ -129,18 +130,21 @@ class PulsarJMSAdminImpl implements JMSAdmin {
       throw Utils.handleException(err);
     }
     int partitions = partitionedTopicMetadata.partitions;
+    final Map<String, ? extends TopicStats> partitionsStats;
 
     if (exists) {
       try {
         if (partitionedTopicMetadata.partitions > 0) {
           PartitionedTopicStats partitionedStats =
-              pulsarAdmin.topics().getPartitionedStats(pulsarTopic, false);
+              pulsarAdmin.topics().getPartitionedStats(pulsarTopic, true);
           subscriptions = partitionedStats.getSubscriptions();
           publishers = partitionedStats.getPublishers();
+          partitionsStats = partitionedStats.getPartitions();
         } else {
           TopicStats stats = pulsarAdmin.topics().getStats(pulsarTopic);
           subscriptions = stats.getSubscriptions();
           publishers = stats.getPublishers();
+          partitionsStats = Collections.emptyMap();
         }
         if (subscriptions == null) {
           subscriptions = Collections.emptyMap();
@@ -151,6 +155,8 @@ class PulsarJMSAdminImpl implements JMSAdmin {
       } catch (PulsarAdminException err) {
         throw Utils.handleException(err);
       }
+    } else {
+      partitionsStats = Collections.emptyMap();
     }
 
     List<JMSDestinationMetadata.SubscriptionMetadata> subscriptionMetadataList = new ArrayList<>();
@@ -160,14 +166,14 @@ class PulsarJMSAdminImpl implements JMSAdmin {
       queueSubscriptionExists = subscriptions.containsKey(queueSubscription);
     }
     subscriptions.forEach(
-        (name, sub) -> {
-          if (destination.isQueue() && !name.equals(queueSubscription)) {
+        (subscriptionName, sub) -> {
+          if (destination.isQueue() && !subscriptionName.equals(queueSubscription)) {
             // this is a JMS Queue, skip other subscriptions
             return;
           }
 
           JMSDestinationMetadata.SubscriptionMetadata md =
-              new JMSDestinationMetadata.SubscriptionMetadata(name);
+              new JMSDestinationMetadata.SubscriptionMetadata(subscriptionName);
           subscriptionMetadataList.add(md);
           Map<String, String> subscriptionProperties =
               sub.getSubscriptionProperties() != null
@@ -183,43 +189,54 @@ class PulsarJMSAdminImpl implements JMSAdmin {
           }
           List<JMSDestinationMetadata.ConsumerMetadata> consumers = new ArrayList<>();
           md.setConsumers(consumers);
-          sub.getConsumers()
-              .forEach(
-                  c -> {
-                    JMSDestinationMetadata.ConsumerMetadata cmd =
-                        new JMSDestinationMetadata.ConsumerMetadata(c.getConsumerName());
-                    consumers.add(cmd);
-                    cmd.setAddress(c.getAddress());
-                    cmd.setClientVersion(c.getClientVersion());
-                    Map<String, String> metadata =
-                        c.getMetadata() != null ? c.getMetadata() : Collections.emptyMap();
-                    cmd.setMetadata(
-                        c.getMetadata() != null ? c.getMetadata() : Collections.emptyMap());
-                    String jmsConsumerFiltering = metadata.getOrDefault("jms.filtering", "false");
-                    if ("true".equals(jmsConsumerFiltering)) {
-                      cmd.setEnableFilters(true);
-                      String jmsSelector = metadata.getOrDefault("jms.selector", "");
-                      cmd.setSelector(jmsSelector);
-                    }
-                    String jmsConsumerPriority = metadata.getOrDefault("jms.priority", "");
-                    cmd.setEnablePriority(jmsConsumerPriority.equals("enabled"));
-                  });
+          if (partitions > 0) {
+            partitionsStats.forEach(
+                (partitionName, topicStats) -> {
+                  SubscriptionStats subscriptionStats =
+                      topicStats.getSubscriptions().get(subscriptionName);
+                  if (subscriptionStats != null) {
+                    subscriptionStats
+                        .getConsumers()
+                        .forEach(
+                            c -> {
+                              JMSDestinationMetadata.ConsumerMetadata cmd =
+                                  buildConsumerMetadata(partitionName, subscriptionName, c);
+                              consumers.add(cmd);
+                            });
+                  }
+                });
+          } else {
+            sub.getConsumers()
+                .forEach(
+                    c -> {
+                      JMSDestinationMetadata.ConsumerMetadata cmd =
+                          buildConsumerMetadata(pulsarTopic, subscriptionName, c);
+                      consumers.add(cmd);
+                    });
+          }
         });
 
     List<JMSDestinationMetadata.ProducerMetadata> producerMetadataList = new ArrayList<>();
-    publishers.forEach(
-        p -> {
-          JMSDestinationMetadata.ProducerMetadata cmd =
-              new JMSDestinationMetadata.ProducerMetadata(p.getProducerName());
-          producerMetadataList.add(cmd);
-          cmd.setAddress(p.getAddress());
-          cmd.setClientVersion(p.getClientVersion());
-          Map<String, String> metadata =
-              p.getMetadata() != null ? p.getMetadata() : Collections.emptyMap();
-          cmd.setMetadata(metadata);
-          String jmsConsumerPriority = metadata.getOrDefault("jms.priority", "");
-          cmd.setEnablePriority(jmsConsumerPriority.equals("enabled"));
-        });
+    if (partitions > 0) {
+      // for partitioned topic we list all the producers connected to each partition
+      partitionsStats.forEach(
+          (partition, stats) -> {
+            stats
+                .getPublishers()
+                .forEach(
+                    p -> {
+                      JMSDestinationMetadata.ProducerMetadata cmd =
+                          buildProducerMetadata(partition, p);
+                      producerMetadataList.add(cmd);
+                    });
+          });
+    } else {
+      publishers.forEach(
+          p -> {
+            JMSDestinationMetadata.ProducerMetadata cmd = buildProducerMetadata(pulsarTopic, p);
+            producerMetadataList.add(cmd);
+          });
+    }
     if (destination.isQueue()) {
       JMSDestinationMetadata.SubscriptionMetadata subscriptionMetadata =
           subscriptionMetadataList.isEmpty() ? null : subscriptionMetadataList.get(0);
@@ -241,6 +258,44 @@ class PulsarJMSAdminImpl implements JMSAdmin {
           partitions,
           subscriptionMetadataList);
     }
+  }
+
+  private static JMSDestinationMetadata.ConsumerMetadata buildConsumerMetadata(
+      String pulsarTopic, String subscriptionName, ConsumerStats c) {
+    JMSDestinationMetadata.ConsumerMetadata cmd =
+        new JMSDestinationMetadata.ConsumerMetadata(c.getConsumerName());
+    cmd.setSubscriptionName(subscriptionName);
+    cmd.setPulsarTopic(pulsarTopic);
+    cmd.setAddress(c.getAddress());
+    cmd.setClientVersion(c.getClientVersion());
+    Map<String, String> metadata =
+        c.getMetadata() != null ? c.getMetadata() : Collections.emptyMap();
+    cmd.setMetadata(metadata);
+    cmd.setAcknowledgeMode(metadata.getOrDefault("jms.acknowledgeMode", "?"));
+    String jmsConsumerFiltering = metadata.getOrDefault("jms.filtering", "false");
+    if ("true".equals(jmsConsumerFiltering)) {
+      cmd.setEnableFilters(true);
+      String jmsSelector = metadata.getOrDefault("jms.selector", "");
+      cmd.setSelector(jmsSelector);
+    }
+    cmd.setEnablePriority(metadata.getOrDefault("jms.priority", "disabled").equals("enabled"));
+    return cmd;
+  }
+
+  private static JMSDestinationMetadata.ProducerMetadata buildProducerMetadata(
+      String pulsarTopic, PublisherStats p) {
+    JMSDestinationMetadata.ProducerMetadata cmd =
+        new JMSDestinationMetadata.ProducerMetadata(p.getProducerName());
+    cmd.setPulsarTopic(pulsarTopic);
+    cmd.setAddress(p.getAddress());
+    cmd.setClientVersion(p.getClientVersion());
+    Map<String, String> metadata =
+        p.getMetadata() != null ? p.getMetadata() : Collections.emptyMap();
+    cmd.setMetadata(metadata);
+    cmd.setEnablePriority(metadata.getOrDefault("jms.priority", "disabled").equals("enabled"));
+    cmd.setTransacted(metadata.getOrDefault("jms.transactions", "disabled").equals("enabled"));
+    cmd.setPriorityMapping(metadata.getOrDefault("jms.priorityMapping", ""));
+    return cmd;
   }
 
   void checkDestination(
@@ -280,7 +335,7 @@ class PulsarJMSAdminImpl implements JMSAdmin {
         properties.put("jms.selector", selector);
       }
       String topicName = factory.getPulsarTopicName(dest);
-      Topics topics = factory.getPulsarAdmin().topics();
+      Topics topics = factory.ensurePulsarAdmin().topics();
       topics.createSubscription(
           topicName,
           subscriptionName,
@@ -303,7 +358,7 @@ class PulsarJMSAdminImpl implements JMSAdmin {
           destination, d -> !dest.isVirtualDestination(), "Cannot create a VirtualDestination");
 
       String topicName = factory.getPulsarTopicName(dest);
-      Topics topics = factory.getPulsarAdmin().topics();
+      Topics topics = factory.ensurePulsarAdmin().topics();
       boolean exists = false;
       try {
         PartitionedTopicMetadata partitionedTopicMetadata =
@@ -354,7 +409,7 @@ class PulsarJMSAdminImpl implements JMSAdmin {
           destination, d -> !dest.isVirtualDestination(), "Cannot create a VirtualDestination");
 
       String topicName = factory.getPulsarTopicName(dest);
-      Topics topics = factory.getPulsarAdmin().topics();
+      Topics topics = factory.ensurePulsarAdmin().topics();
       try {
         PartitionedTopicMetadata partitionedTopicMetadata =
             topics.getPartitionedTopicMetadata(topicName);
@@ -368,10 +423,14 @@ class PulsarJMSAdminImpl implements JMSAdmin {
       } catch (PulsarAdminException.NotFoundException notFound) {
         // ok
       }
-      if (partitions > 0) {
-        topics.createPartitionedTopic(topicName, partitions);
-      } else {
-        topics.createNonPartitionedTopic(topicName);
+      try {
+        if (partitions > 0) {
+          topics.createPartitionedTopic(topicName, partitions);
+        } else {
+          topics.createNonPartitionedTopic(topicName);
+        }
+      } catch (PulsarAdminException.ConflictException exists) {
+        throw new InvalidDestinationException("Topic " + topicName + " already exists");
       }
     } catch (PulsarAdminException error) {
       throw Utils.handleException(error);
@@ -395,7 +454,7 @@ class PulsarJMSAdminImpl implements JMSAdmin {
       boolean enableFilters, String selector, String topicName, String subscriptionName)
       throws JMSException, PulsarAdminException {
     validateSelector(enableFilters, selector);
-    Topics topics = factory.getPulsarAdmin().topics();
+    Topics topics = factory.ensurePulsarAdmin().topics();
     Map<String, String> currentProperties = new HashMap<>();
     try {
       currentProperties = topics.getSubscriptionProperties(topicName, subscriptionName);
