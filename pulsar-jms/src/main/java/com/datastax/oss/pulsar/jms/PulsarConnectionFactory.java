@@ -1745,7 +1745,6 @@ public class PulsarConnectionFactory
         });
   }
 
-
   /**
    * Access to the high level Admin JMS API
    *
@@ -1773,7 +1772,7 @@ public class PulsarConnectionFactory
     createConnection().close();
     if (pulsarAdmin == null) {
       throw new IllegalStateException(
-              "This PulsarConnectionFactory is not configured to bootstrap a PulsarAdmin");
+          "This PulsarConnectionFactory is not configured to bootstrap a PulsarAdmin");
     }
     return pulsarAdmin;
   }
@@ -1791,7 +1790,7 @@ public class PulsarConnectionFactory
     public Thread newThread(Runnable r) {
       String name = "jms-session-thread-" + sessionThreadNumber.getAndIncrement();
       Thread thread = new Thread(r, name);
-      thread.setDaemon(false);
+      thread.setDaemon(true);
       thread.setUncaughtExceptionHandler(
           new Thread.UncaughtExceptionHandler() {
             @Override
@@ -1802,5 +1801,4 @@ public class PulsarConnectionFactory
       return thread;
     }
   }
-
 }

@@ -26,9 +26,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -525,6 +527,49 @@ public class MessageListenerTest {
 
       TextMessage actTextMessage = (TextMessage) received.get();
       assertEquals(actTextMessage.getText(), "test");
+    }
+  }
+
+  @ParameterizedTest(name = "sessionListenersThreads {0}")
+  @ValueSource(ints = {0, 4})
+  public void closeSessionMessageListenerStops(int sessionListenersThreads) throws Exception {
+
+    Map<String, Object> properties = new HashMap<>();
+    properties.put("webServiceUrl", cluster.getAddress());
+    properties.put("jms.sessionListenersThreads", sessionListenersThreads);
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties);
+        Connection connection = factory.createConnection();
+        Session session1 = connection.createSession();
+        Session session2 = connection.createSession()) {
+      connection.start();
+      Queue destination = new PulsarQueue("persistent://public/default/test-" + UUID.randomUUID());
+
+      MessageProducer producer = session2.createProducer(destination);
+
+      List<Message> received = new CopyOnWriteArrayList<>();
+      session1
+          .createConsumer(destination)
+          .setMessageListener(
+              new MessageListener() {
+                @Override
+                public void onMessage(Message message) {
+                  received.add(message);
+                }
+              });
+
+      producer.send(session2.createTextMessage("test"));
+
+      await().until(() -> received.size() == 1);
+      producer.send(session2.createTextMessage("test"));
+      await().until(() -> received.size() == 2);
+
+      session1.close();
+
+      producer.send(session2.createTextMessage("test"));
+
+      // assert that the consumer did not receive other messages
+      Thread.sleep(2000);
+      assertEquals(2, received.size());
     }
   }
 }

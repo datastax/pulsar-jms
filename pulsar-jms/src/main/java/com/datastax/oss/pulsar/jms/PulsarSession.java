@@ -1950,6 +1950,10 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   }
 
   void scheduleConsumerListenerCycle(PulsarMessageConsumer consumer, boolean immediate) {
+    if (isClosed()) {
+      // session is closed, no need to schedule Listeners
+      return;
+    }
     if (!connection.isStarted()) {
       // try again later
       threadPool.schedule(
