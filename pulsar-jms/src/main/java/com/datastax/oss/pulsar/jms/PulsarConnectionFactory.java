@@ -22,11 +22,15 @@ import com.datastax.oss.pulsar.jms.api.JMSAdmin;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.io.OutputStream;
 import java.io.Serializable;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -44,6 +48,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 import javax.jms.ConnectionFactory;
 import javax.jms.Destination;
@@ -62,6 +67,7 @@ import javax.jms.Topic;
 import javax.jms.TopicConnection;
 import javax.jms.TopicConnectionFactory;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.io.IOUtils;
 import org.apache.pulsar.client.admin.PulsarAdmin;
 import org.apache.pulsar.client.admin.PulsarAdminException;
 import org.apache.pulsar.client.api.Authentication;
@@ -463,7 +469,29 @@ public class PulsarConnectionFactory
             Boolean.parseBoolean(getAndRemoveString("useKeyStoreTls", "false", configurationCopy));
         String tlsTrustStoreType =
             getAndRemoveString("tlsTrustStoreType", "JKS", configurationCopy);
-        String tlsTrustStorePath = getAndRemoveString("tlsTrustStorePath", "", configurationCopy);
+        String tlsTrustStorePath = "";
+        Object tlsTrustStoreStreamObject = configurationCopy.get("tlsTrustStoreStream");
+        if (tlsTrustStoreStreamObject instanceof Supplier) {
+          Object tlsTrustStoreStream = ((Supplier<?>) tlsTrustStoreStreamObject).get();
+          if (tlsTrustStoreStream instanceof InputStream) {
+            Path path;
+            try {
+              path = Files.createTempFile("pulsar-jms-tls-truststore-", ".tmp");
+            } catch (IOException e) {
+              throw new javax.jms.IllegalStateRuntimeException("Unable to create temp truststore file");
+            }
+            path.toFile().deleteOnExit();
+            try (OutputStream out = Files.newOutputStream(path)) {
+              IOUtils.copy((InputStream) tlsTrustStoreStream, out);
+            } catch (IOException e) {
+              log.error("Error writing truststore to temp file", e);
+              throw new javax.jms.IllegalStateRuntimeException("Unable to write truststore to temp file");
+            }
+            tlsTrustStorePath = path.toString();
+          }
+        } else {
+          tlsTrustStorePath = getAndRemoveString("tlsTrustStorePath", "", configurationCopy);
+        }
         String tlsTrustStorePassword =
             getAndRemoveString("tlsTrustStorePassword", "", configurationCopy);
 
