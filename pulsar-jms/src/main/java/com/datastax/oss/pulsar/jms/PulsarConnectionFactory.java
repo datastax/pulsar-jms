@@ -27,6 +27,7 @@ import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -148,6 +149,7 @@ public class PulsarConnectionFactory
   private transient int refreshServerSideFiltersPeriod = 300;
 
   private transient Map<String, Object> configuration = Collections.emptyMap();
+  private final transient List<Path> tempConfigFiles = new CopyOnWriteArrayList<>();
 
   public PulsarConnectionFactory() throws JMSException {
     this(new HashMap<>());
@@ -247,9 +249,8 @@ public class PulsarConnectionFactory
       throw new IllegalStateException("This ConnectionFactory is closed");
     }
     Map<String, Object> configurationCopy = Utils.deepCopyMap(this.configuration);
-    Utils.writeEncodedPathConfigsToTempFiles(configurationCopy);
     try {
-
+      tempConfigFiles.addAll(Utils.writeEncodedPathConfigsToTempFiles(configurationCopy));
       Map<String, Object> producerConfiguration =
           (Map<String, Object>) configurationCopy.remove("producerConfig");
       if (producerConfiguration != null) {
@@ -531,6 +532,7 @@ public class PulsarConnectionFactory
       }
       this.initialized = true;
     } catch (Throwable t) {
+      tempConfigFiles.forEach(path -> path.toFile().delete());
       throw Utils.handleException(t);
     }
   }
@@ -984,6 +986,8 @@ public class PulsarConnectionFactory
     } catch (PulsarClientException err) {
       log.info("Error closing PulsarClient", err);
     }
+
+    tempConfigFiles.forEach(path -> path.toFile().delete());
   }
 
   public static PulsarDestination toPulsarDestination(Destination destination) throws JMSException {

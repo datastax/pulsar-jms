@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
@@ -473,7 +474,8 @@ public final class Utils {
    * The temp file will be deleted on JVM exit.
    * @param configuration - the configuration map to modify in place
    */
-  static void writeEncodedPathConfigsToTempFiles(Map<String, Object> configuration) {
+  static List<Path> writeEncodedPathConfigsToTempFiles(Map<String, Object> configuration) {
+    List<Path> createdFiles = new ArrayList<>();
     for (Map.Entry<String, Object> entry : configuration.entrySet()) {
       String key = entry.getKey();
       Object value = entry.getValue();
@@ -490,8 +492,9 @@ public final class Utils {
             continue;
           }
           Path file = Files.createTempFile("pulsar-jms.", ".tmp");
-          Files.setPosixFilePermissions(file, PosixFilePermissions.fromString("rw-------"));
           file.toFile().deleteOnExit();
+          Files.setPosixFilePermissions(file, PosixFilePermissions.fromString("rw-------"));
+          createdFiles.add(file);
           Files.write(file, bytesToWrite);
           String path = file.toAbsolutePath().toString();
           log.info("Decoded {} to temporary file {}", key, path);
@@ -502,5 +505,6 @@ public final class Utils {
         }
       }
     }
+    return createdFiles;
   }
 }
