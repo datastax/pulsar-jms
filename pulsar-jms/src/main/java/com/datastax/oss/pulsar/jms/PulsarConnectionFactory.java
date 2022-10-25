@@ -22,15 +22,11 @@ import com.datastax.oss.pulsar.jms.api.JMSAdmin;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
-import java.io.OutputStream;
 import java.io.Serializable;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -48,7 +44,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 import java.util.stream.Stream;
 import javax.jms.ConnectionFactory;
 import javax.jms.Destination;
@@ -67,7 +62,6 @@ import javax.jms.Topic;
 import javax.jms.TopicConnection;
 import javax.jms.TopicConnectionFactory;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.io.IOUtils;
 import org.apache.pulsar.client.admin.PulsarAdmin;
 import org.apache.pulsar.client.admin.PulsarAdminException;
 import org.apache.pulsar.client.api.Authentication;
@@ -253,7 +247,7 @@ public class PulsarConnectionFactory
       throw new IllegalStateException("This ConnectionFactory is closed");
     }
     Map<String, Object> configurationCopy = Utils.deepCopyMap(this.configuration);
-    Utils.decodeBase64EncodedPathConfigsToFiles(configurationCopy);
+    Utils.writeEncodedPathConfigsToTempFiles(configurationCopy);
     try {
 
       Map<String, Object> producerConfiguration =

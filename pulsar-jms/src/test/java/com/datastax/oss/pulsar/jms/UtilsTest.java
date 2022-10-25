@@ -356,7 +356,30 @@ public class UtilsTest {
 
       HashMap<String, Object> config = new HashMap<>();
       config.put("tlsTrustStorePath", encodedKeyStore);
-      Utils.decodeBase64EncodedPathConfigsToFiles(config);
+      Utils.writeEncodedPathConfigsToTempFiles(config);
+
+      String path = (String) config.get("tlsTrustStorePath");
+
+      try(FileInputStream inputStream = new FileInputStream(path)) {
+        byte[] storedFile = new byte[byteOutputStream.size()];
+        IOUtils.readFully(inputStream, storedFile);
+        assertArrayEquals(byteOutputStream.toByteArray(), storedFile);
+      }
+    }
+  }
+
+  @Test
+  public void verifyByteArrayPathConfigsToFilesForJKSTruststore() throws Exception {
+    String storePassword = "storePassword";
+    String storeType = "jks";
+    try (ByteArrayOutputStream byteOutputStream = new ByteArrayOutputStream()) {
+      KeyStore keystore = KeyStore.getInstance(storeType);
+      keystore.load(null, storePassword.toCharArray());
+      keystore.store(byteOutputStream, storePassword.toCharArray());
+
+      HashMap<String, Object> config = new HashMap<>();
+      config.put("tlsTrustStorePath", byteOutputStream.toByteArray());
+      Utils.writeEncodedPathConfigsToTempFiles(config);
 
       String path = (String) config.get("tlsTrustStorePath");
 

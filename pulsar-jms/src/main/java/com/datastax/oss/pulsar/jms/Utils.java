@@ -464,30 +464,35 @@ public final class Utils {
   }
 
   /**
-   * Utility to convert configurations from base64 encoding into temporary files.
-   * Configurations must meet the following criteria:
-   * - Key must end with "path", case-insensitive
-   * - Value must be a String
-   * - Value must begin with "base64:", case-sensitive
+   * Utility to convert path configurations from encoded content into temporary files.
+   * Only configurations that end with "path" (case-insensitive) will be modified.
+   * If the value is a String and begins with "base64:", case-sensitive, it will be base64 decoded then written to a
+   * temp file.
+   * If the value is a byte[], it will be written directly to a temp file.
    * The temp file permissions will only allow the current user to access the file.
    * The temp file will be deleted on JVM exit.
    * @param configuration - the configuration map to modify in place
    */
-  static void decodeBase64EncodedPathConfigsToFiles(Map<String, Object> configuration) {
+  static void writeEncodedPathConfigsToTempFiles(Map<String, Object> configuration) {
     for (Map.Entry<String, Object> entry : configuration.entrySet()) {
       String key = entry.getKey();
       Object value = entry.getValue();
-      if (key.toLowerCase().endsWith("path")
-              && value instanceof String
-              && ((String) value).startsWith("base64:")) {
+      if (key.toLowerCase().endsWith("path")) {
         try {
-          String encoded = ((String) value).replace("\n", "").replace("\r", "").trim();
-          encoded = encoded.substring("base64:".length());
-          byte[] decoded = Base64.getDecoder().decode(encoded);
+          byte[] bytesToWrite;
+          if (value instanceof String && ((String) value).startsWith("base64:")) {
+            String encoded = ((String) value).replace("\n", "").replace("\r", "").trim();
+            encoded = encoded.substring("base64:".length());
+            bytesToWrite = Base64.getDecoder().decode(encoded);
+          } else if (value instanceof byte[]) {
+            bytesToWrite = (byte[]) value;
+          } else {
+            continue;
+          }
           Path file = Files.createTempFile("pulsar-jms.", ".tmp");
           Files.setPosixFilePermissions(file, PosixFilePermissions.fromString("rw-------"));
           file.toFile().deleteOnExit();
-          Files.write(file, decoded);
+          Files.write(file, bytesToWrite);
           String path = file.toAbsolutePath().toString();
           log.info("Decoded {} to temporary file {}", key, path);
           entry.setValue(path);
