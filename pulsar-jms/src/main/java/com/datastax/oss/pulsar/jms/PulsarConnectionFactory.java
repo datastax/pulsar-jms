@@ -253,6 +253,7 @@ public class PulsarConnectionFactory
       throw new IllegalStateException("This ConnectionFactory is closed");
     }
     Map<String, Object> configurationCopy = Utils.deepCopyMap(this.configuration);
+    Utils.decodeBase64EncodedPathConfigsToFiles(configurationCopy);
     try {
 
       Map<String, Object> producerConfiguration =
@@ -469,29 +470,7 @@ public class PulsarConnectionFactory
             Boolean.parseBoolean(getAndRemoveString("useKeyStoreTls", "false", configurationCopy));
         String tlsTrustStoreType =
             getAndRemoveString("tlsTrustStoreType", "JKS", configurationCopy);
-        String tlsTrustStorePath = "";
-        Object tlsTrustStoreStreamObject = configurationCopy.get("tlsTrustStoreStream");
-        if (tlsTrustStoreStreamObject instanceof Supplier) {
-          Object tlsTrustStoreStream = ((Supplier<?>) tlsTrustStoreStreamObject).get();
-          if (tlsTrustStoreStream instanceof InputStream) {
-            Path path;
-            try {
-              path = Files.createTempFile("pulsar-jms-tls-truststore-", ".tmp");
-            } catch (IOException e) {
-              throw new javax.jms.IllegalStateRuntimeException("Unable to create temp truststore file");
-            }
-            path.toFile().deleteOnExit();
-            try (OutputStream out = Files.newOutputStream(path)) {
-              IOUtils.copy((InputStream) tlsTrustStoreStream, out);
-            } catch (IOException e) {
-              log.error("Error writing truststore to temp file", e);
-              throw new javax.jms.IllegalStateRuntimeException("Unable to write truststore to temp file");
-            }
-            tlsTrustStorePath = path.toString();
-          }
-        } else {
-          tlsTrustStorePath = getAndRemoveString("tlsTrustStorePath", "", configurationCopy);
-        }
+        String tlsTrustStorePath = getAndRemoveString("tlsTrustStorePath", "", configurationCopy);
         String tlsTrustStorePassword =
             getAndRemoveString("tlsTrustStorePassword", "", configurationCopy);
 

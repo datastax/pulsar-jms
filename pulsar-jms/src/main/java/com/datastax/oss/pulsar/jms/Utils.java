@@ -15,6 +15,11 @@
  */
 package com.datastax.oss.pulsar.jms;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermissions;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -456,5 +461,41 @@ public final class Utils {
       return numPartitions - 1;
     }
     return result;
+  }
+
+  /**
+   * Utility to convert configurations from base64 encoding into temporary files.
+   * Configurations must meet the following criteria:
+   * - Key must end with "path", case-insensitive
+   * - Value must be a String
+   * - Value must begin with "base64:", case-sensitive
+   * The temp file permissions will only allow the current user to access the file.
+   * The temp file will be deleted on JVM exit.
+   * @param configuration - the configuration map to modify in place
+   */
+  static void decodeBase64EncodedPathConfigsToFiles(Map<String, Object> configuration) {
+    for (Map.Entry<String, Object> entry : configuration.entrySet()) {
+      String key = entry.getKey();
+      Object value = entry.getValue();
+      if (key.toLowerCase().endsWith("path")
+              && value instanceof String
+              && ((String) value).startsWith("base64:")) {
+        try {
+          String encoded = ((String) value).replace("\n", "").replace("\r", "").trim();
+          encoded = encoded.substring("base64:".length());
+          byte[] decoded = Base64.getDecoder().decode(encoded);
+          Path file = Files.createTempFile("pulsar-jms.", ".tmp");
+          Files.setPosixFilePermissions(file, PosixFilePermissions.fromString("rw-------"));
+          file.toFile().deleteOnExit();
+          Files.write(file, decoded);
+          String path = file.toAbsolutePath().toString();
+          log.info("Decoded {} to temporary file {}", key, path);
+          entry.setValue(path);
+        } catch (IOException ex) {
+          throw new RuntimeException(
+                  "Cannot decode base64 " + key + " and create temporary file: " + ex, ex);
+        }
+      }
+    }
   }
 }
