@@ -15,11 +15,18 @@
  */
 package com.datastax.oss.pulsar.jms;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.ByteArrayOutputStream;
+import java.io.FileInputStream;
+import java.security.KeyStore;
+import java.util.Base64;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.io.IOUtils;
 import org.junit.jupiter.api.Test;
 
 @Slf4j
@@ -335,6 +342,30 @@ public class UtilsTest {
     testLinearMapping(7, numPartitions, 14, 15);
     testLinearMapping(8, numPartitions, 16, 17);
     testLinearMapping(9, numPartitions, 18, 19);
+  }
+
+  @Test
+  public void verifyDecodeBase64EncodedPathConfigsToFilesForJKSTruststore() throws Exception {
+    String storePassword = "storePassword";
+    String storeType = "jks";
+    try (ByteArrayOutputStream byteOutputStream = new ByteArrayOutputStream()) {
+      KeyStore keystore = KeyStore.getInstance(storeType);
+      keystore.load(null, storePassword.toCharArray());
+      keystore.store(byteOutputStream, storePassword.toCharArray());
+      String encodedKeyStore = "base64:" + Base64.getEncoder().encodeToString(byteOutputStream.toByteArray());
+
+      HashMap<String, Object> config = new HashMap<>();
+      config.put("tlsTrustStorePath", encodedKeyStore);
+      Utils.decodeBase64EncodedPathConfigsToFiles(config);
+
+      String path = (String) config.get("tlsTrustStorePath");
+
+      try(FileInputStream inputStream = new FileInputStream(path)) {
+        byte[] storedFile = new byte[byteOutputStream.size()];
+        IOUtils.readFully(inputStream, storedFile);
+        assertArrayEquals(byteOutputStream.toByteArray(), storedFile);
+      }
+    }
   }
 
   private static void testNonLinearMapping(int priority, int numPartitions, int from, int to) {
