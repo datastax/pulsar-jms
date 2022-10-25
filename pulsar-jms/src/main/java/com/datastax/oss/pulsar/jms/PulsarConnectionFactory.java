@@ -154,6 +154,8 @@ public class PulsarConnectionFactory
 
   private transient ScheduledExecutorService sessionListenersThreadPool;
 
+  private transient int sessionListenersThreads;
+
   public PulsarConnectionFactory() throws JMSException {
     this(new HashMap<>());
   }
@@ -322,22 +324,12 @@ public class PulsarConnectionFactory
           Integer.parseInt(
               getAndRemoveString("jms.refreshServerSideFiltersPeriod", "300", configurationCopy));
 
-      int sessionListenersThreads =
+      this.sessionListenersThreads =
           Integer.parseInt(
               getAndRemoveString(
                   "jms.sessionListenersThreads",
                   (Runtime.getRuntime().availableProcessors() * 2) + "",
                   configurationCopy));
-
-      if (sessionListenersThreads > 0) {
-        sessionListenersThreadPool =
-            new ScheduledThreadPoolExecutor(
-                sessionListenersThreads,
-                new SessionListenersThreadFactory(),
-                new ThreadPoolExecutor.DiscardPolicy());
-      } else {
-        sessionListenersThreadPool = null;
-      }
 
       final String rawTopicSharedSubscriptionType =
           getAndRemoveString(
@@ -1587,7 +1579,7 @@ public class PulsarConnectionFactory
   }
 
   public void registerClientId(String clientID) throws InvalidClientIDException {
-    log.info("registerClientId {}, existing {}", clientID, clientIdentifiers);
+    log.debug("registerClientId {}, existing {}", clientID, clientIdentifiers);
     if (!clientIdentifiers.add(clientID)) {
       throw new InvalidClientIDException(
           "A connection with this client id '" + clientID + "'is already opened locally");
@@ -1597,7 +1589,7 @@ public class PulsarConnectionFactory
   public void unregisterConnection(PulsarConnection connection) {
     if (connection.clientId != null) {
       clientIdentifiers.remove(connection.clientId);
-      log.info("unregisterClientId {} {}", connection.clientId, clientIdentifiers);
+      log.debug("unregisterClientId {} {}", connection.clientId, clientIdentifiers);
     }
     connections.remove(connection);
   }
@@ -1777,7 +1769,18 @@ public class PulsarConnectionFactory
     return pulsarAdmin;
   }
 
-  public ScheduledExecutorService getSessionListenersThreadPool() {
+  public synchronized ScheduledExecutorService getSessionListenersThreadPool() {
+    if (sessionListenersThreads > 0 && sessionListenersThreadPool == null) {
+      log.info(
+          "{} Starting MessageListeners thread pool, size is jms.sessionListenersThreads={}",
+          this,
+          sessionListenersThreads);
+      sessionListenersThreadPool =
+          new ScheduledThreadPoolExecutor(
+              sessionListenersThreads,
+              new SessionListenersThreadFactory(),
+              new ThreadPoolExecutor.AbortPolicy());
+    }
     return sessionListenersThreadPool;
   }
 
