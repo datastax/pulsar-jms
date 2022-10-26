@@ -469,7 +469,7 @@ public class PulsarConnectionFactory
 
         boolean tlsEnableHostnameVerification =
             Boolean.parseBoolean(
-                getAndRemoveString("tlsEnableHostnameVerification", "false", configurationCopy));
+                getAndRemoveString("tlsEnableHostnameVerification", "true", configurationCopy));
         final String tlsTrustCertsFilePath =
             (String) getAndRemoveString("tlsTrustCertsFilePath", "", configurationCopy);
 
