@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import javax.naming.Binding;
 import javax.naming.Context;
@@ -36,27 +37,21 @@ import javax.naming.OperationNotSupportedException;
 
 public class PulsarContext implements Context {
 
+  public static final String USE_SHARED_JNDICONTEXT = "jms.useSharedJNDIContext";
+  public static final String AUTOCLOSE_CONNECTION_FACTORY = "autoCloseConnectionFactory";
+
   private final Hashtable environment;
+  private final Map<String, Object> properties;
   private PulsarConnectionFactory connectionFactory;
   private final boolean autoCloseConnectionFactory;
+  private final boolean shared;
+
+  final AtomicInteger referenceCount = new AtomicInteger(0);
 
   PulsarContext(Hashtable environment) {
+    // reference to the original environment
     this.environment = environment;
-    Object autoCloseConnectionFactory = environment.remove("autoCloseConnectionFactory");
-    final boolean ownConnectionFactory;
-    if (autoCloseConnectionFactory == null) {
-      ownConnectionFactory = false;
-    } else {
-      ownConnectionFactory = Boolean.parseBoolean(autoCloseConnectionFactory + "");
-    }
-    this.autoCloseConnectionFactory = ownConnectionFactory;
-  }
-
-  private synchronized PulsarConnectionFactory getConnectionFactory() {
-    if (connectionFactory != null) {
-      return connectionFactory;
-    }
-    Map<String, Object> properties = new HashMap<>();
+    this.properties = new HashMap<>();
     environment.forEach(
         (k, v) -> {
           if (k.toString().startsWith("java.naming")) {
@@ -68,6 +63,15 @@ public class PulsarContext implements Context {
             properties.put(k.toString(), v);
           }
         });
+    this.shared = Boolean.parseBoolean(properties.remove(USE_SHARED_JNDICONTEXT) + "");
+    this.autoCloseConnectionFactory =
+        Boolean.parseBoolean(properties.remove(AUTOCLOSE_CONNECTION_FACTORY) + "");
+  }
+
+  private synchronized PulsarConnectionFactory getConnectionFactory() {
+    if (connectionFactory != null) {
+      return connectionFactory;
+    }
     connectionFactory = new PulsarConnectionFactory(properties);
     return connectionFactory;
   }
@@ -230,6 +234,9 @@ public class PulsarContext implements Context {
 
   @Override
   public synchronized void close() throws NamingException {
+    if (shared && !PulsarInitialContextFactory.releaseSharedContext(environment, this)) {
+      return;
+    }
     if (connectionFactory != null) {
       if (autoCloseConnectionFactory) {
         connectionFactory.close();
@@ -241,5 +248,10 @@ public class PulsarContext implements Context {
   @Override
   public String getNameInNamespace() throws NamingException {
     throw new OperationNotSupportedException();
+  }
+
+  @Override
+  public String toString() {
+    return "PulsarContext{" + System.identityHashCode(this) + '}';
   }
 }

@@ -157,9 +157,12 @@ public class ConnectionPausedTest {
             beforeReceive.await();
             // wait to enter "receive" method and blocks
 
-            Awaitility.await().untilAsserted(() -> {
+            Awaitility.await()
+                .untilAsserted(
+                    () -> {
                       log.info("Consumer thread status {}", consumerThread);
-                      Stream.of(consumerThread.getStackTrace()).forEach(t -> log.info(t.toString()));
+                      Stream.of(consumerThread.getStackTrace())
+                          .forEach(t -> log.info(t.toString()));
                       assertEquals(Thread.State.TIMED_WAITING, consumerThread.getState());
                     });
 
