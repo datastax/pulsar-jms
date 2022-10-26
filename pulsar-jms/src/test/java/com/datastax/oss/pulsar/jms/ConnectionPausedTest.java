@@ -37,6 +37,7 @@ import javax.jms.Session;
 import javax.jms.TextMessage;
 import javax.jms.Topic;
 import lombok.extern.slf4j.Slf4j;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -155,11 +156,12 @@ public class ConnectionPausedTest {
             // wait for the consumer to block on "receive"
             beforeReceive.await();
             // wait to enter "receive" method and blocks
-            Thread.sleep(1000);
 
-            log.info("Consumer thread status {}", consumerThread);
-            Stream.of(consumerThread.getStackTrace()).forEach(t -> System.err.println(t));
-            assertEquals(Thread.State.TIMED_WAITING, consumerThread.getState());
+            Awaitility.await().untilAsserted(() -> {
+                      log.info("Consumer thread status {}", consumerThread);
+                      Stream.of(consumerThread.getStackTrace()).forEach(t -> log.info(t.toString()));
+                      assertEquals(Thread.State.TIMED_WAITING, consumerThread.getState());
+                    });
 
             ScheduledExecutorService executeLater = Executors.newSingleThreadScheduledExecutor();
             try {

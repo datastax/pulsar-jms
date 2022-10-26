@@ -43,7 +43,11 @@ import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import javax.jms.ConnectionFactory;
 import javax.jms.Destination;
@@ -144,10 +148,13 @@ public class PulsarConnectionFactory
   private transient int precreateQueueSubscriptionConsumerQueueSize = 0;
   private transient boolean initialized;
   private transient boolean closed;
-  private transient boolean startPulsarClient = true;
   private transient int refreshServerSideFiltersPeriod = 300;
 
   private transient Map<String, Object> configuration = Collections.emptyMap();
+
+  private transient ScheduledExecutorService sessionListenersThreadPool;
+
+  private transient int sessionListenersThreads;
 
   public PulsarConnectionFactory() throws JMSException {
     this(new HashMap<>());
@@ -316,6 +323,13 @@ public class PulsarConnectionFactory
       this.refreshServerSideFiltersPeriod =
           Integer.parseInt(
               getAndRemoveString("jms.refreshServerSideFiltersPeriod", "300", configurationCopy));
+
+      this.sessionListenersThreads =
+          Integer.parseInt(
+              getAndRemoveString(
+                  "jms.sessionListenersThreads",
+                  (Runtime.getRuntime().availableProcessors() * 2) + "",
+                  configurationCopy));
 
       final String rawTopicSharedSubscriptionType =
           getAndRemoveString(
@@ -983,6 +997,11 @@ public class PulsarConnectionFactory
     } catch (PulsarClientException err) {
       log.info("Error closing PulsarClient", err);
     }
+
+    if (sessionListenersThreadPool != null) {
+      sessionListenersThreadPool.shutdown();
+      sessionListenersThreadPool = null;
+    }
   }
 
   public static PulsarDestination toPulsarDestination(Destination destination) throws JMSException {
@@ -1155,7 +1174,7 @@ public class PulsarConnectionFactory
     }
   }
 
-  public Consumer<?> createConsumer(
+  public ConsumerBase<?> createConsumer(
       PulsarDestination destination,
       String consumerName,
       SubscriptionMode subscriptionMode,
@@ -1282,7 +1301,7 @@ public class PulsarConnectionFactory
         replaceIncomingMessageList(newConsumer);
         newConsumer.resume();
       }
-      return newConsumer;
+      return (ConsumerBase) newConsumer;
     } catch (PulsarClientException err) {
       throw Utils.handleException(err);
     }
@@ -1560,7 +1579,7 @@ public class PulsarConnectionFactory
   }
 
   public void registerClientId(String clientID) throws InvalidClientIDException {
-    log.info("registerClientId {}, existing {}", clientID, clientIdentifiers);
+    log.debug("registerClientId {}, existing {}", clientID, clientIdentifiers);
     if (!clientIdentifiers.add(clientID)) {
       throw new InvalidClientIDException(
           "A connection with this client id '" + clientID + "'is already opened locally");
@@ -1570,7 +1589,7 @@ public class PulsarConnectionFactory
   public void unregisterConnection(PulsarConnection connection) {
     if (connection.clientId != null) {
       clientIdentifiers.remove(connection.clientId);
-      log.info("unregisterClientId {} {}", connection.clientId, clientIdentifiers);
+      log.debug("unregisterClientId {} {}", connection.clientId, clientIdentifiers);
     }
     connections.remove(connection);
   }
@@ -1748,5 +1767,41 @@ public class PulsarConnectionFactory
           "This PulsarConnectionFactory is not configured to bootstrap a PulsarAdmin");
     }
     return pulsarAdmin;
+  }
+
+  public synchronized ScheduledExecutorService getSessionListenersThreadPool() {
+    if (sessionListenersThreads > 0 && sessionListenersThreadPool == null) {
+      log.info(
+          "{} Starting MessageListeners thread pool, size is jms.sessionListenersThreads={}",
+          this,
+          sessionListenersThreads);
+      sessionListenersThreadPool =
+          new ScheduledThreadPoolExecutor(
+              sessionListenersThreads,
+              new SessionListenersThreadFactory(),
+              new ThreadPoolExecutor.AbortPolicy());
+    }
+    return sessionListenersThreadPool;
+  }
+
+  private static class SessionListenersThreadFactory implements ThreadFactory {
+    private static final AtomicInteger sessionThreadNumber = new AtomicInteger();
+
+    public SessionListenersThreadFactory() {}
+
+    @Override
+    public Thread newThread(Runnable r) {
+      String name = "jms-session-thread-" + sessionThreadNumber.getAndIncrement();
+      Thread thread = new Thread(r, name);
+      thread.setDaemon(true);
+      thread.setUncaughtExceptionHandler(
+          new Thread.UncaughtExceptionHandler() {
+            @Override
+            public void uncaughtException(Thread t, Throwable e) {
+              log.error("Internal error in JMS Session thread {}", t, e);
+            }
+          });
+      return thread;
+    }
   }
 }

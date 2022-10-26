@@ -23,6 +23,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 import javax.jms.IllegalStateException;
 import javax.jms.IllegalStateRuntimeException;
@@ -112,19 +113,20 @@ public final class Utils {
     }
   }
 
-  public static void executeMessageListenerInSessionContext(
-      PulsarSession session, PulsarMessageConsumer consumer, Runnable code) {
+  public static boolean executeMessageListenerInSessionContext(
+      PulsarSession session, PulsarMessageConsumer consumer, BooleanSupplier code) {
     currentSession.set(new CallbackContext(session, consumer, null));
     try {
-      session.executeCriticalOperation(
+      return session.executeCriticalOperation(
           () -> {
-            code.run();
-            return null;
+            return code.getAsBoolean();
           });
     } catch (IllegalStateException err) {
       log.debug("Ignore error in listener", err);
+      return false;
     } catch (JMSException err) {
       log.error("Unexpected error in listener", err);
+      return false;
     } finally {
       currentSession.remove();
     }
