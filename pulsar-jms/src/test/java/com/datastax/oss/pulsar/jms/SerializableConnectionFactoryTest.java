@@ -92,7 +92,7 @@ public class SerializableConnectionFactoryTest {
     properties.put("webServiceUrl", cluster.getAddressTls());
     properties.put("tlsTrustCertsFilePath", trustCert);
     properties.put("tlsEnableHostnameVerification", "true");
-    test("testWithBase64EncodedTrustStore", properties);
+    test("testWithBase64EncodedTrustCert", properties);
   }
 
   @Test
