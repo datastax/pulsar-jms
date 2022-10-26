@@ -493,6 +493,7 @@ public final class Utils {
             encoded = encoded.substring("base64:".length());
             Files.write(file, Base64.getDecoder().decode(encoded));
             finalPath = file.toAbsolutePath().toString();
+            log.info("Decoded {} to temporary file {}", key, finalPath);
           } catch (IOException ex) {
             throw new RuntimeException(
                     "Cannot decode base64 " + key + " and create temporary file: " + ex, ex);
@@ -503,10 +504,10 @@ public final class Utils {
             throw new IllegalArgumentException("File " + originalPath + " not found for " + key);
           }
           finalPath = path.getPath();
+          log.info("Resolved {} to {}", key, finalPath);
         } else {
           continue;
         }
-        log.info("Decoded {} to temporary file {}", key, finalPath);
         entry.setValue(finalPath);
       }
     }

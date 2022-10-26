@@ -532,7 +532,7 @@ public class PulsarConnectionFactory
       }
       this.initialized = true;
     } catch (Throwable t) {
-      tempConfigFiles.forEach(path -> path.toFile().delete());
+      deleteTempFiles();
       throw Utils.handleException(t);
     }
   }
@@ -987,7 +987,7 @@ public class PulsarConnectionFactory
       log.info("Error closing PulsarClient", err);
     }
 
-    tempConfigFiles.forEach(path -> path.toFile().delete());
+    deleteTempFiles();
   }
 
   public static PulsarDestination toPulsarDestination(Destination destination) throws JMSException {
@@ -1722,6 +1722,16 @@ public class PulsarConnectionFactory
         c -> {
           c.refreshServerSideSelectors();
         });
+  }
+
+  private void deleteTempFiles() {
+    tempConfigFiles.forEach(path -> {
+      if (path.toFile().delete()) {
+        log.info("Deleted temporary file: " + path);
+      } else {
+        log.warn("Failed to delete temporary file: " + path);
+      }
+    });
   }
 
   /**
