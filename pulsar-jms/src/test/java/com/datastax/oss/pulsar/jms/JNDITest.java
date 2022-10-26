@@ -31,6 +31,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
+import javax.jms.Connection;
+import javax.jms.Destination;
+import javax.jms.MessageProducer;
+import javax.jms.Session;
+import javax.jms.TextMessage;
 import javax.naming.CompositeName;
 import javax.naming.CompoundName;
 import javax.naming.Context;
@@ -161,6 +166,9 @@ public class JNDITest {
         (PulsarConnectionFactory) jndiContext2.lookup("ConnectionFactory");
     assertSame(factory1, factory2);
 
+    // ensure that the connectionFactory works
+    verifyConnectionFactory(factory1);
+
     // close context1
     jndiContext1.close();
     assertFalse(factory1.isClosed());
@@ -204,7 +212,7 @@ public class JNDITest {
 
     Properties newProperties = new Properties();
     newProperties.putAll(properties);
-    newProperties.put("enableTransaction", true);
+    newProperties.put("enableTransaction", false);
     // different configuration
     javax.naming.Context jndiContext7 = new InitialContext(newProperties);
 
@@ -217,6 +225,9 @@ public class JNDITest {
     assertSame(factory5, factory6);
     assertNotSame(factory5, factory7);
 
+    verifyConnectionFactory(factory5);
+    verifyConnectionFactory(factory7);
+
     jndiContext5.close();
     jndiContext6.close();
     if ("true".equals(autoCloseConnectionFactory)) {
@@ -228,6 +239,8 @@ public class JNDITest {
       factory5.close();
     }
 
+    verifyConnectionFactory(factory7);
+
     jndiContext7.close();
     if ("true".equals(autoCloseConnectionFactory)) {
       // all the references are closed, so the factory should have been closed as well
@@ -235,6 +248,16 @@ public class JNDITest {
     } else {
       assertFalse(factory7.isClosed());
       factory7.close();
+    }
+  }
+
+  private void verifyConnectionFactory(PulsarConnectionFactory factory) throws Exception {
+    try (Connection con = factory.createConnection();
+        Session session = con.createSession();
+        MessageProducer producer = session.createProducer(null); ) {
+      Destination d = session.createTopic("test");
+      TextMessage msg = session.createTextMessage("foo");
+      producer.send(d, msg);
     }
   }
 }
