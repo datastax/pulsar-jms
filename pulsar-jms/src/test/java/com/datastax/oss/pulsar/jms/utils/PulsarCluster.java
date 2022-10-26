@@ -73,6 +73,10 @@ public class PulsarCluster implements AutoCloseable {
     return service.getWebServiceAddress();
   }
 
+  public String getAddressTls() {
+    return service.getWebServiceAddressTls();
+  }
+
   public void start() throws Exception {
     bookKeeperCluster.startBookie();
     service.start();

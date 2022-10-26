@@ -16,6 +16,7 @@
 package com.datastax.oss.pulsar.jms;
 
 import java.io.IOException;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
@@ -465,44 +466,48 @@ public final class Utils {
   }
 
   /**
-   * Utility to convert path configurations from encoded content into temporary files.
-   * Only configurations that end with "path" (case-insensitive) will be modified.
+   * Utility to convert path configurations into correct formats for the Apache Pulsar client.
+   * Only values for configuration keys that end with "path", case-insensitive, will be modified.
    * If the value is a String and begins with "base64:", case-sensitive, it will be base64 decoded then written to a
-   * temp file.
-   * If the value is a byte[], it will be written directly to a temp file.
-   * The temp file permissions will only allow the current user to access the file.
-   * The temp file will be deleted on JVM exit.
+   * temp file. The temp file permissions will only allow the current user to access the file. The temp file will be
+   * deleted on JVM exit.
+   * If the value is a String and begins with "classpath:", case-sensitive, the complete filepath will be resolved.
    * @param configuration - the configuration map to modify in place
+   * @return list of paths representing files created by this method
    */
   static List<Path> writeEncodedPathConfigsToTempFiles(Map<String, Object> configuration) {
     List<Path> createdFiles = new ArrayList<>();
     for (Map.Entry<String, Object> entry : configuration.entrySet()) {
       String key = entry.getKey();
       Object value = entry.getValue();
-      if (key.toLowerCase().endsWith("path")) {
-        try {
-          byte[] bytesToWrite;
-          if (value instanceof String && ((String) value).startsWith("base64:")) {
-            String encoded = ((String) value).replace("\n", "").replace("\r", "").trim();
+      if (key.toLowerCase().endsWith("path") && value instanceof String) {
+        String originalPath = (String) value;
+        String finalPath;
+        if (originalPath.startsWith("base64:")) {
+          try {
+            Path file = Files.createTempFile("pulsar-jms.", ".tmp");
+            file.toFile().deleteOnExit();
+            Files.setPosixFilePermissions(file, PosixFilePermissions.fromString("rw-------"));
+            createdFiles.add(file);
+            String encoded = originalPath.replace("\n", "").replace("\r", "").trim();
             encoded = encoded.substring("base64:".length());
-            bytesToWrite = Base64.getDecoder().decode(encoded);
-          } else if (value instanceof byte[]) {
-            bytesToWrite = (byte[]) value;
-          } else {
-            continue;
+            Files.write(file, Base64.getDecoder().decode(encoded));
+            finalPath = file.toAbsolutePath().toString();
+          } catch (IOException ex) {
+            throw new RuntimeException(
+                    "Cannot decode base64 " + key + " and create temporary file: " + ex, ex);
           }
-          Path file = Files.createTempFile("pulsar-jms.", ".tmp");
-          file.toFile().deleteOnExit();
-          Files.setPosixFilePermissions(file, PosixFilePermissions.fromString("rw-------"));
-          createdFiles.add(file);
-          Files.write(file, bytesToWrite);
-          String path = file.toAbsolutePath().toString();
-          log.info("Decoded {} to temporary file {}", key, path);
-          entry.setValue(path);
-        } catch (IOException ex) {
-          throw new RuntimeException(
-                  "Cannot decode base64 " + key + " and create temporary file: " + ex, ex);
+        } else if (originalPath.startsWith("classpath:")) {
+          URL path = Utils.class.getClassLoader().getResource(originalPath.substring("classpath:".length()));
+          if (path == null) {
+            throw new IllegalArgumentException("File " + originalPath + " not found for " + key);
+          }
+          finalPath = path.getPath();
+        } else {
+          continue;
         }
+        log.info("Decoded {} to temporary file {}", key, finalPath);
+        entry.setValue(finalPath);
       }
     }
     return createdFiles;

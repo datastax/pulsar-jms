@@ -1711,6 +1711,7 @@ public class PulsarConnectionFactory
     setFinalField("connections", Collections.synchronizedSet(new HashSet<>()));
     setFinalField("consumers", new CopyOnWriteArrayList<>());
     setFinalField("readers", new CopyOnWriteArrayList<>());
+    setFinalField("tempConfigFiles", new CopyOnWriteArrayList<>());
 
     this.initialized = false;
     this.closed = false;
