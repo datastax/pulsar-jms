@@ -16,7 +16,7 @@
 package com.datastax.oss.pulsar.jms;
 
 import java.io.IOException;
-import java.net.URL;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
@@ -466,12 +466,14 @@ public final class Utils {
   }
 
   /**
-   * Utility to convert path configurations into correct formats for the Apache Pulsar client.
+   * Utility to copy some path configurations into temporary files and update the parameterized configuration map
+   * with the temporary file paths.
    * Only values for configuration keys that end with "path", case-insensitive, will be modified.
    * If the value is a String and begins with "base64:", case-sensitive, it will be base64 decoded then written to a
-   * temp file. The temp file permissions will only allow the current user to access the file. The temp file will be
+   * temp file.
+   * If the value is a String and begins with "classpath:", case-sensitive, the file will be copied to a temp file.
+   * The temp file permissions will only allow the current user to access the file. The temp file will be
    * deleted on JVM exit.
-   * If the value is a String and begins with "classpath:", case-sensitive, the complete filepath will be resolved.
    * @param configuration - the configuration map to modify in place
    * @return list of paths representing files created by this method
    */
@@ -485,32 +487,46 @@ public final class Utils {
         String finalPath;
         if (originalPath.startsWith("base64:")) {
           try {
-            Path file = Files.createTempFile("pulsar-jms.", ".tmp");
-            file.toFile().deleteOnExit();
-            Files.setPosixFilePermissions(file, PosixFilePermissions.fromString("rw-------"));
-            createdFiles.add(file);
+            Path target = createTempFile();
+            createdFiles.add(target);
             String encoded = originalPath.replace("\n", "").replace("\r", "").trim();
             encoded = encoded.substring("base64:".length());
-            Files.write(file, Base64.getDecoder().decode(encoded));
-            finalPath = file.toAbsolutePath().toString();
-            log.info("Decoded {} to temporary file {}", key, finalPath);
+            Files.write(target, Base64.getDecoder().decode(encoded));
+            finalPath = target.toAbsolutePath().toString();
           } catch (IOException ex) {
             throw new RuntimeException(
                     "Cannot decode base64 " + key + " and create temporary file: " + ex, ex);
           }
         } else if (originalPath.startsWith("classpath:")) {
-          URL path = Utils.class.getClassLoader().getResource(originalPath.substring("classpath:".length()));
-          if (path == null) {
-            throw new IllegalArgumentException("File " + originalPath + " not found for " + key);
+          try {
+            Path target = createTempFile();
+            createdFiles.add(target);
+            try (InputStream inputStream = Thread.currentThread().getContextClassLoader()
+                    .getResourceAsStream(originalPath.substring("classpath:".length()))) {
+              if (inputStream == null) {
+                throw new IllegalArgumentException("File " + originalPath + " not found for " + key);
+              }
+              Files.copy(inputStream, target);
+            }
+            finalPath = target.toAbsolutePath().toString();
+          } catch (IOException ex) {
+            throw new RuntimeException(
+                    "Exception writing " + key + " to temporary file: " + ex, ex);
           }
-          finalPath = path.getPath();
-          log.info("Resolved {} to {}", key, finalPath);
         } else {
           continue;
         }
+        log.info("Decoded {} to temporary file {}", key, finalPath);
         entry.setValue(finalPath);
       }
     }
     return createdFiles;
+  }
+
+  private static Path createTempFile() throws IOException {
+    Path file = Files.createTempFile("pulsar-jms.", ".tmp");
+    file.toFile().deleteOnExit();
+    Files.setPosixFilePermissions(file, PosixFilePermissions.fromString("rw-------"));
+    return file;
   }
 }
