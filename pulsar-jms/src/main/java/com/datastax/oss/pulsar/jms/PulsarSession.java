@@ -837,6 +837,21 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    */
   @Override
   public void run() {
+    if (connectionConsumerTask == null) {
+      log.error("Calling run outside the context of a ConnectionConsumer");
+      return;
+    }
+    try {
+      connectionConsumerTask.run();
+    } catch (Throwable error) {
+      Utils.handleException(error);
+      log.error("Internal error", error);
+    } finally {
+      connectionConsumerTask = null;
+    }
+  }
+
+  private void runListenersLoop() {
     if (consumers.isEmpty() || !connection.isStarted()) {
       try {
         Thread.sleep(100);
@@ -863,6 +878,15 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
         return;
       }
     }
+  }
+
+  private Runnable connectionConsumerTask;
+
+  void setupConnectionConsumerTask(Runnable runnable) {
+    if (connectionConsumerTask != null) {
+      throw new java.lang.IllegalStateException("connectionConsumerTask is already set");
+    }
+    this.connectionConsumerTask = runnable;
   }
 
   /**
@@ -1932,7 +1956,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     @Override
     public void run() {
       while (!closed) {
-        PulsarSession.this.run();
+        runListenersLoop();
       }
     }
   }
