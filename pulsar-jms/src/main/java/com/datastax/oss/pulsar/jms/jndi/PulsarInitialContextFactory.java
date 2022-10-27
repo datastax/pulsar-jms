@@ -16,16 +16,58 @@
 package com.datastax.oss.pulsar.jms.jndi;
 
 import java.util.Hashtable;
+import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import javax.naming.Context;
 import javax.naming.NamingException;
 import javax.naming.spi.InitialContextFactory;
+import lombok.extern.slf4j.Slf4j;
 
 /** Entry point for using embedded JNDI provider. */
+@Slf4j
 public class PulsarInitialContextFactory implements InitialContextFactory {
+
+  static final Map<Hashtable<?, ?>, PulsarContext> sharedInitialContexts =
+      new ConcurrentHashMap<>();
+
   @Override
   public Context getInitialContext(Hashtable<?, ?> environment) throws NamingException {
     Objects.requireNonNull(environment);
-    return new PulsarContext(environment);
+    boolean shared =
+        Boolean.parseBoolean(environment.get(PulsarContext.USE_SHARED_JNDICONTEXT) + "");
+    if (shared) {
+      PulsarContext context =
+          sharedInitialContexts.computeIfAbsent(
+              environment,
+              e -> {
+                PulsarContext result = new PulsarContext(e);
+                log.info("Creating shared JNDI {}", result);
+                return result;
+              });
+      context.referenceCount.incrementAndGet();
+      return context;
+    } else {
+      return new PulsarContext(environment);
+    }
+  }
+
+  static boolean releaseSharedContext(Hashtable environment, PulsarContext context) {
+    return sharedInitialContexts.compute(
+            environment,
+            (e, current) -> {
+              if (current == context) {
+                int currentCount = context.referenceCount.decrementAndGet();
+                if (currentCount == 0) {
+                  log.info("Disposing shared JNDI {}", current);
+                  return null;
+                } else {
+                  return current;
+                }
+              } else {
+                return current;
+              }
+            })
+        == null;
   }
 }
