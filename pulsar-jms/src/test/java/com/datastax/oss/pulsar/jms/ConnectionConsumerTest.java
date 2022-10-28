@@ -21,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
+import com.google.common.collect.ImmutableMap;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
@@ -42,6 +43,8 @@ import javax.jms.ServerSessionPool;
 import javax.jms.Session;
 import javax.jms.Topic;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.pulsar.common.policies.data.TopicStats;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -196,10 +199,12 @@ public class ConnectionConsumerTest {
     properties.put("jms.connectionConsumerParallelism", 1);
     // required for createDurableConnectionConsumer
     properties.put("jms.clientId", "test");
+    properties.put("producerConfig", ImmutableMap.of("batchingEnabled", false));
     configuration.accept(properties);
 
     int parallelism = Integer.parseInt(properties.get("jms.connectionConsumerParallelism") + "");
 
+    String topicName;
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties);
         Connection connection = factory.createConnection();
         Session session = connection.createSession(Session.AUTO_ACKNOWLEDGE); ) {
@@ -208,7 +213,15 @@ public class ConnectionConsumerTest {
           topic
               ? session.createTopic("persistent://public/default/test-" + UUID.randomUUID())
               : session.createQueue("persistent://public/default/test-" + UUID.randomUUID());
+      topicName = factory.getPulsarTopicName(destination);
       SimpleMessageListener listener = new SimpleMessageListener();
+
+      int numMessages = 10;
+      try (MessageProducer producer = session.createProducer(destination); ) {
+        for (int i = 0; i < numMessages; i++) {
+          producer.send(session.createTextMessage("foo-" + i));
+        }
+      }
 
       int numSessions = 5;
       int maxMessages = 10;
@@ -219,21 +232,16 @@ public class ConnectionConsumerTest {
 
       serverSessionPool.start();
 
-      try (MessageProducer producer = session.createProducer(destination); ) {
-        for (int i = 0; i < 10; i++) {
-          producer.send(session.createTextMessage("foo-" + i));
-        }
-      }
       // wait for messages to arrive
       await().until(listener.receivedMessages::size, equalTo(10));
 
       if (parallelism <= 1) {
         // strict ordering
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < numMessages; i++) {
           assertEquals("foo-" + i, listener.receivedMessages.get(i).getBody(String.class));
         }
       } else {
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < numMessages; i++) {
           String txt = "foo-" + i;
           assertTrue(
               listener
@@ -251,6 +259,14 @@ public class ConnectionConsumerTest {
       }
 
       serverSessionPool.close();
+
+      Awaitility.await()
+          .untilAsserted(
+              () -> {
+                TopicStats stats =
+                    cluster.getService().getAdminClient().topics().getStats(topicName);
+                assertEquals(0, stats.getBacklogSize());
+              });
     }
   }
 

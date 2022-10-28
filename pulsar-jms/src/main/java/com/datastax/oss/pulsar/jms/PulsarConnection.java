@@ -993,7 +993,7 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
     PulsarSession dispatcherSession =
         createSession(
             false,
-            PulsarJMSConstants.INDIVIDUAL_ACKNOWLEDGE,
+            Session.AUTO_ACKNOWLEDGE,
             ConsumerConfiguration.buildConsumerConfiguration(
                 ImmutableMap.of("receiverQueueSize", maxMessages)));
 
