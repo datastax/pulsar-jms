@@ -38,6 +38,7 @@ import javax.jms.CompletionListener;
 import javax.jms.DeliveryMode;
 import javax.jms.Destination;
 import javax.jms.IllegalStateException;
+import javax.jms.IllegalStateRuntimeException;
 import javax.jms.JMSException;
 import javax.jms.Message;
 import javax.jms.MessageEOFException;
@@ -1102,17 +1103,21 @@ public abstract class PulsarMessage implements Message {
     return negativeAcked;
   }
 
-  public void negativeAck() throws JMSException {
+  public void negativeAck() {
     if (consumer == null) {
-      throw new IllegalStateException("not received by a consumer");
+      throw new IllegalStateRuntimeException("not received by a consumer");
     }
-    consumer.checkNotClosed();
+
     try {
-      consumer.negativeAck(receivedPulsarMessage);
-      negativeAcked = true;
-    } catch (Exception err) {
-      throw Utils.handleException(err);
+      consumer.checkNotClosed();
+    } catch (JMSException err) {
+      // ignore
+      log.error("Cannot nAck message {}", this);
+      return;
     }
+
+    consumer.negativeAck(receivedPulsarMessage);
+    negativeAcked = true;
   }
 
   protected final void checkWritable() throws MessageNotWriteableException {

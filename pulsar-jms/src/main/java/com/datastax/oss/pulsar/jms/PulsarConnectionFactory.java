@@ -156,6 +156,8 @@ public class PulsarConnectionFactory
 
   private transient int sessionListenersThreads;
 
+  private transient int connectionConsumerParallelism = 1;
+
   public PulsarConnectionFactory() throws JMSException {
     this(new HashMap<>());
   }
@@ -330,6 +332,10 @@ public class PulsarConnectionFactory
                   "jms.sessionListenersThreads",
                   (Runtime.getRuntime().availableProcessors() * 2) + "",
                   configurationCopy));
+
+      this.connectionConsumerParallelism =
+          Integer.parseInt(
+              getAndRemoveString("jms.connectionConsumerParallelism", "1", configurationCopy));
 
       final String rawTopicSharedSubscriptionType =
           getAndRemoveString(
@@ -1767,6 +1773,10 @@ public class PulsarConnectionFactory
           "This PulsarConnectionFactory is not configured to bootstrap a PulsarAdmin");
     }
     return pulsarAdmin;
+  }
+
+  public synchronized int getConnectionConsumerParallelism() {
+    return connectionConsumerParallelism;
   }
 
   public synchronized ScheduledExecutorService getSessionListenersThreadPool() {

@@ -15,18 +15,24 @@
  */
 package com.datastax.oss.pulsar.jms;
 
+import java.util.List;
 import javax.jms.ConnectionConsumer;
 import javax.jms.IllegalStateException;
 import javax.jms.JMSException;
 import javax.jms.ServerSessionPool;
 
 class PulsarConnectionConsumer implements ConnectionConsumer {
-  private final PulsarMessageConsumer consumer;
+  private final List<PulsarMessageConsumer> consumers;
+  private final PulsarSession dispatcherSession;
   private final ServerSessionPool serverSessionPool;
   private volatile boolean closed;
 
-  PulsarConnectionConsumer(PulsarMessageConsumer consumer, ServerSessionPool serverSessionPool) {
-    this.consumer = consumer;
+  PulsarConnectionConsumer(
+      PulsarSession dispatcherSession,
+      List<PulsarMessageConsumer> consumers,
+      ServerSessionPool serverSessionPool) {
+    this.dispatcherSession = dispatcherSession;
+    this.consumers = consumers;
     this.serverSessionPool = serverSessionPool;
   }
 
@@ -41,6 +47,13 @@ class PulsarConnectionConsumer implements ConnectionConsumer {
   @Override
   public void close() throws JMSException {
     closed = true;
-    consumer.close();
+    for (PulsarMessageConsumer consumer : consumers) {
+      try {
+        consumer.close();
+      } catch (JMSException ignore) {
+
+      }
+    }
+    dispatcherSession.close();
   }
 }

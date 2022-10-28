@@ -15,9 +15,11 @@
  */
 package com.datastax.oss.pulsar.jms;
 
+import com.google.common.collect.ImmutableMap;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
@@ -32,7 +34,9 @@ import javax.jms.InvalidClientIDException;
 import javax.jms.InvalidDestinationException;
 import javax.jms.InvalidSelectorException;
 import javax.jms.JMSException;
+import javax.jms.Message;
 import javax.jms.MessageConsumer;
+import javax.jms.MessageListener;
 import javax.jms.Queue;
 import javax.jms.QueueConnection;
 import javax.jms.QueueSession;
@@ -45,6 +49,7 @@ import javax.jms.Topic;
 import javax.jms.TopicConnection;
 import javax.jms.TopicSession;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.pulsar.client.api.SubscriptionType;
 
 @Slf4j
 public class PulsarConnection implements Connection, QueueConnection, TopicConnection {
@@ -694,7 +699,9 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
       throws JMSException {
     checkNotClosed();
     return buildConnectionConsumer(
-        sessionPool, (session) -> session.createConsumer(destination, messageSelector));
+        sessionPool,
+        maxMessages,
+        (session) -> session.createConsumer(destination, messageSelector));
   }
 
   /**
@@ -741,6 +748,7 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
     checkNotClosed();
     return buildConnectionConsumer(
         sessionPool,
+        maxMessages,
         session -> session.createSharedConsumer(topic, subscriptionName, messageSelector));
   }
 
@@ -788,6 +796,7 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
     checkNotClosed();
     return buildConnectionConsumer(
         sessionPool,
+        maxMessages,
         session -> session.createDurableConsumer(topic, subscriptionName, messageSelector, false));
   }
 
@@ -835,6 +844,7 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
     checkNotClosed();
     return buildConnectionConsumer(
         sessionPool,
+        maxMessages,
         session -> session.createSharedDurableConsumer(topic, subscriptionName, messageSelector));
   }
 
@@ -938,11 +948,13 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
 
   @Override
   public ConnectionConsumer createConnectionConsumer(
-      Queue queue, String messageSelector, ServerSessionPool serverSessionPool, int i)
+      Queue queue, String messageSelector, ServerSessionPool serverSessionPool, int maxMessages)
       throws JMSException {
     checkNotClosed();
     return buildConnectionConsumer(
-        serverSessionPool, (session) -> session.createConsumer(queue, messageSelector));
+        serverSessionPool,
+        maxMessages,
+        (session) -> session.createConsumer(queue, messageSelector));
   }
 
   @Override
@@ -952,10 +964,12 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
 
   @Override
   public ConnectionConsumer createConnectionConsumer(
-      Topic topic, String messageSelector, ServerSessionPool serverSessionPool, int i)
+      Topic topic, String messageSelector, ServerSessionPool serverSessionPool, int maxMessages)
       throws JMSException {
     return buildConnectionConsumer(
-        serverSessionPool, (session) -> session.createConsumer(topic, messageSelector));
+        serverSessionPool,
+        maxMessages,
+        (session) -> session.createConsumer(topic, messageSelector));
   }
 
   void removeTemporaryDestination(PulsarTemporaryDestination pulsarTemporaryDestination) {
@@ -972,16 +986,91 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
   }
 
   private ConnectionConsumer buildConnectionConsumer(
-      ServerSessionPool sessionPool, ConsumerBuilder consumerBuilder) throws JMSException {
-    ServerSession serverSession = sessionPool.getServerSession();
-    Session session = serverSession.getSession();
-    // this session is supposed to have a MessageListener that receives the messages
-    MessageConsumer consumer = consumerBuilder.build(session);
-    consumer.setMessageListener(session.getMessageListener());
+      ServerSessionPool sessionPool, int maxMessages, ConsumerBuilder consumerBuilder)
+      throws JMSException {
+
+    // create one session
+    PulsarSession dispatcherSession =
+        createSession(
+            false,
+            PulsarJMSConstants.INDIVIDUAL_ACKNOWLEDGE,
+            ConsumerConfiguration.buildConsumerConfiguration(
+                ImmutableMap.of("receiverQueueSize", maxMessages)));
+
+    // create connectionConsumerParallelism consumers
+    PulsarMessageConsumer consumer =
+        (PulsarMessageConsumer) consumerBuilder.build(dispatcherSession);
+    List<PulsarMessageConsumer> consumers = new ArrayList<>();
+    consumers.add(consumer);
+    int connectionConsumerParallelism = factory.getConnectionConsumerParallelism();
+    if (consumer.getSubscriptionType() == SubscriptionType.Shared
+        || consumer.getSubscriptionType() == SubscriptionType.Key_Shared) {
+      while (consumers.size() < connectionConsumerParallelism) {
+        PulsarMessageConsumer additionalConsumer =
+            (PulsarMessageConsumer) consumerBuilder.build(dispatcherSession);
+        consumers.add(additionalConsumer);
+      }
+    }
+
     ConnectionConsumer connectionConsumer =
-        new PulsarConnectionConsumer((PulsarMessageConsumer) consumer, sessionPool);
-    serverSession.start();
+        new PulsarConnectionConsumer(dispatcherSession, consumers, sessionPool);
+    for (PulsarMessageConsumer c : consumers) {
+      c.setMessageListener(new ConsumerBuilderMessageListener(sessionPool));
+    }
     return connectionConsumer;
+  }
+
+  private class ConsumerBuilderMessageListener implements MessageListener {
+    private final ServerSessionPool sessionPool;
+
+    public ConsumerBuilderMessageListener(ServerSessionPool sessionPool) {
+      this.sessionPool = sessionPool;
+    }
+
+    @Override
+    public void onMessage(Message message) {
+      try {
+        PulsarMessage pulsarMessage = (PulsarMessage) message;
+        // this method may be "blocking" if the pool is exhausted
+        ServerSession serverSession = sessionPool.getServerSession();
+        // this session must have been created by this connection
+        // it is a dummy session that is only a Holder for the MessageListener
+        // that actually execute the MessageDriven bean code
+        PulsarSession wrappedByServerSideSession = (PulsarSession) serverSession.getSession();
+        if (wrappedByServerSideSession.getConnection() != PulsarConnection.this) {
+          log.error(
+              "Session {} has not been created by this connection {}",
+              wrappedByServerSideSession,
+              this);
+          return;
+        }
+        CompletableFuture<Void> handle = new CompletableFuture<>();
+        final MessageListener messageListener = wrappedByServerSideSession.getMessageListener();
+        wrappedByServerSideSession.setupConnectionConsumerTask(
+            () -> {
+              // this will be executed on another thread managed by the JavaEE container
+              // the thread will handle transactions demarcations.
+              try {
+                messageListener.onMessage(pulsarMessage);
+                handle.complete(null);
+              } catch (Exception err) {
+                log.error("Error while processing message {}", pulsarMessage, err);
+                handle.completeExceptionally(err);
+              }
+            });
+        // serverSession.start() starts a new "Work" (using WorkManager) to
+        // execute the Session.run() method of the dummy session wrapped by
+        // the ServerSession, that happens on a separate thread
+        serverSession.start();
+        // also the ServerSession will not be assigned to another work
+        // until the processing of this message has completed
+
+        handle.get();
+      } catch (Exception err) {
+        // notify the listener
+        throw new RuntimeException(err);
+      }
+    }
   }
 
   void refreshServerSideSelectors() {

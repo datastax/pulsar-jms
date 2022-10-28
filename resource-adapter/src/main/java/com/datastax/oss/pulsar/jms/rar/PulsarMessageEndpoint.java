@@ -266,13 +266,9 @@ public class PulsarMessageEndpoint implements MessageListener {
 
     @Override
     public void rollback(Xid xid) throws XAException {
-      try {
-        message.negativeAck();
-        if (log.isDebugEnabled()) {
-          log.debug("rollback {} ack message {}", xid, message);
-        }
-      } catch (JMSException err) {
-        throw new XAException(err + "");
+      message.negativeAck();
+      if (log.isDebugEnabled()) {
+        log.debug("rollback {} ack message {}", xid, message);
       }
     }
 
