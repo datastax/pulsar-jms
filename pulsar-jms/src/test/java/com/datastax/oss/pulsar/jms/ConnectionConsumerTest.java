@@ -23,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
 import com.google.common.collect.ImmutableMap;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,6 +33,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import javax.jms.Connection;
 import javax.jms.ConnectionConsumer;
 import javax.jms.Destination;
@@ -63,6 +65,7 @@ public class ConnectionConsumerTest {
             tempDir,
             c -> {
               c.setTransactionCoordinatorEnabled(false);
+              c.setEntryFilterNames(Collections.emptyList());
             });
     cluster.start();
   }
@@ -217,12 +220,6 @@ public class ConnectionConsumerTest {
       SimpleMessageListener listener = new SimpleMessageListener();
 
       int numMessages = 10;
-      try (MessageProducer producer = session.createProducer(destination); ) {
-        for (int i = 0; i < numMessages; i++) {
-          producer.send(session.createTextMessage("foo-" + i));
-        }
-      }
-
       int numSessions = 5;
       int maxMessages = 10;
       String selector = null;
@@ -231,6 +228,12 @@ public class ConnectionConsumerTest {
               numSessions, maxMessages, connection, destination, selector, listener, builder);
 
       serverSessionPool.start();
+
+      try (MessageProducer producer = session.createProducer(destination); ) {
+        for (int i = 0; i < numMessages; i++) {
+          producer.send(session.createTextMessage("foo-" + i));
+        }
+      }
 
       // wait for messages to arrive
       await().until(listener.receivedMessages::size, equalTo(10));
