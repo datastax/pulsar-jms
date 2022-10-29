@@ -993,7 +993,7 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
     PulsarSession dispatcherSession =
         createSession(
             false,
-            PulsarJMSConstants.INDIVIDUAL_ACKNOWLEDGE,
+            Session.AUTO_ACKNOWLEDGE,
             ConsumerConfiguration.buildConsumerConfiguration(
                 ImmutableMap.of("receiverQueueSize", maxMessages)));
 
@@ -1011,6 +1011,10 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
         consumers.add(additionalConsumer);
       }
     }
+    log.info("Created {} consumers for destination {} maxMesages {} connectionConsumerParallelism {} " +
+                    "subscriptionType {}",
+            consumers.size(), consumer.getDestination(), maxMessages, connectionConsumerParallelism,
+                    consumer.getSubscriptionType());
 
     ConnectionConsumer connectionConsumer =
         new PulsarConnectionConsumer(dispatcherSession, consumers, sessionPool);
