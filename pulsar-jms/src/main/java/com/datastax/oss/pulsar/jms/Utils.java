@@ -46,7 +46,6 @@ import javax.jms.MessageNotWriteableRuntimeException;
 import javax.jms.TransactionRolledBackException;
 import javax.jms.TransactionRolledBackRuntimeException;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang.StringUtils;
 import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.impl.MessageIdImpl;
 
@@ -466,7 +465,7 @@ public final class Utils {
   public static Map<String, Object> buildConfigurationOverride(PulsarDestination destination)
       throws InvalidDestinationException {
     String queryString = destination.getQueryString();
-    if (StringUtils.isBlank(queryString)) {
+    if (queryString == null || queryString.isEmpty()) {
       return null;
     }
     try {
