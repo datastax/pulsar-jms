@@ -295,7 +295,6 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
     if (maxMessages < 0) {
       maxMessages = 1;
     }
-    long start = System.currentTimeMillis();
 
     // block until we receive a message or timeout expires
     Message message = receive(timeoutMs);
