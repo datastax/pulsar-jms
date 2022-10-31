@@ -236,11 +236,21 @@ public class PulsarConnectionFactory
   }
 
   synchronized ConsumerConfiguration getConsumerConfiguration(
-      ConsumerConfiguration overrideConsumerConfiguration) {
-    if (overrideConsumerConfiguration == null) {
-      return defaultConsumerConfiguration;
+      ConsumerConfiguration overrideConsumerConfiguration, PulsarDestination destination)
+      throws InvalidDestinationException {
+    ConsumerConfiguration result = defaultConsumerConfiguration;
+
+    if (overrideConsumerConfiguration != null) {
+      result = overrideConsumerConfiguration.applyDefaults(result);
     }
-    return overrideConsumerConfiguration.applyDefaults(defaultConsumerConfiguration);
+
+    ConsumerConfiguration overriddenByDestination =
+        Utils.computeConsumerOverrideConfiguration(destination);
+
+    if (overriddenByDestination != null) {
+      result = overriddenByDestination.applyDefaults(result);
+    }
+    return result;
   }
 
   private synchronized Map<String, Object> getProducerConfiguration() {
@@ -1242,7 +1252,7 @@ public class PulsarConnectionFactory
 
     try {
       ConsumerConfiguration consumerConfiguration =
-          getConsumerConfiguration(session.getOverrideConsumerConfiguration());
+          getConsumerConfiguration(session.getOverrideConsumerConfiguration(), destination);
       Schema<?> schema = consumerConfiguration.getConsumerSchema();
       if (schema == null) {
         schema = Schema.BYTES;
@@ -1451,14 +1461,20 @@ public class PulsarConnectionFactory
         if (partitionedTopicMetadata.partitions == 0) {
           Reader<?> readerForBrowserForNonPartitionedTopic =
               createReaderForBrowserForNonPartitionedTopic(
-                  queueSubscriptionName, fullQualifiedTopicName, overrideConsumerConfiguration);
+                  queueSubscriptionName,
+                  fullQualifiedTopicName,
+                  overrideConsumerConfiguration,
+                  destination);
           readers.add(readerForBrowserForNonPartitionedTopic);
         } else {
           for (int i = 0; i < partitionedTopicMetadata.partitions; i++) {
             String partitionName = fullQualifiedTopicName + "-partition-" + i;
             Reader<?> readerForBrowserForNonPartitionedTopic =
                 createReaderForBrowserForNonPartitionedTopic(
-                    queueSubscriptionName, partitionName, overrideConsumerConfiguration);
+                    queueSubscriptionName,
+                    partitionName,
+                    overrideConsumerConfiguration,
+                    destination);
             readers.add(readerForBrowserForNonPartitionedTopic);
           }
         }
@@ -1474,7 +1490,8 @@ public class PulsarConnectionFactory
   private Reader<?> createReaderForBrowserForNonPartitionedTopic(
       String queueSubscriptionName,
       String fullQualifiedTopicName,
-      ConsumerConfiguration overrideConsumerConfiguration)
+      ConsumerConfiguration overrideConsumerConfiguration,
+      PulsarDestination destination)
       throws JMSException {
     try {
 
@@ -1495,7 +1512,7 @@ public class PulsarConnectionFactory
       log.info("createBrowser {} at {}", fullQualifiedTopicName, seekMessageId);
 
       ConsumerConfiguration consumerConfiguration =
-          getConsumerConfiguration(overrideConsumerConfiguration);
+          getConsumerConfiguration(overrideConsumerConfiguration, destination);
       Schema<?> schema = consumerConfiguration.getConsumerSchema();
       if (schema == null) {
         schema = Schema.BYTES;

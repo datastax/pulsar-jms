@@ -15,6 +15,8 @@
  */
 package com.datastax.oss.pulsar.jms;
 
+import java.io.UnsupportedEncodingException;
+import java.net.URLDecoder;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -44,6 +46,7 @@ import javax.jms.MessageNotWriteableRuntimeException;
 import javax.jms.TransactionRolledBackException;
 import javax.jms.TransactionRolledBackRuntimeException;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang.StringUtils;
 import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.impl.MessageIdImpl;
 
@@ -458,5 +461,65 @@ public final class Utils {
       return numPartitions - 1;
     }
     return result;
+  }
+
+  public static Map<String, Object> buildConfigurationOverride(PulsarDestination destination)
+      throws InvalidDestinationException {
+    String queryString = destination.getQueryString();
+    if (StringUtils.isBlank(queryString)) {
+      return null;
+    }
+    try {
+      String[] split = queryString.split("&");
+      Map<String, Object> result = new HashMap<>();
+      for (String s : split) {
+        int equals = s.indexOf("=");
+        String key;
+        String value;
+        if (equals >= 0) {
+          key = URLDecoder.decode(s.substring(0, equals), "UTF-8");
+          value = URLDecoder.decode(s.substring(equals + 1), "UTF-8");
+        } else {
+          key = URLDecoder.decode(s, "UTF-8");
+          value = "";
+        }
+        String[] path = key.split("\\.");
+        putHierichical(path, value, result, 0);
+      }
+      if (result.isEmpty()) {
+        return null;
+      }
+      return result;
+    } catch (UnsupportedEncodingException impossible) {
+      throw new RuntimeException(impossible);
+    }
+  }
+
+  private static void putHierichical(
+      String[] path, String value, Map<String, Object> result, int pos)
+      throws InvalidDestinationException {
+    String key = path[pos];
+    if (pos == path.length - 1) {
+      result.put(key, value);
+      return;
+    }
+    Object current = result.get(key);
+    if (current == null) {
+      current = new HashMap<>();
+      result.put(key, current);
+    } else if (!(current instanceof Map)) {
+      throw new InvalidDestinationException(
+          "Cannot build a configuration out of the destination query string");
+    }
+    Map<String, Object> subMap = (Map<String, Object>) current;
+    putHierichical(path, value, subMap, pos + 1);
+  }
+
+  public static ConsumerConfiguration computeConsumerOverrideConfiguration(
+      PulsarDestination destination) throws InvalidDestinationException {
+    Map<String, Object> result = buildConfigurationOverride(destination);
+    Map<String, Object> consumerConfig =
+        result != null ? (Map<String, Object>) result.get("consumerConfig") : null;
+    return ConsumerConfiguration.buildConsumerConfiguration(consumerConfig);
   }
 }

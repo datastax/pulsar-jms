@@ -24,9 +24,11 @@ import javax.jms.InvalidDestinationException;
 
 public abstract class PulsarDestination implements Destination {
   protected String topicName;
+  protected String queryString;
 
   protected PulsarDestination(String topicName) {
     this.topicName = Objects.requireNonNull(topicName);
+    estractQueryString();
     if (isMultiTopic()) {
       // simplify multi-topic of 1 topic
       Utils.runtimeException(
@@ -34,8 +36,19 @@ public abstract class PulsarDestination implements Destination {
             List<PulsarDestination> destinations = getDestinations();
             if (destinations.size() == 1) {
               this.topicName = destinations.get(0).topicName;
+              this.queryString = destinations.get(0).queryString;
             }
           });
+    }
+  }
+
+  private void estractQueryString() {
+    int queryStringStart = this.topicName.indexOf("?");
+    if (queryStringStart > 0) {
+      this.queryString = this.topicName.substring(queryStringStart + 1);
+      this.topicName = this.topicName.substring(0, queryStringStart);
+    } else {
+      this.queryString = "";
     }
   }
 
@@ -45,6 +58,11 @@ public abstract class PulsarDestination implements Destination {
 
   public void setName(String name) {
     this.topicName = name;
+    estractQueryString();
+  }
+
+  public String getQueryString() {
+    return queryString;
   }
 
   /**
@@ -94,14 +112,15 @@ public abstract class PulsarDestination implements Destination {
     }
     String[] split = withoutPrefix.split(",");
     List<PulsarDestination> destinations = new ArrayList<>(split.length);
+    String appendQueryString = queryString.isEmpty() ? "" : "?" + queryString;
     for (String part : split) {
       if (part.isEmpty()) {
         throw new InvalidDestinationException("Invalid destination " + topicName);
       }
       if (customSubscription != null) {
-        destinations.add(createSameType(part + ":" + customSubscription));
+        destinations.add(createSameType(part + ":" + customSubscription + appendQueryString));
       } else {
-        destinations.add(createSameType(part));
+        destinations.add(createSameType(part + appendQueryString));
       }
     }
     if (destinations.isEmpty()) {
@@ -126,7 +145,8 @@ public abstract class PulsarDestination implements Destination {
     PulsarDestination o = (PulsarDestination) other;
     return Objects.equals(o.topicName, this.topicName)
         && Objects.equals(o.isQueue(), this.isQueue())
-        && Objects.equals(o.isTopic(), this.isTopic());
+        && Objects.equals(
+            o.isTopic(), this.isTopic() && Objects.equals(o.queryString, this.queryString));
   }
 
   public final int hashCode() {
