@@ -15,11 +15,9 @@
  */
 package com.datastax.oss.pulsar.jms;
 
-import com.google.common.collect.ImmutableMap;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
@@ -34,13 +32,10 @@ import javax.jms.InvalidClientIDException;
 import javax.jms.InvalidDestinationException;
 import javax.jms.InvalidSelectorException;
 import javax.jms.JMSException;
-import javax.jms.Message;
 import javax.jms.MessageConsumer;
-import javax.jms.MessageListener;
 import javax.jms.Queue;
 import javax.jms.QueueConnection;
 import javax.jms.QueueSession;
-import javax.jms.ServerSession;
 import javax.jms.ServerSessionPool;
 import javax.jms.Session;
 import javax.jms.TemporaryQueue;
@@ -49,7 +44,6 @@ import javax.jms.Topic;
 import javax.jms.TopicConnection;
 import javax.jms.TopicSession;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.pulsar.client.api.SubscriptionType;
 
 @Slf4j
 public class PulsarConnection implements Connection, QueueConnection, TopicConnection {
@@ -991,90 +985,14 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
 
     // create one session
     PulsarSession dispatcherSession =
-        createSession(
-            false,
-            Session.AUTO_ACKNOWLEDGE,
-            ConsumerConfiguration.buildConsumerConfiguration(
-                ImmutableMap.of("receiverQueueSize", maxMessages)));
+        createSession(false, PulsarJMSConstants.INDIVIDUAL_ACKNOWLEDGE);
 
-    // create connectionConsumerParallelism consumers
     PulsarMessageConsumer consumer =
         (PulsarMessageConsumer) consumerBuilder.build(dispatcherSession);
-    List<PulsarMessageConsumer> consumers = new ArrayList<>();
-    consumers.add(consumer);
-    int connectionConsumerParallelism = factory.getConnectionConsumerParallelism();
-    if (consumer.getSubscriptionType() == SubscriptionType.Shared
-        || consumer.getSubscriptionType() == SubscriptionType.Key_Shared) {
-      while (consumers.size() < connectionConsumerParallelism) {
-        PulsarMessageConsumer additionalConsumer =
-            (PulsarMessageConsumer) consumerBuilder.build(dispatcherSession);
-        consumers.add(additionalConsumer);
-      }
-    }
-    log.info("Created {} consumers for destination {} maxMesages {} connectionConsumerParallelism {} " +
-                    "subscriptionType {}",
-            consumers.size(), consumer.getDestination(), maxMessages, connectionConsumerParallelism,
-                    consumer.getSubscriptionType());
-
-    ConnectionConsumer connectionConsumer =
-        new PulsarConnectionConsumer(dispatcherSession, consumers, sessionPool);
-    for (PulsarMessageConsumer c : consumers) {
-      c.setMessageListener(new ConsumerBuilderMessageListener(sessionPool));
-    }
+    PulsarConnectionConsumer connectionConsumer =
+        new PulsarConnectionConsumer(dispatcherSession, consumer, sessionPool, maxMessages);
+    connectionConsumer.start();
     return connectionConsumer;
-  }
-
-  private class ConsumerBuilderMessageListener implements MessageListener {
-    private final ServerSessionPool sessionPool;
-
-    public ConsumerBuilderMessageListener(ServerSessionPool sessionPool) {
-      this.sessionPool = sessionPool;
-    }
-
-    @Override
-    public void onMessage(Message message) {
-      try {
-        PulsarMessage pulsarMessage = (PulsarMessage) message;
-        // this method may be "blocking" if the pool is exhausted
-        ServerSession serverSession = sessionPool.getServerSession();
-        // this session must have been created by this connection
-        // it is a dummy session that is only a Holder for the MessageListener
-        // that actually execute the MessageDriven bean code
-        PulsarSession wrappedByServerSideSession = (PulsarSession) serverSession.getSession();
-        if (wrappedByServerSideSession.getConnection() != PulsarConnection.this) {
-          log.error(
-              "Session {} has not been created by this connection {}",
-              wrappedByServerSideSession,
-              this);
-          return;
-        }
-        CompletableFuture<Void> handle = new CompletableFuture<>();
-        final MessageListener messageListener = wrappedByServerSideSession.getMessageListener();
-        wrappedByServerSideSession.setupConnectionConsumerTask(
-            () -> {
-              // this will be executed on another thread managed by the JavaEE container
-              // the thread will handle transactions demarcations.
-              try {
-                messageListener.onMessage(pulsarMessage);
-                handle.complete(null);
-              } catch (Exception err) {
-                log.error("Error while processing message {}", pulsarMessage, err);
-                handle.completeExceptionally(err);
-              }
-            });
-        // serverSession.start() starts a new "Work" (using WorkManager) to
-        // execute the Session.run() method of the dummy session wrapped by
-        // the ServerSession, that happens on a separate thread
-        serverSession.start();
-        // also the ServerSession will not be assigned to another work
-        // until the processing of this message has completed
-
-        handle.get();
-      } catch (Exception err) {
-        // notify the listener
-        throw new RuntimeException(err);
-      }
-    }
   }
 
   void refreshServerSideSelectors() {

@@ -33,7 +33,6 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 import javax.jms.Connection;
 import javax.jms.ConnectionConsumer;
 import javax.jms.Destination;
@@ -158,54 +157,18 @@ public class ConnectionConsumerTest {
   }
 
   private void simpleTest(ConnectionConsumerBuilder builder, boolean topic) throws Exception {
-    simpleTest(
-        properties -> {
-          properties.put("jms.sessionListenersThreads", 0);
-          properties.put("jms.connectionConsumerParallelism", 1);
-        },
-        builder,
-        topic);
-    simpleTest(
-        properties -> {
-          properties.put("jms.sessionListenersThreads", 0);
-          properties.put("jms.connectionConsumerParallelism", 4);
-        },
-        builder,
-        topic);
 
-    simpleTest(
-        properties -> {
-          properties.put("jms.sessionListenersThreads", 4);
-          properties.put("jms.connectionConsumerParallelism", 1);
-        },
-        builder,
-        topic);
+    int numMessages = 1000;
+    int numSessions = 5;
+    int maxMessages = 10;
+    String selector = null;
 
-    simpleTest(
-        properties -> {
-          properties.put("jms.sessionListenersThreads", 4);
-          properties.put("jms.connectionConsumerParallelism", 4);
-        },
-        builder,
-        topic);
-  }
-
-  private void simpleTest(
-      java.util.function.Consumer<Map<String, Object>> configuration,
-      ConnectionConsumerBuilder builder,
-      boolean topic)
-      throws Exception {
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
     properties.put("jms.enableClientSideEmulation", true);
-    properties.put("jms.sessionListenersThreads", 0);
-    properties.put("jms.connectionConsumerParallelism", 1);
     // required for createDurableConnectionConsumer
     properties.put("jms.clientId", "test");
     properties.put("producerConfig", ImmutableMap.of("batchingEnabled", false));
-    configuration.accept(properties);
-
-    int parallelism = Integer.parseInt(properties.get("jms.connectionConsumerParallelism") + "");
 
     String topicName;
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties);
@@ -219,10 +182,6 @@ public class ConnectionConsumerTest {
       topicName = factory.getPulsarTopicName(destination);
       SimpleMessageListener listener = new SimpleMessageListener();
 
-      int numMessages = 10;
-      int numSessions = 5;
-      int maxMessages = 10;
-      String selector = null;
       DummyServerSessionPool serverSessionPool =
           new DummyServerSessionPool(
               numSessions, maxMessages, connection, destination, selector, listener, builder);
@@ -236,32 +195,23 @@ public class ConnectionConsumerTest {
       }
 
       // wait for messages to arrive
-      await().until(listener.receivedMessages::size, equalTo(10));
+      await().until(listener.receivedMessages::size, equalTo(numMessages));
 
-      if (parallelism <= 1) {
-        // strict ordering
-        for (int i = 0; i < numMessages; i++) {
-          assertEquals("foo-" + i, listener.receivedMessages.get(i).getBody(String.class));
-        }
-      } else {
-        for (int i = 0; i < numMessages; i++) {
-          String txt = "foo-" + i;
-          assertTrue(
-              listener
-                  .receivedMessages
-                  .stream()
-                  .anyMatch(
-                      p -> {
-                        try {
-                          return p.getBody(String.class).equals(txt);
-                        } catch (JMSException e) {
-                          return false;
-                        }
-                      }));
-        }
+      for (int i = 0; i < numMessages; i++) {
+        String txt = "foo-" + i;
+        assertTrue(
+            listener
+                .receivedMessages
+                .stream()
+                .anyMatch(
+                    p -> {
+                      try {
+                        return p.getBody(String.class).equals(txt);
+                      } catch (JMSException e) {
+                        return false;
+                      }
+                    }));
       }
-
-      serverSessionPool.close();
 
       Awaitility.await()
           .untilAsserted(
@@ -270,6 +220,8 @@ public class ConnectionConsumerTest {
                     cluster.getService().getAdminClient().topics().getStats(topicName);
                 assertEquals(0, stats.getBacklogSize());
               });
+
+      serverSessionPool.close();
     }
   }
 
@@ -343,7 +295,7 @@ public class ConnectionConsumerTest {
     public ServerSession getServerSession() throws JMSException {
       try {
         ServerSession session = sessions.take();
-        log.info("picked session {}", session);
+        // log.info("picked session {}", session);
         return session;
       } catch (Exception err) {
         throw Utils.handleException(err);
@@ -370,10 +322,10 @@ public class ConnectionConsumerTest {
         workManager.submit(
             () -> {
               try {
-                log.info("executing session {}", this);
+                // log.info("executing session {}", this);
                 session.run();
               } finally {
-                log.info("returning session {}", this);
+                // log.info("returning session {}", this);
                 sessions.add(this);
               }
             });

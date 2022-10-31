@@ -17,12 +17,14 @@ package com.datastax.oss.pulsar.jms;
 
 import com.datastax.oss.pulsar.jms.selectors.SelectorSupport;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import javax.jms.Destination;
 import javax.jms.IllegalStateException;
 import javax.jms.InvalidDestinationException;
 import javax.jms.JMSConsumer;
@@ -282,6 +284,42 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
   @Override
   public Message receive(long timeout) throws JMSException {
     return receiveWithTimeoutAndValidateType(timeout, null);
+  }
+
+  public List<Message> batchReceive(int maxMessages, long timeoutMs) throws JMSException {
+    // ensure that the internal consumer has been created
+    getConsumer();
+    if (!hasSomePrefetchedMessages()) {
+      return Collections.emptyList();
+    }
+    if (maxMessages < 0) {
+      maxMessages = 1;
+    }
+    long start = System.currentTimeMillis();
+
+    // block until we receive a message or timeout expires
+    Message message = receive(timeoutMs);
+    if (message == null) {
+      // no message
+      return Collections.emptyList();
+    }
+
+    List<Message> result = new ArrayList<>(maxMessages);
+    result.add(message);
+
+    // try to drain up to maxMessages without blocking
+    while (hasSomePrefetchedMessages() && result.size() < maxMessages) {
+      message = receiveNoWait();
+      if (message == null) {
+        break;
+      }
+      result.add(message);
+    }
+    return result;
+  }
+
+  public boolean hasSomePrefetchedMessages() {
+    return consumer.getTotalIncomingMessages() > 0;
   }
 
   synchronized Message receiveWithTimeoutAndValidateType(long timeout, Class expectedType)
@@ -736,7 +774,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
     return consumer;
   }
 
-  Destination getDestination() {
+  PulsarDestination getDestination() {
     return destination;
   }
 
