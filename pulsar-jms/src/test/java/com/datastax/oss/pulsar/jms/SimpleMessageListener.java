@@ -15,12 +15,12 @@
  */
 package com.datastax.oss.pulsar.jms;
 
-import lombok.extern.slf4j.Slf4j;
-
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import javax.jms.Message;
 import javax.jms.MessageListener;
+import lombok.extern.slf4j.Slf4j;
+
 @Slf4j
 public class SimpleMessageListener implements MessageListener {
   final List<Message> receivedMessages = new CopyOnWriteArrayList<>();

@@ -134,6 +134,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   private boolean transactionOperationInProgress = false;
   private final AtomicLong transactionStickyKey = new AtomicLong();
   private final ConsumersInterceptor consumerInterceptor = new ConsumersInterceptor();
+  private final List<Message> connectionConsumerTasks = new ArrayList<>();
 
   PulsarSession(
       int sessionMode,
@@ -837,17 +838,22 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    */
   @Override
   public void run() {
-    if (connectionConsumerTask == null) {
-      log.error("Calling run outside the context of a ConnectionConsumer");
-      return;
-    }
-    try {
-      connectionConsumerTask.run();
-    } catch (Throwable error) {
-      Utils.handleException(error);
-      log.error("Internal error", error);
-    } finally {
-      connectionConsumerTask = null;
+    synchronized (connectionConsumerTasks) {
+      try {
+        for (Message foreignMessage : connectionConsumerTasks) {
+          try {
+            messageListener.onMessage(foreignMessage);
+            // this message is not tracked by this session
+            foreignMessage.acknowledge();
+          } catch (Throwable err) {
+            Utils.handleException(err);
+            log.info("Error in ConsumerConnection task on message {}", foreignMessage, err);
+            ((PulsarMessage) foreignMessage).negativeAck();
+          }
+        }
+      } finally {
+        connectionConsumerTasks.clear();
+      }
     }
   }
 
@@ -880,13 +886,16 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     }
   }
 
-  private Runnable connectionConsumerTask;
-
-  void setupConnectionConsumerTask(Runnable runnable) {
-    if (connectionConsumerTask != null) {
-      throw new java.lang.IllegalStateException("connectionConsumerTask is already set");
+  /**
+   * Enqueue some messages to be processed by this Session. These messages have not been received by
+   * a Consumer created by this Session (but from the same Connection).
+   *
+   * @param foreignMessages
+   */
+  void setupConnectionConsumerTask(List<Message> foreignMessages) {
+    synchronized (connectionConsumerTasks) {
+      this.connectionConsumerTasks.addAll(foreignMessages);
     }
-    this.connectionConsumerTask = runnable;
   }
 
   /**
