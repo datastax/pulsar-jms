@@ -289,9 +289,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
   public List<Message> batchReceive(int maxMessages, long timeoutMs) throws JMSException {
     // ensure that the internal consumer has been created
     getConsumer();
-    if (!hasSomePrefetchedMessages()) {
-      return Collections.emptyList();
-    }
+
     if (maxMessages < 0) {
       maxMessages = 1;
     }

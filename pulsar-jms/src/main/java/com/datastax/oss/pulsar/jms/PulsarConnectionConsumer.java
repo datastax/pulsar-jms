@@ -28,7 +28,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 class PulsarConnectionConsumer implements ConnectionConsumer {
 
-  private static final long TIMEOUT_RECEIVE = 10L;
+  private static final long TIMEOUT_RECEIVE = 1000L;
 
   private final PulsarMessageConsumer consumer;
   private final PulsarSession dispatcherSession;
