@@ -23,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
 import com.google.common.collect.ImmutableMap;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -30,13 +31,17 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import javax.jms.CompletionListener;
 import javax.jms.Connection;
 import javax.jms.ConnectionConsumer;
 import javax.jms.Destination;
 import javax.jms.JMSException;
+import javax.jms.Message;
 import javax.jms.MessageListener;
 import javax.jms.MessageProducer;
 import javax.jms.ServerSession;
@@ -45,11 +50,13 @@ import javax.jms.Session;
 import javax.jms.Topic;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.common.policies.data.TopicStats;
+import org.apache.pulsar.common.util.FutureUtil;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.internal.util.reflection.Whitebox;
 
 @Slf4j
 public class ConnectionConsumerTest {
@@ -88,7 +95,7 @@ public class ConnectionConsumerTest {
 
   @Test
   public void createConnectionConsumerQueue() throws Exception {
-    simpleTest(
+    executeTest(
         (Connection connection,
             Destination destination,
             String selector,
@@ -102,7 +109,7 @@ public class ConnectionConsumerTest {
 
   @Test
   public void createConnectionConsumerTopic() throws Exception {
-    simpleTest(
+    executeTest(
         (Connection connection,
             Destination destination,
             String selector,
@@ -116,7 +123,7 @@ public class ConnectionConsumerTest {
 
   @Test
   public void createDurableConnectionConsumer() throws Exception {
-    simpleTest(
+    executeTest(
         (Connection connection,
             Destination destination,
             String selector,
@@ -130,7 +137,7 @@ public class ConnectionConsumerTest {
 
   @Test
   public void createSharedConnectionConsumer() throws Exception {
-    simpleTest(
+    executeTest(
         (Connection connection,
             Destination destination,
             String selector,
@@ -144,7 +151,7 @@ public class ConnectionConsumerTest {
 
   @Test
   public void createSharedDurableConnectionConsumer() throws Exception {
-    simpleTest(
+    executeTest(
         (Connection connection,
             Destination destination,
             String selector,
@@ -156,16 +163,36 @@ public class ConnectionConsumerTest {
         true);
   }
 
-  private void simpleTest(ConnectionConsumerBuilder builder, boolean topic) throws Exception {
+  private void executeTest(ConnectionConsumerBuilder builder, boolean topic) throws Exception {
+    executeTest(builder, topic, 1000, 10, null, 15, false);
+    executeTest(builder, topic, 1000, 10, "(foo='bar') or (1=1)", 15, false);
+    executeTest(builder, topic, 100, 10, null, 1, false);
+    executeTest(builder, topic, 100, 5, null, 1, true);
+  }
 
-    int numMessages = 1000;
-    int numSessions = 5;
-    int maxMessages = 10;
-    String selector = null;
-
+  private void executeTest(
+      ConnectionConsumerBuilder builder,
+      boolean topic,
+      int numMessages,
+      int numSessions,
+      String selector,
+      int maxMessages,
+      boolean maxMessagesLimitParallelism)
+      throws Exception {
+    long start = System.currentTimeMillis();
+    log.info(
+        "ExecuteTest {} {} {} {} {} {}",
+        topic,
+        numMessages,
+        numSessions,
+        selector,
+        maxMessages,
+        maxMessagesLimitParallelism);
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", cluster.getAddress());
     properties.put("jms.enableClientSideEmulation", true);
+    properties.put("jms.maxMessagesLimitsParallelism", maxMessagesLimitParallelism);
+
     // required for createDurableConnectionConsumer
     properties.put("jms.clientId", "test");
     properties.put("producerConfig", ImmutableMap.of("batchingEnabled", false));
@@ -189,28 +216,60 @@ public class ConnectionConsumerTest {
       serverSessionPool.start();
 
       try (MessageProducer producer = session.createProducer(destination); ) {
+        List<CompletableFuture<Void>> handles = new ArrayList<>(numMessages);
         for (int i = 0; i < numMessages; i++) {
-          producer.send(session.createTextMessage("foo-" + i));
+          CompletableFuture<Void> handle = new CompletableFuture<>();
+          handles.add(handle);
+          producer.send(
+              session.createTextMessage("foo-" + i),
+              new CompletionListener() {
+                @Override
+                public void onCompletion(Message message) {
+                  handle.complete(null);
+                }
+
+                @Override
+                public void onException(Message message, Exception e) {
+                  handle.completeExceptionally(e);
+                }
+              });
+          if (i % 100 == 0) {
+            FutureUtil.waitForAll(handles).get();
+            handles.clear();
+          }
         }
+        FutureUtil.waitForAll(handles).get();
+        handles.clear();
       }
 
       // wait for messages to arrive
-      await().until(listener.receivedMessages::size, equalTo(numMessages));
+      await()
+          .atMost(20, TimeUnit.SECONDS)
+          .until(listener.receivedMessages::size, equalTo(numMessages));
 
-      for (int i = 0; i < numMessages; i++) {
-        String txt = "foo-" + i;
-        assertTrue(
-            listener
-                .receivedMessages
-                .stream()
-                .anyMatch(
-                    p -> {
-                      try {
-                        return p.getBody(String.class).equals(txt);
-                      } catch (JMSException e) {
-                        return false;
-                      }
-                    }));
+      if (maxMessagesLimitParallelism && maxMessages == 1) {
+        // strict ordering
+        for (int i = 0; i < numMessages; i++) {
+          String txt = "foo-" + i;
+          String msg = listener.receivedMessages.get(i).getBody(String.class);
+          assertEquals(msg, txt);
+        }
+      } else {
+        for (int i = 0; i < numMessages; i++) {
+          String txt = "foo-" + i;
+          assertTrue(
+              listener
+                  .receivedMessages
+                  .stream()
+                  .anyMatch(
+                      p -> {
+                        try {
+                          return p.getBody(String.class).equals(txt);
+                        } catch (JMSException e) {
+                          return false;
+                        }
+                      }));
+        }
       }
 
       Awaitility.await()
@@ -221,7 +280,29 @@ public class ConnectionConsumerTest {
                 assertEquals(0, stats.getBacklogSize());
               });
 
+      // stop waiting for messages
+      connection.stop();
+
+      List<PulsarSession> sessions =
+          (List<PulsarSession>) Whitebox.getInternalState(connection, "sessions");
+      int numSessionsWithConsumers = 0;
+      for (PulsarSession s : sessions) {
+        List<PulsarMessageConsumer> consumers =
+            (List<PulsarMessageConsumer>) Whitebox.getInternalState(s, "consumers");
+        if (!consumers.isEmpty()) {
+          assertEquals(1, consumers.size());
+          assertEquals(selector, consumers.get(0).getMessageSelector());
+          numSessionsWithConsumers++;
+        }
+      }
+      assertEquals(1, numSessionsWithConsumers);
+
+      assertEquals(numSessions + 1 + 1, sessions.size());
+
       serverSessionPool.close();
+
+      long end = System.currentTimeMillis();
+      log.info("ExecuteTest time {} ms", end - start);
     }
   }
 

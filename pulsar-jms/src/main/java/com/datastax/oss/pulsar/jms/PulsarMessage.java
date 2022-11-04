@@ -51,6 +51,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.avro.generic.GenericArray;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.util.Utf8;
+import org.apache.pulsar.client.api.Consumer;
 import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.api.TypedMessageBuilder;
 import org.apache.pulsar.client.api.schema.GenericObject;
@@ -74,6 +75,7 @@ public abstract class PulsarMessage implements Message {
   private int jmsPriority = Message.DEFAULT_PRIORITY;
   protected final Map<String, String> properties = new HashMap<>();
   private PulsarMessageConsumer consumer;
+  private Consumer<?> pulsarConsumer;
   private boolean negativeAcked;
   private org.apache.pulsar.client.api.Message<?> receivedPulsarMessage;
 
@@ -1086,14 +1088,14 @@ public abstract class PulsarMessage implements Message {
   }
 
   void acknowledgeInternal() throws JMSException {
-    if (consumer == null) {
+    if (pulsarConsumer == null) {
       throw new IllegalStateException("not received by a consumer");
     }
     if (negativeAcked) {
       return;
     }
     try {
-      consumer.acknowledge(receivedPulsarMessage, this);
+      consumer.acknowledge(receivedPulsarMessage, this, pulsarConsumer);
     } catch (Exception err) {
       throw Utils.handleException(err);
     }
@@ -1249,7 +1251,9 @@ public abstract class PulsarMessage implements Message {
   protected abstract void prepareForSend(TypedMessageBuilder<byte[]> producer) throws JMSException;
 
   static PulsarMessage decode(
-      PulsarMessageConsumer consumer, org.apache.pulsar.client.api.Message<?> msg)
+      PulsarMessageConsumer consumer,
+      Consumer<?> pulsarConsumer,
+      org.apache.pulsar.client.api.Message<?> msg)
       throws JMSException {
     if (msg == null) {
       return null;
@@ -1263,28 +1267,31 @@ public abstract class PulsarMessage implements Message {
       byte[] valueAsArray = (byte[]) value;
       switch (type) {
         case "map":
-          return new PulsarMapMessage(valueAsArray).applyMessage(msg, consumer);
+          return new PulsarMapMessage(valueAsArray).applyMessage(msg, consumer, pulsarConsumer);
         case "object":
-          return new PulsarObjectMessage(valueAsArray).applyMessage(msg, consumer);
+          return new PulsarObjectMessage(valueAsArray).applyMessage(msg, consumer, pulsarConsumer);
         case "stream":
-          return new PulsarStreamMessage(valueAsArray).applyMessage(msg, consumer);
+          return new PulsarStreamMessage(valueAsArray).applyMessage(msg, consumer, pulsarConsumer);
         case "bytes":
-          return new PulsarBytesMessage(valueAsArray).applyMessage(msg, consumer);
+          return new PulsarBytesMessage(valueAsArray).applyMessage(msg, consumer, pulsarConsumer);
         case "text":
-          return new PulsarTextMessage(valueAsArray).applyMessage(msg, consumer);
+          return new PulsarTextMessage(valueAsArray).applyMessage(msg, consumer, pulsarConsumer);
         default:
-          return new PulsarSimpleMessage().applyMessage(msg, consumer);
+          return new PulsarSimpleMessage().applyMessage(msg, consumer, pulsarConsumer);
       }
     } else if (value instanceof GenericObject) {
       GenericObject genericObject = (GenericObject) value;
       Object nativeObject = genericObject.getNativeObject();
       Object unwrapped = unwrapNativeObject(nativeObject);
       if (unwrapped instanceof String) {
-        return new PulsarTextMessage((String) unwrapped).applyMessage(msg, consumer);
+        return new PulsarTextMessage((String) unwrapped)
+            .applyMessage(msg, consumer, pulsarConsumer);
       } else if (unwrapped instanceof Map) {
-        return new PulsarMapMessage((Map) unwrapped, false).applyMessage(msg, consumer);
+        return new PulsarMapMessage((Map) unwrapped, false)
+            .applyMessage(msg, consumer, pulsarConsumer);
       } else {
-        return new PulsarObjectMessage((Serializable) unwrapped).applyMessage(msg, consumer);
+        return new PulsarObjectMessage((Serializable) unwrapped)
+            .applyMessage(msg, consumer, pulsarConsumer);
       }
     } else {
       throw new IllegalStateException("Cannot decode message, payload type is " + value.getClass());
@@ -1339,7 +1346,9 @@ public abstract class PulsarMessage implements Message {
   }
 
   protected PulsarMessage applyMessage(
-      org.apache.pulsar.client.api.Message<?> msg, PulsarMessageConsumer consumer) {
+      org.apache.pulsar.client.api.Message<?> msg,
+      PulsarMessageConsumer consumer,
+      Consumer<?> pulsarConsumer) {
     this.writable = false;
     this.properties.putAll(msg.getProperties());
     if (consumer != null) {
@@ -1414,6 +1423,7 @@ public abstract class PulsarMessage implements Message {
     this.jmsRedelivered = msg.getRedeliveryCount() > 0;
     this.receivedPulsarMessage = msg;
     this.consumer = consumer;
+    this.pulsarConsumer = pulsarConsumer;
     return this;
   }
 

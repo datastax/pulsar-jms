@@ -28,6 +28,6 @@ public class SimpleMessageListener implements MessageListener {
   @Override
   public void onMessage(Message message) {
     receivedMessages.add(message);
-    log.info("{} - received {}, total {}", this, message, receivedMessages.size());
+    // log.info("{} - received {}, total {}", this, message, receivedMessages.size());
   }
 }

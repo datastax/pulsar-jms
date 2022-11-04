@@ -16,6 +16,7 @@
 package com.datastax.oss.pulsar.jms;
 
 import java.util.List;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.jms.ConnectionConsumer;
 import javax.jms.IllegalStateException;
@@ -37,6 +38,16 @@ class PulsarConnectionConsumer implements ConnectionConsumer {
   private final Thread spool;
   private final int maxMessages;
 
+  /**
+   * This is a feature to help migrating ActiveMQ users to Pulsar. In ActiveMQ maxMessages
+   * corresponds to the "prefetchSize" on the ConsumerInfo and this implies that it is a hard limit
+   * on the maximum number of inflight messages. If you set maxMessages = 1 the MessageDrivenBean
+   * will be processing only 1 message at a time.
+   */
+  private final boolean maxMessagesLimitParallelism;
+
+  private final Semaphore permits;
+
   PulsarConnectionConsumer(
       PulsarSession dispatcherSession,
       PulsarMessageConsumer consumer,
@@ -46,7 +57,13 @@ class PulsarConnectionConsumer implements ConnectionConsumer {
     this.consumer = consumer;
     this.serverSessionPool = serverSessionPool;
     this.maxMessages = maxMessages;
-
+    this.maxMessagesLimitParallelism =
+        dispatcherSession.getConnection().getFactory().isMaxMessagesLimitsParallelism();
+    if (maxMessagesLimitParallelism) {
+      permits = new Semaphore(maxMessages);
+    } else {
+      permits = null;
+    }
     // unfortunately due to the blocking nature of ServerSessionPool.getServerSession()
     // we must
     this.spool = new Thread(new Spool());
@@ -86,7 +103,15 @@ class PulsarConnectionConsumer implements ConnectionConsumer {
     @Override
     public void run() {
       while (!closed.get()) {
+
         try {
+          if (permits != null) {
+            try {
+              permits.acquire();
+            } catch (InterruptedException exit) {
+              return;
+            }
+          }
           // this method may be "blocking" if the pool is exhausted
           ServerSession serverSession;
           try {
@@ -98,23 +123,24 @@ class PulsarConnectionConsumer implements ConnectionConsumer {
           // pick a message after getting the ServerSession
           // otherwise the ackTimeout will make the message be negatively acknowledged
           // while waiting for the ServerSession to be available
-          List<Message> messages = consumer.batchReceive(maxMessages, TIMEOUT_RECEIVE);
-          if (!messages.isEmpty()) {
-            // this session must have been created by this connection
-            // it is a dummy session that is only a Holder for the MessageListener
-            // that actually execute the MessageDriven bean code
-            PulsarSession wrappedByServerSideSession = (PulsarSession) serverSession.getSession();
+          int maxMessagesToConsume = maxMessagesLimitParallelism ? 1 : maxMessages;
 
-            wrappedByServerSideSession.setupConnectionConsumerTask(messages);
+          List<Message> messages = consumer.batchReceive(maxMessagesToConsume, TIMEOUT_RECEIVE);
 
-            // serverSession.start() starts a new "Work" (using WorkManager) to
-            // execute the Session.run() method of the dummy session wrapped by
-            // the ServerSession, that happens on a separate thread
-            serverSession.start();
-          } else {
-            // retun the session to the pool
-            serverSession.start();
+          // this session must have been created by this connection
+          // it is a dummy session that is only a Holder for the MessageListener
+          // that actually execute the MessageDriven bean code
+          PulsarSession wrappedByServerSideSession = (PulsarSession) serverSession.getSession();
+          Runnable postExecutionTask = null;
+          if (permits != null) {
+            postExecutionTask = () -> permits.release();
           }
+          wrappedByServerSideSession.setupConnectionConsumerTask(messages, postExecutionTask);
+
+          // serverSession.start() starts a new "Work" (using WorkManager) to
+          // execute the Session.run() method of the dummy session wrapped by
+          // the ServerSession, that happens on a separate thread
+          serverSession.start();
         } catch (JMSException error) {
           log.error("internal error", error);
 
