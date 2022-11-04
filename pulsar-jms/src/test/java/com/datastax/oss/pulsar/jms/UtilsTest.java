@@ -15,10 +15,14 @@
  */
 package com.datastax.oss.pulsar.jms;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 
@@ -364,5 +368,46 @@ public class UtilsTest {
   private static void assertRange(int value, int from, int to) {
     assertTrue(value >= from, "value " + value + " not in range " + from + "-" + to);
     assertTrue(value <= to, "value " + value + " not in range " + from + "-" + to);
+  }
+
+  @Test
+  public void buildConfigurationFromQueryString() throws Exception {
+    testConfiguration(
+        "",
+        res -> {
+          assertNull(res);
+        });
+    testConfiguration(
+        "a=b",
+        res -> {
+          assertEquals("b", res.get("a"));
+        });
+    testConfiguration(
+        "a.b=c",
+        res -> {
+          Map a = (Map) res.get("a");
+          assertEquals("c", a.get("b"));
+        });
+    testConfiguration(
+        "a.b=c&a.d=e",
+        res -> {
+          Map a = (Map) res.get("a");
+          assertEquals("c", a.get("b"));
+          assertEquals("e", a.get("d"));
+        });
+    testConfiguration(
+        "a.b=c&a.d=e&a.d=f",
+        res -> {
+          Map a = (Map) res.get("a");
+          assertEquals("c", a.get("b"));
+          assertEquals("f", a.get("d"));
+        });
+  }
+
+  private void testConfiguration(String queryString, Consumer<Map<String, Object>> verifier)
+      throws Exception {
+    PulsarDestination dest = new PulsarQueue("test?" + queryString);
+    Map<String, Object> res = Utils.buildConfigurationOverride(dest);
+    verifier.accept(res);
   }
 }
