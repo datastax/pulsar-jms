@@ -154,6 +154,10 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
     return consumer;
   }
 
+  boolean isClosed() {
+    return closed.get();
+  }
+
   /**
    * Gets this message consumer's message selector expression.
    *
@@ -287,6 +291,9 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
   }
 
   public List<Message> batchReceive(int maxMessages, long timeoutMs) throws JMSException {
+    if (closed.get()) {
+      return Collections.emptyList();
+    }
     // ensure that the internal consumer has been created
     getConsumer();
 
@@ -344,7 +351,8 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
                         if (message == null) {
                           return null;
                         }
-                        return handleReceivedMessage(message, expectedType, null, noLocal);
+                        return handleReceivedMessage(
+                            message, consumer, expectedType, null, noLocal);
                       } catch (Exception err) {
                         throw Utils.handleException(err);
                       }
@@ -393,14 +401,14 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
 
   private PulsarMessage handleReceivedMessage(
       org.apache.pulsar.client.api.Message<?> message,
+      Consumer<?> consumer,
       Class expectedType,
       java.util.function.Consumer<PulsarMessage> listenerCode,
       boolean noLocalFilter)
       throws JMSException, org.apache.pulsar.client.api.PulsarClientException {
     receivedMessages.incrementAndGet();
 
-    PulsarMessage result = PulsarMessage.decode(this, message);
-    Consumer<?> consumer = getConsumer();
+    PulsarMessage result = PulsarMessage.decode(this, consumer, message);
     if (expectedType != null && !result.isBodyAssignableTo(expectedType)) {
       if (log.isDebugEnabled()) {
         log.debug(
@@ -623,10 +631,11 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
     return new PulsarJMSConsumer(this);
   }
 
-  synchronized void acknowledge(
-      org.apache.pulsar.client.api.Message<?> receivedPulsarMessage, PulsarMessage message)
+  void acknowledge(
+      org.apache.pulsar.client.api.Message<?> receivedPulsarMessage,
+      PulsarMessage message,
+      Consumer<?> consumer)
       throws JMSException {
-    Consumer<?> consumer = getConsumer();
     try {
       consumer.acknowledge(receivedPulsarMessage);
       session.unregisterUnacknowledgedMessage(message);
@@ -677,7 +686,8 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
                     if (message == null) {
                       return false;
                     }
-                    handleReceivedMessage(message, null, messageListener::onMessage, noLocal);
+                    handleReceivedMessage(
+                        message, consumer, null, messageListener::onMessage, noLocal);
                     return true;
                   } catch (PulsarClientException.AlreadyClosedException closed) {
                     log.error("Error while receiving message on Closed consumer {}", this);

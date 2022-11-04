@@ -158,7 +158,7 @@ final class PulsarQueueBrowser implements QueueBrowser {
               } else {
                 nextMessage =
                     PulsarMessage.decode(
-                        null, reader.readNext(BROWSER_READ_TIMEOUT, TimeUnit.MILLISECONDS));
+                        null, null, reader.readNext(BROWSER_READ_TIMEOUT, TimeUnit.MILLISECONDS));
                 if (nextMessage == null) {
                   finished = true;
                   return;

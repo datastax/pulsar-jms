@@ -149,6 +149,7 @@ public class PulsarConnectionFactory
   private transient boolean initialized;
   private transient boolean closed;
   private transient int refreshServerSideFiltersPeriod = 300;
+  private transient boolean maxMessagesLimitsParallelism = false;
 
   private transient Map<String, Object> configuration = Collections.emptyMap();
 
@@ -336,16 +337,19 @@ public class PulsarConnectionFactory
           Integer.parseInt(
               getAndRemoveString("jms.refreshServerSideFiltersPeriod", "300", configurationCopy));
 
+      this.maxMessagesLimitsParallelism =
+          Boolean.parseBoolean(
+              getAndRemoveString(
+                  "jms.maxMessagesLimitsParallelism",
+                  (Runtime.getRuntime().availableProcessors() * 2) + "",
+                  configurationCopy));
+
       this.sessionListenersThreads =
           Integer.parseInt(
               getAndRemoveString(
                   "jms.sessionListenersThreads",
                   (Runtime.getRuntime().availableProcessors() * 2) + "",
                   configurationCopy));
-
-      this.connectionConsumerParallelism =
-          Integer.parseInt(
-              getAndRemoveString("jms.connectionConsumerParallelism", "1", configurationCopy));
 
       final String rawTopicSharedSubscriptionType =
           getAndRemoveString(
@@ -1792,8 +1796,8 @@ public class PulsarConnectionFactory
     return pulsarAdmin;
   }
 
-  public synchronized int getConnectionConsumerParallelism() {
-    return connectionConsumerParallelism;
+  public synchronized int getSessionListenersThreads() {
+    return sessionListenersThreads;
   }
 
   public synchronized ScheduledExecutorService getSessionListenersThreadPool() {
@@ -1809,6 +1813,10 @@ public class PulsarConnectionFactory
               new ThreadPoolExecutor.AbortPolicy());
     }
     return sessionListenersThreadPool;
+  }
+
+  public synchronized boolean isMaxMessagesLimitsParallelism() {
+    return maxMessagesLimitsParallelism;
   }
 
   private static class SessionListenersThreadFactory implements ThreadFactory {

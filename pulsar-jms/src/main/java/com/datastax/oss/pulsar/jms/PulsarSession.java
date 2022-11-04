@@ -38,6 +38,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -117,9 +118,10 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   private final List<PulsarMessage> unackedMessages = new ArrayList<>();
   private final Map<String, PulsarDestination> destinationBySubscription = new HashMap<>();
   private volatile boolean closed;
+  private final boolean useDedicatedListenerThread;
   private volatile ListenerThread dedicatedListenerThread;
 
-  private final ScheduledExecutorService threadPool;
+  private volatile ScheduledExecutorService threadPool;
 
   private volatile Future<?> listenersExecutorsCycleHandle;
 
@@ -135,6 +137,9 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   private final AtomicLong transactionStickyKey = new AtomicLong();
   private final ConsumersInterceptor consumerInterceptor = new ConsumersInterceptor();
   private final List<Message> connectionConsumerTasks = new ArrayList<>();
+
+  private final AtomicReference<Runnable> connectionConsumerPostProcessingTask =
+      new AtomicReference<>();
 
   PulsarSession(
       int sessionMode,
@@ -157,12 +162,20 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     this.sessionMode = sessionMode;
     this.transacted = sessionMode == Session.SESSION_TRANSACTED;
     this.overrideConsumerConfiguration = overrideConsumerConfiguration;
-    this.enableJMSPriority = getFactory().isEnableJMSPriority();
-    this.threadPool = getFactory().getSessionListenersThreadPool();
-    if (transacted && connection.getFactory().isTransactionsStickyPartitions()) {
+    PulsarConnectionFactory factory = getFactory();
+    this.enableJMSPriority = factory.isEnableJMSPriority();
+    this.useDedicatedListenerThread = factory.getSessionListenersThreads() <= 0;
+    if (transacted && factory.isTransactionsStickyPartitions()) {
       generateNewTransactionStickyKey();
     }
     validateSessionMode(sessionMode);
+  }
+
+  private synchronized ScheduledExecutorService getThreadPool() {
+    if (threadPool == null) {
+      this.threadPool = getFactory().getSessionListenersThreadPool();
+    }
+    return threadPool;
   }
 
   /**
@@ -853,6 +866,10 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
         }
       } finally {
         connectionConsumerTasks.clear();
+        Runnable task = connectionConsumerPostProcessingTask.getAndSet(null);
+        if (task != null) {
+          task.run();
+        }
       }
     }
   }
@@ -892,9 +909,10 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    *
    * @param foreignMessages
    */
-  void setupConnectionConsumerTask(List<Message> foreignMessages) {
+  void setupConnectionConsumerTask(List<Message> foreignMessages, Runnable postExecutionTask) {
     synchronized (connectionConsumerTasks) {
       this.connectionConsumerTasks.addAll(foreignMessages);
+      connectionConsumerPostProcessingTask.set(postExecutionTask);
     }
   }
 
@@ -1979,7 +1997,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   }
 
   boolean isDedicatedListenerThread() {
-    return threadPool == null;
+    return useDedicatedListenerThread;
   }
 
   void scheduleConsumerListenerCycle(PulsarMessageConsumer consumer, boolean immediate) {
@@ -1987,6 +2005,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
       // session is closed, no need to schedule Listeners
       return;
     }
+    ScheduledExecutorService threadPool = getThreadPool();
     if (!connection.isStarted()) {
       // try again later
       threadPool.schedule(
