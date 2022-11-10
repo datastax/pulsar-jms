@@ -21,6 +21,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyInt;
+import static org.mockito.Matchers.anyMap;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -29,10 +31,12 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.datastax.oss.pulsar.jms.PulsarConnectionFactory;
+import com.datastax.oss.pulsar.jms.PulsarJMSContext;
 import com.datastax.oss.pulsar.jms.PulsarMessage;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -49,6 +53,7 @@ import javax.resource.spi.endpoint.MessageEndpointFactory;
 import javax.transaction.xa.XAResource;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
@@ -262,7 +267,7 @@ public class PulsarMessageEndpointTest {
       throws Exception {
     PulsarConnectionFactory pulsarConnectionFactory = mock(PulsarConnectionFactory.class);
     MessageEndpointFactory messageEndpointFactory = mock(MessageEndpointFactory.class);
-    JMSContext context = mock(JMSContext.class);
+    JMSContext context = mock(PulsarJMSContext.class);
     when(pulsarConnectionFactory.createContext(eq(JMSContext.CLIENT_ACKNOWLEDGE)))
         .thenReturn(context);
     JMSConsumer consumer = mock(JMSConsumer.class);
@@ -317,6 +322,7 @@ public class PulsarMessageEndpointTest {
         "Durable",
         "Shared",
         1,
+        null,
         context -> {
           verify(context, times(1)).createConsumer(any());
         });
@@ -326,6 +332,7 @@ public class PulsarMessageEndpointTest {
         "Durable",
         "Shared",
         1,
+        null,
         context -> {
           verify(context, times(1)).createSharedDurableConsumer(any(), eq("subname"));
         });
@@ -335,6 +342,7 @@ public class PulsarMessageEndpointTest {
         "Durable",
         "Exclusive",
         1,
+        null,
         context -> {
           verify(context, times(1)).createDurableConsumer(any(), eq("subname"));
         });
@@ -344,6 +352,7 @@ public class PulsarMessageEndpointTest {
         "NonDurable",
         "Exclusive",
         1,
+        null,
         context -> {
           verify(context, times(1)).createConsumer(any());
         });
@@ -353,9 +362,26 @@ public class PulsarMessageEndpointTest {
         "NonDurable",
         "Shared",
         1,
+        null,
         context -> {
           verify(context, times(1)).createSharedConsumer(any(), eq("subname"));
         });
+
+
+    testCreateConsumer(
+            "topic",
+            "NonDurable",
+            "Shared",
+            1,
+            "{\"deadLetterPolicy\":{\"deadLetterTopic\":\"dlq-topic\"}}",
+            context -> {
+              ArgumentCaptor<Map> captor = ArgumentCaptor.forClass(Map.class);
+              verify(context, times(1))
+                      .createContext(anyInt(), captor.capture());
+              Map<String, Object> consumerConfig = (Map<String, Object>) captor.getValue().get("consumerConfig");
+              Map<String, Object> deadLetterPolicy = (Map<String, Object>) consumerConfig.get("deadLetterPolicy");
+              assertEquals("dlq-topic",  deadLetterPolicy.get("deadLetterTopic"));
+            });
   }
 
   @Test
@@ -365,6 +391,7 @@ public class PulsarMessageEndpointTest {
         "Durable",
         "Shared",
         1,
+        null,
         context -> {
           verify(context, times(1)).createConsumer(any());
         });
@@ -374,7 +401,8 @@ public class PulsarMessageEndpointTest {
         "Durable",
         "Shared",
         5,
-        context -> {
+        null,
+         context -> {
           verify(context, times(5)).createConsumer(any());
         });
 
@@ -383,6 +411,7 @@ public class PulsarMessageEndpointTest {
         "Durable",
         "Shared",
         5,
+        null,
         context -> {
           verify(context, times(5)).createSharedDurableConsumer(any(), any());
         });
@@ -395,6 +424,7 @@ public class PulsarMessageEndpointTest {
                 "Durable",
                 "Exclusive",
                 5,
+                null,
                 context -> {
                   //
                 }));
@@ -407,6 +437,7 @@ public class PulsarMessageEndpointTest {
                 "NonDurable",
                 "Exclusive",
                 5,
+                null,
                 context -> {
                   //
                 }));
@@ -417,20 +448,26 @@ public class PulsarMessageEndpointTest {
       String subscriptionType,
       String subscriptionMode,
       int numSessions,
-      Consumer<JMSContext> verifier)
+      String consumerConfig,
+      Consumer<PulsarJMSContext> verifier)
       throws Exception {
-    DummyEndpoint listener = new DummyEndpoint(true);
     PulsarConnectionFactory pulsarConnectionFactory = mock(PulsarConnectionFactory.class);
     MessageEndpointFactory messageEndpointFactory = mock(MessageEndpointFactory.class);
-    JMSContext context = mock(JMSContext.class);
+    PulsarJMSContext context = mock(PulsarJMSContext.class);
+
+    // this is a subcontext used to verify that we can create a new context with an overridden consumerConfig
+    PulsarJMSContext subContext = mock(PulsarJMSContext.class);
     when(pulsarConnectionFactory.createContext(eq(JMSContext.CLIENT_ACKNOWLEDGE)))
         .thenReturn(context);
+    when(context.createContext(anyInt(), anyMap())).thenReturn(subContext);
     when(context.createConsumer(any(Destination.class))).thenReturn(mock(JMSConsumer.class));
     when(context.createDurableConsumer(any(Topic.class), any()))
         .thenReturn(mock(JMSConsumer.class));
     when(context.createSharedDurableConsumer(any(Topic.class), any()))
         .thenReturn(mock(JMSConsumer.class));
     when(context.createSharedConsumer(any(Topic.class), any())).thenReturn(mock(JMSConsumer.class));
+    when(subContext.createSharedConsumer(any(Topic.class), any())).thenReturn(mock(JMSConsumer.class));
+
     PulsarActivationSpec activationSpec = new PulsarActivationSpec();
     activationSpec.setDestination("MyDest");
     activationSpec.setSubscriptionName("subname");
@@ -438,6 +475,7 @@ public class PulsarMessageEndpointTest {
     activationSpec.setSubscriptionType(subscriptionType);
     activationSpec.setSubscriptionMode(subscriptionMode);
     activationSpec.setNumSessions(numSessions);
+    activationSpec.setConsumerConfig(consumerConfig);
 
     PulsarMessageEndpoint endpoint =
         new PulsarMessageEndpoint(pulsarConnectionFactory, messageEndpointFactory, activationSpec);
