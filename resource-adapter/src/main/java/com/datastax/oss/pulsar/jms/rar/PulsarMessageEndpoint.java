@@ -21,6 +21,7 @@ import com.datastax.oss.pulsar.jms.PulsarJMSContext;
 import com.datastax.oss.pulsar.jms.PulsarMessage;
 import com.datastax.oss.pulsar.jms.PulsarQueue;
 import com.datastax.oss.pulsar.jms.PulsarTopic;
+import com.google.common.collect.ImmutableMap;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Hashtable;
@@ -41,10 +42,6 @@ import javax.resource.spi.endpoint.MessageEndpointFactory;
 import javax.transaction.xa.XAException;
 import javax.transaction.xa.XAResource;
 import javax.transaction.xa.Xid;
-
-import com.fasterxml.jackson.databind.JsonMappingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.collect.ImmutableMap;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -74,8 +71,6 @@ public class PulsarMessageEndpoint implements MessageListener {
     this.activationSpec = activationSpec;
     this.sessions = new ArrayList<>();
   }
-
-
 
   public MessageEndpointFactory getMessageEndpointFactory() {
     return messageEndpointFactory;
@@ -112,14 +107,20 @@ public class PulsarMessageEndpoint implements MessageListener {
   }
 
   void startSession() {
-    PulsarJMSContext context = (PulsarJMSContext) pulsarConnectionFactory.createContext(JMSContext.CLIENT_ACKNOWLEDGE);
+    PulsarJMSContext context =
+        (PulsarJMSContext) pulsarConnectionFactory.createContext(JMSContext.CLIENT_ACKNOWLEDGE);
     Map<String, Object> customConfiguration = activationSpec.buildConsumerConfiguration();
     PulsarDestination pulsarDestination =
-            getPulsarDestination(activationSpec.getDestinationType(), activationSpec.getDestination());
+        getPulsarDestination(activationSpec.getDestinationType(), activationSpec.getDestination());
     if (!customConfiguration.isEmpty()) {
-      log.info("Endpoint for {} overrides consumerConfig with {}", pulsarDestination, customConfiguration);
-      context = (PulsarJMSContext) context.createContext(context.getSessionMode(),
-              ImmutableMap.of("consumerConfig", customConfiguration));
+      log.info(
+          "Endpoint for {} overrides consumerConfig with {}",
+          pulsarDestination,
+          customConfiguration);
+      context =
+          (PulsarJMSContext)
+              context.createContext(
+                  context.getSessionMode(), ImmutableMap.of("consumerConfig", customConfiguration));
     }
     sessions.add(context);
     if (pulsarDestination.isQueue()) {

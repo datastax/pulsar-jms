@@ -15,24 +15,16 @@
  */
 package com.datastax.oss.pulsar.jms.rar;
 
-import com.datastax.oss.pulsar.jms.PulsarDestination;
-import com.datastax.oss.pulsar.jms.PulsarQueue;
-import com.datastax.oss.pulsar.jms.PulsarTopic;
-
+import com.datastax.oss.pulsar.jms.Utils;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
-import javax.jms.IllegalStateRuntimeException;
 import javax.resource.ResourceException;
 import javax.resource.spi.ActivationSpec;
 import javax.resource.spi.InvalidPropertyException;
 import javax.resource.spi.ResourceAdapter;
 import javax.resource.spi.ResourceAdapterAssociation;
-
-import com.datastax.oss.pulsar.jms.Utils;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonMappingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -42,16 +34,16 @@ public class PulsarActivationSpec implements ActivationSpec, ResourceAdapterAsso
   private String destination;
   private String destinationType = "queue";
   /**
-   * Configuration for the underlying PulsarConnectionFactory.
-   * Factories are cached, using this configuration as key.
+   * Configuration for the underlying PulsarConnectionFactory. Factories are cached, using this
+   * configuration as key.
    */
   private String configuration = "{}";
   /**
-   * Override the consumer configuration.
-   * This allows you to have different consumerConfig but
-   * still share the PulsarConnectionFactory
+   * Override the consumer configuration. This allows you to have different consumerConfig but still
+   * share the PulsarConnectionFactory
    */
   private String consumerConfig = "{}";
+
   private String subscriptionType = "Durable";
   private String subscriptionMode = "Shared";
   private String subscriptionName = "";
@@ -261,7 +253,9 @@ public class PulsarActivationSpec implements ActivationSpec, ResourceAdapterAsso
     Map<String, Object> result = null;
     if (!overrideConsumerConfiguration.isEmpty() && !overrideConsumerConfiguration.equals("{}")) {
       String jsonConfig = overrideConsumerConfiguration;
-      result = (Map<String, Object>) Utils.runtimeException(() -> new ObjectMapper().readValue(jsonConfig, Map.class));
+      result =
+          (Map<String, Object>)
+              Utils.runtimeException(() -> new ObjectMapper().readValue(jsonConfig, Map.class));
     }
     if (result == null) {
       return Collections.emptyMap();
@@ -269,5 +263,4 @@ public class PulsarActivationSpec implements ActivationSpec, ResourceAdapterAsso
       return result;
     }
   }
-
 }

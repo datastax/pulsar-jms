@@ -367,21 +367,21 @@ public class PulsarMessageEndpointTest {
           verify(context, times(1)).createSharedConsumer(any(), eq("subname"));
         });
 
-
     testCreateConsumer(
-            "topic",
-            "NonDurable",
-            "Shared",
-            1,
-            "{\"deadLetterPolicy\":{\"deadLetterTopic\":\"dlq-topic\"}}",
-            context -> {
-              ArgumentCaptor<Map> captor = ArgumentCaptor.forClass(Map.class);
-              verify(context, times(1))
-                      .createContext(anyInt(), captor.capture());
-              Map<String, Object> consumerConfig = (Map<String, Object>) captor.getValue().get("consumerConfig");
-              Map<String, Object> deadLetterPolicy = (Map<String, Object>) consumerConfig.get("deadLetterPolicy");
-              assertEquals("dlq-topic",  deadLetterPolicy.get("deadLetterTopic"));
-            });
+        "topic",
+        "NonDurable",
+        "Shared",
+        1,
+        "{\"deadLetterPolicy\":{\"deadLetterTopic\":\"dlq-topic\"}}",
+        context -> {
+          ArgumentCaptor<Map> captor = ArgumentCaptor.forClass(Map.class);
+          verify(context, times(1)).createContext(anyInt(), captor.capture());
+          Map<String, Object> consumerConfig =
+              (Map<String, Object>) captor.getValue().get("consumerConfig");
+          Map<String, Object> deadLetterPolicy =
+              (Map<String, Object>) consumerConfig.get("deadLetterPolicy");
+          assertEquals("dlq-topic", deadLetterPolicy.get("deadLetterTopic"));
+        });
   }
 
   @Test
@@ -402,7 +402,7 @@ public class PulsarMessageEndpointTest {
         "Shared",
         5,
         null,
-         context -> {
+        context -> {
           verify(context, times(5)).createConsumer(any());
         });
 
@@ -455,7 +455,8 @@ public class PulsarMessageEndpointTest {
     MessageEndpointFactory messageEndpointFactory = mock(MessageEndpointFactory.class);
     PulsarJMSContext context = mock(PulsarJMSContext.class);
 
-    // this is a subcontext used to verify that we can create a new context with an overridden consumerConfig
+    // this is a subcontext used to verify that we can create a new context with an overridden
+    // consumerConfig
     PulsarJMSContext subContext = mock(PulsarJMSContext.class);
     when(pulsarConnectionFactory.createContext(eq(JMSContext.CLIENT_ACKNOWLEDGE)))
         .thenReturn(context);
@@ -466,7 +467,8 @@ public class PulsarMessageEndpointTest {
     when(context.createSharedDurableConsumer(any(Topic.class), any()))
         .thenReturn(mock(JMSConsumer.class));
     when(context.createSharedConsumer(any(Topic.class), any())).thenReturn(mock(JMSConsumer.class));
-    when(subContext.createSharedConsumer(any(Topic.class), any())).thenReturn(mock(JMSConsumer.class));
+    when(subContext.createSharedConsumer(any(Topic.class), any()))
+        .thenReturn(mock(JMSConsumer.class));
 
     PulsarActivationSpec activationSpec = new PulsarActivationSpec();
     activationSpec.setDestination("MyDest");

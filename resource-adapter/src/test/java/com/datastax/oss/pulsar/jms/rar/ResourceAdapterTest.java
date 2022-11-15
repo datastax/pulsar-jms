@@ -26,6 +26,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.datastax.oss.pulsar.jms.PulsarConnectionFactory;
+import com.datastax.oss.pulsar.jms.PulsarJMSContext;
 import javax.jms.Destination;
 import javax.jms.JMSConsumer;
 import javax.jms.JMSContext;
@@ -82,7 +83,7 @@ public class ResourceAdapterTest {
           @Override
           protected PulsarConnectionFactory buildConnectionFactory(String config) {
             PulsarConnectionFactory res = mock(PulsarConnectionFactory.class);
-            JMSContext context = mock(JMSContext.class);
+            JMSContext context = mock(PulsarJMSContext.class);
             when(context.createConsumer(any(Destination.class)))
                 .thenReturn(mock(JMSConsumer.class));
             when(res.createContext(anyInt())).thenReturn(context);
