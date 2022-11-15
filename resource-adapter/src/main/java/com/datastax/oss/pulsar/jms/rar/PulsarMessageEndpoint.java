@@ -17,13 +17,16 @@ package com.datastax.oss.pulsar.jms.rar;
 
 import com.datastax.oss.pulsar.jms.PulsarConnectionFactory;
 import com.datastax.oss.pulsar.jms.PulsarDestination;
+import com.datastax.oss.pulsar.jms.PulsarJMSContext;
 import com.datastax.oss.pulsar.jms.PulsarMessage;
 import com.datastax.oss.pulsar.jms.PulsarQueue;
 import com.datastax.oss.pulsar.jms.PulsarTopic;
+import com.google.common.collect.ImmutableMap;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Hashtable;
 import java.util.List;
+import java.util.Map;
 import javax.jms.Destination;
 import javax.jms.IllegalStateRuntimeException;
 import javax.jms.JMSContext;
@@ -104,10 +107,22 @@ public class PulsarMessageEndpoint implements MessageListener {
   }
 
   void startSession() {
-    JMSContext context = pulsarConnectionFactory.createContext(JMSContext.CLIENT_ACKNOWLEDGE);
-    sessions.add(context);
+    PulsarJMSContext context =
+        (PulsarJMSContext) pulsarConnectionFactory.createContext(JMSContext.CLIENT_ACKNOWLEDGE);
+    Map<String, Object> customConfiguration = activationSpec.buildConsumerConfiguration();
     PulsarDestination pulsarDestination =
         getPulsarDestination(activationSpec.getDestinationType(), activationSpec.getDestination());
+    if (!customConfiguration.isEmpty()) {
+      log.info(
+          "Endpoint for {} overrides consumerConfig with {}",
+          pulsarDestination,
+          customConfiguration);
+      context =
+          (PulsarJMSContext)
+              context.createContext(
+                  context.getSessionMode(), ImmutableMap.of("consumerConfig", customConfiguration));
+    }
+    sessions.add(context);
     if (pulsarDestination.isQueue()) {
       switch (activationSpec.getSubscriptionMode()) {
         case "Exclusive":

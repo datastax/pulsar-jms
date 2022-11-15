@@ -17,7 +17,9 @@ package com.datastax.oss.pulsar.jms.rar;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.Map;
 import javax.resource.spi.InvalidPropertyException;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
@@ -146,5 +148,27 @@ public class PulsarActivationSpecTest {
     spec.setConfiguration("{   }");
     assertEquals("bar", spec.getMergedConfiguration("bar"));
     assertEquals("{   }", spec.getConfiguration());
+  }
+
+  @Test
+  public void testConsumerConfiguration() throws Exception {
+    PulsarActivationSpec spec = new PulsarActivationSpec();
+    String configuration = "{\"deadLetterPolicy\":{\"deadLetterTopic\":\"dlq-topic\"}}";
+    spec.setConsumerConfig(configuration);
+    Map<String, Object> parsed = spec.buildConsumerConfiguration();
+    Map<String, Object> deadLetterPolicy = (Map<String, Object>) parsed.get("deadLetterPolicy");
+    assertEquals("dlq-topic", deadLetterPolicy.get("deadLetterTopic"));
+
+    spec.setConsumerConfig(null);
+    assertTrue(spec.buildConsumerConfiguration().isEmpty());
+
+    spec.setConsumerConfig("");
+    assertTrue(spec.buildConsumerConfiguration().isEmpty());
+
+    spec.setConsumerConfig("{}");
+    assertTrue(spec.buildConsumerConfiguration().isEmpty());
+
+    spec.setConsumerConfig("   {  }   ");
+    assertTrue(spec.buildConsumerConfiguration().isEmpty());
   }
 }
