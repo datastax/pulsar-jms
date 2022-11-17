@@ -339,10 +339,7 @@ public class PulsarConnectionFactory
 
       this.maxMessagesLimitsParallelism =
           Boolean.parseBoolean(
-              getAndRemoveString(
-                  "jms.maxMessagesLimitsParallelism",
-                  "false",
-                  configurationCopy));
+              getAndRemoveString("jms.maxMessagesLimitsParallelism", "false", configurationCopy));
 
       this.sessionListenersThreads =
           Integer.parseInt(
