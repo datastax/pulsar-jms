@@ -93,6 +93,18 @@ public class DockerTest {
   }
 
   @Test
+  public void testApachePulsar211ServerSideSelectors() throws Exception {
+    // waiting for Apache Pulsar 2.10.1, in the meantime we use Luna Streaming 2.10.0.6
+    test("mattison/pulsar-all:2.11.0-rc2", false, true);
+  }
+
+  @Test
+  public void testApachePulsar211ServerSideSelectorsAndTransactions() throws Exception {
+    // waiting for Apache Pulsar 2.10.1, in the meantime we use Luna Streaming 2.10.0.6
+    test("mattison/pulsar-all:2.11.0-rc2", true, true);
+  }
+
+  @Test
   public void testGenericPulsar() throws Exception {
     assumeTrue(TEST_PULSAR_DOCKER_IMAGE_NAME != null && !TEST_PULSAR_DOCKER_IMAGE_NAME.isEmpty());
     test(TEST_PULSAR_DOCKER_IMAGE_NAME, false);

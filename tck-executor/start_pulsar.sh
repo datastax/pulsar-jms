@@ -3,7 +3,7 @@
 set -x -e
 
 # waiting for Apache Pulsar 2.10.1, in the meantime we use Luna Streaming 2.10.0.x
-IMAGENAME=${PULSAR_IMAGE_NAME:-datastax/lunastreaming:2.10_1.6}
+IMAGENAME=${PULSAR_IMAGE_NAME:-mattison/pulsar-all:2.11.0-rc2}
 
 HERE=$(dirname $0)
 HERE=$(realpath "$HERE")
