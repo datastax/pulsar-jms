@@ -35,6 +35,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import javax.jms.CompletionListener;
 import javax.jms.Connection;
@@ -306,6 +307,164 @@ public class ConnectionConsumerTest {
     }
   }
 
+  @Test
+  public void testStopTimeoutWithMessageDrivenOnMessageCallbackStuck() throws Exception {
+    long start = System.currentTimeMillis();
+
+    Map<String, Object> properties = new HashMap<>();
+    properties.put("webServiceUrl", cluster.getAddress());
+    properties.put("jms.enableClientSideEmulation", true);
+    properties.put("jms.maxMessagesLimitsParallelism", false);
+    // we should not be stuck even if connectionConsumerStopTimeout is 0
+    properties.put("jms.connectionConsumerStopTimeout", 0);
+
+    // required for createDurableConnectionConsumer
+    properties.put("jms.clientId", "test");
+    properties.put("producerConfig", ImmutableMap.of("batchingEnabled", false));
+
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties);
+        Connection connection = factory.createConnection();
+        Session session = connection.createSession(Session.AUTO_ACKNOWLEDGE); ) {
+      connection.start();
+      Destination destination =
+          session.createQueue("persistent://public/default/test-" + UUID.randomUUID());
+
+      CompletableFuture<Void> onMessageEntered = new CompletableFuture<>();
+      CompletableFuture<Void> condition = new CompletableFuture<>();
+      SimpleMessageListener listener =
+          new SimpleMessageListener() {
+            @Override
+            public void onMessage(Message message) {
+              onMessageEntered.complete(null);
+              // this method blocks
+              log.info("here", new Exception("here").fillInStackTrace());
+              condition.join();
+              super.onMessage(message);
+            }
+          };
+
+      DummyServerSessionPool serverSessionPool =
+          new DummyServerSessionPool(
+              10,
+              10,
+              connection,
+              destination,
+              null,
+              listener,
+              new ConnectionConsumerBuilder() {
+                @Override
+                public ConnectionConsumer build(
+                    Connection connection,
+                    Destination destination,
+                    String selector,
+                    ServerSessionPool serverSessionPool,
+                    int maxMessages)
+                    throws Exception {
+                  return connection.createConnectionConsumer(
+                      destination, selector, serverSessionPool, maxMessages);
+                }
+              });
+
+      serverSessionPool.start();
+
+      try (MessageProducer producer = session.createProducer(destination); ) {
+        producer.send(session.createTextMessage("foo-0"));
+      }
+
+      onMessageEntered.join();
+
+      serverSessionPool.close();
+
+      // unlock the listener
+      condition.complete(null);
+
+      // verify that the listener was called
+      await()
+          .atMost(Integer.MAX_VALUE, TimeUnit.SECONDS)
+          .until(listener.receivedMessages::size, equalTo(1));
+
+      long end = System.currentTimeMillis();
+      log.info("ExecuteTest time {} ms", end - start);
+    }
+  }
+
+  @Test
+  public void testStopTimeoutWithSpoolThreadStuck() throws Exception {
+    long start = System.currentTimeMillis();
+
+    Map<String, Object> properties = new HashMap<>();
+    properties.put("webServiceUrl", cluster.getAddress());
+    properties.put("jms.enableClientSideEmulation", true);
+    properties.put("jms.maxMessagesLimitsParallelism", false);
+    properties.put("jms.connectionConsumerStopTimeout", 2000);
+
+    // required for createDurableConnectionConsumer
+    properties.put("jms.clientId", "test");
+    properties.put("producerConfig", ImmutableMap.of("batchingEnabled", false));
+
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties);
+        Connection connection = factory.createConnection();
+        Session session = connection.createSession(Session.AUTO_ACKNOWLEDGE); ) {
+      connection.start();
+      Destination destination =
+          session.createQueue("persistent://public/default/test-" + UUID.randomUUID());
+
+      CompletableFuture<Void> beforeSubmitTask = new CompletableFuture<>();
+      CompletableFuture<Void> submitTaskEntered = new CompletableFuture<>();
+      SimpleMessageListener listener = new SimpleMessageListener();
+
+      DummyServerSessionPool serverSessionPool =
+          new DummyServerSessionPool(
+              10,
+              10,
+              connection,
+              destination,
+              null,
+              listener,
+              new ConnectionConsumerBuilder() {
+                @Override
+                public ConnectionConsumer build(
+                    Connection connection,
+                    Destination destination,
+                    String selector,
+                    ServerSessionPool serverSessionPool,
+                    int maxMessages)
+                    throws Exception {
+                  return connection.createConnectionConsumer(
+                      destination, selector, serverSessionPool, maxMessages);
+                }
+              }) {
+            @Override
+            public void submitTask(Runnable task) {
+              submitTaskEntered.complete(null);
+              // simulate stuck ServerPool
+              beforeSubmitTask.join();
+              super.submitTask(task);
+            }
+          };
+
+      serverSessionPool.start();
+
+      try (MessageProducer producer = session.createProducer(destination); ) {
+        producer.send(session.createTextMessage("foo-0"));
+      }
+
+      submitTaskEntered.join();
+
+      serverSessionPool.close();
+
+      // verify that we exited "close()" even if the spool thread was alive
+      assertTrue(
+          ((PulsarConnectionConsumer) serverSessionPool.connectionConsumer).isSpoolThreadAlive());
+
+      // unlock the serverpool
+      beforeSubmitTask.complete(null);
+
+      long end = System.currentTimeMillis();
+      log.info("ExecuteTest time {} ms", end - start);
+    }
+  }
+
   private static class DummyServerSessionPool implements ServerSessionPool {
     private int numSessions;
     private int maxMessages;
@@ -345,6 +504,14 @@ public class ConnectionConsumerTest {
     public void start() throws Exception {
       setupSessions();
       setupConsumer();
+    }
+
+    public void submitTask(Runnable task) {
+      try {
+        workManager.submit(task);
+      } catch (RejectedExecutionException expected) {
+        log.info("Task {} was rejected, because the Pool is closed", task);
+      }
     }
 
     public void setupSessions() throws Exception {
@@ -400,7 +567,7 @@ public class ConnectionConsumerTest {
       @Override
       public void start() throws JMSException {
         // Simulate the container WorkManager
-        workManager.submit(
+        submitTask(
             () -> {
               try {
                 // log.info("executing session {}", this);

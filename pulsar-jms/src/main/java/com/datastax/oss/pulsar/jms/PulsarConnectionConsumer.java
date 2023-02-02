@@ -46,6 +46,8 @@ class PulsarConnectionConsumer implements ConnectionConsumer {
    */
   private final boolean maxMessagesLimitParallelism;
 
+  private final int closeTimeout;
+
   private final Semaphore permits;
 
   PulsarConnectionConsumer(
@@ -59,6 +61,8 @@ class PulsarConnectionConsumer implements ConnectionConsumer {
     this.maxMessages = maxMessages;
     this.maxMessagesLimitParallelism =
         dispatcherSession.getConnection().getFactory().isMaxMessagesLimitsParallelism();
+    this.closeTimeout =
+        dispatcherSession.getConnection().getFactory().getConnectionConsumerStopTimeout();
     if (maxMessagesLimitParallelism) {
       permits = new Semaphore(maxMessages);
     } else {
@@ -90,7 +94,19 @@ class PulsarConnectionConsumer implements ConnectionConsumer {
       return;
     }
     try {
-      this.spool.join();
+      if (closeTimeout > 0) {
+        this.spool.join(closeTimeout);
+        if (this.spool.isAlive()) {
+          log.warn(
+              "Couldn't stop the ConnectionConsumer on {} within "
+                  + "the configured jms.connectionConsumerStopTimeout={}",
+              this.consumer.getDestination(),
+              closeTimeout);
+          this.spool.interrupt();
+        }
+      } else {
+        this.spool.join();
+      }
     } catch (InterruptedException err) {
       Utils.handleException(err);
     }
@@ -153,5 +169,10 @@ class PulsarConnectionConsumer implements ConnectionConsumer {
         }
       }
     }
+  }
+
+  // visible for testing
+  boolean isSpoolThreadAlive() {
+    return spool.isAlive();
   }
 }

@@ -151,6 +151,8 @@ public class PulsarConnectionFactory
   private transient int refreshServerSideFiltersPeriod = 300;
   private transient boolean maxMessagesLimitsParallelism = false;
 
+  private transient int connectionConsumerStopTimeout = 20000;
+
   private transient Map<String, Object> configuration = Collections.emptyMap();
 
   private transient ScheduledExecutorService sessionListenersThreadPool;
@@ -340,6 +342,10 @@ public class PulsarConnectionFactory
       this.maxMessagesLimitsParallelism =
           Boolean.parseBoolean(
               getAndRemoveString("jms.maxMessagesLimitsParallelism", "false", configurationCopy));
+
+      this.connectionConsumerStopTimeout =
+          Integer.parseInt(
+              getAndRemoveString("jms.connectionConsumerStopTimeout", "20000", configurationCopy));
 
       this.sessionListenersThreads =
           Integer.parseInt(
@@ -1814,6 +1820,10 @@ public class PulsarConnectionFactory
 
   public synchronized boolean isMaxMessagesLimitsParallelism() {
     return maxMessagesLimitsParallelism;
+  }
+
+  public synchronized int getConnectionConsumerStopTimeout() {
+    return connectionConsumerStopTimeout;
   }
 
   private static class SessionListenersThreadFactory implements ThreadFactory {
