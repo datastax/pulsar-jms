@@ -46,6 +46,7 @@ public class DockerTest {
 
   private static final String TEST_PULSAR_DOCKER_IMAGE_NAME =
       System.getProperty("testPulsarDockerImageName");
+  public static final String LUNASTREAMING = "datastax/lunastreaming:2.10_4.4";
 
   @TempDir Path tempDir;
 
@@ -61,13 +62,13 @@ public class DockerTest {
 
   @Test
   public void testPulsar210() throws Exception {
-    test("apachepulsar/pulsar:2.10.0", false);
+    test("apachepulsar/pulsar:2.10.4", false);
   }
 
   @Test
   public void testLunaStreaming210() throws Exception {
     // waiting for Apache Pulsar 2.10.1, in the meantime we use Luna Streaming 2.10.0.x
-    test("datastax/lunastreaming:2.10_1.6", false);
+    test(LUNASTREAMING, false);
   }
 
   @Test
@@ -77,19 +78,28 @@ public class DockerTest {
 
   @Test
   public void testPulsar210Transactions() throws Exception {
-    test("apachepulsar/pulsar:2.10.0", true);
+    test("apachepulsar/pulsar:2.10.4", true);
+  }
+
+  @Test
+  public void testPulsar211Transactions() throws Exception {
+    test("apachepulsar/pulsar:2.11.1", true);
+  }
+
+  @Test
+  public void testPulsar3Transactions() throws Exception {
+    test("apachepulsar/pulsar:3.0.0", true);
   }
 
   @Test
   public void testLunaStreaming210Transactions() throws Exception {
     // waiting for Apache Pulsar 2.10.1, in the meantime we use Luna Streaming 2.10.0.x
-    test("datastax/lunastreaming:2.10_1.6", true);
+    test(LUNASTREAMING, true);
   }
 
   @Test
   public void testLunaStreaming210ServerSideSelectors() throws Exception {
-    // waiting for Apache Pulsar 2.10.1, in the meantime we use Luna Streaming 2.10.0.6
-    test("datastax/lunastreaming:2.10_1.6", false, true);
+    test(LUNASTREAMING, false, true);
   }
 
   @Test

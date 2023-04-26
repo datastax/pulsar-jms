@@ -42,8 +42,10 @@ public class TopicDiscoveryUtils {
     try {
       List<String> list =
           lookup
-              .getTopicsUnderNamespace(namespaceName, CommandGetTopicsOfNamespace.Mode.PERSISTENT)
-              .get(timeout, TimeUnit.MILLISECONDS);
+              .getTopicsUnderNamespace(
+                  namespaceName, CommandGetTopicsOfNamespace.Mode.PERSISTENT, null, null)
+              .get(timeout, TimeUnit.MILLISECONDS)
+              .getTopics();
       return topicsPatternFilter(list, Pattern.compile(regex));
     } catch (InterruptedException | TimeoutException | ExecutionException err) {
       throw Utils.handleException(err);

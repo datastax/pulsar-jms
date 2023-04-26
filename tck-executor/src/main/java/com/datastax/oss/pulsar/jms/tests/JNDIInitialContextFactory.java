@@ -28,6 +28,7 @@ import java.util.Map;
 import javax.naming.Context;
 import javax.naming.NamingException;
 import javax.naming.spi.InitialContextFactory;
+import org.apache.pulsar.client.admin.PulsarAdminException;
 
 public class JNDIInitialContextFactory implements InitialContextFactory {
 
@@ -126,7 +127,12 @@ public class JNDIInitialContextFactory implements InitialContextFactory {
           String topicName = "persistent://public/default/" + name;
           PulsarConnectionFactory tmp = getAdminConnectionFactory();
           System.out.println(this.getClass() + " Cleaning up QUEUE " + topicName);
-          tmp.getPulsarAdmin().topics().delete(topicName, true, true);
+          try {
+            tmp.getPulsarAdmin().topics().delete(topicName, true, true);
+          } catch (PulsarAdminException.NotFoundException ok) {
+            // Since Pulsar 3.0 we get a 404 when deleting a non existing topic
+            System.out.println(" Cleaning up QUEUE " + topicName + " - not found, ignoring");
+          }
           return new PulsarQueue(topicName);
         }
       case "MY_TOPIC":

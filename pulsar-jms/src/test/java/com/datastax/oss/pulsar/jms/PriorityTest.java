@@ -40,6 +40,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.common.policies.data.PartitionedTopicStats;
 import org.apache.pulsar.common.policies.data.PersistentTopicInternalStats;
 import org.apache.pulsar.common.policies.data.TenantInfo;
+import org.apache.pulsar.common.policies.data.TopicType;
 import org.apache.pulsar.common.util.FutureUtil;
 import org.apache.pulsar.common.util.ObjectMapperFactory;
 import org.junit.jupiter.api.AfterAll;
@@ -69,7 +70,7 @@ public class PriorityTest {
             tempDir,
             config -> {
               config.setAllowAutoTopicCreation(true);
-              config.setAllowAutoTopicCreationType("partitioned");
+              config.setAllowAutoTopicCreationType(TopicType.PARTITIONED);
               config.setDefaultNumPartitions(10);
               config.setTransactionCoordinatorEnabled(false);
             });

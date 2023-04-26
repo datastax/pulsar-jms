@@ -15,35 +15,25 @@
  */
 package com.datastax.oss.pulsar.jms.utils;
 
-import static com.google.common.base.Charsets.UTF_8;
-
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.bookkeeper.bookie.Bookie;
 import org.apache.bookkeeper.bookie.BookieException;
 import org.apache.bookkeeper.bookie.Cookie;
 import org.apache.bookkeeper.client.BookKeeperAdmin;
 import org.apache.bookkeeper.client.api.BookKeeper;
 import org.apache.bookkeeper.conf.ClientConfiguration;
 import org.apache.bookkeeper.conf.ServerConfiguration;
-import org.apache.bookkeeper.discover.BookieServiceInfo;
-import org.apache.bookkeeper.discover.RegistrationManager;
-import org.apache.bookkeeper.net.BookieId;
-import org.apache.bookkeeper.proto.BookieServer;
+import org.apache.bookkeeper.server.EmbeddedServer;
+import org.apache.bookkeeper.server.conf.BookieConfiguration;
 import org.apache.bookkeeper.util.PortManager;
-import org.apache.bookkeeper.versioning.LongVersion;
-import org.apache.bookkeeper.versioning.Version;
-import org.apache.bookkeeper.versioning.Versioned;
 import org.apache.bookkeeper.zookeeper.ZooKeeperClient;
 import org.apache.curator.test.InstanceSpec;
 import org.apache.curator.test.TestingServer;
@@ -57,7 +47,7 @@ import org.apache.zookeeper.ZooKeeper;
 public final class BookKeeperCluster implements AutoCloseable {
 
   TestingServer zkServer;
-  List<BookieServer> bookies = new ArrayList<>();
+  List<EmbeddedServer> bookies = new ArrayList<>();
   Map<String, ServerConfiguration> configurations = new HashMap<>();
   Path path;
 
@@ -88,11 +78,11 @@ public final class BookKeeperCluster implements AutoCloseable {
     log.info("Started ZK cluster at " + getZooKeeperAddress());
   }
 
-  public String startBookie() throws Exception {
-    return startBookie(true);
+  public void startBookie() throws Exception {
+    startBookie(true);
   }
 
-  public String startBookie(boolean format) throws Exception {
+  public void startBookie(boolean format) throws Exception {
     if (!bookies.isEmpty() && format) {
       throw new Exception("bookie already started");
     }
@@ -135,7 +125,7 @@ public final class BookKeeperCluster implements AutoCloseable {
       BookKeeperAdmin.format(conf, false, true);
     }
 
-    return startBookie(conf, null);
+    startBookie(conf);
   }
 
   public String getZooKeeperAddress() {
@@ -152,8 +142,8 @@ public final class BookKeeperCluster implements AutoCloseable {
 
   @Override
   public void close() throws Exception {
-    for (BookieServer bookie : bookies) {
-      bookie.shutdown();
+    for (EmbeddedServer bookie : bookies) {
+      bookie.getLifecycleComponentStack().close();
     }
     try {
       if (zkServer != null) {
@@ -178,32 +168,11 @@ public final class BookKeeperCluster implements AutoCloseable {
     return configurations.get(bookie1);
   }
 
-  public void stopBookie(String bookie1) throws Exception {
-    for (Iterator<BookieServer> it = bookies.iterator(); it.hasNext(); ) {
-      BookieServer s = it.next();
-      if (s.getBookieId().toString().equals(bookie1)) {
-        s.shutdown();
-        it.remove();
-      }
-    }
-  }
-
-  String startBookie(ServerConfiguration conf, String newCookie) throws Exception {
-    if (newCookie != null) {
-      Cookie cookie =
-          Cookie.readFromRegistrationManager(
-                  new RegistrationManagerImpl(newCookie), Bookie.getBookieId(conf))
-              .getValue();
-      stampNewCookie(
-          cookie,
-          Arrays.asList(Bookie.getCurrentDirectories(conf.getJournalDirs())),
-          Arrays.asList(Bookie.getCurrentDirectories(conf.getLedgerDirs())));
-    }
-    BookieServer bookie = new BookieServer(conf);
-    bookie.start();
+  void startBookie(ServerConfiguration conf) throws Exception {
+    EmbeddedServer bookie = EmbeddedServer.builder(new BookieConfiguration(conf)).build();
+    bookie.getLifecycleComponentStack().start();
     bookies.add(bookie);
-    configurations.put(bookie.getBookieId().toString(), conf);
-    return bookie.getLocalAddress().toString();
+    configurations.put(bookie.getBookieService().getServer().getBookieId().toString(), conf);
   }
 
   private static void stampNewCookie(
@@ -216,88 +185,6 @@ public final class BookKeeperCluster implements AutoCloseable {
     for (File dir : allLedgerDirs) {
       System.out.println("STAMPING NEW COOKIE on " + dir);
       masterCookie.writeToDirectory(dir);
-    }
-  }
-
-  private static class RegistrationManagerImpl implements RegistrationManager {
-
-    private final String newCookie;
-
-    public RegistrationManagerImpl(String newCookie) {
-      this.newCookie = newCookie;
-    }
-
-    @Override
-    public void close() {
-      throw new UnsupportedOperationException(
-          "Not supported yet."); // To change body of generated methods, choose Tools | Templates.
-    }
-
-    @Override
-    public String getClusterInstanceId() throws BookieException {
-      throw new UnsupportedOperationException(
-          "Not supported yet."); // To change body of generated methods, choose Tools | Templates.
-    }
-
-    @Override
-    public void registerBookie(BookieId bookieId, boolean readOnly, BookieServiceInfo serviceInfo)
-        throws BookieException {
-      throw new UnsupportedOperationException(
-          "Not supported yet."); // To change body of generated methods, choose Tools | Templates.
-    }
-
-    @Override
-    public void unregisterBookie(BookieId bookieId, boolean readOnly) throws BookieException {
-      throw new UnsupportedOperationException(
-          "Not supported yet."); // To change body of generated methods, choose Tools | Templates.
-    }
-
-    @Override
-    public boolean isBookieRegistered(BookieId bookieId) throws BookieException {
-      throw new UnsupportedOperationException(
-          "Not supported yet."); // To change body of generated methods, choose Tools | Templates.
-    }
-
-    @Override
-    public void writeCookie(BookieId bookieId, Versioned<byte[]> cookieData)
-        throws BookieException {
-      throw new UnsupportedOperationException(
-          "Not supported yet."); // To change body of generated methods, choose Tools | Templates.
-    }
-
-    @Override
-    public Versioned<byte[]> readCookie(BookieId bookieId) throws BookieException {
-      return new Versioned<>(newCookie.getBytes(UTF_8), new LongVersion(0));
-    }
-
-    @Override
-    public void removeCookie(BookieId bookieId, Version version) throws BookieException {
-      throw new UnsupportedOperationException(
-          "Not supported yet."); // To change body of generated methods, choose Tools | Templates.
-    }
-
-    @Override
-    public boolean prepareFormat() throws Exception {
-      throw new UnsupportedOperationException(
-          "Not supported yet."); // To change body of generated methods, choose Tools | Templates.
-    }
-
-    @Override
-    public boolean initNewCluster() throws Exception {
-      throw new UnsupportedOperationException(
-          "Not supported yet."); // To change body of generated methods, choose Tools | Templates.
-    }
-
-    @Override
-    public boolean format() throws Exception {
-      throw new UnsupportedOperationException(
-          "Not supported yet."); // To change body of generated methods, choose Tools | Templates.
-    }
-
-    @Override
-    public boolean nukeExistingCluster() throws Exception {
-      throw new UnsupportedOperationException(
-          "Not supported yet."); // To change body of generated methods, choose Tools | Templates.
     }
   }
 }

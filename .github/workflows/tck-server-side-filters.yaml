@@ -6,7 +6,7 @@ on:
       - master
   pull_request:
 
-concurrency: 
+concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
@@ -16,10 +16,19 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-      - name: Set up JDK 8
+      - name: Set up JDK 8 for TCK Executor
         uses: actions/setup-java@v2
         with:
-          java-version: '8'
+          java-version: 8
+          distribution: 'temurin'
+      - name: Save JDK8 path
+        run: |
+          export JDK8_PATH=$JAVA_HOME
+          echo "JDK8_PATH=$JDK8_PATH" >> $GITHUB_ENV
+      - name: Set up JDK 17
+        uses: actions/setup-java@v2
+        with:
+          java-version: '17'
           distribution: 'temurin'
 
       - name: Cache local Maven repository
@@ -30,8 +39,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-maven-
 
-      - name: Build
+      - name: Build with JDK17
         run: mvn -B clean install -DskipTests -Dspotbugs.skip=true
 
       - name: TCK tests - server side filters
-        run: mvn -B verify -DskipTests -Prun-tck-server-side-filters
+        run: JAVA_HOME=$JDK8_PATH mvn -B verify -DskipTests -Prun-tck-server-side-filters

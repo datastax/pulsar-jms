@@ -47,7 +47,7 @@ import javax.jms.TransactionRolledBackException;
 import javax.jms.TransactionRolledBackRuntimeException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.api.MessageId;
-import org.apache.pulsar.client.impl.MessageIdImpl;
+import org.apache.pulsar.client.api.MessageIdAdv;
 
 @Slf4j
 public final class Utils {
@@ -342,8 +342,8 @@ public final class Utils {
 
   public static boolean sameEntryId(MessageId a, MessageId b) {
     // get rid of TopicMessageIdImpl
-    MessageIdImpl a1 = MessageIdImpl.convertToMessageIdImpl(a);
-    MessageIdImpl b1 = MessageIdImpl.convertToMessageIdImpl(b);
+    MessageIdAdv a1 = (MessageIdAdv) a;
+    MessageIdAdv b1 = (MessageIdAdv) b;
     return a1.getLedgerId() == b1.getLedgerId() && a1.getEntryId() == b1.getEntryId();
   }
 

@@ -55,8 +55,8 @@
     <jms.version>2.0.3</jms.version>
     <!-- waiting for a Apache Pulsar 2.11.0 release, in the meantime we use DataStax Luna Streaming
          that is a fork of Apache Pulsar  -->
-    <pulsar.groupId>com.datastax.oss</pulsar.groupId>
-    <pulsar.version>2.10.3.1</pulsar.version>
+    <pulsar.groupId>org.apache.pulsar</pulsar.groupId>
+    <pulsar.version>3.0.0</pulsar.version>
     <activemq.version>5.16.1</activemq.version>
     <hawtbuf.version>1.11</hawtbuf.version>
     <curator.version>5.1.0</curator.version>
@@ -70,6 +70,16 @@
     <commons-compress.version>1.21</commons-compress.version>
     <awaitility.version>4.0.3</awaitility.version>
     <snakeyaml.version>1.31</snakeyaml.version>
+    <!-- required for running tests on JDK11+ -->
+    <test.additional.args>--add-opens java.base/java.lang.reflect=ALL-UNNAMED --add-opens java.base/jdk.internal.loader=ALL-UNNAMED --add-opens java.base/java.lang=ALL-UNNAMED
+      <!--Mockito-->--add-opens java.base/java.io=ALL-UNNAMED
+      <!--Bookkeeper NativeIO-->--add-opens java.base/java.util=ALL-UNNAMED
+      <!--System Lambda-->--add-opens java.base/sun.net=ALL-UNNAMED
+      <!--netty.DnsResolverUtil-->--add-opens java.management/sun.management=ALL-UNNAMED
+      <!--JvmDefaultGCMetricsLogger & MBeanStatsGenerator-->--add-opens jdk.management/com.sun.management.internal=ALL-UNNAMED
+      <!--MBeanStatsGenerator-->--add-opens java.base/jdk.internal.platform=ALL-UNNAMED
+      <!--LinuxInfoUtils-->
+    </test.additional.args>
   </properties>
   <dependencyManagement>
     <dependencies>
@@ -306,26 +316,6 @@ limitations under the License.]]></inlineHeader>
           </executions>
         </plugin>
         <plugin>
-          <groupId>org.codehaus.mojo</groupId>
-          <artifactId>animal-sniffer-maven-plugin</artifactId>
-          <version>1.22</version>
-          <executions>
-            <execution>
-              <id>check-jdk8</id>
-              <goals>
-                <goal>check</goal>
-              </goals>
-              <configuration>
-                <signature>
-                  <groupId>org.codehaus.mojo.signature</groupId>
-                  <artifactId>java18</artifactId>
-                  <version>1.0</version>
-                </signature>
-              </configuration>
-            </execution>
-          </executions>
-        </plugin>
-        <plugin>
           <groupId>au.com.acegi</groupId>
           <artifactId>xml-format-maven-plugin</artifactId>
           <version>3.1.1</version>
@@ -346,6 +336,7 @@ limitations under the License.]]></inlineHeader>
           <artifactId>maven-surefire-plugin</artifactId>
           <version>${surefire.version}</version>
           <configuration>
+            <argLine>${test.additional.args}</argLine>
             <trimStackTrace>false</trimStackTrace>
             <systemPropertyVariables>
               <logback.configurationFile>${project.basedir}/src/test/resources/logback-test.xml</logback.configurationFile>
