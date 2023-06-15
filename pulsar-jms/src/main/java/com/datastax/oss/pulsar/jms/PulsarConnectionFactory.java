@@ -26,6 +26,8 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -1336,24 +1338,32 @@ public class PulsarConnectionFactory
       Field incomingMessages = ConsumerBase.class.getDeclaredField("incomingMessages");
       incomingMessages.setAccessible(true);
 
-      BlockingQueue<Message> oldQueue = (BlockingQueue<Message>) incomingMessages.get(consumerBase);
-      BlockingQueue<Message> newQueue =
-          new PriorityBlockingQueue<Message>(
-              10,
-              new Comparator<Message>() {
-                @Override
-                public int compare(Message o1, Message o2) {
-                  int priority1 = getPriority(o1);
-                  int priority2 = getPriority(o2);
-                  return Integer.compare(priority2, priority1);
-                }
-              });
+      Object oldQueue = incomingMessages.get(consumerBase);
+      if (oldQueue.getClass().isAssignableFrom(PriorityBlockingQueue.class)) {
+        BlockingQueue<Message> newQueue =
+            new PriorityBlockingQueue<Message>(
+                10,
+                new Comparator<Message>() {
+                  @Override
+                  public int compare(Message o1, Message o2) {
+                    int priority1 = getPriority(o1);
+                    int priority2 = getPriority(o2);
+                    return Integer.compare(priority2, priority1);
+                  }
+                });
 
-      // drain messages that could have been pre-fetched (the Consumer is paused, so this should not
-      // happen)
-      oldQueue.drainTo(newQueue);
+        // drain messages that could have been pre-fetched (the Consumer is paused, so this should
+        // not
+        // happen)
+        ((BlockingQueue<Message>) oldQueue).drainTo(newQueue);
 
-      incomingMessages.set(c, newQueue);
+        incomingMessages.set(c, newQueue);
+      } else {
+        log.debug(
+            "Field incomingMessages is not a PriorityBlockingQueue, it is a {}."
+                + "We cannot apply priority to the messages in the local buffer.",
+            oldQueue.getClass().getName());
+      }
     } catch (Exception err) {
       throw new RuntimeException(err);
     }
@@ -1721,12 +1731,12 @@ public class PulsarConnectionFactory
 
   private void setFinalField(String name, Object value) {
     try {
+
       Field field = this.getClass().getDeclaredField(name);
       boolean accessible = field.isAccessible();
       if (!accessible) {
         field.setAccessible(true);
-        Field modifiersField = Field.class.getDeclaredField("modifiers");
-        modifiersField.setAccessible(true);
+        Field modifiersField = getModifiersField();
         modifiersField.setInt(field, field.getModifiers() & ~Modifier.FINAL);
       }
       try {
@@ -1734,8 +1744,7 @@ public class PulsarConnectionFactory
       } finally {
         if (!accessible) {
           field.setAccessible(false);
-          Field modifiersField = Field.class.getDeclaredField("modifiers");
-          modifiersField.setAccessible(true);
+          Field modifiersField = getModifiersField();
           modifiersField.setInt(field, field.getModifiers() | Modifier.FINAL);
         }
       }
@@ -1743,6 +1752,25 @@ public class PulsarConnectionFactory
       log.error("Error while setting final field {}", name, err);
       throw new RuntimeException(err);
     }
+  }
+
+  private static Field getModifiersField()
+      throws NoSuchMethodException, IllegalAccessException, InvocationTargetException {
+    Method getDeclaredFields0 = Class.class.getDeclaredMethod("getDeclaredFields0", boolean.class);
+    getDeclaredFields0.setAccessible(true);
+    Field[] fields = (Field[]) getDeclaredFields0.invoke(Field.class, false);
+    Field modifiersField = null;
+    for (Field each : fields) {
+      if ("modifiers".equals(each.getName())) {
+        modifiersField = each;
+        break;
+      }
+    }
+    if (modifiersField == null) {
+      throw new RuntimeException("Cannot find modifiers field");
+    }
+    modifiersField.setAccessible(true);
+    return modifiersField;
   }
 
   private synchronized void resetDefaultValues() {

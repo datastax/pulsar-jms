@@ -534,8 +534,8 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
    * <p>This method must not be used in a Java EE web or EJB application. Doing so may cause a
    * {@code JMSException} to be thrown though this is not guaranteed.
    *
-   * @throws IllegalStateException this method has been called by a <tt>MessageListener</tt> on its
-   *     own <tt>Connection</tt>
+   * @throws IllegalStateException this method has been called by a <code>MessageListener</code> on
+   *     its own <code>Connection</code>
    * @throws JMSException if the JMS provider fails to stop message delivery for one of the
    *     following reasons:
    *     <ul>
@@ -599,8 +599,8 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
    * they return control to the JMS provider.
    *
    * <p>This method must not return until any incomplete asynchronous send operations for this
-   * <tt>Connection</tt> have been completed and any <tt>CompletionListener</tt> callbacks have
-   * returned. Incomplete sends should be allowed to complete normally unless an error occurs.
+   * <code>Connection</code> have been completed and any <code>CompletionListener</code> callbacks
+   * have returned. Incomplete sends should be allowed to complete normally unless an error occurs.
    *
    * <p>For the avoidance of doubt, if an exception listener for this connection is running when
    * {@code close} is invoked, there is no requirement for the {@code close} call to wait until the
@@ -612,8 +612,9 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
    * session's work is determined later by the transaction manager. Closing a connection does NOT
    * force an acknowledgment of client-acknowledged sessions.
    *
-   * <p>A <tt>CompletionListener</tt> callback method must not call <tt>close</tt> on its own
-   * <tt>Connection</tt>. Doing so will cause an <tt>IllegalStateException</tt> to be thrown.
+   * <p>A <code>CompletionListener</code> callback method must not call <code>close</code> on its
+   * own <code>Connection</code>. Doing so will cause an <code>IllegalStateException</code> to be
+   * thrown.
    *
    * <p>Invoking the {@code acknowledge} method of a received message from a closed connection's
    * session must throw an {@code IllegalStateException}. Closing a closed connection must NOT throw
@@ -621,10 +622,10 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
    *
    * @throws IllegalStateException
    *     <ul>
-   *       <li>this method has been called by a <tt>MessageListener </tt> on its own
-   *           <tt>Connection</tt>
-   *       <li>this method has been called by a <tt>CompletionListener</tt> callback method on its
-   *           own <tt>Connection</tt>
+   *       <li>this method has been called by a <code>MessageListener </code> on its own <code>
+   *           Connection</code>
+   *       <li>this method has been called by a <code>CompletionListener</code> callback method on
+   *           its own <code>Connection</code>
    *     </ul>
    *
    * @throws JMSException if the JMS provider fails to close the connection due to some internal

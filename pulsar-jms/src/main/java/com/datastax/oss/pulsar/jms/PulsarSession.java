@@ -537,17 +537,18 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    * Commits all messages done in this transaction and releases any locks currently held.
    *
    * <p>This method must not return until any incomplete asynchronous send operations for this
-   * <tt>Session</tt> have been completed and any <tt>CompletionListener</tt> callbacks have
+   * <code>Session</code> have been completed and any <code>CompletionListener</code> callbacks have
    * returned. Incomplete sends should be allowed to complete normally unless an error occurs.
    *
-   * <p>A <tt>CompletionListener</tt> callback method must not call <tt>commit</tt> on its own
-   * <tt>Session</tt>. Doing so will cause an <tt>IllegalStateException</tt> to be thrown.
+   * <p>A <code>CompletionListener</code> callback method must not call <code>commit</code> on its
+   * own <code>Session</code>. Doing so will cause an <code>IllegalStateException</code> to be
+   * thrown.
    *
    * @throws IllegalStateException
    *     <ul>
    *       <li>the session is not using a local transaction
-   *       <li>this method has been called by a <tt>CompletionListener</tt> callback method on its
-   *           own <tt>Session</tt>
+   *       <li>this method has been called by a <code>CompletionListener</code> callback method on
+   *           its own <code>Session</code>
    *     </ul>
    *
    * @throws JMSException if the JMS provider fails to commit the transaction due to some internal
@@ -601,17 +602,18 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    * Rolls back any messages done in this transaction and releases any locks currently held.
    *
    * <p>This method must not return until any incomplete asynchronous send operations for this
-   * <tt>Session</tt> have been completed and any <tt>CompletionListener</tt> callbacks have
+   * <code>Session</code> have been completed and any <code>CompletionListener</code> callbacks have
    * returned. Incomplete sends should be allowed to complete normally unless an error occurs.
    *
-   * <p>A <tt>CompletionListener</tt> callback method must not call <tt>commit</tt> on its own
-   * <tt>Session</tt>. Doing so will cause an <tt>IllegalStateException</tt> to be thrown.
+   * <p>A <code>CompletionListener</code> callback method must not call <code>commit</code> on its
+   * own <code>Session</code>. Doing so will cause an <code>IllegalStateException</code> to be
+   * thrown.
    *
    * @throws IllegalStateException
    *     <ul>
    *       <li>the session is not using a local transaction
-   *       <li>this method has been called by a <tt>CompletionListener</tt> callback method on its
-   *           own <tt>Session</tt>
+   *       <li>this method has been called by a <code>CompletionListener</code> callback method on
+   *           its own <code>Session</code>
    *     </ul>
    *
    * @throws JMSException if the JMS provider fails to roll back the transaction due to some
@@ -679,7 +681,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    * calling close from a message listener on its own {@code Session} because this is not portable.
    *
    * <p>This method must not return until any incomplete asynchronous send operations for this
-   * <tt>Session</tt> have been completed and any <tt>CompletionListener</tt> callbacks have
+   * <code>Session</code> have been completed and any <code>CompletionListener</code> callbacks have
    * returned. Incomplete sends should be allowed to complete normally unless an error occurs.
    *
    * <p>For the avoidance of doubt, if an exception listener for this session's connection is
@@ -690,18 +692,19 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    *
    * <p>This method is the only {@code Session} method that can be called concurrently.
    *
-   * <p>A <tt>CompletionListener</tt> callback method must not call <tt>close</tt> on its own
-   * <tt>Session</tt>. Doing so will cause an <tt>IllegalStateException</tt> to be thrown.
+   * <p>A <code>CompletionListener</code> callback method must not call <code>close</code> on its
+   * own <code>Session</code>. Doing so will cause an <code>IllegalStateException</code> to be
+   * thrown.
    *
    * <p>Invoking any other {@code Session} method on a closed session must throw a {@code
    * IllegalStateException}. Closing a closed session must <I>not</I> throw an exception.
    *
    * @throws IllegalStateException
    *     <ul>
-   *       <li>this method has been called by a <tt>MessageListener </tt> on its own
-   *           <tt>Session</tt>
-   *       <li>this method has been called by a <tt>CompletionListener</tt> callback method on its
-   *           own <tt>Session</tt>
+   *       <li>this method has been called by a <code>MessageListener </code> on its own <code>
+   *           Session</code>
+   *       <li>this method has been called by a <code>CompletionListener</code> callback method on
+   *           its own <code>Session</code>
    *     </ul>
    *
    * @throws JMSException if the JMS provider fails to close the session due to some internal error.

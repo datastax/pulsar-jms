@@ -444,14 +444,15 @@ public class PulsarJMSProducer implements JMSProducer {
    * {@code send} are synchronous by default.
    *
    * <p>If a call to {@code send} is asynchronous then part of the work involved in sending the
-   * message will be performed in a separate thread and the specified <tt>CompletionListener</tt>
-   * will be notified when the operation has completed.
+   * message will be performed in a separate thread and the specified <code>CompletionListener
+   * </code> will be notified when the operation has completed.
    *
    * <p>When the message has been successfully sent the JMS provider invokes the callback method
-   * <tt>onCompletion</tt> on the <tt>CompletionListener</tt> object. Only when that callback has
-   * been invoked can the application be sure that the message has been successfully sent with the
-   * same degree of confidence as if the send had been synchronous. An application which requires
-   * this degree of confidence must therefore wait for the callback to be invoked before continuing.
+   * <code>onCompletion</code> on the <code>CompletionListener</code> object. Only when that
+   * callback has been invoked can the application be sure that the message has been successfully
+   * sent with the same degree of confidence as if the send had been synchronous. An application
+   * which requires this degree of confidence must therefore wait for the callback to be invoked
+   * before continuing.
    *
    * <p>The following information is intended to give an indication of how an asynchronous send
    * would typically be implemented.
@@ -461,17 +462,18 @@ public class PulsarJMSProducer implements JMSProducer {
    * expected that such a provider would implement an asynchronous send by sending the message to
    * the remote JMS server and then returning without waiting for an acknowledgement. When the
    * acknowledgement is received, the JMS provider would notify the application by invoking the
-   * <tt>onCompletion</tt> method on the application-specified <tt>CompletionListener</tt> object.
-   * If for some reason the acknowledgement is not received the JMS provider would notify the
-   * application by invoking the <tt>CompletionListener</tt>'s <tt>onException</tt> method.
+   * <code>onCompletion</code> method on the application-specified <code>CompletionListener</code>
+   * object. If for some reason the acknowledgement is not received the JMS provider would notify
+   * the application by invoking the <code>CompletionListener</code>'s <code>onException</code>
+   * method.
    *
    * <p>In those cases where the JMS specification permits a lower level of reliability, a normal
    * synchronous send might not wait for an acknowledgement. In that case it is expected that an
    * asynchronous send would be similar to a synchronous send: the JMS provider would send the
    * message to the remote JMS server and then return without waiting for an acknowledgement.
    * However the JMS provider would still notify the application that the send had completed by
-   * invoking the <tt>onCompletion</tt> method on the application-specified
-   * <tt>CompletionListener</tt> object.
+   * invoking the <code>onCompletion</code> method on the application-specified <code>
+   * CompletionListener</code> object.
    *
    * <p>It is up to the JMS provider to decide exactly what is performed in the calling thread and
    * what, if anything, is performed asynchronously, so long as it satisfies the requirements given
@@ -479,36 +481,37 @@ public class PulsarJMSProducer implements JMSProducer {
    *
    * <p><b>Quality of service</b>: After the send operation has completed successfully, which means
    * that the message has been successfully sent with the same degree of confidence as if a normal
-   * synchronous send had been performed, the JMS provider must invoke the
-   * <tt>CompletionListener</tt>'s <tt>onCompletion</tt> method. The <tt>CompletionListener</tt>
-   * must not be invoked earlier than this.
+   * synchronous send had been performed, the JMS provider must invoke the <code>CompletionListener
+   * </code>'s <code>onCompletion</code> method. The <code>CompletionListener</code> must not be
+   * invoked earlier than this.
    *
-   * <p><b>Exceptions</b>: If an exception is encountered during the call to the <tt>send</tt>
-   * method then an appropriate exception should be thrown in the thread that is calling the
-   * <tt>send</tt> method. In this case the JMS provider must not invoke the
-   * <tt>CompletionListener</tt>'s <tt>onCompletion</tt> or <tt>onException</tt> method. If an
-   * exception is encountered which cannot be thrown in the thread that is calling the <tt>send</tt>
-   * method then the JMS provider must call the <tt>CompletionListener</tt>'s <tt>onException</tt>
+   * <p><b>Exceptions</b>: If an exception is encountered during the call to the <code>send</code>
+   * method then an appropriate exception should be thrown in the thread that is calling the <code>
+   * send</code> method. In this case the JMS provider must not invoke the <code>CompletionListener
+   * </code>'s <code>onCompletion</code> or <code>onException</code> method. If an exception is
+   * encountered which cannot be thrown in the thread that is calling the <code>send</code> method
+   * then the JMS provider must call the <code>CompletionListener</code>'s <code>onException</code>
    * method. In both cases if an exception occurs it is undefined whether or not the message was
    * successfully sent.
    *
-   * <p><b>Message order</b>: If the same <tt>JMSContext</tt> is used to send multiple messages then
-   * JMS message ordering requirements must be satisfied. This applies even if a combination of
+   * <p><b>Message order</b>: If the same <code>JMSContext</code> is used to send multiple messages
+   * then JMS message ordering requirements must be satisfied. This applies even if a combination of
    * synchronous and asynchronous sends has been performed. The application is not required to wait
    * for an asynchronous send to complete before sending the next message.
    *
-   * <p><b>Close, commit or rollback</b>: If the <tt>close</tt> method is called on the
-   * <tt>JMSContext</tt> then the JMS provider must block until any incomplete send operations have
+   * <p><b>Close, commit or rollback</b>: If the <code>close</code> method is called on the <code>
+   * JMSContext</code> then the JMS provider must block until any incomplete send operations have
    * been completed and all {@code CompletionListener} callbacks have returned before closing the
    * object and returning. If the session is transacted (uses a local transaction) then when the
-   * <tt>JMSContext</tt>'s <tt>commit</tt> or <tt>rollback</tt> method is called the JMS provider
-   * must block until any incomplete send operations have been completed and all {@code
+   * <code>JMSContext</code>'s <code>commit</code> or <code>rollback</code> method is called the JMS
+   * provider must block until any incomplete send operations have been completed and all {@code
    * CompletionListener} callbacks have returned before performing the commit or rollback.
    * Incomplete sends should be allowed to complete normally unless an error occurs.
    *
-   * <p>A <tt>CompletionListener</tt> callback method must not call <tt>close</tt>, <tt>commit</tt>
-   * or <tt>rollback</tt> on its own <tt>JMSContext</tt>. Doing so will cause the <tt>close</tt>,
-   * <tt>commit</tt> or <tt>rollback</tt> to throw an <tt>IllegalStateRuntimeException</tt>.
+   * <p>A <code>CompletionListener</code> callback method must not call <code>close</code>, <code>
+   * commit</code> or <code>rollback</code> on its own <code>JMSContext</code>. Doing so will cause
+   * the <code>close</code>, <code>commit</code> or <code>rollback</code> to throw an <code>
+   * IllegalStateRuntimeException</code>.
    *
    * <p><b>Restrictions on usage in Java EE</b> This method must not be used in a Java EE EJB or web
    * container. Doing so may cause a {@code JMSRuntimeException} to be thrown though this is not
@@ -516,40 +519,40 @@ public class PulsarJMSProducer implements JMSProducer {
    *
    * <p><b>Message headers</b> JMS defines a number of message header fields and message properties
    * which must be set by the "JMS provider on send". If the send is asynchronous these fields and
-   * properties may be accessed on the sending client only after the <tt>CompletionListener</tt> has
-   * been invoked. If the <tt>CompletionListener</tt>'s <tt>onException</tt> method is called then
-   * the state of these message header fields and properties is undefined.
+   * properties may be accessed on the sending client only after the <code>CompletionListener</code>
+   * has been invoked. If the <code>CompletionListener</code>'s <code>onException</code> method is
+   * called then the state of these message header fields and properties is undefined.
    *
    * <p><b>Restrictions on threading</b>: Applications that perform an asynchronous send must
    * confirm to the threading restrictions defined in JMS. This means that the session may be used
    * by only one thread at a time.
    *
-   * <p>Setting a <tt>CompletionListener</tt> does not cause the session to be dedicated to the
-   * thread of control which calls the <tt>CompletionListener</tt>. The application thread may
-   * therefore continue to use the session after performing an asynchronous send. However the
-   * <tt>CompletionListener</tt>'s callback methods must not use the session if an application
-   * thread might be using the session at the same time.
+   * <p>Setting a <code>CompletionListener</code> does not cause the session to be dedicated to the
+   * thread of control which calls the <code>CompletionListener</code>. The application thread may
+   * therefore continue to use the session after performing an asynchronous send. However the <code>
+   * CompletionListener</code>'s callback methods must not use the session if an application thread
+   * might be using the session at the same time.
    *
-   * <p><b>Use of the <tt>CompletionListener</tt> by the JMS provider</b>: A session will only
-   * invoke one <tt>CompletionListener</tt> callback method at a time. For a given
-   * <tt>JMSContext</tt>, callbacks (both {@code onCompletion} and {@code onException}) will be
-   * performed in the same order as the corresponding calls to the <tt>send</tt> method. A JMS
-   * provider must not invoke the <tt>CompletionListener</tt> from the thread that is calling the
-   * <tt>send</tt> method.
+   * <p><b>Use of the <code>CompletionListener</code> by the JMS provider</b>: A session will only
+   * invoke one <code>CompletionListener</code> callback method at a time. For a given <code>
+   * JMSContext</code>, callbacks (both {@code onCompletion} and {@code onException}) will be
+   * performed in the same order as the corresponding calls to the <code>send</code> method. A JMS
+   * provider must not invoke the <code>CompletionListener</code> from the thread that is calling
+   * the <code>send</code> method.
    *
    * <p><b>Restrictions on the use of the Message object</b>: Applications which perform an
-   * asynchronous send must take account of the restriction that a <tt>Message</tt> object is
+   * asynchronous send must take account of the restriction that a <code>Message</code> object is
    * designed to be accessed by one logical thread of control at a time and does not support
    * concurrent use.
    *
-   * <p>After the <tt>send</tt> method has returned, the application must not attempt to read the
-   * headers, properties or body of the <tt>Message</tt> object until the
-   * <tt>CompletionListener</tt>'s <tt>onCompletion</tt> or <tt>onException</tt> method has been
-   * called. This is because the JMS provider may be modifying the <tt>Message</tt> object in
-   * another thread during this time. The JMS provider may throw an <tt>JMSException</tt> if the
-   * application attempts to access or modify the <tt>Message</tt> object after the <tt>send</tt>
-   * method has returned and before the <tt>CompletionListener</tt> has been invoked. If the JMS
-   * provider does not throw an exception then the behaviour is undefined.
+   * <p>After the <code>send</code> method has returned, the application must not attempt to read
+   * the headers, properties or body of the <code>Message</code> object until the <code>
+   * CompletionListener</code>'s <code>onCompletion</code> or <code>onException</code> method has
+   * been called. This is because the JMS provider may be modifying the <code>Message</code> object
+   * in another thread during this time. The JMS provider may throw an <code>JMSException</code> if
+   * the application attempts to access or modify the <code>Message</code> object after the <code>
+   * send</code> method has returned and before the <code>CompletionListener</code> has been
+   * invoked. If the JMS provider does not throw an exception then the behaviour is undefined.
    *
    * @param completionListener If asynchronous send behaviour is required, this should be set to a
    *     {@code CompletionListener} to be notified when the send has completed. If synchronous send

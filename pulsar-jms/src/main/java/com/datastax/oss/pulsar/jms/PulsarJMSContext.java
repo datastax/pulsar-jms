@@ -367,8 +367,8 @@ public class PulsarJMSContext implements JMSContext {
    *
    * @throws IllegalStateRuntimeException
    *     <ul>
-   *       <li>if this method has been called by a <tt>MessageListener</tt> on its own
-   *           <tt>JMSContext</tt>
+   *       <li>if this method has been called by a <code>MessageListener</code> on its own <code>
+   *           JMSContext</code>
    *       <li>if the {@code JMSContext} is container-managed (injected).
    *     </ul>
    *
@@ -458,8 +458,8 @@ public class PulsarJMSContext implements JMSContext {
    * portable.
    *
    * <p>This method must not return until any incomplete asynchronous send operations for this
-   * <tt>JMSContext</tt> have been completed and any <tt>CompletionListener</tt> callbacks have
-   * returned. Incomplete sends should be allowed to complete normally unless an error occurs.
+   * <code>JMSContext</code> have been completed and any <code>CompletionListener</code> callbacks
+   * have returned. Incomplete sends should be allowed to complete normally unless an error occurs.
    *
    * <p>For the avoidance of doubt, if an exception listener for the JMSContext's connection is
    * running when {@code close} is invoked, there is no requirement for the {@code close} call to
@@ -476,18 +476,19 @@ public class PulsarJMSContext implements JMSContext {
    * session must throw an {@code IllegalStateRuntimeException}. Closing a closed connection must
    * NOT throw an exception.
    *
-   * <p>A <tt>CompletionListener</tt> callback method must not call <tt>close</tt> on its own
-   * <tt>JMSContext</tt>. Doing so will cause an <tt>IllegalStateRuntimeException</tt> to be thrown.
+   * <p>A <code>CompletionListener</code> callback method must not call <code>close</code> on its
+   * own <code>JMSContext</code>. Doing so will cause an <code>IllegalStateRuntimeException</code>
+   * to be thrown.
    *
    * <p>This method must not be used if the {@code JMSContext} is container-managed (injected).
    * Doing so will cause a {@code IllegalStateRuntimeException} to be thrown.
    *
    * @throws IllegalStateRuntimeException
    *     <ul>
-   *       <li>if this method has been called by a <tt>MessageListener </tt> on its own
-   *           <tt>JMSContext</tt>
-   *       <li>if this method has been called by a <tt>CompletionListener</tt> callback method on
-   *           its own <tt>JMSContext</tt>
+   *       <li>if this method has been called by a <code>MessageListener </code> on its own <code>
+   *           JMSContext</code>
+   *       <li>if this method has been called by a <code>CompletionListener</code> callback method
+   *           on its own <code>JMSContext</code>
    *       <li>if the {@code JMSContext} is container-managed (injected)
    *     </ul>
    *
@@ -694,20 +695,21 @@ public class PulsarJMSContext implements JMSContext {
    * Commits all messages done in this transaction and releases any locks currently held.
    *
    * <p>This method must not return until any incomplete asynchronous send operations for this
-   * <tt>JMSContext</tt> have been completed and any <tt>CompletionListener</tt> callbacks have
-   * returned. Incomplete sends should be allowed to complete normally unless an error occurs.
+   * <code>JMSContext</code> have been completed and any <code>CompletionListener</code> callbacks
+   * have returned. Incomplete sends should be allowed to complete normally unless an error occurs.
    *
-   * <p>A <tt>CompletionListener</tt> callback method must not call <tt>commit</tt> on its own
-   * <tt>JMSContext</tt>. Doing so will cause an <tt>IllegalStateRuntimeException</tt> to be thrown.
+   * <p>A <code>CompletionListener</code> callback method must not call <code>commit</code> on its
+   * own <code>JMSContext</code>. Doing so will cause an <code>IllegalStateRuntimeException</code>
+   * to be thrown.
    *
    * <p>This method must not be used if the {@code JMSContext} is container-managed (injected).
    * Doing so will cause a {@code IllegalStateRuntimeException} to be thrown.
    *
    * @throws IllegalStateRuntimeException
    *     <ul>
-   *       <li>if the <tt>JMSContext</tt>'s session is not using a local transaction
-   *       <li>if this method has been called by a <tt> CompletionListener</tt> callback method on
-   *           its own <tt> JMSContext</tt>
+   *       <li>if the <code>JMSContext</code>'s session is not using a local transaction
+   *       <li>if this method has been called by a <code> CompletionListener</code> callback method
+   *           on its own <code> JMSContext</code>
    *       <li>if the {@code JMSContext} is container-managed (injected)
    *     </ul>
    *
@@ -728,20 +730,21 @@ public class PulsarJMSContext implements JMSContext {
    * Rolls back any messages done in this transaction and releases any locks currently held.
    *
    * <p>This method must not return until any incomplete asynchronous send operations for this
-   * <tt>JMSContext</tt> have been completed and any <tt>CompletionListener</tt> callbacks have
-   * returned. Incomplete sends should be allowed to complete normally unless an error occurs.
+   * <code>JMSContext</code> have been completed and any <code>CompletionListener</code> callbacks
+   * have returned. Incomplete sends should be allowed to complete normally unless an error occurs.
    *
-   * <p>A <tt>CompletionListener</tt> callback method must not call <tt>rollback</tt> on its own
-   * <tt>JMSContext</tt>. Doing so will cause an <tt>IllegalStateRuntimeException</tt> to be thrown.
+   * <p>A <code>CompletionListener</code> callback method must not call <code>rollback</code> on its
+   * own <code>JMSContext</code>. Doing so will cause an <code>IllegalStateRuntimeException</code>
+   * to be thrown.
    *
    * <p>This method must not be used if the {@code JMSContext} is container-managed (injected).
    * Doing so will cause a {@code IllegalStateRuntimeException} to be thrown.
    *
    * @throws IllegalStateRuntimeException
    *     <ul>
-   *       <li>if the <tt>JMSContext</tt>'s session is not using a local transaction
-   *       <li>if this method has been called by a <tt>CompletionListener</tt> callback method on
-   *           its own <tt>JMSContext</tt>
+   *       <li>if the <code>JMSContext</code>'s session is not using a local transaction
+   *       <li>if this method has been called by a <code>CompletionListener</code> callback method
+   *           on its own <code>JMSContext</code>
    *       <li>if the {@code JMSContext} is container-managed (injected)
    *     </ul>
    *
@@ -775,7 +778,7 @@ public class PulsarJMSContext implements JMSContext {
    *
    * @throws IllegalStateRuntimeException
    *     <ul>
-   *       <li>if the <tt>JMSContext</tt>'s session is using a transaction
+   *       <li>if the <code>JMSContext</code>'s session is using a transaction
    *       <li>if the {@code JMSContext} is container-managed (injected)
    *     </ul>
    *
