@@ -37,15 +37,21 @@ public class PulsarContainer implements AutoCloseable {
   private final String dockerImageVersion;
   private boolean transactions;
   private boolean serverSideSelectors;
+  private boolean enableAuthentication;
   private final Path tempDir;
   public static final int BROKER_PORT = 6650;
   public static final int BROKER_HTTP_PORT = 8080;
 
   public PulsarContainer(
-      String dockerImageVersion, boolean transactions, boolean serverSideSelectors, Path tempDir) {
+      String dockerImageVersion,
+      boolean transactions,
+      boolean serverSideSelectors,
+      boolean enableAuthentication,
+      Path tempDir) {
     this.dockerImageVersion = dockerImageVersion;
     this.transactions = transactions;
     this.serverSideSelectors = serverSideSelectors;
+    this.enableAuthentication = enableAuthentication;
     this.tempDir = tempDir;
   }
 
@@ -79,6 +85,9 @@ public class PulsarContainer implements AutoCloseable {
       content = content + "\nentryFilterNames=jms\n";
       content = content + "\nentryFiltersDirectory=/pulsar/filters\n";
     }
+
+    content = content + "\nauthenticationEnabled=" + enableAuthentication + "\n";
+    content = content + "\nauthorizationEnabled=" + enableAuthentication + "\n";
 
     Path tmpFile = tempDir.resolve("standalone.conf");
     Files.write(tmpFile, content.getBytes(StandardCharsets.UTF_8));

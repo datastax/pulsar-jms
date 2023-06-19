@@ -24,9 +24,14 @@ import static org.junit.jupiter.api.Assertions.fail;
 import com.datastax.oss.pulsar.jms.PulsarConnectionFactory;
 import com.datastax.oss.pulsar.jms.PulsarJMSConsumer;
 import com.datastax.oss.pulsar.jms.PulsarMessageConsumer;
+// it is important that Jackson Annotations are not shaded
+import com.fasterxml.jackson.annotation.JsonInclude;
+// but Jackson Databind is shaded
+import com.datastax.oss.pulsar.jms.shaded.com.fasterxml.jackson.databind.ObjectMapper;
 import com.datastax.oss.pulsar.jms.shaded.org.apache.pulsar.client.impl.auth.AuthenticationToken;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import javax.jms.Connection;
@@ -92,6 +97,11 @@ public class DockerTest {
   }
 
   @Test
+  public void testNoAuthentication() throws Exception {
+    test("apachepulsar/pulsar:3.0.0", false, false, false);
+  }
+
+  @Test
   public void testLunaStreaming210Transactions() throws Exception {
     // waiting for Apache Pulsar 2.10.1, in the meantime we use Luna Streaming 2.10.0.x
     test(LUNASTREAMING, true);
@@ -120,9 +130,19 @@ public class DockerTest {
 
   private void test(String image, boolean transactions, boolean useServerSideFiltering)
       throws Exception {
+    test(image, transactions, useServerSideFiltering, true);
+  }
+
+  private void test(
+      String image,
+      boolean transactions,
+      boolean useServerSideFiltering,
+      boolean enableAuthentication)
+      throws Exception {
     log.info("Classpath: {}", System.getProperty("java.class.path"));
     try (PulsarContainer pulsarContainer =
-        new PulsarContainer(image, transactions, useServerSideFiltering, tempDir); ) {
+        new PulsarContainer(
+            image, transactions, useServerSideFiltering, enableAuthentication, tempDir); ) {
       pulsarContainer.start();
       Map<String, Object> properties = new HashMap<>();
       properties.put("brokerServiceUrl", pulsarContainer.getPulsarBrokerUrl());
@@ -136,11 +156,21 @@ public class DockerTest {
       assertTrue(
           AuthenticationToken.class.getName().startsWith("com.datastax.oss.pulsar.jms.shaded"));
 
-      properties.put("authPlugin", "org.apache.pulsar.client.impl.auth.AuthenticationToken");
-      String token =
-          IOUtils.toString(
-              DockerTest.class.getResourceAsStream("/token.jwt"), StandardCharsets.UTF_8);
-      properties.put("authParams", "token:" + token.trim());
+      org.apache.pulsar.shade.com.fasterxml.jackson.databind.ObjectMapper objectMapper =
+          new org.apache.pulsar.shade.com.fasterxml.jackson.databind.ObjectMapper();
+      objectMapper.setSerializationInclusion(JsonInclude.Include.ALWAYS);
+
+      ObjectMapper objectMapper2 = new ObjectMapper();
+      objectMapper2.setSerializationInclusion(JsonInclude.Include.ALWAYS);
+      objectMapper2.writeValueAsString(new HashMap<>());
+
+      if (enableAuthentication) {
+        properties.put("authPlugin", "org.apache.pulsar.client.impl.auth.AuthenticationToken");
+        String token =
+            IOUtils.toString(
+                DockerTest.class.getResourceAsStream("/token.jwt"), StandardCharsets.UTF_8);
+        properties.put("authParams", "token:" + token.trim());
+      }
 
       try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties);
           JMSContext context =
@@ -183,64 +213,66 @@ public class DockerTest {
         }
       }
 
-      Map<String, Object> propertiesForPasswordInConnect = new HashMap<>(properties);
-      propertiesForPasswordInConnect.put("jms.useCredentialsFromCreateConnection", "true");
-      String password = (String) propertiesForPasswordInConnect.remove("authParams");
-      assertNotNull(password);
-      try (PulsarConnectionFactory factoryConnectUsernamePassword =
-          new PulsarConnectionFactory(propertiesForPasswordInConnect); ) {
+      if (enableAuthentication) {
+        Map<String, Object> propertiesForPasswordInConnect = new HashMap<>(properties);
+        propertiesForPasswordInConnect.put("jms.useCredentialsFromCreateConnection", "true");
+        String password = (String) propertiesForPasswordInConnect.remove("authParams");
+        assertNotNull(password);
+        try (PulsarConnectionFactory factoryConnectUsernamePassword =
+            new PulsarConnectionFactory(propertiesForPasswordInConnect); ) {
 
-        // verify that it works with createConnection
-        try (Connection connection =
-                factoryConnectUsernamePassword.createConnection("myself", password);
-            Session session = connection.createSession()) {
-          session
-              .createProducer(session.createTopic("testAuth"))
-              .send(session.createTextMessage("foo"));
-        }
-
-        // verify that it works with createContext
-        try (JMSContext context =
-            factoryConnectUsernamePassword.createContext("myself", password)) {
-          context.createProducer().send(context.createTopic("testAuth2"), "foo");
-
-          // verify create subcontext (no need to pass username/password)
-          try (JMSContext subContext = context.createContext(JMSContext.CLIENT_ACKNOWLEDGE)) {
-            subContext.createProducer().send(subContext.createTopic("testAuth2"), "foo");
+          // verify that it works with createConnection
+          try (Connection connection =
+                  factoryConnectUsernamePassword.createConnection("myself", password);
+              Session session = connection.createSession()) {
+            session
+                .createProducer(session.createTopic("testAuth"))
+                .send(session.createTextMessage("foo"));
           }
-        }
 
-        try {
-          factoryConnectUsernamePassword.createConnection("someoneelse", password).close();
-          fail();
-        } catch (IllegalStateException ok) {
-        }
-        try {
-          factoryConnectUsernamePassword.createContext("someoneelse", password).close();
-          fail();
-        } catch (IllegalStateRuntimeException ok) {
-        }
+          // verify that it works with createContext
+          try (JMSContext context =
+              factoryConnectUsernamePassword.createContext("myself", password)) {
+            context.createProducer().send(context.createTopic("testAuth2"), "foo");
 
-        try {
-          factoryConnectUsernamePassword.createConnection("myself", "differentpassword").close();
-          fail();
-        } catch (IllegalStateException ok) {
-        }
-        try {
-          factoryConnectUsernamePassword.createContext("myself", "differentpassword").close();
-          fail();
-        } catch (IllegalStateRuntimeException ok) {
-        }
+            // verify create subcontext (no need to pass username/password)
+            try (JMSContext subContext = context.createContext(JMSContext.CLIENT_ACKNOWLEDGE)) {
+              subContext.createProducer().send(subContext.createTopic("testAuth2"), "foo");
+            }
+          }
 
-        try {
-          factoryConnectUsernamePassword.createConnection().close();
-          fail();
-        } catch (IllegalStateException ok) {
-        }
-        try {
-          factoryConnectUsernamePassword.createContext().close();
-          fail();
-        } catch (IllegalStateRuntimeException ok) {
+          try {
+            factoryConnectUsernamePassword.createConnection("someoneelse", password).close();
+            fail();
+          } catch (IllegalStateException ok) {
+          }
+          try {
+            factoryConnectUsernamePassword.createContext("someoneelse", password).close();
+            fail();
+          } catch (IllegalStateRuntimeException ok) {
+          }
+
+          try {
+            factoryConnectUsernamePassword.createConnection("myself", "differentpassword").close();
+            fail();
+          } catch (IllegalStateException ok) {
+          }
+          try {
+            factoryConnectUsernamePassword.createContext("myself", "differentpassword").close();
+            fail();
+          } catch (IllegalStateRuntimeException ok) {
+          }
+
+          try {
+            factoryConnectUsernamePassword.createConnection().close();
+            fail();
+          } catch (IllegalStateException ok) {
+          }
+          try {
+            factoryConnectUsernamePassword.createContext().close();
+            fail();
+          } catch (IllegalStateRuntimeException ok) {
+          }
         }
       }
     }

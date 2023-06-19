@@ -164,6 +164,14 @@
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-shade-plugin</artifactId>
         <configuration>
+          <artifactSet>
+            <includes>
+              <include>*:*</include>
+            </includes>
+            <excludes>
+              <exclude>com.fasterxml.jackson.core:jackson-annotations</exclude>
+            </excludes>
+          </artifactSet>
           <filters>
             <filter>
               <artifact>*:*</artifact>
@@ -182,11 +190,15 @@
               <shadedPattern>com.datastax.oss.pulsar.jms.shaded.org.apache.pulsar.</shadedPattern>
               <excludes>
                 <exclude>org.apache.pulsar.shade.**</exclude>
+                <exclude>com.fasterxml.jackson.annotation.*</exclude>
               </excludes>
             </relocation>
             <relocation>
               <pattern>com.fasterxml.</pattern>
               <shadedPattern>com.datastax.oss.pulsar.jms.shaded.com.fasterxml.</shadedPattern>
+              <excludes>
+                <exclude>com.fasterxml.jackson.annotation.*</exclude>
+              </excludes>
             </relocation>
           </relocations>
         </configuration>
