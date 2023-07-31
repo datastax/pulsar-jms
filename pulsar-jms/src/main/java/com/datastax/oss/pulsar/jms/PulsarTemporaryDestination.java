@@ -18,6 +18,7 @@ package com.datastax.oss.pulsar.jms;
 import javax.jms.InvalidDestinationException;
 import javax.jms.JMSException;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.pulsar.client.admin.PulsarAdminException;
 import org.apache.pulsar.common.policies.data.TopicStats;
 
 @Slf4j
@@ -53,16 +54,30 @@ abstract class PulsarTemporaryDestination extends PulsarDestination {
         throw new JMSException("Cannot delete a temporary destination with active consumers");
       }
 
-      session
+      if (session
           .getFactory()
           .getPulsarAdmin()
           .topics()
-          .delete(
-              fullQualifiedTopicName,
-              session.getFactory().isForceDeleteTemporaryDestinations(),
-              true);
-    } catch (Exception err) {
-      throw Utils.handleException(err);
+          .getPartitionedTopicList(session.getFactory().getSystemNamespace())
+          .stream()
+          .anyMatch(t -> t.equals(fullQualifiedTopicName))) {
+        session
+            .getFactory()
+            .getPulsarAdmin()
+            .topics()
+            .deletePartitionedTopic(
+                fullQualifiedTopicName, session.getFactory().isForceDeleteTemporaryDestinations());
+      } else {
+        session
+            .getFactory()
+            .getPulsarAdmin()
+            .topics()
+            .delete(
+                fullQualifiedTopicName, session.getFactory().isForceDeleteTemporaryDestinations());
+      }
+
+    } catch (final PulsarAdminException paEx) {
+      Utils.handleException(paEx);
     } finally {
       session.getConnection().removeTemporaryDestination(this);
     }
