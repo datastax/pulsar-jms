@@ -1441,7 +1441,7 @@ public class PulsarConnectionFactory
   }
 
   public List<Reader<?>> createReadersForBrowser(
-      PulsarQueue destination, ConsumerConfiguration overrideConsumerConfiguration)
+      PulsarDestination destination, ConsumerConfiguration overrideConsumerConfiguration)
       throws JMSException {
 
     if (destination.isRegExp()) {
