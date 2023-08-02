@@ -1101,6 +1101,8 @@ public abstract class PulsarMessage implements Message {
     try {
       if (consumer != null) {
         consumer.acknowledge(receivedPulsarMessage, this, pulsarConsumer);
+      } else {
+        throw new IllegalStateException("The internal Pulsar consumer is null");
       }
     } catch (Exception err) {
       throw Utils.handleException(err);
