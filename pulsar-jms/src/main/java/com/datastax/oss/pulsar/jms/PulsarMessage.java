@@ -763,7 +763,7 @@ public abstract class PulsarMessage implements Message {
   public float getFloatProperty(String name) throws JMSException {
     Object value = getObjectProperty(name);
     if (value == null) {
-      throw new NullPointerException("null not allowed");
+      throw new NumberFormatException("null not allowed");
     }
     if (value instanceof Float) {
       return ((Number) value).floatValue();
@@ -787,7 +787,7 @@ public abstract class PulsarMessage implements Message {
   public double getDoubleProperty(String name) throws JMSException {
     Object value = getObjectProperty(name);
     if (value == null) {
-      throw new NullPointerException("null not allowed");
+      throw new NumberFormatException("null not allowed");
     }
     if ((value instanceof Float) || (value instanceof Double)) {
       return ((Number) value).doubleValue();
