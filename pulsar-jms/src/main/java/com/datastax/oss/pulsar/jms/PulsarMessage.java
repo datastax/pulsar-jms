@@ -1009,7 +1009,7 @@ public abstract class PulsarMessage implements Message {
   public void setStringProperty(String name, String value) throws JMSException {
     checkWritableProperty(name);
     properties.put(name, value);
-    // not type, not needed
+    properties.put(propertyType(name), "string");
   }
 
   /**
