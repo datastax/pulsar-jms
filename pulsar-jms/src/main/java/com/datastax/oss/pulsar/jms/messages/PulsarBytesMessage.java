@@ -148,6 +148,8 @@ public final class PulsarBytesMessage extends PulsarMessage implements BytesMess
   protected static JMSException handleException(Throwable t) throws JMSException {
     if (t instanceof EOFException) {
       throw new MessageEOFException(t + "");
+    } else if (t instanceof java.io.UTFDataFormatException) {
+      throw new MessageFormatException("Invalid message format");
     }
     throw Utils.handleException(t);
   }

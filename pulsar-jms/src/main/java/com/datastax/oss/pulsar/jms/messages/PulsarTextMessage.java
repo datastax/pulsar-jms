@@ -76,6 +76,9 @@ public final class PulsarTextMessage extends PulsarMessage implements TextMessag
    */
   @Override
   public void setText(String string) throws JMSException {
+    if (!this.writable) {
+      throw new MessageNotWriteableException("Message is not writable");
+    }
     this.text = string;
   }
 
