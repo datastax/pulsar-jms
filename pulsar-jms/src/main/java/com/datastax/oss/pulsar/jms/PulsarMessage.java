@@ -262,7 +262,11 @@ public abstract class PulsarMessage implements Message {
    */
   @Override
   public void setJMSCorrelationID(String correlationID) throws JMSException {
-    this.correlationId = correlationID.getBytes(StandardCharsets.UTF_8);
+    if (correlationID != null) {
+      this.correlationId = correlationID.getBytes(StandardCharsets.UTF_8);
+    } else {
+      this.correlationId = null;
+    }
   }
 
   /**
