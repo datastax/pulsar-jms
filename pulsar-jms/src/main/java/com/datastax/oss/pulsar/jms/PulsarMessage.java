@@ -25,13 +25,7 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.EOFException;
 import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.Collections;
-import java.util.Enumeration;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import javax.jms.CompletionListener;
@@ -51,6 +45,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.avro.generic.GenericArray;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.util.Utf8;
+import org.apache.commons.lang.StringUtils;
 import org.apache.pulsar.client.api.Consumer;
 import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.api.TypedMessageBuilder;
@@ -60,6 +55,26 @@ import org.apache.pulsar.common.schema.KeyValue;
 
 @Slf4j
 public abstract class PulsarMessage implements Message {
+
+  /* JMS reserves the "JMSX" property name prefix for
+   * the following JMS defined properties.
+   */
+  static final String[] JMSX_PROVIDER_IDENTIFIERS = {
+    "JMSXUserID",
+    "JMSXAppID",
+    "JMSXDeliveryCount",
+    "JMSXProducerTXID",
+    "JMSXConsumerTXID",
+    "JMSXRcvTimestamp",
+    "JMSXState"
+  };
+
+  /*
+   * Names reserved for message selectors. These are case-insensitive.
+   */
+  static final String[] RESERVED = {
+    "NULL", "TRUE", "FALSE", "NOT", "AND", "OR", "BETWEEN", "LIKE", "IN", "IS", "ESCAPE"
+  };
 
   private volatile String messageId;
   protected boolean writable = true;
@@ -73,6 +88,7 @@ public abstract class PulsarMessage implements Message {
   private volatile long jmsExpiration;
   private volatile long jmsDeliveryTime;
   private int jmsPriority = Message.DEFAULT_PRIORITY;
+
   protected final Map<String, String> properties = new HashMap<>();
   private PulsarMessageConsumer consumer;
   private Consumer<?> pulsarConsumer;
@@ -665,7 +681,6 @@ public abstract class PulsarMessage implements Message {
    */
   @Override
   public byte getByteProperty(String name) throws JMSException {
-
     Object value = getObjectProperty(name);
     if (value == null) {
       throw new NumberFormatException("null not allowed");
@@ -767,7 +782,7 @@ public abstract class PulsarMessage implements Message {
   public float getFloatProperty(String name) throws JMSException {
     Object value = getObjectProperty(name);
     if (value == null) {
-      throw new NullPointerException("null not allowed");
+      throw new NumberFormatException("null not allowed");
     }
     if (value instanceof Float) {
       return ((Number) value).floatValue();
@@ -791,7 +806,7 @@ public abstract class PulsarMessage implements Message {
   public double getDoubleProperty(String name) throws JMSException {
     Object value = getObjectProperty(name);
     if (value == null) {
-      throw new NullPointerException("null not allowed");
+      throw new NumberFormatException("null not allowed");
     }
     if ((value instanceof Float) || (value instanceof Double)) {
       return ((Number) value).doubleValue();
@@ -881,6 +896,7 @@ public abstract class PulsarMessage implements Message {
             .keySet()
             .stream()
             .filter(n -> !n.endsWith("_jsmtype"))
+            .filter(n -> !n.startsWith("JMS"))
             .collect(Collectors.toList()));
   }
 
@@ -1013,7 +1029,7 @@ public abstract class PulsarMessage implements Message {
   public void setStringProperty(String name, String value) throws JMSException {
     checkWritableProperty(name);
     properties.put(name, value);
-    // not type, not needed
+    properties.put(propertyType(name), "string");
   }
 
   /**
@@ -1101,8 +1117,6 @@ public abstract class PulsarMessage implements Message {
     try {
       if (consumer != null) {
         consumer.acknowledge(receivedPulsarMessage, this, pulsarConsumer);
-      } else {
-        throw new IllegalStateException("The internal Pulsar consumer is null");
       }
     } catch (Exception err) {
       throw Utils.handleException(err);
@@ -1139,12 +1153,57 @@ public abstract class PulsarMessage implements Message {
   }
 
   protected final void checkWritableProperty(String name) throws JMSException {
-    if (name == null || name.isEmpty()) {
-      throw new IllegalArgumentException("Invalid map key " + name);
-    }
     if (!writable) {
       throw new MessageNotWriteableException("Not writeable");
+    } else if (!isValidIdentifier(name)) {
+      throw new IllegalArgumentException("Invalid map key " + name);
     }
+  }
+
+  /**
+   * Property names must obey the rules for a message selector identifier.
+   *
+   * <p>An identifier is an unlimited-length character sequence that must begin with a Java
+   * identifier start character; all following characters must be Java identifier part characters.
+   *
+   * @param name
+   * @return @See Section 3.8 “Message selection” for more information.
+   */
+  protected final boolean isValidIdentifier(String name) {
+    if (StringUtils.isBlank(name)
+        || isJmsProperty(name)
+        || isJmsxProviderProperty(name)
+        || isReservedProperty(name)
+        || !Character.isJavaIdentifierStart(name.charAt(0))) {
+      return false;
+    }
+
+    for (char b : name.substring(1).toCharArray()) {
+      if (!Character.isJavaIdentifierPart(b) && b != '.') {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * JMS reserves the "JMS_ " property name prefix.
+   *
+   * @param name
+   * @return
+   */
+  protected final boolean isJmsProperty(String name) {
+    return name.startsWith("JMS_");
+  }
+
+  protected final boolean isJmsxProviderProperty(String name) {
+    return (name != null)
+        && Arrays.stream(JMSX_PROVIDER_IDENTIFIERS).anyMatch(id -> id.equals(name));
+  }
+
+  protected final boolean isReservedProperty(String name) {
+    return (name != null) && Arrays.stream(RESERVED).anyMatch(id -> id.equalsIgnoreCase(name));
   }
 
   protected abstract String messageType();
@@ -1194,9 +1253,11 @@ public abstract class PulsarMessage implements Message {
     message.properties(properties);
     // useful for deserialization
     message.property("JMSPulsarMessageType", messageType());
+
     if (messageId != null) {
       message.property("JMSMessageId", messageId);
     }
+
     if (jmsReplyTo != null) {
       // here we want to keep the original name passed by the user
       // if we have the subscription name in the form Queue:Subscription

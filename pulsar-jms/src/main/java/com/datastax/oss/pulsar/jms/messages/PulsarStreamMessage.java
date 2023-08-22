@@ -323,8 +323,10 @@ public final class PulsarStreamMessage extends PulsarMessage implements StreamMe
         case TYPE_STRING:
           return Boolean.parseBoolean(dataInputStream.readUTF());
         default:
-          // fail
-          checkType(dataType, TYPE_BOOLEAN);
+          // Allow conversion of null to "false"
+          if (dataType != TYPE_NULL) {
+            checkType(dataType, TYPE_BOOLEAN);
+          }
           return false;
       }
     } catch (Exception err) {
