@@ -37,7 +37,7 @@ final class PulsarQueueBrowser implements QueueBrowser {
   private static final int BROWSER_READ_TIMEOUT = 1000;
 
   private final PulsarSession session;
-  private final PulsarQueue queue;
+  private final Queue queue;
   private final String subscriptionName;
   private final List<Reader<?>> readers;
   private final SelectorSupport selectorSupport;
@@ -49,16 +49,18 @@ final class PulsarQueueBrowser implements QueueBrowser {
     session.checkNotClosed();
     this.session = session;
     this.useServerSideFiltering = session.getFactory().isUseServerSideFiltering();
-    this.queue = (PulsarQueue) queue;
+    this.queue = queue;
     this.readers =
         session
             .getFactory()
-            .createReadersForBrowser(this.queue, session.getOverrideConsumerConfiguration());
+            .createReadersForBrowser(
+                (PulsarDestination) this.queue, session.getOverrideConsumerConfiguration());
     log.info("created {} readers for {}", readers.size(), this.queue);
     // we are reading messages and it is always safe to apply selectors
     // on the client side
     this.selectorSupport = SelectorSupport.build(selector, true);
-    this.subscriptionName = session.getFactory().getQueueSubscriptionName(this.queue);
+    this.subscriptionName =
+        session.getFactory().getQueueSubscriptionName((PulsarDestination) this.queue);
   }
 
   /**
