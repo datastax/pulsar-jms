@@ -1253,6 +1253,7 @@ public class PulsarConnectionFactory
       if (schema == null) {
         schema = Schema.BYTES;
       }
+
       // for queues we have a single shared subscription
       String subscriptionName =
           destination.isQueue() ? getQueueSubscriptionName(destination) : consumerName;
@@ -1273,6 +1274,12 @@ public class PulsarConnectionFactory
               .subscriptionProperties(subscriptionProperties)
               .subscriptionType(subscriptionType)
               .subscriptionName(subscriptionName);
+
+      if (consumerConfiguration.getConsumerConfiguration().containsKey("cryptoKeyReader")) {
+        builder.cryptoKeyReader(
+            (CryptoKeyReader)
+                consumerConfiguration.getConsumerConfiguration().get("cryptoKeyReader"));
+      }
       if (enablePriority) {
         builder.startPaused(true);
       }

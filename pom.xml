@@ -143,6 +143,11 @@
       </dependency>
       <dependency>
         <groupId>${pulsar.groupId}</groupId>
+        <artifactId>pulsar-client-messagecrypto-bc</artifactId>
+        <version>${pulsar.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>${pulsar.groupId}</groupId>
         <artifactId>pulsar-broker</artifactId>
         <version>${pulsar.version}</version>
       </dependency>
