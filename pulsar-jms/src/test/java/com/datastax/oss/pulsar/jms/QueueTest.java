@@ -161,8 +161,8 @@ public class QueueTest {
       try (Connection connection = factory.createConnection()) {
         connection.start();
         try (Session session = connection.createSession(); ) {
-          Queue destination =
-              session.createQueue("persistent://public/default/test-" + UUID.randomUUID());
+          String topicName = "persistent://public/default/test-" + UUID.randomUUID();
+          Queue destination = session.createQueue(topicName);
 
           try (MessageProducer producer = session.createProducer(destination); ) {
             for (int i = 0; i < numMessages; i++) {
@@ -203,6 +203,12 @@ public class QueueTest {
               count++;
             }
             assertEquals(1, count);
+            TopicStats stats = cluster.getService().getAdminClient().topics().getStats(topicName);
+            assertTrue(destination instanceof PulsarQueue);
+            PulsarQueue queue = (PulsarQueue) destination;
+            String subscriptionName = queue.extractSubscriptionName();
+            // Validate QueueBrowser is connected using subscription name
+            assertEquals(stats.getSubscriptions().get(subscriptionName).getConsumers().size(), 1);
           }
 
           // scan again without calling hasMoreElements explicitly
