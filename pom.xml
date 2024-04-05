@@ -17,7 +17,7 @@
 
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
-	<!-- dummy change -->
+  <!-- dummy change -->
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.datastax.oss</groupId>
   <artifactId>pulsar-jms-parent</artifactId>
@@ -69,6 +69,7 @@
     <gson.version>2.8.9</gson.version>
     <commons-compress.version>1.21</commons-compress.version>
     <awaitility.version>4.0.3</awaitility.version>
+    <maven.antrun.plugin.version>3.1.0</maven.antrun.plugin.version>
     <snakeyaml.version>2.0</snakeyaml.version>
     <!-- required for running tests on JDK11+ -->
     <test.additional.args>--add-opens java.base/java.lang.reflect=ALL-UNNAMED --add-opens java.base/jdk.internal.loader=ALL-UNNAMED --add-opens java.base/java.lang=ALL-UNNAMED
