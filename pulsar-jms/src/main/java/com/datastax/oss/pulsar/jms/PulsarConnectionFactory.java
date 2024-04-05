@@ -1546,6 +1546,7 @@ public class PulsarConnectionFactory
               .readerName("jms-queue-browser-" + UUID.randomUUID())
               .startMessageId(seekMessageId)
               .startMessageIdInclusive()
+              .subscriptionName(queueSubscriptionName)
               .topic(fullQualifiedTopicName);
       Reader<?> newReader = builder.create();
       readers.add(newReader);
