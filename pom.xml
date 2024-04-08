@@ -53,10 +53,8 @@
     <maven.compiler.source>8</maven.compiler.source>
     <maven.compiler.target>8</maven.compiler.target>
     <jms.version>2.0.3</jms.version>
-    <!-- waiting for a Apache Pulsar 2.11.0 release, in the meantime we use DataStax Luna Streaming
-         that is a fork of Apache Pulsar  -->
     <pulsar.groupId>org.apache.pulsar</pulsar.groupId>
-    <pulsar.version>3.0.0</pulsar.version>
+    <pulsar.version>3.2.2</pulsar.version>
     <activemq.version>5.16.1</activemq.version>
     <hawtbuf.version>1.11</hawtbuf.version>
     <curator.version>5.1.0</curator.version>
@@ -197,7 +195,7 @@
       <dependency>
         <groupId>com.github.spotbugs</groupId>
         <artifactId>spotbugs-annotations</artifactId>
-        <version>4.2.3</version>
+        <version>4.8.3</version>
       </dependency>
       <dependency>
         <groupId>org.mockito</groupId>
