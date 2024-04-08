@@ -125,7 +125,7 @@
       <dependency>
         <groupId>org.projectlombok</groupId>
         <artifactId>lombok</artifactId>
-        <version>1.18.20</version>
+        <version>1.18.30</version>
       </dependency>
       <dependency>
         <groupId>${pulsar.groupId}</groupId>
@@ -232,7 +232,7 @@
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-compiler-plugin</artifactId>
-          <version>3.8.1</version>
+          <version>3.12.1</version>
           <configuration>
             <compilerArgs>-Xlint:unchecked</compilerArgs>
             <fork>false</fork>
@@ -338,7 +338,10 @@ limitations under the License.]]></inlineHeader>
         <plugin>
           <groupId>com.github.spotbugs</groupId>
           <artifactId>spotbugs-maven-plugin</artifactId>
-          <version>4.2.2</version>
+          <version>4.8.3.1</version>
+          <configuration>
+            <excludeFilterFile>spotbugsIgnore.xml</excludeFilterFile>
+          </configuration>
         </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
