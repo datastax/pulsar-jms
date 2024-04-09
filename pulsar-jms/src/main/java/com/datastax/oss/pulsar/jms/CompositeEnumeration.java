@@ -15,12 +15,10 @@
  */
 package com.datastax.oss.pulsar.jms;
 
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.NoSuchElementException;
 
-@SuppressFBWarnings({"EI_EXPOSE_REP2", "EI_EXPOSE_REP"})
 public final class CompositeEnumeration implements Enumeration {
   private final List<? extends Enumeration> enumerations;
   private int currentEnumeration = 0;

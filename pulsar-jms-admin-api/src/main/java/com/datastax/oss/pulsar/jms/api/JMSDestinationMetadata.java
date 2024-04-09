@@ -15,7 +15,6 @@
  */
 package com.datastax.oss.pulsar.jms.api;
 
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.List;
 import java.util.Map;
 import lombok.Data;
@@ -41,7 +40,6 @@ public abstract class JMSDestinationMetadata {
 
   /** The destination maps to a physical topic, partitioned or non-partitioned. */
   @ToString
-  @SuppressFBWarnings({"EI_EXPOSE_REP2", "EI_EXPOSE_REP"})
   public abstract static class PhysicalPulsarTopicMetadata extends JMSDestinationMetadata {
     public PhysicalPulsarTopicMetadata(
         String destination,
@@ -89,7 +87,6 @@ public abstract class JMSDestinationMetadata {
 
   /** The destination is a JMS Topic, that maps to a Pulsar Topic with a set of Subscriptions. */
   @ToString
-  @SuppressFBWarnings({"EI_EXPOSE_REP2", "EI_EXPOSE_REP"})
   public static final class TopicMetadata extends PhysicalPulsarTopicMetadata {
 
     public TopicMetadata(
@@ -122,7 +119,6 @@ public abstract class JMSDestinationMetadata {
 
   /** The destination is a JMS Queue. A Queue is mapped to a single Pulsar Subscription. */
   @ToString
-  @SuppressFBWarnings({"EI_EXPOSE_REP2", "EI_EXPOSE_REP"})
   public static final class QueueMetadata extends PhysicalPulsarTopicMetadata {
     public QueueMetadata(
         String destination,
@@ -170,7 +166,6 @@ public abstract class JMSDestinationMetadata {
 
   /** The Destination is a Virtual Destination, with the set of actual physical destinations. */
   @ToString
-  @SuppressFBWarnings({"EI_EXPOSE_REP2", "EI_EXPOSE_REP"})
   public static final class VirtualDestinationMetadata extends JMSDestinationMetadata {
     private final boolean multiTopic;
     private final boolean regex;
@@ -198,7 +193,6 @@ public abstract class JMSDestinationMetadata {
       return multiTopic;
     }
 
-    @SuppressFBWarnings({"EI_EXPOSE_REP2", "EI_EXPOSE_REP"})
     public List<JMSDestinationMetadata> getDestinations() {
       return destinations;
     }
@@ -226,7 +220,6 @@ public abstract class JMSDestinationMetadata {
   /** Metadata about a Pulsar Subscription. */
   @Data
   @ToString
-  @SuppressFBWarnings({"EI_EXPOSE_REP2", "EI_EXPOSE_REP"})
   public static final class SubscriptionMetadata {
     private final String subscriptionName;
 
@@ -243,7 +236,6 @@ public abstract class JMSDestinationMetadata {
   /** Metadata about a Pulsar Consumer. */
   @Data
   @ToString
-  @SuppressFBWarnings({"EI_EXPOSE_REP2", "EI_EXPOSE_REP"})
   public static final class ConsumerMetadata {
     @Getter private final String consumerName;
 
@@ -265,7 +257,6 @@ public abstract class JMSDestinationMetadata {
   /** Metadata about a Pulsar Producer. */
   @Data
   @ToString
-  @SuppressFBWarnings({"EI_EXPOSE_REP2", "EI_EXPOSE_REP"})
   public static final class ProducerMetadata {
     @Getter private final String producerName;
 
