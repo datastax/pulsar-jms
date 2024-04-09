@@ -82,7 +82,7 @@ public class PulsarContainerExtension implements BeforeAllCallback, AfterAllCall
                   if (text.contains("messaging service is ready")) {
                     pulsarReady.countDown();
                   }
-                  System.out.println(text);
+                  log.debug(text);
                 })
             .withCopyFileToContainer(
                 MountableFile.forHostPath("target/classes/filters"), "/pulsar/filters");
