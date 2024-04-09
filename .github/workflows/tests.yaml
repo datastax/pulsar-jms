@@ -30,6 +30,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-maven-
 
+      - name: Setup upterm session
+        uses: lhotari/action-upterm@v1
+
       - name: Build and test
         run: mvn -B clean javadoc:javadoc verify
 

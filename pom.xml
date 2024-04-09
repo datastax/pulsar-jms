@@ -54,7 +54,7 @@
     <maven.compiler.target>8</maven.compiler.target>
     <jms.version>2.0.3</jms.version>
     <pulsar.groupId>org.apache.pulsar</pulsar.groupId>
-    <pulsar.version>3.0.0</pulsar.version>
+    <pulsar.version>3.2.2</pulsar.version>
     <activemq.version>5.16.1</activemq.version>
     <hawtbuf.version>1.11</hawtbuf.version>
     <curator.version>5.1.0</curator.version>
@@ -325,6 +325,12 @@ limitations under the License.]]></inlineHeader>
           <configuration>
             <argLine>${test.additional.args}</argLine>
             <trimStackTrace>false</trimStackTrace>
+            <forkCount>1</forkCount>
+            <properties>
+              <configurationParameters>
+                junit.jupiter.execution.timeout.test.method.default = 300
+              </configurationParameters>
+            </properties>
           </configuration>
         </plugin>
         <plugin>
