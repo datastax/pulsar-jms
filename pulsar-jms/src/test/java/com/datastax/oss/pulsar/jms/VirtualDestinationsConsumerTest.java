@@ -43,7 +43,6 @@ import javax.jms.Session;
 import javax.jms.TextMessage;
 import javax.jms.Topic;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.pulsar.client.admin.PulsarAdminException;
 import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.api.SubscriptionType;
 import org.awaitility.Awaitility;
@@ -463,10 +462,10 @@ public class VirtualDestinationsConsumerTest {
             factory.getPulsarAdmin().topics().createNonPartitionedTopic(topicName);
             // await that the consumer session creates the subscription, then we update it
             Awaitility.await()
-                    .untilAsserted(() -> {
-                      List<String> subs = pulsarContainer
-                              .getAdmin()
-                              .topics().getSubscriptions(topicName);
+                .untilAsserted(
+                    () -> {
+                      List<String> subs =
+                          pulsarContainer.getAdmin().topics().getSubscriptions(topicName);
                       assertEquals(subs.size(), 1);
                       assertTrue(subs.contains("jms-queue"));
                     });
@@ -474,9 +473,9 @@ public class VirtualDestinationsConsumerTest {
             subscriptionProperties.put("jms.selector", "keepme=TRUE");
             subscriptionProperties.put("jms.filtering", "true");
             pulsarContainer
-                    .getAdmin()
-                    .topics()
-                    .updateSubscriptionProperties(topicName, "jms-queue", subscriptionProperties);
+                .getAdmin()
+                .topics()
+                .updateSubscriptionProperties(topicName, "jms-queue", subscriptionProperties);
 
             Queue newDestination = session.createQueue(topicName);
             TextMessage nextMessage = session.createTextMessage("new");

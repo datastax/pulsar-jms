@@ -22,7 +22,6 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import com.datastax.oss.pulsar.jms.utils.PulsarContainerExtension;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashSet;
@@ -69,12 +68,12 @@ public class PriorityTest {
                 @Override
                 @SneakyThrows
                 public void accept(PulsarContainerExtension pulsarContainerExtension) {
+                  Set<String> clusters =
+                      new HashSet<>(pulsarContainerExtension.getAdmin().clusters().getClusters());
                   pulsarContainerExtension
                       .getAdmin()
                       .tenants()
-                      .createTenant(
-                          "foo",
-                          TenantInfo.builder().allowedClusters(ImmutableSet.of("pulsar")).build());
+                      .createTenant("foo", TenantInfo.builder().allowedClusters(clusters).build());
                   pulsarContainerExtension
                       .getAdmin()
                       .namespaces()

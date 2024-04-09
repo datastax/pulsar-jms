@@ -15,8 +15,12 @@
  */
 package com.datastax.oss.pulsar.jms.utils;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -67,20 +71,28 @@ public class PulsarContainerExtension implements BeforeAllCallback, AfterAllCall
   @SneakyThrows
   public void beforeAll(ExtensionContext extensionContext) {
     network = Network.newNetwork();
+    CountDownLatch pulsarReady = new CountDownLatch(1);
     pulsarContainer =
         new PulsarContainer(DockerImageName.parse(PULSAR_IMAGE))
             .withNetwork(network)
             .withEnv(env)
             .withLogConsumer(
-                outputFrame -> log.debug("pulsar> {}", outputFrame.getUtf8String().trim()))
+                (f) -> {
+                  String text = f.getUtf8String().trim();
+                  if (text.contains("messaging service is ready")) {
+                    pulsarReady.countDown();
+                  }
+                  System.out.println(text);
+                })
             .withCopyFileToContainer(
                 MountableFile.forHostPath("target/classes/filters"), "/pulsar/filters");
     // start Pulsar and wait for it to be ready to accept requests
     pulsarContainer.start();
+    assertTrue(pulsarReady.await(1, TimeUnit.MINUTES));
     admin =
-            PulsarAdmin.builder()
-                    .serviceHttpUrl("http://localhost:" + pulsarContainer.getMappedPort(8080))
-                    .build();
+        PulsarAdmin.builder()
+            .serviceHttpUrl("http://localhost:" + pulsarContainer.getMappedPort(8080))
+            .build();
     if (onContainerReady != null) {
       onContainerReady.accept(this);
     }
