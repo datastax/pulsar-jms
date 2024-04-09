@@ -33,6 +33,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
 import javax.jms.CompletionListener;
 import javax.jms.Message;
 import javax.jms.MessageProducer;
@@ -51,6 +52,7 @@ import org.apache.pulsar.common.policies.data.TopicStats;
 import org.apache.pulsar.common.util.FutureUtil;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
 @Slf4j
@@ -482,6 +484,7 @@ public abstract class SelectorsTestsBase {
   // This test may take long time, because it depends on how the broker
   // chooses the Consumer to try to dispatch the messages.
   @Test
+  @Timeout(value = 10, unit = TimeUnit.MINUTES)
   public void sendBatchWithCompetingConsumersOnQueue() throws Exception {
     Map<String, Object> properties = buildProperties();
     if (enableBatching) {
