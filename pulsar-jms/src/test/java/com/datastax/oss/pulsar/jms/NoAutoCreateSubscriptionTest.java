@@ -18,9 +18,7 @@ package com.datastax.oss.pulsar.jms;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
-import java.nio.file.Path;
-import java.util.HashMap;
+import com.datastax.oss.pulsar.jms.utils.PulsarContainerExtension;
 import java.util.Map;
 import java.util.UUID;
 import javax.jms.Connection;
@@ -32,41 +30,22 @@ import javax.jms.Session;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.common.policies.data.TopicStats;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
 @Slf4j
 public class NoAutoCreateSubscriptionTest {
 
-  @TempDir public static Path tempDir;
-  private static PulsarCluster cluster;
-
-  @BeforeAll
-  public static void before() throws Exception {
-    cluster =
-        new PulsarCluster(
-            tempDir,
-            config -> {
-              config.setAllowAutoTopicCreation(false);
-              config.setAllowAutoSubscriptionCreation(false);
-            });
-    cluster.start();
-  }
-
-  @AfterAll
-  public static void after() throws Exception {
-    if (cluster != null) {
-      cluster.close();
-    }
-  }
+  @RegisterExtension
+  static PulsarContainerExtension pulsarContainer =
+      new PulsarContainerExtension()
+          .withEnv("PULSAR_PREFIX_allowAutoTopicCreation", "false")
+          .withEnv("PULSAR_PREFIX_allowAutoSubscriptionCreation", "false");
 
   @Test
   public void doNotPrecreateQueueSubscriptionTest() throws Exception {
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     properties.put("jms.queueSubscriptionName", "default-sub-name");
     properties.put("jms.precreateQueueSubscription", "false");
     properties.put("operationTimeoutMs", "5000");
@@ -77,7 +56,7 @@ public class NoAutoCreateSubscriptionTest {
         try (Session session = connection.createSession(); ) {
           String shortTopicName = "test-" + UUID.randomUUID();
 
-          cluster.getService().getAdminClient().topics().createNonPartitionedTopic(shortTopicName);
+          pulsarContainer.getAdmin().topics().createNonPartitionedTopic(shortTopicName);
 
           Queue destinationWithSubscription = session.createQueue(shortTopicName + ":sub1");
 
@@ -94,9 +73,8 @@ public class NoAutoCreateSubscriptionTest {
           }
 
           // manually create the subscription topic:sub1
-          cluster
-              .getService()
-              .getAdminClient()
+          pulsarContainer
+              .getAdmin()
               .topics()
               .createSubscription(shortTopicName, "sub1", MessageId.earliest);
 
@@ -106,8 +84,7 @@ public class NoAutoCreateSubscriptionTest {
             }
 
             // verify that we have 1 subscription
-            TopicStats stats =
-                cluster.getService().getAdminClient().topics().getStats(shortTopicName);
+            TopicStats stats = pulsarContainer.getAdmin().topics().getStats(shortTopicName);
             log.info("Subscriptions {}", stats.getSubscriptions().keySet());
             assertNotNull(stats.getSubscriptions().get("sub1"));
           }

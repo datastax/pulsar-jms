@@ -19,9 +19,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
+import com.datastax.oss.pulsar.jms.utils.PulsarContainerExtension;
 import java.lang.reflect.Field;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -44,31 +43,18 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.impl.BatchMessageIdImpl;
 import org.apache.pulsar.client.impl.TopicMessageIdImpl;
 import org.awaitility.Awaitility;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 @Slf4j
 public class DeadLetterQueueTest {
 
-  @TempDir public static Path tempDir;
-  private static PulsarCluster cluster;
-
-  @BeforeAll
-  public static void before() throws Exception {
-    cluster = new PulsarCluster(tempDir, config -> config.setTransactionCoordinatorEnabled(false));
-    cluster.start();
-  }
-
-  @AfterAll
-  public static void after() throws Exception {
-    if (cluster != null) {
-      cluster.close();
-    }
-  }
+  @RegisterExtension
+  static PulsarContainerExtension pulsarContainer =
+      new PulsarContainerExtension()
+          .withEnv("PULSAR_PREFIX_transactionCoordinatorEnabled", "false");
 
   @Test
   public void deadLetterTestForQueue() throws Exception {
@@ -80,8 +66,7 @@ public class DeadLetterQueueTest {
     String queueSubscriptionName = "thesub";
     String deadLetterTopic = topic + "-" + queueSubscriptionName + "-DLQ";
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     properties.put("jms.queueSubscriptionName", queueSubscriptionName);
 
     Map<String, Object> consumerConfig = new HashMap<>();
@@ -109,8 +94,7 @@ public class DeadLetterQueueTest {
     String topicSubscriptionName = "thesub";
     String deadLetterTopic = topic + "-" + topicSubscriptionName + "-DLQ";
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
 
     Map<String, Object> consumerConfig = new HashMap<>();
     properties.put("consumerConfig", consumerConfig);
@@ -135,8 +119,7 @@ public class DeadLetterQueueTest {
     String topic = "persistent://public/default/test-" + UUID.randomUUID();
     String deadLetterTopic = "persistent://public/default/test-dlq-" + UUID.randomUUID();
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
 
     Map<String, Object> consumerConfig = new HashMap<>();
     properties.put("consumerConfig", consumerConfig);
@@ -249,7 +232,7 @@ public class DeadLetterQueueTest {
     String deadLetterTopic;
 
     if (numPartitions > 0) {
-      cluster.getService().getAdminClient().topics().createPartitionedTopic(topic, numPartitions);
+      pulsarContainer.getAdmin().topics().createPartitionedTopic(topic, numPartitions);
 
       // multi:topic1,topic2....
       deadLetterTopic =
@@ -265,8 +248,7 @@ public class DeadLetterQueueTest {
     }
     log.info("deadLetterTopic {}", deadLetterTopic);
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     properties.put("jms.queueSubscriptionName", queueSubscriptionName);
 
     Map<String, Object> producerConfig = new HashMap<>();

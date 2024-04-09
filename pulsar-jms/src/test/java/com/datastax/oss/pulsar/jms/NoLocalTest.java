@@ -20,8 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
-import java.nio.file.Path;
+import com.datastax.oss.pulsar.jms.utils.PulsarContainerExtension;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -36,31 +35,15 @@ import javax.jms.TextMessage;
 import javax.jms.Topic;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.api.SubscriptionType;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 @Slf4j
 public class NoLocalTest {
-
-  @TempDir public static Path tempDir;
-  private static PulsarCluster cluster;
-
-  @BeforeAll
-  public static void before() throws Exception {
-    cluster = new PulsarCluster(tempDir);
-    cluster.start();
-  }
-
-  @AfterAll
-  public static void after() throws Exception {
-    if (cluster != null) {
-      cluster.close();
-    }
-  }
+  @RegisterExtension
+  static PulsarContainerExtension pulsarContainer = new PulsarContainerExtension();
 
   private static Stream<Arguments> combinations() {
     return Stream.of(
@@ -75,8 +58,7 @@ public class NoLocalTest {
   public void sendMessageReceiveFromQueueWithNoLocal(
       boolean useServerSideFiltering, boolean enableBatching) throws Exception {
     useServerSideFiltering = false;
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     properties.put("jms.enableClientSideEmulation", !useServerSideFiltering);
     properties.put("jms.useServerSideFiltering", useServerSideFiltering);
     Map<String, Object> producerConfig = new HashMap<>();
@@ -122,8 +104,7 @@ public class NoLocalTest {
   public void sendMessageReceiveFromTopicWithNoLocal(
       boolean useServerSideFiltering, boolean enableBatching) throws Exception {
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     properties.put("jms.enableClientSideEmulation", !useServerSideFiltering);
     properties.put("jms.useServerSideFiltering", useServerSideFiltering);
     Map<String, Object> producerConfig = new HashMap<>();
@@ -170,8 +151,7 @@ public class NoLocalTest {
   public void sendMessageReceiveFromExclusiveSubscriptionWithSelector(
       boolean useServerSideFiltering, boolean enableBatching) throws Exception {
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     properties.put("jms.enableClientSideEmulation", !useServerSideFiltering);
     properties.put("jms.useServerSideFiltering", useServerSideFiltering);
     Map<String, Object> producerConfig = new HashMap<>();
@@ -218,8 +198,7 @@ public class NoLocalTest {
   @MethodSource("combinations")
   public void sendMessageReceiveFromSharedSubscriptionWithNoLocal(
       boolean useServerSideFiltering, boolean enableBatching) throws Exception {
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     properties.put("jms.enableClientSideEmulation", !useServerSideFiltering);
     properties.put("jms.useServerSideFiltering", useServerSideFiltering);
     Map<String, Object> producerConfig = new HashMap<>();
@@ -282,8 +261,7 @@ public class NoLocalTest {
       boolean useServerSideFiltering, boolean enableBatching, boolean acknowledgeRejectedMessages)
       throws Exception {
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     properties.put("jms.enableClientSideEmulation", !useServerSideFiltering);
     properties.put("jms.useServerSideFiltering", useServerSideFiltering);
     Map<String, Object> producerConfig = new HashMap<>();

@@ -20,8 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
 
-import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
-import java.nio.file.Path;
+import com.datastax.oss.pulsar.jms.utils.PulsarContainerExtension;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -40,9 +39,7 @@ import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.api.SubscriptionType;
 import org.apache.pulsar.common.policies.data.AutoTopicCreationOverride;
 import org.awaitility.Awaitility;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.internal.util.reflection.Whitebox;
@@ -50,35 +47,16 @@ import org.mockito.internal.util.reflection.Whitebox;
 @Slf4j
 public class BasicServerSideFilterTest {
 
-  @TempDir public static Path tempDir;
-  private static PulsarCluster cluster;
-
-  public BasicServerSideFilterTest() {}
-
-  @BeforeAll
-  public static void before() throws Exception {
-    cluster =
-        new PulsarCluster(
-            tempDir,
-            (config) -> {
-              config.setTransactionCoordinatorEnabled(false);
-              config.setAllowAutoTopicCreation(false);
-            });
-    cluster.start();
-  }
-
-  @AfterAll
-  public static void after() throws Exception {
-    if (cluster != null) {
-      cluster.close();
-    }
-  }
+  @RegisterExtension
+  static PulsarContainerExtension pulsarContainer =
+      new PulsarContainerExtension()
+          .withEnv("PULSAR_PREFIX_transactionCoordinatorEnabled", "false")
+          .withEnv("PULSAR_PREFIX_allowAutoTopicCreation", "false");
 
   static int refreshServerSideFiltersPeriod = 10;
 
   private Map<String, Object> buildProperties() {
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
 
     properties.put("jms.useServerSideFiltering", "true");
     properties.put("jms.refreshServerSideFiltersPeriod", refreshServerSideFiltersPeriod);
@@ -105,15 +83,11 @@ public class BasicServerSideFilterTest {
     String topicName = "topic-with-sub-" + UUID.randomUUID();
     String topicName2 = "topic-with-sub-" + UUID.randomUUID();
     if (numPartitions > 0) {
-      cluster
-          .getService()
-          .getAdminClient()
-          .topics()
-          .createPartitionedTopic(topicName, numPartitions);
 
-      cluster
-          .getService()
-          .getAdminClient()
+      pulsarContainer.getAdmin().topics().createPartitionedTopic(topicName, numPartitions);
+
+      pulsarContainer
+          .getAdmin()
           .namespaces()
           .setAutoTopicCreation(
               "public/default",
@@ -123,10 +97,9 @@ public class BasicServerSideFilterTest {
                   .allowAutoTopicCreation(true)
                   .build());
     } else {
-      cluster.getService().getAdminClient().topics().createNonPartitionedTopic(topicName);
-      cluster
-          .getService()
-          .getAdminClient()
+      pulsarContainer.getAdmin().topics().createNonPartitionedTopic(topicName);
+      pulsarContainer
+          .getAdmin()
           .namespaces()
           .setAutoTopicCreation(
               "public/default",
@@ -144,9 +117,8 @@ public class BasicServerSideFilterTest {
     subscriptionProperties.put("jms.filtering", "true");
 
     // create a Subscription with a selector
-    cluster
-        .getService()
-        .getAdminClient()
+    pulsarContainer
+        .getAdmin()
         .topics()
         .createSubscription(
             topicName, subscriptionName, MessageId.earliest, false, subscriptionProperties);
@@ -172,7 +144,7 @@ public class BasicServerSideFilterTest {
           }
 
           // unload the topic
-          cluster.getService().getAdminClient().topics().unload(topicName);
+          pulsarContainer.getAdmin().topics().unload(topicName);
 
           try (PulsarMessageConsumer consumer1 =
               session.createSharedDurableConsumer(destination, subscriptionName, null); ) {
@@ -252,9 +224,8 @@ public class BasicServerSideFilterTest {
             subscriptionProperties.put("jms.selector", newSelector);
             subscriptionProperties.put("jms.filtering", "true");
 
-            cluster
-                .getService()
-                .getAdminClient()
+            pulsarContainer
+                .getAdmin()
                 .topics()
                 .updateSubscriptionProperties(topicName, subscriptionName, subscriptionProperties);
 
@@ -275,9 +246,8 @@ public class BasicServerSideFilterTest {
             subscriptionProperties.put("jms.selector", newSelector);
             subscriptionProperties.put("jms.filtering", "false");
 
-            cluster
-                .getService()
-                .getAdminClient()
+            pulsarContainer
+                .getAdmin()
                 .topics()
                 .updateSubscriptionProperties(topicName, subscriptionName, subscriptionProperties);
 

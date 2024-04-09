@@ -19,9 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
-import java.nio.file.Path;
-import java.util.HashMap;
+import com.datastax.oss.pulsar.jms.utils.PulsarContainerExtension;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -34,35 +32,17 @@ import javax.jms.MessageProducer;
 import javax.jms.Queue;
 import javax.jms.Session;
 import lombok.extern.slf4j.Slf4j;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
 @Slf4j
 public class TemporaryDestinationsTest {
 
-  @TempDir public static Path tempDir;
-  private static PulsarCluster cluster;
-
-  @BeforeAll
-  public static void before() throws Exception {
-    cluster =
-        new PulsarCluster(
-            tempDir,
-            (config) -> {
-              config.setTransactionCoordinatorEnabled(false);
-              config.setAllowAutoTopicCreation(false);
-            });
-    cluster.start();
-  }
-
-  @AfterAll
-  public static void after() throws Exception {
-    if (cluster != null) {
-      cluster.close();
-    }
-  }
+  @RegisterExtension
+  static PulsarContainerExtension pulsarContainer =
+      new PulsarContainerExtension()
+          .withEnv("PULSAR_PREFIX_allowAutoTopicCreation", "false")
+          .withEnv("PULSAR_PREFIX_transactionCoordinatorEnabled", "false");
 
   @Test
   public void useTemporaryQueueTest() throws Exception {
@@ -78,8 +58,7 @@ public class TemporaryDestinationsTest {
       throws Exception {
 
     String temporaryDestinationName;
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     properties.put("jms.forceDeleteTemporaryDestinations", "true");
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
@@ -88,7 +67,7 @@ public class TemporaryDestinationsTest {
           String name = "persistent://public/default/test-" + UUID.randomUUID();
           Queue serverAddress = session.createQueue(name);
 
-          cluster.getService().getAdminClient().topics().createNonPartitionedTopic(name);
+          pulsarContainer.getAdmin().topics().createNonPartitionedTopic(name);
 
           try (MessageProducer producerClient = session.createProducer(serverAddress); ) {
 
@@ -98,9 +77,8 @@ public class TemporaryDestinationsTest {
 
             // verify topic exists
             assertTrue(
-                cluster
-                    .getService()
-                    .getAdminClient()
+                pulsarContainer
+                    .getAdmin()
                     .topics()
                     .getList("public/default")
                     .contains(temporaryDestinationName));
@@ -137,7 +115,7 @@ public class TemporaryDestinationsTest {
       }
     }
 
-    List<String> topics = cluster.getService().getAdminClient().topics().getList("public/default");
+    List<String> topics = pulsarContainer.getAdmin().topics().getList("public/default");
     log.info("Topics {}", topics);
 
     // verify topic does not exist anymore, as it is deleted on Connection close()

@@ -21,10 +21,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.datastax.oss.pulsar.jms.selectors.SelectorSupport;
-import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
+import com.datastax.oss.pulsar.jms.utils.PulsarContainerExtension;
 import com.google.common.collect.ImmutableMap;
 import java.lang.reflect.Field;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -46,10 +45,8 @@ import javax.jms.Topic;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.api.SubscriptionType;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -57,27 +54,11 @@ import org.junit.jupiter.params.provider.MethodSource;
 @Slf4j
 public class VirtualDestinationsConsumerTest {
 
-  @TempDir public static Path tempDir;
-  private static PulsarCluster cluster;
-
-  @BeforeAll
-  public static void before() throws Exception {
-    cluster =
-        new PulsarCluster(
-            tempDir,
-            serviceConfiguration -> {
-              serviceConfiguration.setTransactionCoordinatorEnabled(false);
-              serviceConfiguration.setAllowAutoTopicCreation(false);
-            });
-    cluster.start();
-  }
-
-  @AfterAll
-  public static void after() throws Exception {
-    if (cluster != null) {
-      cluster.close();
-    }
-  }
+  @RegisterExtension
+  static PulsarContainerExtension pulsarContainer =
+      new PulsarContainerExtension()
+          .withEnv("PULSAR_PREFIX_transactionCoordinatorEnabled", "false")
+          .withEnv("PULSAR_PREFIX_allowAutoTopicCreation", "false");
 
   private static Stream<Arguments> combinationsTestMultiTopic() {
     return Stream.of(
@@ -91,8 +72,7 @@ public class VirtualDestinationsConsumerTest {
   @MethodSource("combinationsTestMultiTopic")
   public void testMultiTopic(int numPartitions, boolean useRegExp) throws Exception {
     int numMessagesPerDestination = 10;
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     properties.put("jms.usePulsarAdmin", "true");
 
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
@@ -176,8 +156,7 @@ public class VirtualDestinationsConsumerTest {
     String subscriptionName = "the-sub";
     String selector = "keepme = TRUE";
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     properties.put("jms.usePulsarAdmin", "true");
     properties.put("jms.useServerSideFiltering", "true");
 
@@ -193,19 +172,14 @@ public class VirtualDestinationsConsumerTest {
     for (int i = 0; i < 4; i++) {
       String topicName = prefix + "-" + i;
       if (numPartitions > 0) {
-        cluster
-            .getService()
-            .getAdminClient()
-            .topics()
-            .createPartitionedTopic(topicName, numPartitions);
+        pulsarContainer.getAdmin().topics().createPartitionedTopic(topicName, numPartitions);
       } else {
-        cluster.getService().getAdminClient().topics().createNonPartitionedTopic(topicName);
+        pulsarContainer.getAdmin().topics().createNonPartitionedTopic(topicName);
       }
 
       // create a Subscription with a selector
-      cluster
-          .getService()
-          .getAdminClient()
+      pulsarContainer
+          .getAdmin()
           .topics()
           .createSubscription(
               topicName, subscriptionName, MessageId.earliest, false, subscriptionProperties);
@@ -324,8 +298,7 @@ public class VirtualDestinationsConsumerTest {
     String subscriptionName = "the-sub";
     String selector = "keepme = TRUE";
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     properties.put("jms.usePulsarAdmin", "true");
     properties.put("jms.useServerSideFiltering", "false");
     properties.put("jms.enableClientSideEmulation", "true");
@@ -336,19 +309,14 @@ public class VirtualDestinationsConsumerTest {
     for (int i = 0; i < 4; i++) {
       String topicName = prefix + "-" + i;
       if (numPartitions > 0) {
-        cluster
-            .getService()
-            .getAdminClient()
-            .topics()
-            .createPartitionedTopic(topicName, numPartitions);
+        pulsarContainer.getAdmin().topics().createPartitionedTopic(topicName, numPartitions);
       } else {
-        cluster.getService().getAdminClient().topics().createNonPartitionedTopic(topicName);
+        pulsarContainer.getAdmin().topics().createNonPartitionedTopic(topicName);
       }
 
       // create a Subscription with a selector
-      cluster
-          .getService()
-          .getAdminClient()
+      pulsarContainer
+          .getAdmin()
           .topics()
           .createSubscription(topicName, subscriptionName, MessageId.earliest, false);
       destinationsToWrite.add(new PulsarQueue(topicName));
@@ -438,8 +406,7 @@ public class VirtualDestinationsConsumerTest {
   @Test
   public void testPatternConsumerAddingTopicWithServerSideFilters() throws Exception {
     int numMessagesPerDestination = 10;
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     properties.put("jms.usePulsarAdmin", "true");
     properties.put("jms.useServerSideFiltering", true);
     // discover new topics every 5 seconds
@@ -495,9 +462,8 @@ public class VirtualDestinationsConsumerTest {
             Map<String, String> subscriptionProperties = new HashMap<>();
             subscriptionProperties.put("jms.selector", "keepme=TRUE");
             subscriptionProperties.put("jms.filtering", "true");
-            cluster
-                .getService()
-                .getAdminClient()
+            pulsarContainer
+                .getAdmin()
                 .topics()
                 .createSubscription(
                     topicName, "jms-queue", MessageId.earliest, false, subscriptionProperties);

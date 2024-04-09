@@ -20,9 +20,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
+import com.datastax.oss.pulsar.jms.utils.PulsarContainerExtension;
 import com.google.common.collect.ImmutableMap;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -51,35 +50,19 @@ import javax.jms.Topic;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.impl.BatchMessageIdImpl;
 import org.awaitility.Awaitility;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
 @Slf4j
 public class TransactionsTest {
-
-  @TempDir public static Path tempDir;
-  private static PulsarCluster cluster;
-
-  @BeforeAll
-  public static void before() throws Exception {
-    cluster = new PulsarCluster(tempDir);
-    cluster.start();
-  }
-
-  @AfterAll
-  public static void after() throws Exception {
-    if (cluster != null) {
-      cluster.close();
-    }
-  }
+  @RegisterExtension
+  static PulsarContainerExtension pulsarContainer = new PulsarContainerExtension();
 
   @Test
   public void sendMessageTest() throws Exception {
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
+
     properties.put("enableTransaction", "true");
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
@@ -115,8 +98,8 @@ public class TransactionsTest {
   @Test
   public void autoRollbackTest() throws Exception {
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
+
     properties.put("enableTransaction", "true");
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
@@ -150,8 +133,8 @@ public class TransactionsTest {
   @Test
   public void rollbackProduceTest() throws Exception {
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
+
     properties.put("enableTransaction", "true");
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
@@ -186,8 +169,8 @@ public class TransactionsTest {
   @Test
   public void consumeTransactionTest() throws Exception {
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
+
     properties.put("enableTransaction", "true");
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
@@ -225,8 +208,8 @@ public class TransactionsTest {
   @Test
   public void multiCommitTest() throws Exception {
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
+
     properties.put("enableTransaction", "true");
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
@@ -267,8 +250,8 @@ public class TransactionsTest {
   @Test
   public void consumeRollbackTransactionTest() throws Exception {
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
+
     properties.put("enableTransaction", "true");
     Map<String, Object> consumerConfig = new HashMap<>();
     consumerConfig.put("ackReceiptEnabled", true);
@@ -311,8 +294,8 @@ public class TransactionsTest {
   @Test
   public void consumeRollbackTransaction2Test() throws Exception {
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
+
     properties.put("enableTransaction", "true");
     Map<String, Object> consumerConfig = new HashMap<>();
     consumerConfig.put("ackReceiptEnabled", true);
@@ -356,8 +339,8 @@ public class TransactionsTest {
   public void consumeAutoRollbackTransactionTestWithQueueBrowser() throws Exception {
 
     int numMessages = 10;
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
+
     properties.put("enableTransaction", "true");
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection();
@@ -438,8 +421,8 @@ public class TransactionsTest {
   public void rollbackReceivedMessages() throws Exception {
 
     int numMessages = 10;
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
+
     properties.put("enableTransaction", "true");
 
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
@@ -503,8 +486,8 @@ public class TransactionsTest {
   public void consumeRollbackTransactionTestWithQueueBrowser() throws Exception {
 
     int numMessages = 10;
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
+
     properties.put("enableTransaction", "true");
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection();
@@ -584,8 +567,8 @@ public class TransactionsTest {
   @Test
   public void sendMessageJMSContextTest() throws Exception {
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
+
     properties.put("enableTransaction", "true");
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (JMSContext context = factory.createContext(JMSContext.SESSION_TRANSACTED)) {
@@ -632,8 +615,8 @@ public class TransactionsTest {
   @Test
   public void sendMessageWithBatchingTest() throws Exception {
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
+
     properties.put("enableTransaction", "true");
     Map<String, Object> producerConfig = new HashMap<>();
     producerConfig.put("batchingEnabled", true);
@@ -708,8 +691,8 @@ public class TransactionsTest {
   @Test
   public void emulatedTransactionsTest() throws Exception {
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
+
     properties.put("enableTransaction", "false");
     properties.put("jms.emulateTransactions", "true");
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
@@ -744,8 +727,8 @@ public class TransactionsTest {
 
   @Test
   public void messageListenerTest() throws Exception {
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
+
     properties.put("enableTransaction", "true");
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
@@ -808,8 +791,8 @@ public class TransactionsTest {
 
   @Test
   public void commitInsideMessageListenerTest() throws Exception {
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
+
     properties.put("enableTransaction", "true");
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
@@ -890,8 +873,8 @@ public class TransactionsTest {
 
   @Test
   public void messageListenerWithEmulatedTransactionsTest() throws Exception {
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
+
     properties.put("enableTransaction", "false");
     properties.put("jms.emulateTransactions", "true");
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
@@ -955,8 +938,8 @@ public class TransactionsTest {
   @Test
   public void consumeProduceScenario() throws Exception {
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
+
     properties.put("enableTransaction", "true");
     properties.put("jms.clientId", "my-id");
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
@@ -1015,8 +998,8 @@ public class TransactionsTest {
   @Test
   public void testMixedProducesScenario() throws Exception {
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
+
     properties.put("enableTransaction", "true");
     properties.put("jms.clientId", "my-id");
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
@@ -1090,8 +1073,8 @@ public class TransactionsTest {
   @Test
   public void testMixedConsumersOnSharedSubscription() throws Exception {
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
+
     properties.put("enableTransaction", "true");
     properties.put("jms.clientId", "my-id");
     properties.put(
@@ -1152,8 +1135,8 @@ public class TransactionsTest {
   @Test
   public void sendMessageWithPartitionStickKeyTest() throws Exception {
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
+
     properties.put("enableTransaction", "true");
     properties.put("jms.transactionsStickyPartitions", "true");
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
