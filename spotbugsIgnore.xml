@@ -1,4 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<Match>
-  <Bug pattern="EI_EXPOSE_REP"/>
-</Match>

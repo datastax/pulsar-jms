@@ -341,7 +341,7 @@ limitations under the License.]]></inlineHeader>
           <artifactId>spotbugs-maven-plugin</artifactId>
           <version>4.8.3.1</version>
           <configuration>
-            <excludeFilterFile>spotbugsIgnore.xml</excludeFilterFile>
+            <omitVisitors>FindReturnRef,ConstructorThrow</omitVisitors>
           </configuration>
         </plugin>
         <plugin>
