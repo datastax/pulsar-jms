@@ -43,4 +43,4 @@ jobs:
         run: mvn -B clean install -DskipTests -Dspotbugs.skip=true
 
       - name: TCK tests - client side filters
-        run: JAVA_HOME=$JDK8_PATH mvn -B verify -DskipTests -Prun-tck
+        run: JAVA_HOME=$JDK8_PATH mvn -B verify -DskipTests -Dmaven.main.skip=true -Dmaven.test.skip=true -Prun-tck
