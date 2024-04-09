@@ -31,6 +31,7 @@ import org.testcontainers.utility.MountableFile;
 
 @Slf4j
 public class PulsarContainerExtension implements BeforeAllCallback, AfterAllCallback {
+  public static final String PULSAR_IMAGE = "apachepulsar/pulsar:3.0.0";
   private PulsarContainer pulsarContainer;
   private Consumer<PulsarContainerExtension> onContainerReady;
   private Map<String, String> env = new HashMap<>();
@@ -67,7 +68,7 @@ public class PulsarContainerExtension implements BeforeAllCallback, AfterAllCall
   public void beforeAll(ExtensionContext extensionContext) {
     network = Network.newNetwork();
     pulsarContainer =
-        new PulsarContainer(DockerImageName.parse("apachepulsar/pulsar:3.0.0"))
+        new PulsarContainer(DockerImageName.parse(PULSAR_IMAGE))
             .withNetwork(network)
             .withEnv(env)
             .withLogConsumer(
@@ -76,13 +77,13 @@ public class PulsarContainerExtension implements BeforeAllCallback, AfterAllCall
                 MountableFile.forHostPath("target/classes/filters"), "/pulsar/filters");
     // start Pulsar and wait for it to be ready to accept requests
     pulsarContainer.start();
+    admin =
+            PulsarAdmin.builder()
+                    .serviceHttpUrl("http://localhost:" + pulsarContainer.getMappedPort(8080))
+                    .build();
     if (onContainerReady != null) {
       onContainerReady.accept(this);
     }
-    admin =
-        PulsarAdmin.builder()
-            .serviceHttpUrl("http://localhost:" + pulsarContainer.getMappedPort(8080))
-            .build();
   }
 
   public PulsarContainerExtension withOnContainerReady(

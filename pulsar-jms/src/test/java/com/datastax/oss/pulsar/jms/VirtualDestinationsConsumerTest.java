@@ -465,8 +465,8 @@ public class VirtualDestinationsConsumerTest {
             pulsarContainer
                 .getAdmin()
                 .topics()
-                .createSubscription(
-                    topicName, "jms-queue", MessageId.earliest, false, subscriptionProperties);
+                .updateSubscriptionProperties(
+                    topicName, "jms-queue", subscriptionProperties);
 
             Queue newDestination = session.createQueue(topicName);
             TextMessage nextMessage = session.createTextMessage("new");
