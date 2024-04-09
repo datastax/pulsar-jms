@@ -21,7 +21,7 @@
   <groupId>com.datastax.oss</groupId>
   <artifactId>pulsar-jms-parent</artifactId>
   <packaging>pom</packaging>
-  <version>4.0.2-SNAPSHOT</version>
+  <version>4.1.0-alpha</version>
   <name>DataStax Starlight for JMS</name>
   <description>Implementation of the Java Messaging Service Client API around Apache Pulsar Java Client</description>
   <url>https://github.com/datastax/pulsar-jms</url>
@@ -327,9 +327,7 @@ limitations under the License.]]></inlineHeader>
             <trimStackTrace>false</trimStackTrace>
             <forkCount>1</forkCount>
             <properties>
-              <configurationParameters>
-                junit.jupiter.execution.timeout.test.method.default = 300
-              </configurationParameters>
+              <configurationParameters>junit.jupiter.execution.timeout.test.method.default = 300</configurationParameters>
             </properties>
           </configuration>
         </plugin>
@@ -440,7 +438,7 @@ limitations under the License.]]></inlineHeader>
     <connection>scm:git:git@github.com:datastax/pulsar-jms.git</connection>
     <developerConnection>scm:git:git@github.com:datastax/pulsar-jms.git</developerConnection>
     <url>https://github.com/datastax/pulsar-jms</url>
-    <tag>HEAD</tag>
+    <tag>4.1.0-alpha</tag>
   </scm>
   <developers>
     <developer>
