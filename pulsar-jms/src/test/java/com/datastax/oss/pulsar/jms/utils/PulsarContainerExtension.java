@@ -72,7 +72,7 @@ public class PulsarContainerExtension implements BeforeAllCallback, AfterAllCall
             .withNetwork(network)
             .withEnv(env)
             .withLogConsumer(
-                outputFrame -> log.debug("pulsar> {}", outputFrame.getUtf8String().trim()))
+                outputFrame -> log.info("pulsar> {}", outputFrame.getUtf8String().trim()))
             .withCopyFileToContainer(
                 MountableFile.forHostPath("target/classes/filters"), "/pulsar/filters");
     // start Pulsar and wait for it to be ready to accept requests
