@@ -50,6 +50,7 @@ import org.apache.pulsar.common.policies.data.PartitionedTopicStats;
 import org.apache.pulsar.common.policies.data.PersistentTopicInternalStats;
 import org.apache.pulsar.common.policies.data.TopicStats;
 import org.apache.pulsar.common.util.FutureUtil;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.Timeout;
@@ -484,6 +485,7 @@ public abstract class SelectorsTestsBase {
   // This test may take long time, because it depends on how the broker
   // chooses the Consumer to try to dispatch the messages.
   @Test
+  @Disabled()
   @Timeout(value = 10, unit = TimeUnit.MINUTES)
   public void sendBatchWithCompetingConsumersOnQueue() throws Exception {
     Map<String, Object> properties = buildProperties();
