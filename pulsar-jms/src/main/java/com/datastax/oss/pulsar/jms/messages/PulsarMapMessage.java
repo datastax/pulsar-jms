@@ -17,6 +17,7 @@ package com.datastax.oss.pulsar.jms.messages;
 
 import com.datastax.oss.pulsar.jms.PulsarMessage;
 import com.datastax.oss.pulsar.jms.Utils;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.ObjectInputStream;
@@ -31,6 +32,7 @@ import javax.jms.MessageFormatException;
 import javax.jms.MessageNotWriteableException;
 import org.apache.pulsar.client.api.TypedMessageBuilder;
 
+@SuppressFBWarnings({"EI_EXPOSE_REP2", "EI_EXPOSE_REP"})
 public final class PulsarMapMessage extends PulsarMessage implements MapMessage {
 
   private final Map<String, Object> map = new HashMap<>();

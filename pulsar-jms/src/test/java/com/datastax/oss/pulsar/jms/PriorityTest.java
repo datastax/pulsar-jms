@@ -22,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import com.datastax.oss.pulsar.jms.utils.PulsarContainerExtension;
 import com.google.common.collect.ImmutableMap;
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashSet;
@@ -29,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -36,11 +38,13 @@ import java.util.stream.Stream;
 import javax.jms.*;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.pulsar.client.impl.ConsumerBase;
 import org.apache.pulsar.common.policies.data.PartitionedTopicStats;
 import org.apache.pulsar.common.policies.data.PersistentTopicInternalStats;
 import org.apache.pulsar.common.policies.data.TenantInfo;
 import org.apache.pulsar.common.util.FutureUtil;
 import org.apache.pulsar.common.util.ObjectMapperFactory;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -323,12 +327,13 @@ public class PriorityTest {
     for (int priority : received) {
 
       if (priority == LOW_PRIORITY && foundHighPriority) {
-        log.info("received priority {} after {}", priority, count);
+        log.info(
+            "received priority {} (low) after {} messages and one high priority", priority, count);
         foundLowPriorityAfterHighPriority = true;
         break;
       }
       if (priority == HIGH_PRIORITY) {
-        log.info("received priority {} after {}", priority, count);
+        log.info("received priority {} (high) after {} messages", priority, count);
         foundHighPriority = true;
       }
       count++;
@@ -475,6 +480,101 @@ public class PriorityTest {
           // no more messages
           assertNull(consumer1.receiveNoWait());
           verifyOrder(received);
+        }
+      }
+    }
+  }
+
+  @ParameterizedTest(name = "mapping {0}")
+  @ValueSource(strings = {"linear", "non-linear"})
+  public void testConsumerPriorityQueue(String mapping) throws Exception {
+
+    final int numMessages = 500;
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
+    properties.put("jms.enableJMSPriority", true);
+    properties.put("jms.priorityMapping", mapping);
+    properties.put(
+        "producerConfig", ImmutableMap.of("blockIfQueueFull", true, "batchingEnabled", false));
+    properties.put("consumerConfig", ImmutableMap.of("receiverQueueSize", numMessages));
+    log.info("running testConsumerPriorityQueue with {}", properties);
+
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+      try (Connection connection = factory.createConnection()) {
+        assertTrue(factory.isEnableJMSPriority());
+        assertEquals(mapping.equals("linear"), factory.isPriorityUseLinearMapping());
+        connection.start();
+        try (Session session = connection.createSession(Session.AUTO_ACKNOWLEDGE); ) {
+          Queue destination = session.createQueue("test-" + UUID.randomUUID());
+
+          pulsarContainer.getAdmin()
+              .topics()
+              .createPartitionedTopic(factory.getPulsarTopicName(destination), 10);
+
+          int numHighPriority = 100;
+
+          try (MessageProducer producer = session.createProducer(destination); ) {
+            List<CompletableFuture<?>> handles = new ArrayList<>();
+            for (int i = 0; i < numMessages; i++) {
+              TextMessage textMessage = session.createTextMessage("foo-" + i);
+              if (i < numMessages - numHighPriority) {
+                // the first messages are lower priority
+                producer.setPriority(LOW_PRIORITY);
+              } else {
+                producer.setPriority(HIGH_PRIORITY);
+              }
+
+              CompletableFuture<?> handle = new CompletableFuture<>();
+              producer.send(
+                  textMessage,
+                  new CompletionListener() {
+                    @Override
+                    public void onCompletion(Message message) {
+                      handle.complete(null);
+                    }
+
+                    @Override
+                    public void onException(Message message, Exception e) {
+                      handle.completeExceptionally(e);
+                    }
+                  });
+              handles.add(handle);
+            }
+            FutureUtil.waitForAll(handles).get();
+          }
+
+          try (MessageConsumer consumer1 = session.createConsumer(destination); ) {
+            List<Integer> received = new ArrayList<>();
+
+            for (int i = 0; i < numMessages; i++) {
+              TextMessage msg = (TextMessage) consumer1.receive();
+              if (i == 0) {
+                // await all messages in the consumer receive queue
+                ConsumerBase<?> consumerBase = ((PulsarMessageConsumer) consumer1).getConsumer();
+                Field incomingMessages = ConsumerBase.class.getDeclaredField("incomingMessages");
+                incomingMessages.setAccessible(true);
+                Object queue = incomingMessages.get(consumerBase);
+                Awaitility.await().until(() -> ((BlockingQueue) queue).size() == numMessages - 1);
+              }
+              received.add(msg.getJMSPriority());
+            }
+
+            assertNull(consumer1.receiveNoWait());
+            assertEquals(numMessages, received.size());
+            int firstMessagePriority = 0;
+            for (int i = 0; i < received.size(); i++) {
+              if (i == 0) {
+                firstMessagePriority = received.get(i);
+                continue;
+              }
+              final int lastNHigh =
+                  numHighPriority + (firstMessagePriority == HIGH_PRIORITY ? 0 : 1);
+              if (i < lastNHigh) {
+                assertEquals(HIGH_PRIORITY, received.get(i));
+              } else {
+                assertEquals(LOW_PRIORITY, received.get(i));
+              }
+            }
+          }
         }
       }
     }
