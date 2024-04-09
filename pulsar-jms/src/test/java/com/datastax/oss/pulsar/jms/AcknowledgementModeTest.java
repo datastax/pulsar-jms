@@ -20,8 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
-import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
-import java.nio.file.Path;
+import com.datastax.oss.pulsar.jms.utils.PulsarContainerExtension;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -38,36 +37,20 @@ import javax.jms.Session;
 import javax.jms.TextMessage;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.impl.BatchMessageIdImpl;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
-import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
 @Timeout(30)
 @Slf4j
 public class AcknowledgementModeTest {
 
-  @TempDir public static Path tempDir;
-  private static PulsarCluster cluster;
-
-  @BeforeAll
-  public static void before() throws Exception {
-    cluster = new PulsarCluster(tempDir);
-    cluster.start();
-  }
-
-  @AfterAll
-  public static void after() throws Exception {
-    if (cluster != null) {
-      cluster.close();
-    }
-  }
+  @RegisterExtension
+  static PulsarContainerExtension pulsarContainer = new PulsarContainerExtension();
 
   @Test
   public void testAUTO_ACKNOWLEDGE() throws Exception {
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
         connection.start();
@@ -97,8 +80,7 @@ public class AcknowledgementModeTest {
 
   @Test
   public void testAUTO_ACKNOWLEDGE_ackReceipt() throws Exception {
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     Map<String, Object> consumerConfig = new HashMap<>();
     consumerConfig.put("ackReceiptEnabled", true);
     properties.put("consumerConfig", consumerConfig);
@@ -145,8 +127,7 @@ public class AcknowledgementModeTest {
 
   @Test
   public void testADUPS_OK_ACKNOWLEDGE() throws Exception {
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
         connection.start();
@@ -176,8 +157,7 @@ public class AcknowledgementModeTest {
 
   @Test()
   public void testACLIENT_ACKNOWLEDGE() throws Exception {
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
         connection.start();
@@ -225,8 +205,7 @@ public class AcknowledgementModeTest {
 
   @Test
   public void testINDIVIDUAL_ACKNOWLEDGE() throws Exception {
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
         connection.start();
@@ -290,8 +269,7 @@ public class AcknowledgementModeTest {
 
   private void testINDIVIDUAL_ACKNOWLEDGEWithBatching(boolean batchIndexAckEnabled)
       throws Exception {
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     Map<String, Object> producerConfig = new HashMap<>();
     producerConfig.put("batchingEnabled", "true");
     producerConfig.put("batchingMaxPublishDelayMicros", "1000000");
@@ -403,8 +381,7 @@ public class AcknowledgementModeTest {
 
   @Test
   public void testAutoNackWrongType() throws Exception {
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (JMSContext session = factory.createContext()) {
         Queue destination =

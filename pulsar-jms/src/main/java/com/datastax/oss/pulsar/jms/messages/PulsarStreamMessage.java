@@ -403,6 +403,7 @@ public final class PulsarStreamMessage extends PulsarMessage implements StreamMe
    * @throws MessageFormatException if this type conversion is invalid
    * @throws MessageNotReadableException if the message is in write-only mode.
    */
+  @SuppressFBWarnings("DCN_NULLPOINTER_EXCEPTION")
   public char readChar() throws JMSException {
     checkReadable();
     try {

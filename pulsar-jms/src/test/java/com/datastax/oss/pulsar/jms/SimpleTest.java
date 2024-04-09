@@ -22,15 +22,13 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
-import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
+import com.datastax.oss.pulsar.jms.utils.PulsarContainerExtension;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.EOFException;
 import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.UUID;
@@ -55,36 +53,20 @@ import javax.jms.Queue;
 import javax.jms.Session;
 import javax.jms.StreamMessage;
 import javax.jms.TextMessage;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
-import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
 @Timeout(value = 1, unit = TimeUnit.MINUTES)
 public class SimpleTest {
 
-  @TempDir public static Path tempDir;
-  private static PulsarCluster cluster;
-
-  @BeforeAll
-  public static void before() throws Exception {
-    cluster = new PulsarCluster(tempDir);
-    cluster.start();
-  }
-
-  @AfterAll
-  public static void after() throws Exception {
-    if (cluster != null) {
-      cluster.close();
-    }
-  }
+  @RegisterExtension
+  static PulsarContainerExtension pulsarContainer = new PulsarContainerExtension();
 
   @Test
   public void sendMessageTest() throws Exception {
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
         try (Session session = connection.createSession(); ) {
@@ -145,8 +127,7 @@ public class SimpleTest {
   @Test
   public void sendMessageTestJMSContext() throws Exception {
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (JMSContext context = factory.createContext()) {
         Destination destination =
@@ -214,8 +195,8 @@ public class SimpleTest {
   @Test
   public void sendMessageReceive() throws Exception {
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
+
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
         connection.start();
@@ -303,8 +284,7 @@ public class SimpleTest {
   @Test
   public void sendMessageReceiveJMSContext() throws Exception {
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (JMSContext context = factory.createContext()) {
         Destination destination =
@@ -361,8 +341,7 @@ public class SimpleTest {
   @Test
   public void sendMessageReceiveJMSContext2ìMultipleTimes() throws Exception {
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (JMSContext context = factory.createContext()) {
         Destination destination =
@@ -406,8 +385,7 @@ public class SimpleTest {
   @Test
   public void sendMessageTestWithDeliveryDelayJMSContext() throws Exception {
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (JMSContext context = factory.createContext()) {
         Queue destination =
@@ -430,8 +408,7 @@ public class SimpleTest {
   @Test
   public void createSubContextTest() throws Exception {
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (JMSContext context = factory.createContext()) {
         context.createContext(JMSContext.AUTO_ACKNOWLEDGE).close();
@@ -444,8 +421,7 @@ public class SimpleTest {
   @Test
   public void tckTest() throws Exception {
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (JMSContext context = factory.createContext(JMSContext.AUTO_ACKNOWLEDGE)) {
         Destination destination =
@@ -534,8 +510,7 @@ public class SimpleTest {
 
   @Test
   public void tckUsernamePasswordTest() throws Exception {
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     properties.put("jms.tckUsername", "bob");
     properties.put("jms.tckPassword", "shhhh");
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
@@ -586,8 +561,7 @@ public class SimpleTest {
   public void systemNameSpaceTest() throws Exception {
 
     String simpleName = "test-" + UUID.randomUUID().toString();
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     properties.put("jms.systemNamespace", "pulsar/system");
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (PulsarConnection connection = factory.createConnection()) {

@@ -19,9 +19,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
+import com.datastax.oss.pulsar.jms.utils.PulsarContainerExtension;
 import com.google.common.collect.ImmutableMap;
-import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -34,40 +33,21 @@ import javax.jms.Queue;
 import javax.jms.Session;
 import javax.jms.Topic;
 import lombok.extern.slf4j.Slf4j;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
 @Slf4j
 public class OverrideConsumerConfigurationTest {
 
-  @TempDir public static Path tempDir;
-  private static PulsarCluster cluster;
-
-  @BeforeAll
-  public static void before() throws Exception {
-    cluster =
-        new PulsarCluster(
-            tempDir,
-            (config) -> {
-              config.setTransactionCoordinatorEnabled(false);
-            });
-    cluster.start();
-  }
-
-  @AfterAll
-  public static void after() throws Exception {
-    if (cluster != null) {
-      cluster.close();
-    }
-  }
+  @RegisterExtension
+  static PulsarContainerExtension pulsarContainer =
+      new PulsarContainerExtension()
+          .withEnv("PULSAR_PREFIX_transactionCoordinatorEnabled", "false");
 
   @Test
   public void overrideDQLConfigurationWithJMSContext() throws Exception {
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties);
         PulsarJMSContext primaryContext =
             (PulsarJMSContext) factory.createContext(JMSContext.CLIENT_ACKNOWLEDGE)) {
@@ -119,8 +99,7 @@ public class OverrideConsumerConfigurationTest {
   @Test
   public void overrideDQLConfigurationWithSession() throws Exception {
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties);
         PulsarConnection connection = factory.createConnection();
         PulsarSession primarySession = connection.createSession(Session.CLIENT_ACKNOWLEDGE)) {

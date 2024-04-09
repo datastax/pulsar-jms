@@ -31,7 +31,6 @@ import com.datastax.oss.pulsar.jms.shaded.com.fasterxml.jackson.databind.ObjectM
 import com.datastax.oss.pulsar.jms.shaded.org.apache.pulsar.client.impl.auth.AuthenticationToken;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import javax.jms.Connection;
