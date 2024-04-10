@@ -506,7 +506,8 @@ public class PriorityTest {
         try (Session session = connection.createSession(Session.AUTO_ACKNOWLEDGE); ) {
           Queue destination = session.createQueue("test-" + UUID.randomUUID());
 
-          pulsarContainer.getAdmin()
+          pulsarContainer
+              .getAdmin()
               .topics()
               .createPartitionedTopic(factory.getPulsarTopicName(destination), 10);
 
@@ -573,6 +574,93 @@ public class PriorityTest {
               } else {
                 assertEquals(LOW_PRIORITY, received.get(i));
               }
+            }
+          }
+        }
+      }
+    }
+  }
+
+
+
+  @ParameterizedTest(name = "mapping {0}")
+  @ValueSource(strings = {"linear", "non-linear"})
+  public void testStaleMessages(String mapping) throws Exception {
+
+    final int numMessages = 500;
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
+    properties.put("jms.enableJMSPriority", true);
+    properties.put("jms.priorityMapping", mapping);
+    properties.put(
+            "producerConfig", ImmutableMap.of("blockIfQueueFull", true, "batchingEnabled", false));
+    properties.put("consumerConfig", ImmutableMap.of("receiverQueueSize", numMessages));
+    log.info("running testConsumerPriorityQueue with {}", properties);
+
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+      try (Connection connection = factory.createConnection()) {
+        assertTrue(factory.isEnableJMSPriority());
+        assertEquals(mapping.equals("linear"), factory.isPriorityUseLinearMapping());
+        connection.start();
+        try (Session session = connection.createSession(Session.AUTO_ACKNOWLEDGE); ) {
+          Queue destination = session.createQueue("test-" + UUID.randomUUID());
+          pulsarContainer
+                  .getAdmin()
+                  .topics()
+                  .createPartitionedTopic(factory.getPulsarTopicName(destination), 10);
+
+          int numHighPriority = 100;
+
+          try (MessageProducer producer = session.createProducer(destination); ) {
+            List<CompletableFuture<?>> handles = new ArrayList<>();
+            for (int i = 0; i < numMessages; i++) {
+              TextMessage textMessage = session.createTextMessage("foo-" + i);
+              if (i < numMessages - numHighPriority) {
+                // the first messages are lower priority
+                producer.setPriority(LOW_PRIORITY);
+              } else {
+                producer.setPriority(HIGH_PRIORITY);
+              }
+
+              CompletableFuture<?> handle = new CompletableFuture<>();
+              producer.send(
+                      textMessage,
+                      new CompletionListener() {
+                        @Override
+                        public void onCompletion(Message message) {
+                          handle.complete(null);
+                        }
+
+                        @Override
+                        public void onException(Message message, Exception e) {
+                          handle.completeExceptionally(e);
+                        }
+                      });
+              handles.add(handle);
+            }
+            FutureUtil.waitForAll(handles).get();
+          }
+
+          try (MessageConsumer consumer1 = session.createConsumer(destination); ) {
+            List<Integer> received = new ArrayList<>();
+
+            for (int i = 0; i < numMessages; i++) {
+              TextMessage msg = (TextMessage) consumer1.receive();
+              if (i == 0) {
+                // await all messages in the consumer receive queue
+                ConsumerBase<?> consumerBase = ((PulsarMessageConsumer) consumer1).getConsumer();
+                Field incomingMessages = ConsumerBase.class.getDeclaredField("incomingMessages");
+                incomingMessages.setAccessible(true);
+                Object queue = incomingMessages.get(consumerBase);
+                Awaitility.await().until(() -> ((BlockingQueue) queue).size() == numMessages - 1);
+              }
+              received.add(msg.getJMSPriority());
+              Thread.sleep(11_000);
+              ConsumerBase<?> consumerBase = ((PulsarMessageConsumer) consumer1).getConsumer();
+              Field incomingMessages = ConsumerBase.class.getDeclaredField("incomingMessages");
+              incomingMessages.setAccessible(true);
+              Object queue = incomingMessages.get(consumerBase);
+              assertTrue(((BlockingQueue) queue).size() < numMessages);
+              break;
             }
           }
         }

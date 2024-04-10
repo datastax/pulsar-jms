@@ -16,12 +16,16 @@
 package com.datastax.oss.pulsar.jms;
 
 import com.datastax.oss.pulsar.jms.selectors.SelectorSupport;
+
+import java.lang.reflect.Field;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -45,6 +49,7 @@ import org.apache.pulsar.client.api.SubscriptionMode;
 import org.apache.pulsar.client.api.SubscriptionType;
 import org.apache.pulsar.client.impl.BatchMessageIdImpl;
 import org.apache.pulsar.client.impl.ConsumerBase;
+import org.apache.pulsar.client.impl.PulsarClientImpl;
 
 @Slf4j
 public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, QueueReceiver {
@@ -57,6 +62,8 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
   private final boolean useServerSideFiltering;
   private final boolean noLocal;
   private ConsumerBase<?> consumer;
+
+  private ScheduledFuture<?> staleMessagesChecker;
   private MessageListener listener;
   private final SubscriptionMode subscriptionMode;
   private final SubscriptionType subscriptionType;
@@ -150,6 +157,21 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
                   currentSelector,
                   noLocal,
                   session);
+
+      Object consumerQueue = PulsarConnectionFactory.extractConsumerIncomingMessagesQueue(consumer);
+      if (consumerQueue instanceof MessagePriorityGrowableArrayBlockingQueue) {
+        PulsarClientImpl pulsarClientImpl = (PulsarClientImpl) session.getConnection().getFactory().getPulsarClient();
+        ScheduledExecutorService timer =
+                (ScheduledExecutorService) pulsarClientImpl.getScheduledExecutorProvider().getExecutor();
+        staleMessagesChecker = timer.scheduleWithFixedDelay(
+                new MessagePriorityGrowableArrayBlockingQueue.StaleMessagesChecker(
+                        (MessagePriorityGrowableArrayBlockingQueue) consumerQueue,
+                        consumer
+                ),
+                10,
+                10,
+                TimeUnit.SECONDS);
+      }
     }
     return consumer;
   }
@@ -562,6 +584,9 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
     Consumer<?> consumer = getInternalConsumer();
     if (consumer == null) {
       return;
+    }
+    if (staleMessagesChecker != null) {
+      staleMessagesChecker.cancel(true);
     }
     if (!session.isTransactionStarted()) {
       session.executeCriticalOperation(

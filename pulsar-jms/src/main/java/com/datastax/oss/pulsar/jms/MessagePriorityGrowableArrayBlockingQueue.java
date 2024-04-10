@@ -20,17 +20,68 @@ import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.api.Message;
 import org.apache.pulsar.common.util.collections.GrowableArrayBlockingQueue;
 
+import javax.annotation.security.RunAs;
+
+@Slf4j
 public class MessagePriorityGrowableArrayBlockingQueue extends GrowableArrayBlockingQueue<Message> {
+
+  @AllArgsConstructor
+  static class StaleMessagesChecker implements Runnable {
+    private final MessagePriorityGrowableArrayBlockingQueue queue;
+    private final org.apache.pulsar.client.api.Consumer consumer;
+
+    @Override
+    public void run() {
+      try {
+        long now = System.currentTimeMillis();
+        long expireBefore = now - TimeUnit.SECONDS.toMillis(10);
+        List<MessageInfo> removed = new ArrayList<>();
+        queue.queue.forEach((info) -> {
+          if (info.insertTs <= expireBefore) {
+            removed.add(info);
+          }
+        });
+        queue.queue.removeAll(removed);
+        for (MessageInfo messageInfo : removed) {
+
+          try {
+            // this operation shouldn't fail because we're simply adding it to the nack backlog
+            // but it's better to be conservative
+            consumer.negativeAcknowledge(messageInfo.message);
+            log.info("Message {} was stale (spent {} seconds in the queue)", messageInfo.message, (now - messageInfo.insertTs) / 1000);
+          } catch (Throwable ex) {
+            log.error("Failed to append message to nack queue", ex);
+            queue.add(messageInfo.message);
+          }
+        }
+      } catch (Throwable ex) {
+        log.error("Failed to detect stale messages for consumer {}", consumer, ex);
+      }
+    }
+  }
+
+  @Data
+  @AllArgsConstructor
+  static final class MessageInfo {
+    Message message;
+    long insertTs;
+  }
+
 
   static int getPriority(Message m) {
     Integer priority = PulsarMessage.readJMSPriority(m);
     return priority == null ? PulsarMessage.DEFAULT_PRIORITY : priority;
   }
 
-  private final PriorityBlockingQueue<Message> queue;
+  private final PriorityBlockingQueue<MessageInfo> queue;
   private final AtomicBoolean terminated = new AtomicBoolean(false);
 
   public MessagePriorityGrowableArrayBlockingQueue() {
@@ -41,11 +92,11 @@ public class MessagePriorityGrowableArrayBlockingQueue extends GrowableArrayBloc
     queue =
         new PriorityBlockingQueue<>(
             initialCapacity,
-            new Comparator<Message>() {
+            new Comparator<MessageInfo>() {
               @Override
-              public int compare(Message o1, Message o2) {
-                int priority1 = getPriority(o1);
-                int priority2 = getPriority(o2);
+              public int compare(MessageInfo o1, MessageInfo o2) {
+                int priority1 = getPriority(o1.message);
+                int priority2 = getPriority(o2.message);
                 return Integer.compare(priority2, priority1);
               }
             });
@@ -53,52 +104,62 @@ public class MessagePriorityGrowableArrayBlockingQueue extends GrowableArrayBloc
 
   @Override
   public Message remove() {
-    return queue.remove();
+    return toMessage(queue.remove());
+  }
+
+  private static Message toMessage(MessageInfo info) {
+    if (info == null) {
+      return null;
+    }
+    return info.message;
+  }
+  private static MessageInfo newInfo(Message msg) {
+    return new MessageInfo(msg, System.currentTimeMillis());
   }
 
   @Override
   public Message poll() {
-    return queue.poll();
+    return toMessage(queue.poll());
   }
 
   @Override
   public Message element() {
-    return queue.element();
+    return toMessage(queue.element());
   }
 
   @Override
   public Message peek() {
-    return queue.peek();
+    return toMessage(queue.peek());
   }
 
   @Override
   public boolean offer(Message e) {
-    return queue.offer(e);
+    return queue.offer(newInfo(e));
   }
 
   @Override
   public void put(Message e) {
-    queue.put(e);
+    queue.put(newInfo(e));
   }
 
   @Override
   public boolean add(Message e) {
-    return queue.add(e);
+    return queue.add(newInfo(e));
   }
 
   @Override
   public boolean offer(Message e, long timeout, TimeUnit unit) {
-    return queue.offer(e, timeout, unit);
+    return queue.offer(newInfo(e), timeout, unit);
   }
 
   @Override
   public Message take() throws InterruptedException {
-    return queue.take();
+    return toMessage(queue.take());
   }
 
   @Override
   public Message poll(long timeout, TimeUnit unit) throws InterruptedException {
-    return queue.poll(timeout, unit);
+    return toMessage(queue.poll(timeout, unit));
   }
 
   @Override
@@ -108,12 +169,12 @@ public class MessagePriorityGrowableArrayBlockingQueue extends GrowableArrayBloc
 
   @Override
   public int drainTo(Collection<? super Message> c) {
-    return queue.drainTo(c);
+    return queue.drainTo(c.stream().map(msg -> newInfo((Message) msg)).collect(Collectors.toList()));
   }
 
   @Override
   public int drainTo(Collection<? super Message> c, int maxElements) {
-    return queue.drainTo(c, maxElements);
+    return queue.drainTo(c.stream().map(msg -> newInfo((Message) msg)).collect(Collectors.toList()), maxElements);
   }
 
   @Override
@@ -133,7 +194,18 @@ public class MessagePriorityGrowableArrayBlockingQueue extends GrowableArrayBloc
 
   @Override
   public Iterator<Message> iterator() {
-    return queue.iterator();
+    Iterator<MessageInfo> iterator = queue.iterator();
+    return new Iterator<Message>() {
+      @Override
+      public boolean hasNext() {
+        return iterator.hasNext();
+      }
+
+      @Override
+      public Message next() {
+        return iterator.next().message;
+      }
+    };
   }
 
   @Override
@@ -145,7 +217,7 @@ public class MessagePriorityGrowableArrayBlockingQueue extends GrowableArrayBloc
 
   @Override
   public void forEach(Consumer<? super Message> action) {
-    queue.forEach(action);
+    queue.forEach(messageInfo -> action.accept(messageInfo.message));
   }
 
   @Override

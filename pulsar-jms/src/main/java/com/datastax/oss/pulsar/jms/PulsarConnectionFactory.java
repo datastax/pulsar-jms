@@ -1334,9 +1334,7 @@ public class PulsarConnectionFactory
   private static void replaceIncomingMessageList(Consumer c) {
     try {
       ConsumerBase consumerBase = (ConsumerBase) c;
-      Field incomingMessages = ConsumerBase.class.getDeclaredField("incomingMessages");
-      incomingMessages.setAccessible(true);
-
+      Field incomingMessages = readConsumerIncomingMessagesPrivateField();
       Object oldQueue = incomingMessages.get(consumerBase);
       BlockingQueue<Message> newQueue;
       if (oldQueue.getClass().isAssignableFrom(PriorityBlockingQueue.class)) {
@@ -1373,6 +1371,22 @@ public class PulsarConnectionFactory
     } catch (Exception err) {
       throw new RuntimeException(err);
     }
+  }
+
+  public static Object extractConsumerIncomingMessagesQueue(Consumer c) {
+    try {
+      Field field = PulsarConnectionFactory.readConsumerIncomingMessagesPrivateField();
+      ConsumerBase consumerBase = (ConsumerBase) c;
+      return field.get(c);
+    } catch (NoSuchFieldException | IllegalAccessException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  private static Field readConsumerIncomingMessagesPrivateField() throws NoSuchFieldException {
+    Field incomingMessages = ConsumerBase.class.getDeclaredField("incomingMessages");
+    incomingMessages.setAccessible(true);
+    return incomingMessages;
   }
 
   public String downloadServerSideFilter(
