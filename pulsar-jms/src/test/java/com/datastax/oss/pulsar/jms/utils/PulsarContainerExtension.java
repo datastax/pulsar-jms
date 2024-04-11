@@ -35,7 +35,7 @@ import org.testcontainers.utility.MountableFile;
 
 @Slf4j
 public class PulsarContainerExtension implements BeforeAllCallback, AfterAllCallback {
-  public static final String PULSAR_IMAGE = "apachepulsar/pulsar:3.0.0";
+  public static final String PULSAR_IMAGE = "datastax/lunastreaming:3.1_3.1";
   private PulsarContainer pulsarContainer;
   private Consumer<PulsarContainerExtension> onContainerReady;
   private Map<String, String> env = new HashMap<>();
@@ -43,6 +43,7 @@ public class PulsarContainerExtension implements BeforeAllCallback, AfterAllCall
   private Network network;
 
   private PulsarAdmin admin;
+  private boolean logContainerOutput = false;
 
   public PulsarContainerExtension() {
     env.put("PULSAR_PREFIX_acknowledgmentAtBatchIndexLevelEnabled", "true");
@@ -72,8 +73,11 @@ public class PulsarContainerExtension implements BeforeAllCallback, AfterAllCall
   public void beforeAll(ExtensionContext extensionContext) {
     network = Network.newNetwork();
     CountDownLatch pulsarReady = new CountDownLatch(1);
+    log.info("ENV: {}", env);
     pulsarContainer =
-        new PulsarContainer(DockerImageName.parse(PULSAR_IMAGE))
+        new PulsarContainer(
+                DockerImageName.parse(PULSAR_IMAGE)
+                    .asCompatibleSubstituteFor("apachepulsar/pulsar"))
             .withNetwork(network)
             .withEnv(env)
             .withLogConsumer(
@@ -82,10 +86,16 @@ public class PulsarContainerExtension implements BeforeAllCallback, AfterAllCall
                   if (text.contains("messaging service is ready")) {
                     pulsarReady.countDown();
                   }
-                  log.debug(text);
+                  if (logContainerOutput) {
+                    log.info(text);
+                  } else {
+                    log.debug(text);
+                  }
                 })
             .withCopyFileToContainer(
-                MountableFile.forHostPath("target/classes/filters"), "/pulsar/filters");
+                MountableFile.forHostPath("target/classes/filters"), "/pulsar/filters")
+            .withCopyFileToContainer(
+                MountableFile.forHostPath("target/classes/interceptors"), "/pulsar/interceptors");
     // start Pulsar and wait for it to be ready to accept requests
     pulsarContainer.start();
     assertTrue(pulsarReady.await(1, TimeUnit.MINUTES));
@@ -101,6 +111,11 @@ public class PulsarContainerExtension implements BeforeAllCallback, AfterAllCall
   public PulsarContainerExtension withOnContainerReady(
       Consumer<PulsarContainerExtension> onContainerReady) {
     this.onContainerReady = onContainerReady;
+    return this;
+  }
+
+  public PulsarContainerExtension withLogContainerOutput(boolean logContainerOutput) {
+    this.logContainerOutput = logContainerOutput;
     return this;
   }
 
