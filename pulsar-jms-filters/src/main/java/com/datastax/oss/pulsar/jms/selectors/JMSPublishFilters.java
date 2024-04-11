@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import javax.servlet.ServletException;
 import javax.servlet.ServletRequest;
@@ -35,6 +36,7 @@ import org.apache.pulsar.broker.service.ServerCnx;
 import org.apache.pulsar.broker.service.Subscription;
 import org.apache.pulsar.broker.service.Topic;
 import org.apache.pulsar.broker.service.persistent.PersistentDispatcherMultipleConsumers;
+import org.apache.pulsar.broker.service.persistent.PersistentDispatcherSingleActiveConsumer;
 import org.apache.pulsar.broker.service.persistent.PersistentSubscription;
 import org.apache.pulsar.broker.service.plugin.EntryFilter;
 import org.apache.pulsar.broker.service.plugin.FilterContext;
@@ -50,19 +52,28 @@ public class JMSPublishFilters implements BrokerInterceptor {
   private final JMSFilter filter = new JMSFilter();
   private boolean enabled = false;
 
-  private static final Field dispatchMessagesThreadField;
+  private static final Field dispatchMessagesThreadFieldPersistentDispatcherMultipleConsumers;
+  private static final Field dispatchMessagesThreadFieldPersistentDispatcherSingleActiveConsumer;
 
   static {
-    Field field = null;
+    Field fieldPersistentDispatcherMultipleConsumers = null;
+    Field fieldPersistentDispatcherSingleActiveConsumer = null;
     try {
-      // TODO: handle PersistentDispatcherSingleActiveConsumer as well
-      field =
+      fieldPersistentDispatcherMultipleConsumers =
           PersistentDispatcherMultipleConsumers.class.getDeclaredField("dispatchMessagesThread");
-      field.setAccessible(true);
+      fieldPersistentDispatcherMultipleConsumers.setAccessible(true);
+
+      fieldPersistentDispatcherSingleActiveConsumer =
+          PersistentDispatcherSingleActiveConsumer.class.getDeclaredField("executor");
+      fieldPersistentDispatcherSingleActiveConsumer.setAccessible(true);
+
     } catch (NoSuchFieldException e) {
-      log.error("Cannot access PersistentDispatcherMultipleConsumers thread field: " + e);
+      log.error("Cannot access thread field: " + e);
     }
-    dispatchMessagesThreadField = field;
+    dispatchMessagesThreadFieldPersistentDispatcherMultipleConsumers =
+        fieldPersistentDispatcherMultipleConsumers;
+    dispatchMessagesThreadFieldPersistentDispatcherSingleActiveConsumer =
+        fieldPersistentDispatcherSingleActiveConsumer;
   }
 
   @Override
@@ -166,9 +177,19 @@ public class JMSPublishFilters implements BrokerInterceptor {
       Dispatcher dispatcher = subscription.getDispatcher();
       if (dispatcher instanceof PersistentDispatcherMultipleConsumers) {
         ExecutorService singleThreadExecutor =
-            (ExecutorService) dispatchMessagesThreadField.get(dispatcher);
+            (ExecutorService)
+                dispatchMessagesThreadFieldPersistentDispatcherMultipleConsumers.get(dispatcher);
         if (singleThreadExecutor != null) {
           singleThreadExecutor.submit(runnable);
+          return;
+        }
+      }
+      if (dispatcher instanceof PersistentDispatcherSingleActiveConsumer) {
+        Executor singleThreadExecutor =
+            (Executor)
+                dispatchMessagesThreadFieldPersistentDispatcherSingleActiveConsumer.get(dispatcher);
+        if (singleThreadExecutor != null) {
+          singleThreadExecutor.execute(runnable);
           return;
         }
       }
