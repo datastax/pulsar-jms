@@ -65,24 +65,24 @@ public class PulsarContainer implements AutoCloseable {
     CountDownLatch pulsarReady = new CountDownLatch(1);
 
     pulsarContainer =
-            new GenericContainer<>(dockerImageVersion)
-                    .withExposedPorts(BROKER_PORT, BROKER_HTTP_PORT)
-                    .withCommand("bin/pulsar", "standalone", "--no-functions-worker", "-nss")
-                    .withLogConsumer(
-                            (f) -> {
-                              String text = f.getUtf8String().trim();
-                              if (text.contains("messaging service is ready")) {
-                                pulsarReady.countDown();
-                              }
-                              System.out.println(text);
-                            });
+        new GenericContainer<>(dockerImageVersion)
+            .withExposedPorts(BROKER_PORT, BROKER_HTTP_PORT)
+            .withCommand("bin/pulsar", "standalone", "--no-functions-worker", "-nss")
+            .withLogConsumer(
+                (f) -> {
+                  String text = f.getUtf8String().trim();
+                  if (text.contains("messaging service is ready")) {
+                    pulsarReady.countDown();
+                  }
+                  System.out.println(text);
+                });
 
     String filename = "/standalone.conf";
     String content =
-            new BufferedReader(
-                    new InputStreamReader(PulsarContainer.class.getResourceAsStream(filename)))
-                    .lines()
-                    .collect(Collectors.joining("\n"));
+        new BufferedReader(
+                new InputStreamReader(PulsarContainer.class.getResourceAsStream(filename)))
+            .lines()
+            .collect(Collectors.joining("\n"));
     if (transactions) {
       content = content + "\ntransactionCoordinatorEnabled=true\n";
     }
@@ -99,64 +99,67 @@ public class PulsarContainer implements AutoCloseable {
     Files.write(tmpFile, content.getBytes(StandardCharsets.UTF_8));
 
     pulsarContainer.withFileSystemBind(
-            tmpFile.toFile().getAbsolutePath(), "/pulsar/conf/standalone.conf", BindMode.READ_ONLY);
+        tmpFile.toFile().getAbsolutePath(), "/pulsar/conf/standalone.conf", BindMode.READ_ONLY);
 
     pulsarContainer.withClasspathResourceMapping(
-            "secret-key.key", "/pulsar/conf/secret-key.key", BindMode.READ_ONLY);
+        "secret-key.key", "/pulsar/conf/secret-key.key", BindMode.READ_ONLY);
 
     if (serverSideSelectors) {
       Path files = Paths.get("target/classes/filters");
       // verify that the .nar file has been copied
       assertTrue(
-              Files.list(files).anyMatch(p -> p.getFileName().toString().endsWith(".nar")),
-              "Cannot find the .nar file in " + files.toAbsolutePath());
+          Files.list(files).anyMatch(p -> p.getFileName().toString().endsWith(".nar")),
+          "Cannot find the .nar file in " + files.toAbsolutePath());
       pulsarContainer.withFileSystemBind(
-              "target/classes/filters", "/pulsar/filters", BindMode.READ_ONLY);
+          "target/classes/filters", "/pulsar/filters", BindMode.READ_ONLY);
     }
 
     pulsarContainer.withClasspathResourceMapping(
-            "admin-token.jwt", "/pulsar/conf/admin-token.jwt", BindMode.READ_ONLY);
+        "admin-token.jwt", "/pulsar/conf/admin-token.jwt", BindMode.READ_ONLY);
 
     pulsarContainer.withClasspathResourceMapping(
-            "client.conf", "/pulsar/conf/client.conf", BindMode.READ_ONLY);
+        "client.conf", "/pulsar/conf/client.conf", BindMode.READ_ONLY);
 
     pulsarContainer.start();
 
     assertTrue(pulsarReady.await(1, TimeUnit.MINUTES));
 
     // wait for system to be ready
-    PulsarAdminBuilder pulsarAdminBuilder = PulsarAdmin.builder().serviceHttpUrl(getHttpServiceUrl());
+    PulsarAdminBuilder pulsarAdminBuilder =
+        PulsarAdmin.builder().serviceHttpUrl(getHttpServiceUrl());
     if (enableAuthentication) {
       String token =
-              IOUtils.toString(
-                      DockerTest.class.getResourceAsStream("/token.jwt"), StandardCharsets.UTF_8);
-      pulsarAdminBuilder.authentication(AuthenticationToken.class.getName(), "token:" + token.trim());
+          IOUtils.toString(
+              DockerTest.class.getResourceAsStream("/token.jwt"), StandardCharsets.UTF_8);
+      pulsarAdminBuilder.authentication(
+          AuthenticationToken.class.getName(), "token:" + token.trim());
     }
 
-    try (PulsarAdmin admin = pulsarAdminBuilder.build();) {
-      Awaitility.await().until(() -> {
-        try {
-          List<String> tenants = admin.tenants().getTenants();
-          log.info("tenants={}", tenants);
-          if (!tenants.contains("public")) {
-            return false;
-          }
-          List<String> namespaces = admin.namespaces().getNamespaces("public");
-          log.info("namespaces={}", namespaces);
-          return !namespaces.isEmpty();
-        } catch (Exception error) {
-          log.info("cannot get tenants/namespaces", error);
-          return false;
-        }
-      });
+    try (PulsarAdmin admin = pulsarAdminBuilder.build(); ) {
+      Awaitility.await()
+          .until(
+              () -> {
+                try {
+                  List<String> tenants = admin.tenants().getTenants();
+                  log.info("tenants={}", tenants);
+                  if (!tenants.contains("public")) {
+                    return false;
+                  }
+                  List<String> namespaces = admin.namespaces().getNamespaces("public");
+                  log.info("namespaces={}", namespaces);
+                  return !namespaces.isEmpty();
+                } catch (Exception error) {
+                  log.info("cannot get tenants/namespaces", error);
+                  return false;
+                }
+              });
     }
 
     if (transactions) {
       pulsarContainer.execInContainer(
-              "/pulsar/bin/pulsar", "initialize-transaction-coordinator-metadata");
+          "/pulsar/bin/pulsar", "initialize-transaction-coordinator-metadata");
       Thread.sleep(5000);
     }
-
   }
 
   public String getPulsarBrokerUrl() {
