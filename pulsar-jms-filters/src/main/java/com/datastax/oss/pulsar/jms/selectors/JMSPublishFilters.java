@@ -17,8 +17,10 @@ package com.datastax.oss.pulsar.jms.selectors;
 
 import io.netty.buffer.ByteBuf;
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 import javax.servlet.ServletException;
 import javax.servlet.ServletRequest;
 import javax.servlet.ServletResponse;
@@ -27,9 +29,12 @@ import org.apache.bookkeeper.mledger.Entry;
 import org.apache.bookkeeper.mledger.impl.PositionImpl;
 import org.apache.pulsar.broker.PulsarService;
 import org.apache.pulsar.broker.intercept.BrokerInterceptor;
+import org.apache.pulsar.broker.service.Dispatcher;
 import org.apache.pulsar.broker.service.Producer;
 import org.apache.pulsar.broker.service.ServerCnx;
+import org.apache.pulsar.broker.service.Subscription;
 import org.apache.pulsar.broker.service.Topic;
+import org.apache.pulsar.broker.service.persistent.PersistentDispatcherMultipleConsumers;
 import org.apache.pulsar.broker.service.persistent.PersistentSubscription;
 import org.apache.pulsar.broker.service.plugin.EntryFilter;
 import org.apache.pulsar.broker.service.plugin.FilterContext;
@@ -41,9 +46,24 @@ import org.apache.pulsar.common.protocol.Commands;
 
 @Slf4j
 public class JMSPublishFilters implements BrokerInterceptor {
-  private static final String JMS_FILTERED_PROPERTY = "jms-filtered";
+  private static final String JMS_FILTER_METADATA = "jms-msg-metadata";
   private final JMSFilter filter = new JMSFilter();
   private boolean enabled = false;
+
+  private static final Field dispatchMessagesThreadField;
+
+  static {
+    Field field = null;
+    try {
+      // TODO: handle PersistentDispatcherSingleActiveConsumer as well
+      field =
+          PersistentDispatcherMultipleConsumers.class.getDeclaredField("dispatchMessagesThread");
+      field.setAccessible(true);
+    } catch (NoSuchFieldException e) {
+      log.error("Cannot access PersistentDispatcherMultipleConsumers thread field: " + e);
+    }
+    dispatchMessagesThreadField = field;
+  }
 
   @Override
   public void initialize(PulsarService pulsarService) {
@@ -68,35 +88,27 @@ public class JMSPublishFilters implements BrokerInterceptor {
       return;
     }
 
-    MessageMetadata messageMetadata =
-        Commands.peekMessageMetadata(headersAndPayload, "jms-filter-on-publish", -1);
-    if (messageMetadata.hasNumMessagesInBatch()) {
+    for (Subscription subscription : producer.getTopic().getSubscriptions().values()) {
+      if (!(subscription instanceof PersistentSubscription)) {
+        continue;
+      }
+      Map<String, String> subscriptionProperties = subscription.getSubscriptionProperties();
+      if (!subscriptionProperties.containsKey("jms.selector")) {
+        continue;
+      }
+
+      // we must make a copy because the ByteBuf will be released
+      MessageMetadata messageMetadata =
+          new MessageMetadata()
+              .copyFrom(
+                  Commands.peekMessageMetadata(headersAndPayload, "jms-filter-on-publish", -1));
+
+      publishContext.setProperty(JMS_FILTER_METADATA, messageMetadata);
+      // as soon as we find a good reason to apply the filters in messageProduced
+      // we can exit
       return;
     }
-    producer
-        .getTopic()
-        .getSubscriptions()
-        .forEach(
-            (name, subscription) -> {
-              if (!(subscription instanceof PersistentSubscription)) {
-                return;
-              }
-              Map<String, String> subscriptionProperties = subscription.getSubscriptionProperties();
-              if (!subscriptionProperties.containsKey("jms.selector")) {
-                return;
-              }
-              FilterContext filterContext = new FilterContext();
-              filterContext.setSubscription(subscription);
-              filterContext.setMsgMetadata(messageMetadata);
-              filterContext.setConsumer(null);
-              Entry entry = null; // we would need the Entry only in case of batch messages
-              EntryFilter.FilterResult filterResult = filter.filterEntry(entry, filterContext);
-              if (filterResult == EntryFilter.FilterResult.REJECT) {
-                String property = "filter-result-" + name + "@" + subscription.getTopicName();
-                publishContext.setProperty(property, filterResult);
-                publishContext.setProperty(JMS_FILTERED_PROPERTY, true);
-              }
-            });
+    ;
   }
 
   @Override
@@ -107,29 +119,63 @@ public class JMSPublishFilters implements BrokerInterceptor {
       long ledgerId,
       long entryId,
       Topic.PublishContext publishContext) {
-    if (!enabled || publishContext.getProperty(JMS_FILTERED_PROPERTY) == null) {
+    if (!enabled) {
       return;
     }
-    producer
-        .getTopic()
-        .getSubscriptions()
-        .forEach(
-            (name, subscription) -> {
-              String property = "filter-result-" + name + "@" + subscription.getTopicName();
-              EntryFilter.FilterResult filterResult =
-                  (EntryFilter.FilterResult) publishContext.getProperty(property);
-              if (filterResult == EntryFilter.FilterResult.REJECT) {
-                if (log.isDebugEnabled()) {
-                  log.debug("Reject message {}:{} for subscription {}", ledgerId, entryId, name);
-                }
-                // ir is possible that calling this method in this thread may affect performance
-                // let's keep it simple for now, we can optimize it later
-                subscription.acknowledgeMessage(
-                    Collections.singletonList(new PositionImpl(ledgerId, entryId)),
-                    CommandAck.AckType.Individual,
-                    null);
+    MessageMetadata messageMetadata =
+        (MessageMetadata) publishContext.getProperty(JMS_FILTER_METADATA);
+    if (messageMetadata == null) {
+      return;
+    }
+    if (messageMetadata.hasNumMessagesInBatch()) {
+      return;
+    }
+    for (Subscription subscription : producer.getTopic().getSubscriptions().values()) {
+      scheduleOnDispatchThread(
+          subscription,
+          () -> {
+            FilterContext filterContext = new FilterContext();
+            filterContext.setSubscription(subscription);
+            filterContext.setMsgMetadata(messageMetadata);
+            filterContext.setConsumer(null);
+            Entry entry = null; // we would need the Entry only in case of batch messages
+            EntryFilter.FilterResult filterResult = filter.filterEntry(entry, filterContext);
+            if (filterResult == EntryFilter.FilterResult.REJECT) {
+              if (log.isDebugEnabled()) {
+                log.debug(
+                    "Reject message {}:{} for subscription {}",
+                    ledgerId,
+                    entryId,
+                    subscription.getName());
               }
-            });
+              // ir is possible that calling this method in this thread may affect
+              // performance
+              // let's keep it simple for now, we can optimize it later
+              subscription.acknowledgeMessage(
+                  Collections.singletonList(new PositionImpl(ledgerId, entryId)),
+                  CommandAck.AckType.Individual,
+                  null);
+            }
+          });
+    }
+    ;
+  }
+
+  private static void scheduleOnDispatchThread(Subscription subscription, Runnable runnable) {
+    try {
+      Dispatcher dispatcher = subscription.getDispatcher();
+      if (dispatcher instanceof PersistentDispatcherMultipleConsumers) {
+        ExecutorService singleThreadExecutor =
+            (ExecutorService) dispatchMessagesThreadField.get(dispatcher);
+        if (singleThreadExecutor != null) {
+          singleThreadExecutor.submit(runnable);
+          return;
+        }
+      }
+      runnable.run();
+    } catch (Throwable error) {
+      log.error("Error while scheduling on dispatch thread", error);
+    }
   }
 
   @Override
