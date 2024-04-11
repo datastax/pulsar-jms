@@ -506,7 +506,8 @@ public class PriorityTest {
         try (Session session = connection.createSession(Session.AUTO_ACKNOWLEDGE); ) {
           Queue destination = session.createQueue("test-" + UUID.randomUUID());
 
-          pulsarContainer.getAdmin()
+          pulsarContainer
+              .getAdmin()
               .topics()
               .createPartitionedTopic(factory.getPulsarTopicName(destination), 10);
 

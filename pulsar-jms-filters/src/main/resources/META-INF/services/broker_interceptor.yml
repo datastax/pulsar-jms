@@ -1,0 +1,3 @@
+interceptorClass: com.datastax.oss.pulsar.jms.selectors.WritePathSelectors
+name: jms-write-path-selectors
+description: Starlight for JMS - support for server side filters on the write path
