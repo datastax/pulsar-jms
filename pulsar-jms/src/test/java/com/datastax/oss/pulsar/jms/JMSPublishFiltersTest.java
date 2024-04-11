@@ -35,14 +35,14 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 
 @Slf4j
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-public class WritePathSelectorsTest {
+public class JMSPublishFiltersTest {
 
   @RegisterExtension
   static PulsarContainerExtension pulsarContainer =
       new PulsarContainerExtension()
           .withEnv("PULSAR_PREFIX_transactionCoordinatorEnabled", "false")
           .withEnv("PULSAR_PREFIX_brokerInterceptorsDirectory", "/pulsar/interceptors")
-          .withEnv("PULSAR_PREFIX_brokerInterceptors", "jms-write-path-selectors")
+          .withEnv("PULSAR_PREFIX_brokerInterceptors", "jms-publish-filters")
           .withEnv("PULSAR_LOG_LEVEL", "info");
 
   private Map<String, Object> buildProperties() {
@@ -107,6 +107,18 @@ public class WritePathSelectorsTest {
             assertEquals(subscriptionStats.getFilterProcessedMsgCount(), 1);
             assertEquals(subscriptionStats.getFilterRejectedMsgCount(), 0);
             assertEquals(subscriptionStats.getFilterAcceptedMsgCount(), 1);
+          }
+
+          // create a message that doesn't match the filter
+          // verify that the back log is accurate (0)
+
+          try (MessageProducer producer = session.createProducer(destination); ) {
+            TextMessage textMessage = session.createTextMessage("backlog");
+            producer.send(textMessage);
+
+            TopicStats stats = pulsarContainer.getAdmin().topics().getStats(topicName);
+            SubscriptionStats subscriptionStats = stats.getSubscriptions().get("jms-queue");
+            assertEquals(0, subscriptionStats.getMsgBacklog());
           }
         }
       }

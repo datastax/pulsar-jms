@@ -17,7 +17,7 @@ package com.datastax.oss.pulsar.jms.selectors;
 
 import io.netty.buffer.ByteBuf;
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.Map;
 import javax.servlet.ServletException;
 import javax.servlet.ServletRequest;
@@ -30,56 +30,69 @@ import org.apache.pulsar.broker.intercept.BrokerInterceptor;
 import org.apache.pulsar.broker.service.Producer;
 import org.apache.pulsar.broker.service.ServerCnx;
 import org.apache.pulsar.broker.service.Topic;
+import org.apache.pulsar.broker.service.persistent.PersistentSubscription;
 import org.apache.pulsar.broker.service.plugin.EntryFilter;
 import org.apache.pulsar.broker.service.plugin.FilterContext;
 import org.apache.pulsar.common.api.proto.BaseCommand;
 import org.apache.pulsar.common.api.proto.CommandAck;
-import org.apache.pulsar.common.api.proto.MarkerType;
 import org.apache.pulsar.common.api.proto.MessageMetadata;
 import org.apache.pulsar.common.intercept.InterceptException;
 import org.apache.pulsar.common.protocol.Commands;
 
 @Slf4j
-public class WritePathSelectors implements BrokerInterceptor {
-
+public class JMSPublishFilters implements BrokerInterceptor {
+  private static final String JMS_FILTERED_PROPERTY = "jms-filtered";
   private final JMSFilter filter = new JMSFilter();
+  private boolean enabled = false;
 
   @Override
   public void initialize(PulsarService pulsarService) throws Exception {
-    log.info("initialize");
+    enabled =
+        Boolean.parseBoolean(
+            pulsarService.getConfiguration().getProperty("jmsApplyFiltersOnPublish") + "");
+    log.info("jmsApplyFiltersOnPublish={}", enabled);
   }
 
   @Override
   public void onMessagePublish(
       Producer producer, ByteBuf headersAndPayload, Topic.PublishContext publishContext) {
-    log.info("onMessagePublish {} {}", producer.getProducerName(), producer.getTopic().getName());
-    MessageMetadata messageMetadata =
-        Commands.peekMessageMetadata(headersAndPayload, "jms-filter-on-publish", -1);
-    if (messageMetadata.hasNumMessagesInBatch() && messageMetadata.getNumMessagesInBatch() > 0) {
-      log.info("Skip batch message");
+    if (!enabled) {
       return;
     }
-    if (messageMetadata.hasMarkerType()
-        && messageMetadata.getMarkerType() != MarkerType.UNKNOWN_MARKER_VALUE) {
-      log.info("Skip marker message");
+    if (publishContext.isMarkerMessage()
+        || publishContext.isChunked()
+        || publishContext.getNumberOfMessages() > 1) {
       return;
     }
 
+    MessageMetadata messageMetadata =
+        Commands.peekMessageMetadata(headersAndPayload, "jms-filter-on-publish", -1);
+    if (messageMetadata.hasNumMessagesInBatch()) {
+      return;
+    }
     producer
         .getTopic()
         .getSubscriptions()
         .forEach(
             (name, subscription) -> {
+              if (!(subscription instanceof PersistentSubscription)) {
+                return;
+              }
               Map<String, String> subscriptionProperties = subscription.getSubscriptionProperties();
+              if (!subscriptionProperties.containsKey("jms.selector")) {
+                return;
+              }
               FilterContext filterContext = new FilterContext();
               filterContext.setSubscription(subscription);
               filterContext.setMsgMetadata(messageMetadata);
               filterContext.setConsumer(null);
               Entry entry = null; // we would need the Entry only in case of batch messages
               EntryFilter.FilterResult filterResult = filter.filterEntry(entry, filterContext);
-              log.info("Filter result for subscription {} is {}", name, filterResult);
-              String property = "filter-result-" + name + "@" + subscription.getTopicName();
-              publishContext.setProperty(property, filterResult);
+              if (filterResult == EntryFilter.FilterResult.REJECT) {
+                String property = "filter-result-" + name + "@" + subscription.getTopicName();
+                publishContext.setProperty(property, filterResult);
+                publishContext.setProperty(JMS_FILTERED_PROPERTY, true);
+              }
             });
   }
 
@@ -91,12 +104,9 @@ public class WritePathSelectors implements BrokerInterceptor {
       long ledgerId,
       long entryId,
       Topic.PublishContext publishContext) {
-    log.info(
-        "messageProduced {} {}: {}:{}",
-        producer.getProducerName(),
-        producer.getTopic().getName(),
-        ledgerId,
-        entryId);
+    if (!enabled || publishContext.getProperty(JMS_FILTERED_PROPERTY) == null) {
+      return;
+    }
     producer
         .getTopic()
         .getSubscriptions()
@@ -105,16 +115,14 @@ public class WritePathSelectors implements BrokerInterceptor {
               String property = "filter-result-" + name + "@" + subscription.getTopicName();
               EntryFilter.FilterResult filterResult =
                   (EntryFilter.FilterResult) publishContext.getProperty(property);
-              log.info(
-                  "Filter result for subscription {} is {} for entry {}:{}",
-                  name,
-                  filterResult,
-                  ledgerId,
-                  entryId);
               if (filterResult == EntryFilter.FilterResult.REJECT) {
-                log.info("Reject message {}:{} for subscription {}", ledgerId, entryId, name);
+                if (log.isDebugEnabled()) {
+                  log.debug("Reject message {}:{} for subscription {}", ledgerId, entryId, name);
+                }
+                // ir is possible that calling this method in this thread may affect performance
+                // let's keep it simple for now, we can optimize it later
                 subscription.acknowledgeMessage(
-                    Arrays.asList(new PositionImpl(ledgerId, entryId)),
+                    Collections.singletonList(new PositionImpl(ledgerId, entryId)),
                     CommandAck.AckType.Individual,
                     null);
               }
