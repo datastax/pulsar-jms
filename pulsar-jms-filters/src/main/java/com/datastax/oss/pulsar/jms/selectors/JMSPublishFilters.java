@@ -193,7 +193,12 @@ public class JMSPublishFilters implements BrokerInterceptor {
           return;
         }
       }
-      runnable.run();
+      // this case also happens when there is no dispatcher (no consumer has connected since the
+      // last
+      // topic load)
+      // this thread is on the same threadpool that is used by PersistentDispatcherMultipleConsumers
+      // and PersistentDispatcherSingleActiveConsumer
+      subscription.getTopic().getBrokerService().getTopicOrderedExecutor().execute(runnable);
     } catch (Throwable error) {
       log.error("Error while scheduling on dispatch thread", error);
     }
