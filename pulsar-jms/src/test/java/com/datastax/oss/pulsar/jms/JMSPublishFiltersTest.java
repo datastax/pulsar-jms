@@ -43,7 +43,8 @@ public class JMSPublishFiltersTest {
           .withEnv("PULSAR_PREFIX_transactionCoordinatorEnabled", "false")
           .withEnv("PULSAR_PREFIX_brokerInterceptorsDirectory", "/pulsar/interceptors")
           .withEnv("PULSAR_PREFIX_brokerInterceptors", "jms-publish-filters")
-          .withEnv("PULSAR_LOG_LEVEL", "info");
+          .withEnv("PULSAR_PREFIX_jmsApplyFiltersOnPublish", "true")
+          .withLogContainerOutput(true);
 
   private Map<String, Object> buildProperties() {
     Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();

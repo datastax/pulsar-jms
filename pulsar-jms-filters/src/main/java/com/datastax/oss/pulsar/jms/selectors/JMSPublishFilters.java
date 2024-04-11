@@ -46,10 +46,13 @@ public class JMSPublishFilters implements BrokerInterceptor {
   private boolean enabled = false;
 
   @Override
-  public void initialize(PulsarService pulsarService) throws Exception {
+  public void initialize(PulsarService pulsarService) {
     enabled =
         Boolean.parseBoolean(
-            pulsarService.getConfiguration().getProperty("jmsApplyFiltersOnPublish") + "");
+            pulsarService
+                .getConfiguration()
+                .getProperties()
+                .getProperty("jmsApplyFiltersOnPublish", "true"));
     log.info("jmsApplyFiltersOnPublish={}", enabled);
   }
 

@@ -43,6 +43,7 @@ public class PulsarContainerExtension implements BeforeAllCallback, AfterAllCall
   private Network network;
 
   private PulsarAdmin admin;
+  private boolean logContainerOutput = false;
 
   public PulsarContainerExtension() {
     env.put("PULSAR_PREFIX_acknowledgmentAtBatchIndexLevelEnabled", "true");
@@ -85,7 +86,11 @@ public class PulsarContainerExtension implements BeforeAllCallback, AfterAllCall
                   if (text.contains("messaging service is ready")) {
                     pulsarReady.countDown();
                   }
-                  log.info(text);
+                  if (logContainerOutput) {
+                    log.info(text);
+                  } else {
+                    log.debug(text);
+                  }
                 })
             .withCopyFileToContainer(
                 MountableFile.forHostPath("target/classes/filters"), "/pulsar/filters")
@@ -106,6 +111,11 @@ public class PulsarContainerExtension implements BeforeAllCallback, AfterAllCall
   public PulsarContainerExtension withOnContainerReady(
       Consumer<PulsarContainerExtension> onContainerReady) {
     this.onContainerReady = onContainerReady;
+    return this;
+  }
+
+  public PulsarContainerExtension withLogContainerOutput(boolean logContainerOutput) {
+    this.logContainerOutput = logContainerOutput;
     return this;
   }
 
