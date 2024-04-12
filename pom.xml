@@ -33,6 +33,7 @@
   <modules>
     <module>activemq-filters</module>
     <module>pulsar-jms-filters</module>
+    <module>pulsar-tracing</module>
     <module>pulsar-jms-admin-api</module>
     <module>pulsar-jms</module>
     <module>resource-adapter</module>
