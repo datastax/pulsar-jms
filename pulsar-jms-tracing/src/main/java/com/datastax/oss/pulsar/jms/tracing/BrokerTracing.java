@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.datastax.oss.pulsar.tracing;
+package com.datastax.oss.pulsar.jms.tracing;
 
 import io.netty.buffer.ByteBuf;
 import java.io.IOException;
@@ -44,6 +44,8 @@ import org.apache.pulsar.common.naming.TopicName;
 @Slf4j
 public class BrokerTracing implements BrokerInterceptor {
 
+  public static final org.slf4j.Logger tracer = org.slf4j.LoggerFactory.getLogger("jms-tracing");
+
   static final int MAX_DATA_LENGTH = 1024;
 
   public enum EventReasons {
@@ -55,7 +57,7 @@ public class BrokerTracing implements BrokerInterceptor {
 
   public enum TraceLevel {
     NONE,
-    MIMIMAL,
+    MINIMAL,
     BASIC,
     FULL
   }
@@ -79,7 +81,8 @@ public class BrokerTracing implements BrokerInterceptor {
   private Set<EventReasons> getEnabledEvents(PulsarService pulsar) {
     // todo: do this less frequently
 
-    String events = pulsar.getConfiguration().getProperties().getProperty("tracing_event_list", "");
+    String events =
+        pulsar.getConfiguration().getProperties().getProperty("jmsTracingEventList", "");
 
     Set<EventReasons> enabledEvents = new HashSet<>();
 
@@ -101,7 +104,7 @@ public class BrokerTracing implements BrokerInterceptor {
             .getPulsar()
             .getConfiguration()
             .getProperties()
-            .getProperty("tracing_level", defaultTraceLevel.toString());
+            .getProperty("jmsTracingLevel", defaultTraceLevel.toString());
     try {
       return TraceLevel.valueOf(level);
     } catch (IllegalArgumentException e) {
@@ -118,17 +121,17 @@ public class BrokerTracing implements BrokerInterceptor {
     }
 
     switch (level) {
-      case MIMIMAL:
+      case MINIMAL:
         traceDetails.put("ServerCnx.clientAddress", cnx.clientAddress().toString());
         break;
       case BASIC:
-        populateConnectionDetails(TraceLevel.MIMIMAL, cnx, traceDetails);
+        populateConnectionDetails(TraceLevel.MINIMAL, cnx, traceDetails);
 
         traceDetails.put("ServerCnx.clientVersion", cnx.getClientVersion());
         traceDetails.put("ServerCnx.clientSourceAddressAndPort", cnx.clientSourceAddressAndPort());
         break;
       case FULL:
-        populateConnectionDetails(TraceLevel.MIMIMAL, cnx, traceDetails);
+        populateConnectionDetails(TraceLevel.MINIMAL, cnx, traceDetails);
         populateConnectionDetails(TraceLevel.BASIC, cnx, traceDetails);
 
         traceDetails.put("ServerCnx.authRole", cnx.getAuthRole());
@@ -137,7 +140,7 @@ public class BrokerTracing implements BrokerInterceptor {
             "ServerCnx.authMethodName", cnx.getAuthenticationProvider().getAuthMethodName());
         break;
       default:
-        log.debug("Unknown tracing level: {}", level);
+        log.warn("Unknown tracing level: {}", level);
         break;
     }
   }
@@ -150,14 +153,14 @@ public class BrokerTracing implements BrokerInterceptor {
     }
 
     switch (level) {
-      case MIMIMAL:
+      case MINIMAL:
         traceDetails.put("Subscription.name", sub.getName());
         traceDetails.put(
             "Subscription.topicName", TopicName.get(sub.getTopicName()).getPartitionedTopicName());
         traceDetails.put("Subscription.type", sub.getType().name());
         break;
       case BASIC:
-        populateSubscriptionDetails(TraceLevel.MIMIMAL, sub, traceDetails);
+        populateSubscriptionDetails(TraceLevel.MINIMAL, sub, traceDetails);
 
         if (sub.getConsumers() != null) {
           traceDetails.put("Subscription.numberOfConsumers", sub.getConsumers().size());
@@ -168,13 +171,13 @@ public class BrokerTracing implements BrokerInterceptor {
 
         break;
       case FULL:
-        populateSubscriptionDetails(TraceLevel.MIMIMAL, sub, traceDetails);
+        populateSubscriptionDetails(TraceLevel.MINIMAL, sub, traceDetails);
         populateSubscriptionDetails(TraceLevel.BASIC, sub, traceDetails);
 
         traceDetails.put("Subscription.subscriptionProperties", sub.getSubscriptionProperties());
         break;
       default:
-        log.debug("Unknown tracing level: {}", level);
+        log.warn("Unknown tracing level: {}", level);
         break;
     }
   }
@@ -187,7 +190,7 @@ public class BrokerTracing implements BrokerInterceptor {
     }
 
     switch (level) {
-      case MIMIMAL:
+      case MINIMAL:
         traceDetails.put("Consumer.name", consumer.consumerName());
         traceDetails.put("Consumer.consumerId", consumer.consumerId());
         if (consumer.getSubscription() != null) {
@@ -198,20 +201,20 @@ public class BrokerTracing implements BrokerInterceptor {
         }
         break;
       case BASIC:
-        populateConsumerDetails(TraceLevel.MIMIMAL, consumer, traceDetails);
+        populateConsumerDetails(TraceLevel.MINIMAL, consumer, traceDetails);
 
         traceDetails.put("Consumer.priorityLevel", consumer.getPriorityLevel());
         traceDetails.put("Consumer.subType", consumer.subType().name());
         traceDetails.put("Consumer.clientAddress", consumer.getClientAddress());
         break;
       case FULL:
-        populateConsumerDetails(TraceLevel.MIMIMAL, consumer, traceDetails);
+        populateConsumerDetails(TraceLevel.MINIMAL, consumer, traceDetails);
         populateConsumerDetails(TraceLevel.BASIC, consumer, traceDetails);
 
         traceDetails.put("Consumer.metadata", consumer.getMetadata());
         break;
       default:
-        log.debug("Unknown tracing level: {}", level);
+        log.warn("Unknown tracing level: {}", level);
         break;
     }
   }
@@ -224,7 +227,7 @@ public class BrokerTracing implements BrokerInterceptor {
     }
 
     switch (level) {
-      case MIMIMAL:
+      case MINIMAL:
         traceDetails.put("Producer.producerId", producer.getProducerId());
         traceDetails.put("Producer.producerName", producer.getProducerName());
         traceDetails.put("Producer.accessMode", producer.getAccessMode().name());
@@ -235,12 +238,12 @@ public class BrokerTracing implements BrokerInterceptor {
         }
         break;
       case BASIC:
-        populateProducerDetails(TraceLevel.MIMIMAL, producer, traceDetails);
+        populateProducerDetails(TraceLevel.MINIMAL, producer, traceDetails);
 
         traceDetails.put("Producer.clientAddress", producer.getClientAddress());
         break;
       case FULL:
-        populateProducerDetails(TraceLevel.MIMIMAL, producer, traceDetails);
+        populateProducerDetails(TraceLevel.MINIMAL, producer, traceDetails);
         populateProducerDetails(TraceLevel.BASIC, producer, traceDetails);
 
         traceDetails.put("Producer.metadata", producer.getMetadata());
@@ -250,7 +253,7 @@ public class BrokerTracing implements BrokerInterceptor {
         traceDetails.put("producer.remoteCluster", producer.getRemoteCluster());
         break;
       default:
-        log.debug("Unknown tracing level: {}", level);
+        log.warn("Unknown tracing level: {}", level);
         break;
     }
   }
@@ -263,20 +266,20 @@ public class BrokerTracing implements BrokerInterceptor {
     }
 
     switch (level) {
-      case MIMIMAL:
+      case MINIMAL:
         traceDetails.put("MessageMetadata.sequenceId", msgMetadata.getSequenceId());
         traceDetails.put("MessageMetadata.producerName", msgMetadata.getProducerName());
         traceDetails.put("MessageMetadata.partitionKey", msgMetadata.getPartitionKey());
         break;
       case BASIC:
-        populateMessageMetadataDetails(TraceLevel.MIMIMAL, msgMetadata, traceDetails);
+        populateMessageMetadataDetails(TraceLevel.MINIMAL, msgMetadata, traceDetails);
 
         traceDetails.put("MessageMetadata.uncompressedSize", msgMetadata.getUncompressedSize());
         traceDetails.put("MessageMetadata.serializedSize", msgMetadata.getSerializedSize());
         traceDetails.put("MessageMetadata.numMessagesInBatch", msgMetadata.getNumMessagesInBatch());
         break;
       case FULL:
-        populateMessageMetadataDetails(TraceLevel.MIMIMAL, msgMetadata, traceDetails);
+        populateMessageMetadataDetails(TraceLevel.MINIMAL, msgMetadata, traceDetails);
         populateMessageMetadataDetails(TraceLevel.BASIC, msgMetadata, traceDetails);
 
         traceDetails.put("MessageMetadata.publishTime", msgMetadata.getPublishTime());
@@ -285,7 +288,7 @@ public class BrokerTracing implements BrokerInterceptor {
         traceDetails.put("MessageMetadata.uuid", msgMetadata.getUuid());
         break;
       default:
-        log.debug("Unknown tracing level: {}", level);
+        log.warn("Unknown tracing level: {}", level);
         break;
     }
   }
@@ -298,23 +301,23 @@ public class BrokerTracing implements BrokerInterceptor {
     }
 
     switch (level) {
-      case MIMIMAL:
+      case MINIMAL:
         traceDetails.put("Entry.ledgerId", entry.getLedgerId());
         traceDetails.put("Entry.entryId", entry.getEntryId());
         break;
       case BASIC:
-        populateEntryDetails(TraceLevel.MIMIMAL, entry, traceDetails);
+        populateEntryDetails(TraceLevel.MINIMAL, entry, traceDetails);
 
         traceDetails.put("Entry.length", entry.getLength());
         break;
       case FULL:
-        populateEntryDetails(TraceLevel.MIMIMAL, entry, traceDetails);
+        populateEntryDetails(TraceLevel.MINIMAL, entry, traceDetails);
         populateEntryDetails(TraceLevel.BASIC, entry, traceDetails);
 
         traceByteBuf("Entry.data", entry.getDataBuffer(), traceDetails);
         break;
       default:
-        log.debug("Unknown tracing level: {}", level);
+        log.warn("Unknown tracing level: {}", level);
         break;
     }
   }
@@ -353,7 +356,7 @@ public class BrokerTracing implements BrokerInterceptor {
     try {
       return TraceLevel.valueOf(sub.getSubscriptionProperties().get("trace"));
     } catch (IllegalArgumentException e) {
-      log.debug(
+      log.warn(
           "Invalid tracing level: {}. Setting to NONE for subscription {}",
           sub.getSubscriptionProperties().get("trace"),
           sub);
@@ -370,7 +373,7 @@ public class BrokerTracing implements BrokerInterceptor {
     try {
       return TraceLevel.valueOf(producer.getMetadata().get("trace"));
     } catch (IllegalArgumentException e) {
-      log.debug(
+      log.warn(
           "Invalid tracing level: {}. Setting to NONE for producer {}",
           producer.getMetadata().get("trace"),
           producer);
@@ -397,7 +400,7 @@ public class BrokerTracing implements BrokerInterceptor {
 
     Map<String, Object> traceDetails = new TreeMap<>();
     populateConnectionDetails(level, cnx, traceDetails);
-    log.info("Connection created: {}", traceDetails);
+    tracer.info("Connection created: {}", traceDetails);
   }
 
   public void producerCreated(ServerCnx cnx, Producer producer, Map<String, String> metadata) {
@@ -412,7 +415,7 @@ public class BrokerTracing implements BrokerInterceptor {
 
     traceDetails.put("metadata", metadata);
 
-    log.info("Producer created: {}", traceDetails);
+    tracer.info("Producer created: {}", traceDetails);
   }
 
   public void producerClosed(ServerCnx cnx, Producer producer, Map<String, String> metadata) {
@@ -427,7 +430,7 @@ public class BrokerTracing implements BrokerInterceptor {
 
     traceDetails.put("metadata", metadata);
 
-    log.info("Producer closed: {}", traceDetails);
+    tracer.info("Producer closed: {}", traceDetails);
   }
 
   public void consumerCreated(ServerCnx cnx, Consumer consumer, Map<String, String> metadata) {
@@ -443,7 +446,7 @@ public class BrokerTracing implements BrokerInterceptor {
 
     traceDetails.put("metadata", metadata);
 
-    log.info("Consumer created: {}", traceDetails);
+    tracer.info("Consumer created: {}", traceDetails);
   }
 
   public void consumerClosed(ServerCnx cnx, Consumer consumer, Map<String, String> metadata) {
@@ -459,7 +462,7 @@ public class BrokerTracing implements BrokerInterceptor {
 
     traceDetails.put("metadata", metadata);
 
-    log.info("Consumer closed: {}", traceDetails);
+    tracer.info("Consumer closed: {}", traceDetails);
   }
 
   public void onPulsarCommand(BaseCommand command, ServerCnx cnx) throws InterceptException {
@@ -471,7 +474,7 @@ public class BrokerTracing implements BrokerInterceptor {
     Map<String, Object> traceDetails = new TreeMap<>();
     populateConnectionDetails(level, cnx, traceDetails);
     traceDetails.put("command", command.toString());
-    log.info("Pulsar command called: {}", traceDetails);
+    tracer.info("Pulsar command called: {}", traceDetails);
   }
 
   public void onConnectionClosed(ServerCnx cnx) {
@@ -482,7 +485,7 @@ public class BrokerTracing implements BrokerInterceptor {
 
     Map<String, Object> traceDetails = new TreeMap<>();
     populateConnectionDetails(level, cnx, traceDetails);
-    log.info("Connection closed: {}", traceDetails);
+    tracer.info("Connection closed: {}", traceDetails);
   }
 
   /* ***************************
@@ -507,7 +510,7 @@ public class BrokerTracing implements BrokerInterceptor {
     populateEntryDetails(level, entry, traceDetails);
     populateMessageMetadataDetails(level, msgMetadata, traceDetails);
 
-    log.info("Before sending message: {}", traceDetails);
+    tracer.info("Before sending message: {}", traceDetails);
   }
 
   public void onMessagePublish(
@@ -526,7 +529,7 @@ public class BrokerTracing implements BrokerInterceptor {
 
     populatePublishContext(publishContext, traceDetails);
 
-    log.info("Message publish: {}", traceDetails);
+    tracer.info("Message publish: {}", traceDetails);
   }
 
   public void messageProduced(
@@ -551,7 +554,7 @@ public class BrokerTracing implements BrokerInterceptor {
     traceDetails.put("entryId", entryId);
     traceDetails.put("startTimeNs", startTimeNs);
 
-    log.info("Message produced: {}", traceDetails);
+    tracer.info("Message produced: {}", traceDetails);
   }
 
   public void messageDispatched(
@@ -571,7 +574,7 @@ public class BrokerTracing implements BrokerInterceptor {
 
     traceByteBuf("headersAndPayload", headersAndPayload, traceDetails);
 
-    log.info("After dispatching message: {}", traceDetails);
+    tracer.info("After dispatching message: {}", traceDetails);
   }
 
   public void messageAcked(ServerCnx cnx, Consumer consumer, CommandAck ackCmd) {
@@ -595,7 +598,7 @@ public class BrokerTracing implements BrokerInterceptor {
             .map(x -> x.getLedgerId() + ":" + x.getEntryId())
             .collect(Collectors.toList()));
 
-    log.info("Message acked: {}", traceDetails);
+    tracer.info("Message acked: {}", traceDetails);
   }
 
   /* ***************************
@@ -608,7 +611,7 @@ public class BrokerTracing implements BrokerInterceptor {
     traceDetails.put("tcId", tcId);
     traceDetails.put("txnID", txnID);
 
-    log.info("Transaction opened: {}", traceDetails);
+    tracer.info("Transaction opened: {}", traceDetails);
     //    }
   }
 
@@ -618,7 +621,7 @@ public class BrokerTracing implements BrokerInterceptor {
     traceDetails.put("txnID", txnID);
     traceDetails.put("txnAction", txnAction);
 
-    log.info("Transaction closed: {}", traceDetails);
+    tracer.info("Transaction closed: {}", traceDetails);
     //    }
   }
 

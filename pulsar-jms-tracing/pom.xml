@@ -23,7 +23,7 @@
     <version>4.1.1-alpha-SNAPSHOT</version>
   </parent>
   <modelVersion>4.0.0</modelVersion>
-  <artifactId>pulsar-tracing</artifactId>
+  <artifactId>pulsar-jms-tracing</artifactId>
   <packaging>jar</packaging>
   <name>DataStax Starlight for JMS - Broker Side Filters</name>
   <properties>
@@ -64,7 +64,7 @@
         <version>1.3.2</version>
         <extensions>true</extensions>
         <configuration>
-          <finalName>pulsar-tracing-${project.version}</finalName>
+          <finalName>pulsar-jms-tracing-${project.version}</finalName>
           <classifier>nar</classifier>
         </configuration>
         <executions>
