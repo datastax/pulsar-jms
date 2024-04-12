@@ -150,7 +150,7 @@ public class JMSPublishFilters implements BrokerInterceptor {
             filterContext.setMsgMetadata(messageMetadata);
             filterContext.setConsumer(null);
             Entry entry = null; // we would need the Entry only in case of batch messages
-            EntryFilter.FilterResult filterResult = filter.filterEntry(entry, filterContext);
+            EntryFilter.FilterResult filterResult = filter.filterEntry(entry, filterContext, true);
             if (filterResult == EntryFilter.FilterResult.REJECT) {
               if (log.isDebugEnabled()) {
                 log.debug(
