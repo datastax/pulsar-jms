@@ -35,7 +35,14 @@ import org.apache.pulsar.common.naming.TopicName;
 
 @Slf4j
 public class TracingUtils {
-  private static final org.slf4j.Logger tracer = org.slf4j.LoggerFactory.getLogger("jms-tracing");
+  private static final org.slf4j.Logger traceLogger = org.slf4j.LoggerFactory.getLogger("jms-tracing");
+
+  @FunctionalInterface
+  public interface Tracer {
+    void trace(String message);
+  }
+
+  public static final Tracer SLF4J_TRACER = traceLogger::info;
 
   private static final ObjectMapper mapper =
       new ObjectMapper()
@@ -51,14 +58,19 @@ public class TracingUtils {
     FULL
   }
 
+
   public static void trace(String message, Map<String, Object> traceDetails) {
+    trace(SLF4J_TRACER, message, traceDetails);
+  }
+
+  public static void trace(Tracer tracer, String message, Map<String, Object> traceDetails) {
     Map<String, Object> trace = new TreeMap<>();
     trace.put("message", message);
-    trace.put("details", traceDetails);
+    trace.put("traceDetails", traceDetails);
 
     try {
       String loggableJsonString = mapper.writeValueAsString(trace);
-      tracer.info(loggableJsonString);
+      tracer.trace(loggableJsonString);
     } catch (JsonProcessingException e) {
       throw new RuntimeException(e);
     }
@@ -353,9 +365,9 @@ public class TracingUtils {
     if (buf == null) return;
 
     if (buf.readableBytes() < MAX_DATA_LENGTH) {
-      traceDetails.put(key, Hex.encodeHex(buf.nioBuffer()));
+      traceDetails.put(key, "0x" + Hex.encodeHexString(buf.nioBuffer()));
     } else {
-      traceDetails.put(key + "Slice", Hex.encodeHex(buf.slice(0, MAX_DATA_LENGTH).nioBuffer()));
+      traceDetails.put(key + "Slice", "0x" + Hex.encodeHexString(buf.slice(0, MAX_DATA_LENGTH).nioBuffer()));
     }
   }
 }
