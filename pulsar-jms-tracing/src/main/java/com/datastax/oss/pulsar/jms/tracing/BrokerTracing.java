@@ -16,6 +16,7 @@
 package com.datastax.oss.pulsar.jms.tracing;
 
 import static com.datastax.oss.pulsar.jms.tracing.TracingUtils.TraceLevel;
+import static com.datastax.oss.pulsar.jms.tracing.TracingUtils.getCommandDetails;
 import static com.datastax.oss.pulsar.jms.tracing.TracingUtils.getConnectionDetails;
 import static com.datastax.oss.pulsar.jms.tracing.TracingUtils.getConsumerDetails;
 import static com.datastax.oss.pulsar.jms.tracing.TracingUtils.getEntryDetails;
@@ -274,10 +275,13 @@ public class BrokerTracing implements BrokerInterceptor {
 
     Map<String, Object> traceDetails = new TreeMap<>();
     traceDetails.put("serverCnx", getConnectionDetails(traceLevel, cnx));
-    // todo: .toString() is not good enough
-    // {"message":"Pulsar command
-    // called","traceDetails":{"command":"org.apache.pulsar.common.api.proto.BaseCommand@2822d70c","serverCnx":{"authMethod":"none","authMethodName":"no provider","authRole":null,"clientAddress":"/127.0.0.1:54176","clientSourceAddressAndPort":"/127.0.0.1:54176","clientVersion":"Pulsar-Java-v3.1.3.1-SNAPSHOT"}}}
-    traceDetails.put("command", command.toString());
+
+    if (command.hasType()) {
+      traceDetails.put("type", command.getType().name());
+      traceDetails.put("command", getCommandDetails(traceLevel, command));
+    } else {
+      traceDetails.put("type", "unknown/null");
+    }
 
     trace("Pulsar command called", traceDetails);
   }

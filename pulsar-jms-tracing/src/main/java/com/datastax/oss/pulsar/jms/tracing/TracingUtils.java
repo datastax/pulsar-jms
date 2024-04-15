@@ -19,7 +19,11 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import io.netty.buffer.ByteBuf;
+import java.lang.reflect.Method;
+import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Map;
+import java.util.Optional;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
@@ -30,6 +34,7 @@ import org.apache.pulsar.broker.service.Producer;
 import org.apache.pulsar.broker.service.ServerCnx;
 import org.apache.pulsar.broker.service.Subscription;
 import org.apache.pulsar.broker.service.Topic;
+import org.apache.pulsar.common.api.proto.BaseCommand;
 import org.apache.pulsar.common.api.proto.MessageMetadata;
 import org.apache.pulsar.common.naming.TopicName;
 
@@ -65,7 +70,7 @@ public class TracingUtils {
 
   public static void trace(Tracer tracer, String message, Map<String, Object> traceDetails) {
     Map<String, Object> trace = new TreeMap<>();
-    trace.put("message", message);
+    trace.put("eventType", message);
     trace.put("traceDetails", traceDetails);
 
     try {
@@ -73,11 +78,291 @@ public class TracingUtils {
       tracer.trace(loggableJsonString);
     } catch (JsonProcessingException e) {
       log.error(
-          "Failed to serialize trace message '{}' as json, traceDetails: {}",
+          "Failed to serialize trace event type '{}' as json, traceDetails: {}",
           message,
           traceDetails,
           e);
     }
+  }
+
+  public static Map<String, Object> getCommandDetails(TraceLevel level, BaseCommand command) {
+    if (command == null) {
+      return null;
+    }
+
+    Map<String, Object> details = new TreeMap<>();
+    populateCommandDetails(level, command, details);
+    return details;
+  }
+
+  private static void populateCommandDetails(
+      TraceLevel level, BaseCommand command, Map<String, Object> traceDetails) {
+    if (command == null) {
+      return;
+    }
+    if (level == TraceLevel.NONE) {
+      return;
+    }
+
+    if (!command.hasType()) {
+      return;
+    }
+
+    // trace all params otherwise
+
+    switch (command.getType()) {
+      case CONNECT:
+        populateByReflection(command.getConnect(), traceDetails);
+        break;
+      case CONNECTED:
+        populateByReflection(command.getConnected(), traceDetails);
+        break;
+      case SUBSCRIBE:
+        populateByReflection(command.getSubscribe(), traceDetails);
+        break;
+      case PRODUCER:
+        populateByReflection(command.getProducer(), traceDetails);
+        break;
+      case SEND:
+        populateByReflection(command.getSend(), traceDetails);
+        break;
+      case SEND_RECEIPT:
+        populateByReflection(command.getSendReceipt(), traceDetails);
+        break;
+      case SEND_ERROR:
+        populateByReflection(command.getSendError(), traceDetails);
+        break;
+      case MESSAGE:
+        populateByReflection(command.getMessage(), traceDetails);
+        break;
+      case ACK:
+        populateByReflection(command.getAck(), traceDetails);
+        break;
+      case FLOW:
+        populateByReflection(command.getFlow(), traceDetails);
+        break;
+      case UNSUBSCRIBE:
+        populateByReflection(command.getUnsubscribe(), traceDetails);
+        break;
+      case SUCCESS:
+        populateByReflection(command.getSuccess(), traceDetails);
+        break;
+      case ERROR:
+        populateByReflection(command.getError(), traceDetails);
+        break;
+      case CLOSE_PRODUCER:
+        populateByReflection(command.getCloseProducer(), traceDetails);
+        break;
+      case CLOSE_CONSUMER:
+        populateByReflection(command.getCloseConsumer(), traceDetails);
+        break;
+      case PRODUCER_SUCCESS:
+        populateByReflection(command.getProducerSuccess(), traceDetails);
+        break;
+      case PING:
+        populateByReflection(command.getPing(), traceDetails);
+        break;
+      case PONG:
+        populateByReflection(command.getPong(), traceDetails);
+        break;
+      case REDELIVER_UNACKNOWLEDGED_MESSAGES:
+        populateByReflection(command.getRedeliverUnacknowledgedMessages(), traceDetails);
+        break;
+      case PARTITIONED_METADATA:
+        populateByReflection(command.getPartitionMetadata(), traceDetails);
+        break;
+      case PARTITIONED_METADATA_RESPONSE:
+        populateByReflection(command.getPartitionMetadataResponse(), traceDetails);
+        break;
+      case LOOKUP:
+        populateByReflection(command.getLookupTopic(), traceDetails);
+        break;
+      case LOOKUP_RESPONSE:
+        populateByReflection(command.getLookupTopicResponse(), traceDetails);
+        break;
+      case CONSUMER_STATS:
+        populateByReflection(command.getConsumerStats(), traceDetails);
+        break;
+      case CONSUMER_STATS_RESPONSE:
+        populateByReflection(command.getConsumerStatsResponse(), traceDetails);
+        break;
+      case REACHED_END_OF_TOPIC:
+        populateByReflection(command.getReachedEndOfTopic(), traceDetails);
+        break;
+      case SEEK:
+        populateByReflection(command.getSeek(), traceDetails);
+        break;
+      case GET_LAST_MESSAGE_ID:
+        populateByReflection(command.getGetLastMessageId(), traceDetails);
+        break;
+      case GET_LAST_MESSAGE_ID_RESPONSE:
+        populateByReflection(command.getGetLastMessageIdResponse(), traceDetails);
+        break;
+      case ACTIVE_CONSUMER_CHANGE:
+        populateByReflection(command.getActiveConsumerChange(), traceDetails);
+        break;
+      case GET_TOPICS_OF_NAMESPACE:
+        populateByReflection(command.getGetTopicsOfNamespace(), traceDetails);
+        break;
+      case GET_TOPICS_OF_NAMESPACE_RESPONSE:
+        populateByReflection(command.getGetTopicsOfNamespaceResponse(), traceDetails);
+        break;
+      case GET_SCHEMA:
+        populateByReflection(command.getGetSchema(), traceDetails);
+        break;
+      case GET_SCHEMA_RESPONSE:
+        populateByReflection(command.getGetSchemaResponse(), traceDetails);
+        break;
+      case AUTH_CHALLENGE:
+        populateByReflection(command.getAuthChallenge(), traceDetails);
+        break;
+      case AUTH_RESPONSE:
+        populateByReflection(command.getAuthResponse(), traceDetails);
+        break;
+      case ACK_RESPONSE:
+        populateByReflection(command.getAckResponse(), traceDetails);
+        break;
+      case GET_OR_CREATE_SCHEMA:
+        populateByReflection(command.getGetOrCreateSchema(), traceDetails);
+        break;
+      case GET_OR_CREATE_SCHEMA_RESPONSE:
+        populateByReflection(command.getGetOrCreateSchemaResponse(), traceDetails);
+        break;
+      case NEW_TXN:
+        populateByReflection(command.getNewTxn(), traceDetails);
+        break;
+      case NEW_TXN_RESPONSE:
+        populateByReflection(command.getNewTxnResponse(), traceDetails);
+        break;
+      case ADD_PARTITION_TO_TXN:
+        populateByReflection(command.getAddPartitionToTxn(), traceDetails);
+        break;
+      case ADD_PARTITION_TO_TXN_RESPONSE:
+        populateByReflection(command.getAddPartitionToTxnResponse(), traceDetails);
+        break;
+      case ADD_SUBSCRIPTION_TO_TXN:
+        populateByReflection(command.getAddSubscriptionToTxn(), traceDetails);
+        break;
+      case ADD_SUBSCRIPTION_TO_TXN_RESPONSE:
+        populateByReflection(command.getAddSubscriptionToTxnResponse(), traceDetails);
+        break;
+      case END_TXN:
+        populateByReflection(command.getEndTxn(), traceDetails);
+        break;
+      case END_TXN_RESPONSE:
+        populateByReflection(command.getEndTxnResponse(), traceDetails);
+        break;
+      case END_TXN_ON_PARTITION:
+        populateByReflection(command.getEndTxnOnPartition(), traceDetails);
+        break;
+      case END_TXN_ON_PARTITION_RESPONSE:
+        populateByReflection(command.getEndTxnOnPartitionResponse(), traceDetails);
+        break;
+      case END_TXN_ON_SUBSCRIPTION:
+        populateByReflection(command.getEndTxnOnSubscription(), traceDetails);
+        break;
+      case END_TXN_ON_SUBSCRIPTION_RESPONSE:
+        populateByReflection(command.getEndTxnOnSubscriptionResponse(), traceDetails);
+        break;
+      case TC_CLIENT_CONNECT_REQUEST:
+        populateByReflection(command.getTcClientConnectRequest(), traceDetails);
+        break;
+      case TC_CLIENT_CONNECT_RESPONSE:
+        populateByReflection(command.getTcClientConnectResponse(), traceDetails);
+        break;
+      case WATCH_TOPIC_LIST:
+        populateByReflection(command.getWatchTopicList(), traceDetails);
+        break;
+      case WATCH_TOPIC_LIST_SUCCESS:
+        populateByReflection(command.getWatchTopicListSuccess(), traceDetails);
+        break;
+      case WATCH_TOPIC_UPDATE:
+        populateByReflection(command.getWatchTopicUpdate(), traceDetails);
+        break;
+      case WATCH_TOPIC_LIST_CLOSE:
+        populateByReflection(command.getWatchTopicListClose(), traceDetails);
+        break;
+      case TOPIC_MIGRATED:
+        populateByReflection(command.getTopicMigrated(), traceDetails);
+        break;
+      default:
+        log.error("Unknown command type: {}", command.getType());
+        traceDetails.put("error", "unknownCommandType " + command.getType());
+    }
+  }
+
+  private static void populateByReflection(Object command, Map<String, Object> traceDetails) {
+    if (command == null) {
+      return;
+    }
+    if (!command.getClass().getCanonicalName().contains("org.apache.pulsar.common.api.proto")) {
+      return;
+    }
+
+    Method[] allMethods = command.getClass().getMethods();
+
+    Arrays.stream(allMethods)
+        .filter(method -> method.getName().startsWith("has"))
+        .filter(
+            method -> {
+              try {
+                return (boolean) method.invoke(command);
+              } catch (Exception e) {
+                return false;
+              }
+            })
+        .forEach(
+            method -> {
+              String fieldName = method.getName().substring(3);
+              try {
+                Optional<Method> accessor =
+                    Arrays.stream(allMethods)
+                        .filter(
+                            m ->
+                                m.getName().equals("get" + fieldName)
+                                    || m.getName().equals("is" + fieldName))
+                        .findFirst();
+                if (!accessor.isPresent()) {
+                  log.warn(
+                      "No accessor found for field (but has.. counterpart was found): {} of {}",
+                      fieldName,
+                      command.getClass().getCanonicalName());
+                  return;
+                }
+                Object value = accessor.get().invoke(command);
+
+                if (value == null) return;
+
+                // skip logging of binary data
+                if (value instanceof byte[]
+                    || value instanceof ByteBuf
+                    || value instanceof ByteBuffer) {
+                  int size = 0;
+                  if (value instanceof byte[]) {
+                    size = ((byte[]) value).length;
+                  } else if (value instanceof ByteBuf) {
+                    size = ((ByteBuf) value).readableBytes();
+                  } else if (value instanceof ByteBuffer) {
+                    size = ((ByteBuffer) value).remaining();
+                  }
+                  traceDetails.put(fieldName + "_size", size);
+                  return;
+                }
+
+                if (value
+                    .getClass()
+                    .getCanonicalName()
+                    .contains("org.apache.pulsar.common.api.proto")) {
+                  Map<String, Object> details = new TreeMap<>();
+                  populateByReflection(value, details);
+                  traceDetails.put(fieldName, details);
+                } else {
+                  traceDetails.put(fieldName, value);
+                }
+              } catch (Exception e) {
+                log.error("Failed to access field: {}", fieldName, e);
+              }
+            });
   }
 
   public static Map<String, Object> getConnectionDetails(TraceLevel level, ServerCnx cnx) {
@@ -116,6 +401,8 @@ public class TracingUtils {
             cnx.getAuthenticationProvider() == null
                 ? "no provider"
                 : cnx.getAuthenticationProvider().getAuthMethodName());
+        break;
+      case NONE:
         break;
       default:
         log.warn("Unknown tracing level: {}", level);
@@ -161,6 +448,8 @@ public class TracingUtils {
 
         traceDetails.put("subscriptionProperties", sub.getSubscriptionProperties());
         break;
+      case NONE:
+        break;
       default:
         log.warn("Unknown tracing level: {}", level);
         break;
@@ -205,6 +494,8 @@ public class TracingUtils {
         populateConsumerDetails(TraceLevel.BASIC, consumer, traceDetails);
 
         traceDetails.put("metadata", consumer.getMetadata());
+        break;
+      case NONE:
         break;
       default:
         log.warn("Unknown tracing level: {}", level);
@@ -253,6 +544,8 @@ public class TracingUtils {
           traceDetails.put("schemaVersion", producer.getSchemaVersion().toString());
         }
         traceDetails.put("remoteCluster", producer.getRemoteCluster());
+        break;
+      case NONE:
         break;
       default:
         log.warn("Unknown tracing level: {}", level);
@@ -316,6 +609,8 @@ public class TracingUtils {
           traceDetails.put("uuid", msgMetadata.getUuid());
         }
         break;
+      case NONE:
+        break;
       default:
         log.warn("Unknown tracing level: {}", level);
         break;
@@ -352,6 +647,8 @@ public class TracingUtils {
         populateEntryDetails(TraceLevel.BASIC, entry, traceDetails);
 
         traceByteBuf("data", entry.getDataBuffer(), traceDetails);
+        break;
+      case NONE:
         break;
       default:
         log.warn("Unknown tracing level: {}", level);
