@@ -135,8 +135,10 @@ public class QueueTest {
   @Test
   public void testQueueBrowsers() throws Exception {
     int numMessages = 20;
+    String expectedSubscriptionName = "my-queue-browser-subscription";
     Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     properties.put("jms.enableClientSideEmulation", "false");
+    properties.put("jms.queueBrowserSubscriptionName", expectedSubscriptionName);
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
         connection.start();
@@ -184,11 +186,9 @@ public class QueueTest {
             }
             assertEquals(1, count);
             TopicStats stats = pulsarContainer.getAdmin().topics().getStats(topicName);
-            assertTrue(destination instanceof PulsarQueue);
-            PulsarQueue queue = (PulsarQueue) destination;
-            String subscriptionName = queue.extractSubscriptionName();
             // Validate QueueBrowser is connected using subscription name
-            assertEquals(stats.getSubscriptions().get(subscriptionName).getConsumers().size(), 1);
+            assertEquals(
+                stats.getSubscriptions().get(expectedSubscriptionName).getConsumers().size(), 1);
           }
 
           // scan again without calling hasMoreElements explicitly
