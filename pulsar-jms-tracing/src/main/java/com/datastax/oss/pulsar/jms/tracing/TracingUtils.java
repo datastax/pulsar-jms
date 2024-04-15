@@ -35,7 +35,8 @@ import org.apache.pulsar.common.naming.TopicName;
 
 @Slf4j
 public class TracingUtils {
-  private static final org.slf4j.Logger traceLogger = org.slf4j.LoggerFactory.getLogger("jms-tracing");
+  private static final org.slf4j.Logger traceLogger =
+      org.slf4j.LoggerFactory.getLogger("jms-tracing");
 
   @FunctionalInterface
   public interface Tracer {
@@ -58,7 +59,6 @@ public class TracingUtils {
     FULL
   }
 
-
   public static void trace(String message, Map<String, Object> traceDetails) {
     trace(SLF4J_TRACER, message, traceDetails);
   }
@@ -72,7 +72,11 @@ public class TracingUtils {
       String loggableJsonString = mapper.writeValueAsString(trace);
       tracer.trace(loggableJsonString);
     } catch (JsonProcessingException e) {
-      throw new RuntimeException(e);
+      log.error(
+          "Failed to serialize trace message '{}' as json, traceDetails: {}",
+          message,
+          traceDetails,
+          e);
     }
   }
 
@@ -367,7 +371,8 @@ public class TracingUtils {
     if (buf.readableBytes() < MAX_DATA_LENGTH) {
       traceDetails.put(key, "0x" + Hex.encodeHexString(buf.nioBuffer()));
     } else {
-      traceDetails.put(key + "Slice", "0x" + Hex.encodeHexString(buf.slice(0, MAX_DATA_LENGTH).nioBuffer()));
+      traceDetails.put(
+          key + "Slice", "0x" + Hex.encodeHexString(buf.slice(0, MAX_DATA_LENGTH).nioBuffer()));
     }
   }
 }
