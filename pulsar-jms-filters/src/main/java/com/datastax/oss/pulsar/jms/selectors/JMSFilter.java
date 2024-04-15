@@ -16,12 +16,15 @@
 package com.datastax.oss.pulsar.jms.selectors;
 
 import io.netty.buffer.ByteBuf;
+import io.prometheus.client.CollectorRegistry;
+import io.prometheus.client.Histogram;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import javax.jms.Destination;
 import javax.jms.JMSException;
@@ -48,10 +51,40 @@ import org.apache.pulsar.common.protocol.Commands;
 public class JMSFilter implements EntryFilter {
 
   private final ConcurrentHashMap<String, SelectorSupport> selectors = new ConcurrentHashMap<>();
+  private static final Histogram filterProcessingTime =
+      Histogram.build()
+          .name("pulsar_jmsfilter_processingtime_ondispatch")
+          .help(
+              "Time taken to compute filters on the broker while dispatching messages to consumers")
+          .labelNames("topic", "subscription")
+          .create();
+
+  private static final AtomicBoolean metricRegistered = new AtomicBoolean(false);
+
+  JMSFilter(boolean registerMetrics) {
+    if (registerMetrics) {
+      if (metricRegistered.compareAndSet(false, true)) {
+        log.info("Registering JMSFilter metrics");
+        CollectorRegistry.defaultRegistry.register(filterProcessingTime);
+      }
+    }
+  }
+
+  public JMSFilter() {
+    // Pulsar 3.x created multiple instances of the filter, one per Dispatcher
+    this(true);
+  }
 
   @Override
   public FilterResult filterEntry(Entry entry, FilterContext context) {
-    return filterEntry(entry, context, false);
+    long start = System.nanoTime();
+    try {
+      return filterEntry(entry, context, false);
+    } finally {
+      filterProcessingTime
+          .labels(context.getSubscription().getTopicName(), context.getSubscription().getName())
+          .observe(System.nanoTime() - start);
+    }
   }
 
   public FilterResult filterEntry(Entry entry, FilterContext context, boolean onMessagePublish) {
