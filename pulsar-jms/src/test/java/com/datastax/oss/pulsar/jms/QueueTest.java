@@ -183,7 +183,7 @@ public class QueueTest {
               count++;
             }
             assertEquals(1, count);
-            TopicStats stats = cluster.getService().getAdminClient().topics().getStats(topicName);
+            TopicStats stats = pulsarContainer.getAdmin().topics().getStats(topicName);
             assertTrue(destination instanceof PulsarQueue);
             PulsarQueue queue = (PulsarQueue) destination;
             String subscriptionName = queue.extractSubscriptionName();
