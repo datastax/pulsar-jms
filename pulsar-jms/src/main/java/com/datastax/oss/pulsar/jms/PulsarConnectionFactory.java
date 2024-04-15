@@ -1087,11 +1087,10 @@ public class PulsarConnectionFactory
                           new MessageRouter() {
                             @Override
                             public int choosePartition(Message<?> msg, TopicMetadata metadata) {
-                              String priority = msg.getProperty("JMSPriority");
+
+                              Integer priority = PulsarMessage.readJMSPriority(msg);
                               int key =
-                                  priority == null
-                                      ? PulsarMessage.DEFAULT_PRIORITY
-                                      : Integer.parseInt(msg.getProperty("JMSPriority"));
+                                  priority == null ? PulsarMessage.DEFAULT_PRIORITY : priority;
                               return Utils.mapPriorityToPartition(
                                   key,
                                   metadata.numPartitions(),
@@ -1339,45 +1338,40 @@ public class PulsarConnectionFactory
       incomingMessages.setAccessible(true);
 
       Object oldQueue = incomingMessages.get(consumerBase);
+      BlockingQueue<Message> newQueue;
       if (oldQueue.getClass().isAssignableFrom(PriorityBlockingQueue.class)) {
-        BlockingQueue<Message> newQueue =
+        newQueue =
             new PriorityBlockingQueue<Message>(
                 10,
                 new Comparator<Message>() {
                   @Override
                   public int compare(Message o1, Message o2) {
-                    int priority1 = getPriority(o1);
-                    int priority2 = getPriority(o2);
+                    int priority1 = MessagePriorityGrowableArrayBlockingQueue.getPriority(o1);
+                    int priority2 = MessagePriorityGrowableArrayBlockingQueue.getPriority(o2);
                     return Integer.compare(priority2, priority1);
                   }
                 });
 
-        // drain messages that could have been pre-fetched (the Consumer is paused, so this should
-        // not
-        // happen)
-        ((BlockingQueue<Message>) oldQueue).drainTo(newQueue);
-
-        incomingMessages.set(c, newQueue);
+      } else if (oldQueue
+          .getClass()
+          .isAssignableFrom(MessagePriorityGrowableArrayBlockingQueue.class)) {
+        newQueue = new MessagePriorityGrowableArrayBlockingQueue();
       } else {
-        log.debug(
-            "Field incomingMessages is not a PriorityBlockingQueue, it is a {}."
-                + "We cannot apply priority to the messages in the local buffer.",
+        log.warn(
+            "Field incomingMessages is not a PriorityBlockingQueue/GrowableArrayBlockingQueue, it is a {}."
+                + " We cannot apply priority to the messages in the local buffer.",
             oldQueue.getClass().getName());
+        return;
       }
+
+      // drain messages that could have been pre-fetched (the Consumer is paused, so this should
+      // not
+      // happen)
+      ((BlockingQueue<Message>) oldQueue).drainTo(newQueue);
+
+      incomingMessages.set(c, newQueue);
     } catch (Exception err) {
       throw new RuntimeException(err);
-    }
-  }
-
-  private static int getPriority(Message m) {
-    String jmsPriority = m.getProperty("JMSPriority");
-    if (jmsPriority == null || jmsPriority.isEmpty()) {
-      return PulsarMessage.DEFAULT_PRIORITY;
-    }
-    try {
-      return Integer.parseInt(jmsPriority);
-    } catch (NumberFormatException err) {
-      return PulsarMessage.DEFAULT_PRIORITY;
     }
   }
 

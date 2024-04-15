@@ -22,11 +22,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
-import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
-import java.nio.file.Path;
+import com.datastax.oss.pulsar.jms.utils.PulsarContainerExtension;
 import java.util.ArrayList;
 import java.util.Enumeration;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -41,35 +39,19 @@ import javax.jms.Session;
 import javax.jms.TextMessage;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.common.policies.data.TopicStats;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
 @Slf4j
 public class QueueTest {
 
-  @TempDir public static Path tempDir;
-  private static PulsarCluster cluster;
-
-  @BeforeAll
-  public static void before() throws Exception {
-    cluster = new PulsarCluster(tempDir);
-    cluster.start();
-  }
-
-  @AfterAll
-  public static void after() throws Exception {
-    if (cluster != null) {
-      cluster.close();
-    }
-  }
+  @RegisterExtension
+  static PulsarContainerExtension pulsarContainer = new PulsarContainerExtension();
 
   @Test
   public void sendMessageReceiveFromQueue() throws Exception {
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
         connection.start();
@@ -115,8 +97,7 @@ public class QueueTest {
   @Test
   public void sendJMSRedeliveryCountTest() throws Exception {
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
         connection.start();
@@ -154,8 +135,7 @@ public class QueueTest {
   @Test
   public void testQueueBrowsers() throws Exception {
     int numMessages = 20;
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     properties.put("jms.enableClientSideEmulation", "false");
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
@@ -293,7 +273,7 @@ public class QueueTest {
 
           // browse a brand new empty queue
           String name = "persistent://public/default/test-" + UUID.randomUUID();
-          cluster.getService().getAdminClient().topics().createNonPartitionedTopic(name);
+          pulsarContainer.getAdmin().topics().createNonPartitionedTopic(name);
           Queue destinationEmpty = session.createQueue(name);
           try (QueueBrowser browser = session.createBrowser(destinationEmpty)) {
             Enumeration en = browser.getEnumeration();
@@ -307,7 +287,7 @@ public class QueueTest {
 
           // browse a brand new empty partitioned queue
           String namePartitioned = "persistent://public/default/test-" + UUID.randomUUID();
-          cluster.getService().getAdminClient().topics().createPartitionedTopic(namePartitioned, 4);
+          pulsarContainer.getAdmin().topics().createPartitionedTopic(namePartitioned, 4);
           Queue destinationEmptyPartitioned = session.createQueue(name);
           try (QueueBrowser browser = session.createBrowser(destinationEmptyPartitioned)) {
             Enumeration en = browser.getEnumeration();
@@ -326,8 +306,7 @@ public class QueueTest {
   @Test
   public void useQueueWithoutPulsarAdmin() throws Exception {
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     properties.put("jms.usePulsarAdmin", "false");
 
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
@@ -362,8 +341,7 @@ public class QueueTest {
   @Test
   public void customSubscriptionName() throws Exception {
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     properties.put("jms.queueSubscriptionName", "default-sub-name");
 
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
@@ -401,8 +379,7 @@ public class QueueTest {
             }
 
             // verify that we have 3 different subscriptions, with the expected names
-            TopicStats stats =
-                cluster.getService().getAdminClient().topics().getStats(fullTopicName);
+            TopicStats stats = pulsarContainer.getAdmin().topics().getStats(fullTopicName);
             log.info("Subscriptions {}", stats.getSubscriptions().keySet());
             assertNotNull(stats.getSubscriptions().get("default-sub-name"));
             assertNotNull(stats.getSubscriptions().get("sub1"));

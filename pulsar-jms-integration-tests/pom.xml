@@ -20,7 +20,7 @@
   <parent>
     <artifactId>pulsar-jms-parent</artifactId>
     <groupId>com.datastax.oss</groupId>
-    <version>4.0.2-SNAPSHOT</version>
+    <version>4.1.2-SNAPSHOT</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
   <modelVersion>4.0.0</modelVersion>
@@ -47,6 +47,11 @@
       <groupId>org.testcontainers</groupId>
       <artifactId>junit-jupiter</artifactId>
       <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.github.spotbugs</groupId>
+      <artifactId>spotbugs-annotations</artifactId>
+      <scope>provided</scope>
     </dependency>
     <dependency>
       <groupId>org.junit.jupiter</groupId>
@@ -88,6 +93,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-antrun-plugin</artifactId>
+        <version>${maven.antrun.plugin.version}</version>
         <executions>
           <execution>
             <phase>process-test-resources</phase>
@@ -95,11 +101,11 @@
               <goal>run</goal>
             </goals>
             <configuration>
-              <tasks>
+              <target>
                 <echo>copy filters</echo>
                 <mkdir dir="${project.build.outputDirectory}/filters" />
                 <copy verbose="true" file="${basedir}/../pulsar-jms-filters/target/pulsar-jms-${project.version}-nar.nar" tofile="${project.build.outputDirectory}/filters/jms-filter.nar" />
-              </tasks>
+              </target>
             </configuration>
           </execution>
         </executions>

@@ -25,8 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.datastax.oss.pulsar.jms.api.JMSAdmin;
 import com.datastax.oss.pulsar.jms.api.JMSDestinationMetadata;
 import com.datastax.oss.pulsar.jms.messages.PulsarTextMessage;
-import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
-import java.nio.file.Path;
+import com.datastax.oss.pulsar.jms.utils.PulsarContainerExtension;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -36,42 +35,21 @@ import javax.jms.MessageProducer;
 import javax.jms.Queue;
 import javax.jms.Session;
 import javax.jms.Topic;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 public class JMSAdminTest {
-
-  @TempDir public static Path tempDir;
-  private static PulsarCluster cluster;
-
-  @BeforeAll
-  public static void before() throws Exception {
-    cluster =
-        new PulsarCluster(
-            tempDir,
-            c -> {
-              c.setAllowAutoTopicCreation(false);
-            });
-    cluster.start();
-  }
-
-  @AfterAll
-  public static void after() throws Exception {
-    if (cluster != null) {
-      cluster.close();
-    }
-  }
+  @RegisterExtension
+  static PulsarContainerExtension pulsarContainer =
+      new PulsarContainerExtension().withEnv("PULSAR_PREFIX_allowAutoTopicCreation", "false");
 
   @ParameterizedTest(name = "numPartitions {0}")
   @ValueSource(ints = {0, 4})
   public void adminApiForQueues(int numPartitions) throws Exception {
     Map<String, Object> producerConfig = new HashMap<>();
     producerConfig.put("producerName", "the-name");
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     properties.put("producerConfig", producerConfig);
     String topic = "test-" + UUID.randomUUID();
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties);
@@ -221,8 +199,7 @@ public class JMSAdminTest {
   public void adminApiForTopic(int numPartitions) throws Exception {
     Map<String, Object> producerConfig = new HashMap<>();
     producerConfig.put("producerName", "the-name");
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     properties.put("producerConfig", producerConfig);
     String topic = "test-" + UUID.randomUUID();
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties);
@@ -377,8 +354,7 @@ public class JMSAdminTest {
   @ValueSource(ints = {0, 4})
   public void describeProducers(int numPartitions) throws Exception {
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     String topic = "test-" + UUID.randomUUID();
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       JMSAdmin admin = factory.getAdmin();
@@ -471,8 +447,7 @@ public class JMSAdminTest {
   @ValueSource(ints = {0, 4})
   public void describeConsumers(int numPartitions) throws Exception {
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     String topic = "test-" + UUID.randomUUID();
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       JMSAdmin admin = factory.getAdmin();
@@ -561,8 +536,7 @@ public class JMSAdminTest {
 
   private static Map<String, Object> buildProducerProperties(
       boolean priority, String priorityMapping) {
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     properties.put("jms.enableJMSPriority", priority);
     properties.put("enableTransaction", true);
     properties.put("jms.priorityMapping", priorityMapping);
@@ -571,8 +545,7 @@ public class JMSAdminTest {
 
   private static Map<String, Object> buildConsumerProperties(String name, boolean priority) {
     Map<String, Object> consumerConfig = new HashMap<>();
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     properties.put("consumerConfig", consumerConfig);
     properties.put("jms.enableJMSPriority", priority);
     return properties;

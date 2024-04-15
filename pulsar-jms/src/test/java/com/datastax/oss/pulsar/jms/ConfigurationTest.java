@@ -17,43 +17,25 @@ package com.datastax.oss.pulsar.jms;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
-import java.nio.file.Path;
+import com.datastax.oss.pulsar.jms.utils.PulsarContainerExtension;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import javax.jms.Queue;
 import org.apache.pulsar.client.api.Consumer;
 import org.apache.pulsar.client.api.Producer;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
 public class ConfigurationTest {
-
-  @TempDir public static Path tempDir;
-  private static PulsarCluster cluster;
-
-  @BeforeAll
-  public static void before() throws Exception {
-    cluster = new PulsarCluster(tempDir);
-    cluster.start();
-  }
-
-  @AfterAll
-  public static void after() throws Exception {
-    if (cluster != null) {
-      cluster.close();
-    }
-  }
+  @RegisterExtension
+  static PulsarContainerExtension pulsarContainer = new PulsarContainerExtension();
 
   @Test
   public void customizeProducerTest() throws Exception {
     Map<String, Object> producerConfig = new HashMap<>();
     producerConfig.put("producerName", "the-name");
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     properties.put("producerConfig", producerConfig);
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties);
         PulsarConnection connection = factory.createConnection(); ) {
@@ -67,8 +49,7 @@ public class ConfigurationTest {
   public void customizeConsumerTest() throws Exception {
     Map<String, Object> consumerConfig = new HashMap<>();
     consumerConfig.put("consumerName", "the-consumer-name");
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     properties.put("consumerConfig", consumerConfig);
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties);
         PulsarConnection connection = factory.createConnection();

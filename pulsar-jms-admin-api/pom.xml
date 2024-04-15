@@ -20,7 +20,7 @@
   <parent>
     <artifactId>pulsar-jms-parent</artifactId>
     <groupId>com.datastax.oss</groupId>
-    <version>4.0.2-SNAPSHOT</version>
+    <version>4.1.2-SNAPSHOT</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
   <modelVersion>4.0.0</modelVersion>
@@ -36,6 +36,11 @@
     <dependency>
       <groupId>jakarta.jms</groupId>
       <artifactId>jakarta.jms-api</artifactId>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.github.spotbugs</groupId>
+      <artifactId>spotbugs-annotations</artifactId>
       <scope>provided</scope>
     </dependency>
   </dependencies>

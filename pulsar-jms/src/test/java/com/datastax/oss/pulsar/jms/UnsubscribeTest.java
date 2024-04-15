@@ -18,9 +18,7 @@ package com.datastax.oss.pulsar.jms;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
-import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
-import java.nio.file.Path;
-import java.util.HashMap;
+import com.datastax.oss.pulsar.jms.utils.PulsarContainerExtension;
 import java.util.Map;
 import java.util.UUID;
 import javax.jms.Connection;
@@ -29,34 +27,17 @@ import javax.jms.MessageProducer;
 import javax.jms.Session;
 import javax.jms.TextMessage;
 import javax.jms.Topic;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
 public class UnsubscribeTest {
-
-  @TempDir public static Path tempDir;
-  private static PulsarCluster cluster;
-
-  @BeforeAll
-  public static void before() throws Exception {
-    cluster = new PulsarCluster(tempDir);
-    cluster.start();
-  }
-
-  @AfterAll
-  public static void after() throws Exception {
-    if (cluster != null) {
-      cluster.close();
-    }
-  }
+  @RegisterExtension
+  static PulsarContainerExtension pulsarContainer = new PulsarContainerExtension();
 
   @Test
   public void unsubscribeTest() throws Exception {
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
         connection.start();

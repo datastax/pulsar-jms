@@ -25,8 +25,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import com.datastax.oss.pulsar.jms.jndi.PulsarContext;
 import com.datastax.oss.pulsar.jms.jndi.PulsarInitialContextFactory;
-import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
-import java.nio.file.Path;
+import com.datastax.oss.pulsar.jms.utils.PulsarContainerExtension;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
@@ -43,29 +42,14 @@ import javax.naming.InitialContext;
 import javax.naming.InvalidNameException;
 import javax.naming.Name;
 import org.apache.pulsar.client.api.Producer;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 public class JNDITest {
 
-  @TempDir public static Path tempDir;
-  private static PulsarCluster cluster;
-
-  @BeforeAll
-  public static void before() throws Exception {
-    cluster = new PulsarCluster(tempDir);
-    cluster.start();
-  }
-
-  @AfterAll
-  public static void after() throws Exception {
-    if (cluster != null) {
-      cluster.close();
-    }
-  }
+  @RegisterExtension
+  static PulsarContainerExtension pulsarContainer = new PulsarContainerExtension();
 
   @ParameterizedTest(name = "autoCloseConnectionFactory {0}")
   @ValueSource(strings = {"true", "false", ""})
@@ -74,7 +58,7 @@ public class JNDITest {
     Properties properties = new Properties();
     properties.setProperty(
         Context.INITIAL_CONTEXT_FACTORY, PulsarInitialContextFactory.class.getName());
-    properties.setProperty(Context.PROVIDER_URL, cluster.getAddress());
+    properties.setProperty(Context.PROVIDER_URL, pulsarContainer.getHttpServiceUrl());
 
     if (!autoCloseConnectionFactory.isEmpty()) {
       properties.setProperty(
@@ -83,7 +67,8 @@ public class JNDITest {
 
     Map<String, Object> producerConfig = new HashMap<>();
     producerConfig.put("producerName", "the-name");
-    properties.put("webServiceUrl", cluster.getAddress());
+    properties.put("webServiceUrl", pulsarContainer.getHttpServiceUrl());
+    properties.put("brokerServiceUrl", pulsarContainer.getBrokerUrl());
     properties.put("producerConfig", producerConfig);
 
     String queueName = "test-" + UUID.randomUUID();
@@ -153,7 +138,7 @@ public class JNDITest {
     Properties properties = new Properties();
     properties.setProperty(
         Context.INITIAL_CONTEXT_FACTORY, PulsarInitialContextFactory.class.getName());
-    properties.setProperty(Context.PROVIDER_URL, cluster.getAddress());
+    properties.setProperty(Context.PROVIDER_URL, pulsarContainer.getBrokerUrl());
     properties.setProperty(PulsarContext.USE_SHARED_JNDICONTEXT, "true");
     properties.setProperty(PulsarContext.AUTOCLOSE_CONNECTION_FACTORY, autoCloseConnectionFactory);
 

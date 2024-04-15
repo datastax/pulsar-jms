@@ -1,0 +1,3 @@
+interceptorClass: com.datastax.oss.pulsar.jms.selectors.JMSPublishFilters
+name: jms-publish-filters
+description: Starlight for JMS - support for server side filters on the publish path

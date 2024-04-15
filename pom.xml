@@ -21,7 +21,7 @@
   <groupId>com.datastax.oss</groupId>
   <artifactId>pulsar-jms-parent</artifactId>
   <packaging>pom</packaging>
-  <version>4.0.2-SNAPSHOT</version>
+  <version>4.1.2-SNAPSHOT</version>
   <name>DataStax Starlight for JMS</name>
   <description>Implementation of the Java Messaging Service Client API around Apache Pulsar Java Client</description>
   <url>https://github.com/datastax/pulsar-jms</url>
@@ -52,23 +52,23 @@
     <java.release.version>8</java.release.version>
     <maven.compiler.source>8</maven.compiler.source>
     <maven.compiler.target>8</maven.compiler.target>
+    <maven.compiler.release>8</maven.compiler.release>
     <jms.version>2.0.3</jms.version>
-    <!-- waiting for a Apache Pulsar 2.11.0 release, in the meantime we use DataStax Luna Streaming
-         that is a fork of Apache Pulsar  -->
     <pulsar.groupId>org.apache.pulsar</pulsar.groupId>
-    <pulsar.version>3.0.0</pulsar.version>
+    <pulsar.version>3.2.2</pulsar.version>
     <activemq.version>5.16.1</activemq.version>
     <hawtbuf.version>1.11</hawtbuf.version>
     <curator.version>5.1.0</curator.version>
     <slf4j.version>1.7.30</slf4j.version>
-    <logback.version>1.2.3</logback.version>
     <junit.version>5.7.1</junit.version>
-    <surefire.version>3.0.0-M5</surefire.version>
+    <surefire.version>3.1.0</surefire.version>
     <jackson.version>2.14.2</jackson.version>
     <gson.version>2.8.9</gson.version>
     <commons-compress.version>1.21</commons-compress.version>
     <awaitility.version>4.0.3</awaitility.version>
+    <maven.antrun.plugin.version>3.1.0</maven.antrun.plugin.version>
     <snakeyaml.version>2.0</snakeyaml.version>
+    <testcontainers.version>1.18.3</testcontainers.version>
     <!-- required for running tests on JDK11+ -->
     <test.additional.args>--add-opens java.base/java.lang.reflect=ALL-UNNAMED --add-opens java.base/jdk.internal.loader=ALL-UNNAMED --add-opens java.base/java.lang=ALL-UNNAMED
       <!--Mockito-->--add-opens java.base/java.io=ALL-UNNAMED
@@ -124,7 +124,7 @@
       <dependency>
         <groupId>org.projectlombok</groupId>
         <artifactId>lombok</artifactId>
-        <version>1.18.20</version>
+        <version>1.18.30</version>
       </dependency>
       <dependency>
         <groupId>${pulsar.groupId}</groupId>
@@ -196,7 +196,7 @@
       <dependency>
         <groupId>com.github.spotbugs</groupId>
         <artifactId>spotbugs-annotations</artifactId>
-        <version>4.2.3</version>
+        <version>4.8.3</version>
       </dependency>
       <dependency>
         <groupId>org.mockito</groupId>
@@ -212,6 +212,13 @@
         <groupId>org.yaml</groupId>
         <artifactId>snakeyaml</artifactId>
         <version>${snakeyaml.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.testcontainers</groupId>
+        <artifactId>testcontainers-bom</artifactId>
+        <version>${testcontainers.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
       </dependency>
     </dependencies>
   </dependencyManagement>
@@ -231,7 +238,7 @@
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-compiler-plugin</artifactId>
-          <version>3.8.1</version>
+          <version>3.12.1</version>
           <configuration>
             <compilerArgs>-Xlint:unchecked</compilerArgs>
             <fork>false</fork>
@@ -319,9 +326,10 @@ limitations under the License.]]></inlineHeader>
           <configuration>
             <argLine>${test.additional.args}</argLine>
             <trimStackTrace>false</trimStackTrace>
-            <systemPropertyVariables>
-              <logback.configurationFile>${project.basedir}/src/test/resources/logback-test.xml</logback.configurationFile>
-            </systemPropertyVariables>
+            <forkCount>1</forkCount>
+            <properties>
+              <configurationParameters>junit.jupiter.execution.timeout.test.method.default = 300</configurationParameters>
+            </properties>
           </configuration>
         </plugin>
         <plugin>
@@ -329,15 +337,15 @@ limitations under the License.]]></inlineHeader>
           <version>${surefire.version}</version>
           <configuration>
             <trimStackTrace>false</trimStackTrace>
-            <systemPropertyVariables>
-              <logback.configurationFile>${project.basedir}/src/test/resources/logback-test.xml</logback.configurationFile>
-            </systemPropertyVariables>
           </configuration>
         </plugin>
         <plugin>
           <groupId>com.github.spotbugs</groupId>
           <artifactId>spotbugs-maven-plugin</artifactId>
-          <version>4.2.2</version>
+          <version>4.8.3.1</version>
+          <configuration>
+            <omitVisitors>FindReturnRef,ConstructorThrow</omitVisitors>
+          </configuration>
         </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>

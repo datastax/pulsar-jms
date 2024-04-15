@@ -24,8 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.datastax.oss.pulsar.jms.messages.PulsarTextMessage;
-import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
-import java.nio.file.Path;
+import com.datastax.oss.pulsar.jms.utils.PulsarContainerExtension;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -51,35 +50,18 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.api.PulsarClientException;
 import org.apache.pulsar.client.api.SubscriptionType;
 import org.apache.pulsar.client.impl.BatchMessageIdImpl;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
 @Slf4j
 public class TopicTest {
-
-  @TempDir public static Path tempDir;
-  private static PulsarCluster cluster;
-
-  @BeforeAll
-  public static void before() throws Exception {
-    cluster = new PulsarCluster(tempDir);
-    cluster.start();
-  }
-
-  @AfterAll
-  public static void after() throws Exception {
-    if (cluster != null) {
-      cluster.close();
-    }
-  }
+  @RegisterExtension
+  static PulsarContainerExtension pulsarContainer = new PulsarContainerExtension();
 
   @Test
   public void sendMessageReceiveFromTopic() throws Exception {
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
         connection.start();
@@ -123,8 +105,7 @@ public class TopicTest {
   @Test
   public void useTopicSubscriberApiWithSharedSubscription() throws Exception {
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     properties.put("jms.clientId", "the-id");
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
@@ -200,8 +181,7 @@ public class TopicTest {
   @Test
   public void simpleDurableConsumerTest() throws Exception {
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (JMSContext context1 = factory.createContext();
           JMSContext context2 = factory.createContext()) {
@@ -235,8 +215,7 @@ public class TopicTest {
   }
 
   private void testSharedDurableConsumer(SubscriptionType subscriptionType) throws Exception {
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     properties.put("jms.topicSharedSubscriptionType", subscriptionType.name());
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
@@ -326,8 +305,7 @@ public class TopicTest {
   }
 
   private void testSharedNonDurableConsumer(SubscriptionType subscriptionType) throws Exception {
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     properties.put("jms.topicSharedSubscriptionType", subscriptionType.name());
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
@@ -403,8 +381,7 @@ public class TopicTest {
 
   @Test
   public void testUseKeySharedSubscriptionTypeforTopicConsumer() throws Exception {
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     properties.put("jms.useExclusiveSubscriptionsForSimpleConsumers", "false");
     properties.put("jms.topicSharedSubscriptionType", SubscriptionType.Key_Shared);
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
@@ -440,8 +417,7 @@ public class TopicTest {
 
   @Test
   public void testKeySharedWithBatching() throws Exception {
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     properties.put("jms.topicSharedSubscriptionType", SubscriptionType.Key_Shared);
     Map<String, Object> producerConfig = new HashMap<>();
     producerConfig.put("batcherBuilder", "KEY_BASED");

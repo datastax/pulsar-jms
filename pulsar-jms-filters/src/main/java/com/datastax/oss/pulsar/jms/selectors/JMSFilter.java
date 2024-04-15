@@ -51,6 +51,10 @@ public class JMSFilter implements EntryFilter {
 
   @Override
   public FilterResult filterEntry(Entry entry, FilterContext context) {
+    return filterEntry(entry, context, false);
+  }
+
+  public FilterResult filterEntry(Entry entry, FilterContext context, boolean onMessagePublish) {
     Consumer consumer = context.getConsumer();
     Map<String, String> consumerMetadata =
         consumer != null ? consumer.getMetadata() : Collections.emptyMap();
@@ -246,18 +250,22 @@ public class JMSFilter implements EntryFilter {
                 null,
                 metadata);
 
-        // timetoLive filter
-        long jmsExpiration = getJMSExpiration(typedProperties);
-        if (jmsExpiration > 0 && System.currentTimeMillis() > jmsExpiration) {
-          // message expired, this does not depend on the Consumer
-          // we can to REJECT it immediately
-          return FilterResult.REJECT;
-        }
-
         if (!jmsSelectorOnSubscription.isEmpty()) {
           boolean matchesSubscriptionFilter = matches(typedProperties, selectorOnSubscription);
           // the subscription filter always deletes the messages
           if (!matchesSubscriptionFilter) {
+            return FilterResult.REJECT;
+          }
+        }
+
+        // it is expensive to extract the message properties
+        // and it is very unlikely that onPublish we are accepting a message that is already expired
+        if (!onMessagePublish) {
+          // timetoLive filter
+          long jmsExpiration = getJMSExpiration(typedProperties);
+          if (jmsExpiration > 0 && System.currentTimeMillis() > jmsExpiration) {
+            // message expired, this does not depend on the Consumer
+            // we can to REJECT it immediately
             return FilterResult.REJECT;
           }
         }

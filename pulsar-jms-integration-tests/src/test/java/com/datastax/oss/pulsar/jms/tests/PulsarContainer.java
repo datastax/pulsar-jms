@@ -17,18 +17,24 @@ package com.datastax.oss.pulsar.jms.tests;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.datastax.oss.pulsar.jms.shaded.org.apache.pulsar.client.admin.PulsarAdmin;
+import com.datastax.oss.pulsar.jms.shaded.org.apache.pulsar.client.admin.PulsarAdminBuilder;
+import com.datastax.oss.pulsar.jms.shaded.org.apache.pulsar.client.impl.auth.AuthenticationToken;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.testcontainers.containers.BindMode;
 import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.shaded.org.apache.commons.io.IOUtils;
+import org.testcontainers.shaded.org.awaitility.Awaitility;
 
 @Slf4j
 public class PulsarContainer implements AutoCloseable {
@@ -117,6 +123,38 @@ public class PulsarContainer implements AutoCloseable {
     pulsarContainer.start();
 
     assertTrue(pulsarReady.await(1, TimeUnit.MINUTES));
+
+    // wait for system to be ready
+    PulsarAdminBuilder pulsarAdminBuilder =
+        PulsarAdmin.builder().serviceHttpUrl(getHttpServiceUrl());
+    if (enableAuthentication) {
+      String token =
+          IOUtils.toString(
+              DockerTest.class.getResourceAsStream("/token.jwt"), StandardCharsets.UTF_8);
+      pulsarAdminBuilder.authentication(
+          AuthenticationToken.class.getName(), "token:" + token.trim());
+    }
+
+    try (PulsarAdmin admin = pulsarAdminBuilder.build(); ) {
+      Awaitility.await()
+          .until(
+              () -> {
+                try {
+                  List<String> tenants = admin.tenants().getTenants();
+                  log.info("tenants={}", tenants);
+                  if (!tenants.contains("public")) {
+                    return false;
+                  }
+                  List<String> namespaces = admin.namespaces().getNamespaces("public");
+                  log.info("namespaces={}", namespaces);
+                  return !namespaces.isEmpty();
+                } catch (Exception error) {
+                  log.info("cannot get tenants/namespaces", error);
+                  return false;
+                }
+              });
+    }
+
     if (transactions) {
       pulsarContainer.execInContainer(
           "/pulsar/bin/pulsar", "initialize-transaction-coordinator-metadata");

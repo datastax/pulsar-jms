@@ -20,33 +20,33 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
-import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
+import com.datastax.oss.pulsar.jms.utils.PulsarContainerExtension;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import java.nio.file.Path;
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Enumeration;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.jms.*;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.pulsar.client.impl.ConsumerBase;
 import org.apache.pulsar.common.policies.data.PartitionedTopicStats;
 import org.apache.pulsar.common.policies.data.PersistentTopicInternalStats;
 import org.apache.pulsar.common.policies.data.TenantInfo;
-import org.apache.pulsar.common.policies.data.TopicType;
 import org.apache.pulsar.common.util.FutureUtil;
 import org.apache.pulsar.common.util.ObjectMapperFactory;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -60,41 +60,30 @@ public class PriorityTest {
   static int LOW_PRIORITY = 4;
   static int HIGH_PRIORITY = 9;
 
-  @TempDir public static Path tempDir;
-  private static PulsarCluster cluster;
-
-  @BeforeAll
-  public static void before() throws Exception {
-    cluster =
-        new PulsarCluster(
-            tempDir,
-            config -> {
-              config.setAllowAutoTopicCreation(true);
-              config.setAllowAutoTopicCreationType(TopicType.PARTITIONED);
-              config.setDefaultNumPartitions(10);
-              config.setTransactionCoordinatorEnabled(false);
-            });
-    cluster.start();
-
-    cluster
-        .getService()
-        .getAdminClient()
-        .tenants()
-        .createTenant(
-            "foo",
-            TenantInfo.builder()
-                .allowedClusters(
-                    ImmutableSet.of(cluster.getService().getConfiguration().getClusterName()))
-                .build());
-    cluster.getService().getAdminClient().namespaces().createNamespace(SYSTEM_NAMESPACE_OVERRIDDEN);
-  }
-
-  @AfterAll
-  public static void after() throws Exception {
-    if (cluster != null) {
-      cluster.close();
-    }
-  }
+  @RegisterExtension
+  static PulsarContainerExtension pulsarContainer =
+      new PulsarContainerExtension()
+          .withEnv("PULSAR_PREFIX_allowAutoTopicCreation", "true")
+          .withEnv("PULSAR_PREFIX_allowAutoTopicCreationType", "partitioned")
+          .withEnv("PULSAR_PREFIX_defaultNumPartitions", "10")
+          .withEnv("PULSAR_PREFIX_transactionCoordinatorEnabled", "false")
+          .withOnContainerReady(
+              new Consumer<PulsarContainerExtension>() {
+                @Override
+                @SneakyThrows
+                public void accept(PulsarContainerExtension pulsarContainerExtension) {
+                  Set<String> clusters =
+                      new HashSet<>(pulsarContainerExtension.getAdmin().clusters().getClusters());
+                  pulsarContainerExtension
+                      .getAdmin()
+                      .tenants()
+                      .createTenant("foo", TenantInfo.builder().allowedClusters(clusters).build());
+                  pulsarContainerExtension
+                      .getAdmin()
+                      .namespaces()
+                      .createNamespace(SYSTEM_NAMESPACE_OVERRIDDEN);
+                }
+              });
 
   private static Stream<Arguments> combinations() {
     return Stream.of(
@@ -108,8 +97,7 @@ public class PriorityTest {
   @MethodSource("combinations")
   public void basicTest(int numPartitions, String mapping) throws Exception {
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     properties.put("jms.enableJMSPriority", true);
     properties.put("jms.priorityMapping", mapping);
     properties.put("jms.systemNamespace", SYSTEM_NAMESPACE_OVERRIDDEN);
@@ -128,9 +116,8 @@ public class PriorityTest {
         try (Session session = connection.createSession(); ) {
           Queue destination = session.createQueue(topicName);
 
-          cluster
-              .getService()
-              .getAdminClient()
+          pulsarContainer
+              .getAdmin()
               .topics()
               .createPartitionedTopic(factory.getPulsarTopicName(destination), numPartitions);
 
@@ -204,8 +191,7 @@ public class PriorityTest {
   @ValueSource(strings = {"linear", "non-linear"})
   public void basicPriorityBigBacklogTest(String mapping) throws Exception {
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     properties.put("jms.enableJMSPriority", true);
     properties.put("jms.priorityMapping", mapping);
     properties.put(
@@ -221,9 +207,8 @@ public class PriorityTest {
         try (Session session = connection.createSession(Session.AUTO_ACKNOWLEDGE); ) {
           Queue destination = session.createQueue("test-" + UUID.randomUUID());
 
-          cluster
-              .getService()
-              .getAdminClient()
+          pulsarContainer
+              .getAdmin()
               .topics()
               .createPartitionedTopic(factory.getPulsarTopicName(destination), 10);
 
@@ -280,11 +265,7 @@ public class PriorityTest {
               if (!receivedTexts.add(msg.getText())) {
                 String topicName = factory.getPulsarTopicName(destination);
                 PartitionedTopicStats partitionedStats =
-                    cluster
-                        .getService()
-                        .getAdminClient()
-                        .topics()
-                        .getPartitionedStats(topicName, true);
+                    pulsarContainer.getAdmin().topics().getPartitionedStats(topicName, true);
                 log.info("topicName {}", topicName);
                 log.info(
                     "stats {}",
@@ -292,7 +273,7 @@ public class PriorityTest {
                 for (int j = 0; j < 10; j++) {
                   String partition = topicName + "-partition-" + j;
                   PersistentTopicInternalStats internalStats =
-                      cluster.getService().getAdminClient().topics().getInternalStats(partition);
+                      pulsarContainer.getAdmin().topics().getInternalStats(partition);
 
                   log.info("partition {}", partition);
                   log.info(
@@ -346,12 +327,13 @@ public class PriorityTest {
     for (int priority : received) {
 
       if (priority == LOW_PRIORITY && foundHighPriority) {
-        log.info("received priority {} after {}", priority, count);
+        log.info(
+            "received priority {} (low) after {} messages and one high priority", priority, count);
         foundLowPriorityAfterHighPriority = true;
         break;
       }
       if (priority == HIGH_PRIORITY) {
-        log.info("received priority {} after {}", priority, count);
+        log.info("received priority {} (high) after {} messages", priority, count);
         foundHighPriority = true;
       }
       count++;
@@ -362,8 +344,7 @@ public class PriorityTest {
   @Test
   public void basicPriorityMultiTopicTest() throws Exception {
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     properties.put("jms.enableJMSPriority", true);
     properties.put("jms.systemNamespace", SYSTEM_NAMESPACE_OVERRIDDEN);
     properties.put("consumerConfig", ImmutableMap.of("receiverQueueSize", 10));
@@ -456,8 +437,7 @@ public class PriorityTest {
   @Test
   public void basicPriorityJMSContextTest() throws Exception {
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     properties.put("jms.enableJMSPriority", true);
     properties.put("consumerConfig", ImmutableMap.of("receiverQueueSize", 10));
     properties.put(
@@ -500,6 +480,102 @@ public class PriorityTest {
           // no more messages
           assertNull(consumer1.receiveNoWait());
           verifyOrder(received);
+        }
+      }
+    }
+  }
+
+  @ParameterizedTest(name = "mapping {0}")
+  @ValueSource(strings = {"linear", "non-linear"})
+  public void testConsumerPriorityQueue(String mapping) throws Exception {
+
+    final int numMessages = 500;
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
+    properties.put("jms.enableJMSPriority", true);
+    properties.put("jms.priorityMapping", mapping);
+    properties.put(
+        "producerConfig", ImmutableMap.of("blockIfQueueFull", true, "batchingEnabled", false));
+    properties.put("consumerConfig", ImmutableMap.of("receiverQueueSize", numMessages));
+    log.info("running testConsumerPriorityQueue with {}", properties);
+
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+      try (Connection connection = factory.createConnection()) {
+        assertTrue(factory.isEnableJMSPriority());
+        assertEquals(mapping.equals("linear"), factory.isPriorityUseLinearMapping());
+        connection.start();
+        try (Session session = connection.createSession(Session.AUTO_ACKNOWLEDGE); ) {
+          Queue destination = session.createQueue("test-" + UUID.randomUUID());
+
+          pulsarContainer
+              .getAdmin()
+              .topics()
+              .createPartitionedTopic(factory.getPulsarTopicName(destination), 10);
+
+          int numHighPriority = 100;
+
+          try (MessageProducer producer = session.createProducer(destination); ) {
+            List<CompletableFuture<?>> handles = new ArrayList<>();
+            for (int i = 0; i < numMessages; i++) {
+              TextMessage textMessage = session.createTextMessage("foo-" + i);
+              if (i < numMessages - numHighPriority) {
+                // the first messages are lower priority
+                producer.setPriority(LOW_PRIORITY);
+              } else {
+                producer.setPriority(HIGH_PRIORITY);
+              }
+
+              CompletableFuture<?> handle = new CompletableFuture<>();
+              producer.send(
+                  textMessage,
+                  new CompletionListener() {
+                    @Override
+                    public void onCompletion(Message message) {
+                      handle.complete(null);
+                    }
+
+                    @Override
+                    public void onException(Message message, Exception e) {
+                      handle.completeExceptionally(e);
+                    }
+                  });
+              handles.add(handle);
+            }
+            FutureUtil.waitForAll(handles).get();
+          }
+
+          try (MessageConsumer consumer1 = session.createConsumer(destination); ) {
+            List<Integer> received = new ArrayList<>();
+
+            for (int i = 0; i < numMessages; i++) {
+              TextMessage msg = (TextMessage) consumer1.receive();
+              if (i == 0) {
+                // await all messages in the consumer receive queue
+                ConsumerBase<?> consumerBase = ((PulsarMessageConsumer) consumer1).getConsumer();
+                Field incomingMessages = ConsumerBase.class.getDeclaredField("incomingMessages");
+                incomingMessages.setAccessible(true);
+                Object queue = incomingMessages.get(consumerBase);
+                Awaitility.await().until(() -> ((BlockingQueue) queue).size() == numMessages - 1);
+              }
+              received.add(msg.getJMSPriority());
+            }
+
+            assertNull(consumer1.receiveNoWait());
+            assertEquals(numMessages, received.size());
+            int firstMessagePriority = 0;
+            for (int i = 0; i < received.size(); i++) {
+              if (i == 0) {
+                firstMessagePriority = received.get(i);
+                continue;
+              }
+              final int lastNHigh =
+                  numHighPriority + (firstMessagePriority == HIGH_PRIORITY ? 0 : 1);
+              if (i < lastNHigh) {
+                assertEquals(HIGH_PRIORITY, received.get(i));
+              } else {
+                assertEquals(LOW_PRIORITY, received.get(i));
+              }
+            }
+          }
         }
       }
     }

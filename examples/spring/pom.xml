@@ -21,7 +21,7 @@
   <parent>
     <artifactId>pulsar-jms-parent</artifactId>
     <groupId>com.datastax.oss</groupId>
-    <version>4.0.2-SNAPSHOT</version>
+    <version>4.1.2-SNAPSHOT</version>
     <relativePath>../../pom.xml</relativePath>
   </parent>
   <groupId>com.example</groupId>
@@ -62,7 +62,7 @@
     <dependency>
       <groupId>org.projectlombok</groupId>
       <artifactId>lombok</artifactId>
-      <version>1.18.20</version>
+      <version>1.18.30</version>
       <scope>provided</scope>
     </dependency>
   </dependencies>

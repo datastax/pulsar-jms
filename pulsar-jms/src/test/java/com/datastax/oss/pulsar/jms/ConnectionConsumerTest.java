@@ -20,12 +20,9 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
+import com.datastax.oss.pulsar.jms.utils.PulsarContainerExtension;
 import com.google.common.collect.ImmutableMap;
-import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -53,36 +50,17 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.common.policies.data.TopicStats;
 import org.apache.pulsar.common.util.FutureUtil;
 import org.awaitility.Awaitility;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.extension.RegisterExtension;
 import org.mockito.internal.util.reflection.Whitebox;
 
 @Slf4j
 public class ConnectionConsumerTest {
-
-  @TempDir public static Path tempDir;
-  private static PulsarCluster cluster;
-
-  @BeforeAll
-  public static void before() throws Exception {
-    cluster =
-        new PulsarCluster(
-            tempDir,
-            c -> {
-              c.setTransactionCoordinatorEnabled(false);
-              c.setEntryFilterNames(Collections.emptyList());
-            });
-    cluster.start();
-  }
-
-  @AfterAll
-  public static void after() throws Exception {
-    if (cluster != null) {
-      cluster.close();
-    }
-  }
+  @RegisterExtension
+  static PulsarContainerExtension pulsarContainer =
+      new PulsarContainerExtension()
+          .withEnv("PULSAR_PREFIX_transactionCoordinatorEnabled", "false")
+          .withEnv("PULSAR_PREFIX_entryFilterNames", "");
 
   private interface ConnectionConsumerBuilder {
     ConnectionConsumer build(
@@ -189,8 +167,7 @@ public class ConnectionConsumerTest {
         selector,
         maxMessages,
         maxMessagesLimitParallelism);
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     properties.put("jms.enableClientSideEmulation", true);
     properties.put("jms.maxMessagesLimitsParallelism", maxMessagesLimitParallelism);
 
@@ -276,8 +253,7 @@ public class ConnectionConsumerTest {
       Awaitility.await()
           .untilAsserted(
               () -> {
-                TopicStats stats =
-                    cluster.getService().getAdminClient().topics().getStats(topicName);
+                TopicStats stats = pulsarContainer.getAdmin().topics().getStats(topicName);
                 assertEquals(0, stats.getBacklogSize());
               });
 
@@ -311,8 +287,7 @@ public class ConnectionConsumerTest {
   public void testStopTimeoutWithMessageDrivenOnMessageCallbackStuck() throws Exception {
     long start = System.currentTimeMillis();
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     properties.put("jms.enableClientSideEmulation", true);
     properties.put("jms.maxMessagesLimitsParallelism", false);
     // we should not be stuck even if connectionConsumerStopTimeout is 0
@@ -392,8 +367,7 @@ public class ConnectionConsumerTest {
   public void testStopTimeoutWithSpoolThreadStuck() throws Exception {
     long start = System.currentTimeMillis();
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     properties.put("jms.enableClientSideEmulation", true);
     properties.put("jms.maxMessagesLimitsParallelism", false);
     properties.put("jms.connectionConsumerStopTimeout", 2000);

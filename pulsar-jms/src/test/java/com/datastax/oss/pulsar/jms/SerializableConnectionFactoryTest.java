@@ -17,13 +17,11 @@ package com.datastax.oss.pulsar.jms;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
+import com.datastax.oss.pulsar.jms.utils.PulsarContainerExtension;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
-import java.nio.file.Path;
-import java.util.HashMap;
 import java.util.Map;
 import javax.jms.Connection;
 import javax.jms.ConnectionFactory;
@@ -32,34 +30,19 @@ import javax.jms.MessageProducer;
 import javax.jms.Queue;
 import javax.jms.Session;
 import lombok.extern.slf4j.Slf4j;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
 @Slf4j
 public class SerializableConnectionFactoryTest {
-  @TempDir public static Path tempDir;
-  private static PulsarCluster cluster;
-
-  @BeforeAll
-  public static void before() throws Exception {
-    cluster =
-        new PulsarCluster(tempDir, (config) -> config.setTransactionCoordinatorEnabled(false));
-    cluster.start();
-  }
-
-  @AfterAll
-  public static void after() throws Exception {
-    if (cluster != null) {
-      cluster.close();
-    }
-  }
+  @RegisterExtension
+  static PulsarContainerExtension pulsarContainer =
+      new PulsarContainerExtension()
+          .withEnv("PULSAR_PREFIX_transactionCoordinatorEnabled", "false");
 
   @Test
   public void test() throws Exception {
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
 
     try (PulsarConnectionFactory factory1 = new PulsarConnectionFactory(properties);
         PulsarConnectionFactory factory2 = new PulsarConnectionFactory(properties); ) {

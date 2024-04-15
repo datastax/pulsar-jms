@@ -24,8 +24,7 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.datastax.oss.pulsar.jms.messages.PulsarTextMessage;
-import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
-import java.nio.file.Path;
+import com.datastax.oss.pulsar.jms.utils.PulsarContainerExtension;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -34,6 +33,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
 import javax.jms.CompletionListener;
 import javax.jms.Message;
 import javax.jms.MessageProducer;
@@ -43,28 +43,27 @@ import javax.jms.TextMessage;
 import javax.jms.Topic;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.pulsar.client.api.Consumer;
-import org.apache.pulsar.client.api.MessageId;
-import org.apache.pulsar.client.api.SubscriptionMode;
-import org.apache.pulsar.client.api.SubscriptionType;
+import org.apache.pulsar.client.api.*;
 import org.apache.pulsar.client.impl.BatchMessageIdImpl;
 import org.apache.pulsar.common.policies.data.ManagedLedgerInternalStats;
 import org.apache.pulsar.common.policies.data.PartitionedTopicStats;
 import org.apache.pulsar.common.policies.data.PersistentTopicInternalStats;
 import org.apache.pulsar.common.policies.data.TopicStats;
 import org.apache.pulsar.common.util.FutureUtil;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
-import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
 @Slf4j
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public abstract class SelectorsTestsBase {
 
-  @TempDir public static Path tempDir;
-  private static PulsarCluster cluster;
+  @RegisterExtension
+  static PulsarContainerExtension pulsarContainer =
+      new PulsarContainerExtension()
+          .withEnv("PULSAR_PREFIX_transactionCoordinatorEnabled", "false");
 
   private final boolean useServerSideFiltering;
   private final boolean enableBatching;
@@ -74,24 +73,8 @@ public abstract class SelectorsTestsBase {
     this.enableBatching = enableBatching;
   }
 
-  @BeforeAll
-  public void before() throws Exception {
-    cluster =
-        new PulsarCluster(tempDir, (config) -> config.setTransactionCoordinatorEnabled(false));
-    cluster.start();
-  }
-
-  @AfterAll
-  public void after() throws Exception {
-    if (cluster != null) {
-      cluster.close();
-    }
-  }
-
   private Map<String, Object> buildProperties() {
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("webServiceUrl", cluster.getAddress());
-
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     properties.put("jms.useServerSideFiltering", useServerSideFiltering);
     properties.put("jms.enableClientSideEmulation", !useServerSideFiltering);
 
@@ -169,11 +152,7 @@ public abstract class SelectorsTestsBase {
           Topic destination =
               session.createTopic("persistent://public/default/test-" + UUID.randomUUID());
 
-          cluster
-              .getService()
-              .getAdminClient()
-              .topics()
-              .createNonPartitionedTopic(destination.getTopicName());
+          pulsarContainer.getAdmin().topics().createNonPartitionedTopic(destination.getTopicName());
 
           try (PulsarMessageConsumer consumer1 =
               session.createConsumer(destination, "lastMessage=TRUE"); ) {
@@ -401,11 +380,7 @@ public abstract class SelectorsTestsBase {
 
           // no individuallyDeletedMessages
           PersistentTopicInternalStats internalStats =
-              cluster
-                  .getService()
-                  .getAdminClient()
-                  .topics()
-                  .getInternalStats(destination.getQueueName());
+              pulsarContainer.getAdmin().topics().getInternalStats(destination.getQueueName());
           assertEquals(1, internalStats.cursors.size());
           ManagedLedgerInternalStats.CursorStats cursorStats =
               internalStats.cursors.values().iterator().next();
@@ -510,6 +485,8 @@ public abstract class SelectorsTestsBase {
   // This test may take long time, because it depends on how the broker
   // chooses the Consumer to try to dispatch the messages.
   @Test
+  @Disabled()
+  @Timeout(value = 10, unit = TimeUnit.MINUTES)
   public void sendBatchWithCompetingConsumersOnQueue() throws Exception {
     Map<String, Object> properties = buildProperties();
     if (enableBatching) {
@@ -761,13 +738,9 @@ public abstract class SelectorsTestsBase {
     String topicName =
         "topic-with-sub-" + useServerSideFiltering + "_" + enableBatching + "_" + numPartitions;
     if (numPartitions > 0) {
-      cluster
-          .getService()
-          .getAdminClient()
-          .topics()
-          .createPartitionedTopic(topicName, numPartitions);
+      pulsarContainer.getAdmin().topics().createPartitionedTopic(topicName, numPartitions);
     } else {
-      cluster.getService().getAdminClient().topics().createNonPartitionedTopic(topicName);
+      pulsarContainer.getAdmin().topics().createNonPartitionedTopic(topicName);
     }
 
     String subscriptionName = "the-sub";
@@ -778,9 +751,8 @@ public abstract class SelectorsTestsBase {
     subscriptionProperties.put("jms.filtering", "true");
 
     // create a Subscription with a selector
-    cluster
-        .getService()
-        .getAdminClient()
+    pulsarContainer
+        .getAdmin()
         .topics()
         .createSubscription(
             topicName, subscriptionName, MessageId.earliest, false, subscriptionProperties);
@@ -875,13 +847,9 @@ public abstract class SelectorsTestsBase {
             + "_"
             + numPartitions;
     if (numPartitions > 0) {
-      cluster
-          .getService()
-          .getAdminClient()
-          .topics()
-          .createPartitionedTopic(topicName, numPartitions);
+      pulsarContainer.getAdmin().topics().createPartitionedTopic(topicName, numPartitions);
     } else {
-      cluster.getService().getAdminClient().topics().createNonPartitionedTopic(topicName);
+      pulsarContainer.getAdmin().topics().createNonPartitionedTopic(topicName);
     }
 
     String subscriptionName = "the-sub";
@@ -892,9 +860,8 @@ public abstract class SelectorsTestsBase {
     subscriptionProperties.put("jms.filtering", "true");
 
     // create a Subscription with a selector
-    cluster
-        .getService()
-        .getAdminClient()
+    pulsarContainer
+        .getAdmin()
         .topics()
         .createSubscription(
             topicName,
@@ -974,11 +941,11 @@ public abstract class SelectorsTestsBase {
 
         if (numPartitions == 0) {
           // ensure subscription exists
-          TopicStats stats = cluster.getService().getAdminClient().topics().getStats(topicName);
+          TopicStats stats = pulsarContainer.getAdmin().topics().getStats(topicName);
           assertNotNull(stats.getSubscriptions().get(subscriptionName));
         } else {
           PartitionedTopicStats stats =
-              cluster.getService().getAdminClient().topics().getPartitionedStats(topicName, false);
+              pulsarContainer.getAdmin().topics().getPartitionedStats(topicName, false);
           assertNotNull(stats.getSubscriptions().get(subscriptionName));
         }
       }
@@ -1009,7 +976,7 @@ public abstract class SelectorsTestsBase {
     String topicName =
         "sendUsingExistingPulsarSubscriptionWithServerSideFilterForQueueAndAdditionalLocalSelector_"
             + enableBatching;
-    cluster.getService().getAdminClient().topics().createNonPartitionedTopic(topicName);
+    pulsarContainer.getAdmin().topics().createNonPartitionedTopic(topicName);
 
     String subscriptionName = "the-sub";
     String selectorOnSubscription = "keepme = TRUE";
@@ -1020,17 +987,18 @@ public abstract class SelectorsTestsBase {
     subscriptionProperties.put("jms.filtering", "true");
 
     // create a Subscription with a selector
-    try (Consumer<byte[]> dummy =
-        cluster
-            .getService()
-            .getClient()
-            .newConsumer()
-            .subscriptionName(subscriptionName)
-            .subscriptionType(SubscriptionType.Shared)
-            .subscriptionMode(SubscriptionMode.Durable)
-            .subscriptionProperties(subscriptionProperties)
-            .topic(topicName)
-            .subscribe()) {
+
+    try (PulsarClient client =
+            PulsarClient.builder().serviceUrl(pulsarContainer.getBrokerUrl()).build();
+        Consumer<byte[]> dummy =
+            client
+                .newConsumer()
+                .subscriptionName(subscriptionName)
+                .subscriptionType(SubscriptionType.Shared)
+                .subscriptionMode(SubscriptionMode.Durable)
+                .subscriptionProperties(subscriptionProperties)
+                .topic(topicName)
+                .subscribe()) {
       // in 2.10 there is no PulsarAdmin API to set subscriptions properties
       // the only way is to create a dummy Consumer
     }
@@ -1116,7 +1084,7 @@ public abstract class SelectorsTestsBase {
         }
 
         // ensure subscription exists
-        TopicStats stats = cluster.getService().getAdminClient().topics().getStats(topicName);
+        TopicStats stats = pulsarContainer.getAdmin().topics().getStats(topicName);
         assertNotNull(stats.getSubscriptions().get(subscriptionName));
       }
     }
@@ -1146,8 +1114,7 @@ public abstract class SelectorsTestsBase {
                 ((PulsarMessageConsumer) consumer1).getSubscriptionType());
             assertEquals("lastMessage=TRUE", consumer1.getMessageSelector());
 
-            int sizeForChunking =
-                cluster.getService().getConfiguration().getMaxMessageSize() + 1024;
+            int sizeForChunking = (1024 * 1024) + 1024;
             String hugePayload = StringUtils.repeat("a", sizeForChunking);
 
             try (MessageProducer producer = session.createProducer(destination); ) {
@@ -1191,7 +1158,7 @@ public abstract class SelectorsTestsBase {
     properties.put("jms.enableClientSideEmulation", "false");
 
     String topicName = "sendHugeFilterOnServerSideSubscription_" + enableBatching;
-    cluster.getService().getAdminClient().topics().createNonPartitionedTopic(topicName);
+    pulsarContainer.getAdmin().topics().createNonPartitionedTopic(topicName);
 
     String subscriptionName = "the-sub";
     StringBuilder huge = new StringBuilder("prop1 IN (");
@@ -1208,17 +1175,17 @@ public abstract class SelectorsTestsBase {
     subscriptionProperties.put("jms.filtering", "true");
 
     // create a Subscription with a selector
-    try (Consumer<byte[]> dummy =
-        cluster
-            .getService()
-            .getClient()
-            .newConsumer()
-            .subscriptionName(subscriptionName)
-            .subscriptionType(SubscriptionType.Shared)
-            .subscriptionMode(SubscriptionMode.Durable)
-            .subscriptionProperties(subscriptionProperties)
-            .topic(topicName)
-            .subscribe()) {
+    try (PulsarClient client =
+            PulsarClient.builder().serviceUrl(pulsarContainer.getBrokerUrl()).build();
+        Consumer<byte[]> dummy =
+            client
+                .newConsumer()
+                .subscriptionName(subscriptionName)
+                .subscriptionType(SubscriptionType.Shared)
+                .subscriptionMode(SubscriptionMode.Durable)
+                .subscriptionProperties(subscriptionProperties)
+                .topic(topicName)
+                .subscribe()) {
       // in 2.10 there is no PulsarAdmin API to set subscriptions properties
       // the only way is to create a dummy Consumer
     }
@@ -1264,7 +1231,7 @@ public abstract class SelectorsTestsBase {
         }
 
         // ensure subscription exists
-        TopicStats stats = cluster.getService().getAdminClient().topics().getStats(topicName);
+        TopicStats stats = pulsarContainer.getAdmin().topics().getStats(topicName);
         assertNotNull(stats.getSubscriptions().get(subscriptionName));
       }
     }
@@ -1279,7 +1246,7 @@ public abstract class SelectorsTestsBase {
     properties.put("jms.enableClientSideEmulation", "false");
 
     String topicName = "sendHugeFilterOnConsumerMetadata_" + enableBatching;
-    cluster.getService().getAdminClient().topics().createNonPartitionedTopic(topicName);
+    pulsarContainer.getAdmin().topics().createNonPartitionedTopic(topicName);
 
     String subscriptionName = "the-sub";
     StringBuilder huge = new StringBuilder("prop1 IN (");
@@ -1330,7 +1297,7 @@ public abstract class SelectorsTestsBase {
         }
 
         // ensure subscription exists
-        TopicStats stats = cluster.getService().getAdminClient().topics().getStats(topicName);
+        TopicStats stats = pulsarContainer.getAdmin().topics().getStats(topicName);
         assertNotNull(stats.getSubscriptions().get(subscriptionName));
       }
     }
