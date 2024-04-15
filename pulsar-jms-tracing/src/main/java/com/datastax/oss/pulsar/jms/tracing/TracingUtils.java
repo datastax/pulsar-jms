@@ -107,12 +107,15 @@ public class TracingUtils {
         traceDetails.put("clientSourceAddressAndPort", cnx.clientSourceAddressAndPort());
         break;
       case FULL:
-        populateConnectionDetails(TraceLevel.MINIMAL, cnx, traceDetails);
         populateConnectionDetails(TraceLevel.BASIC, cnx, traceDetails);
 
         traceDetails.put("authRole", cnx.getAuthRole());
         traceDetails.put("authMethod", cnx.getAuthMethod());
-        traceDetails.put("authMethodName", cnx.getAuthenticationProvider().getAuthMethodName());
+        traceDetails.put(
+            "authMethodName",
+            cnx.getAuthenticationProvider() == null
+                ? "no provider"
+                : cnx.getAuthenticationProvider().getAuthMethodName());
         break;
       default:
         log.warn("Unknown tracing level: {}", level);
@@ -154,7 +157,6 @@ public class TracingUtils {
 
         break;
       case FULL:
-        populateSubscriptionDetails(TraceLevel.MINIMAL, sub, traceDetails);
         populateSubscriptionDetails(TraceLevel.BASIC, sub, traceDetails);
 
         traceDetails.put("subscriptionProperties", sub.getSubscriptionProperties());
@@ -185,22 +187,21 @@ public class TracingUtils {
       case MINIMAL:
         traceDetails.put("name", consumer.consumerName());
         traceDetails.put("consumerId", consumer.consumerId());
-        if (consumer.getSubscription() != null) {
-          traceDetails.put("subscriptionName", consumer.getSubscription().getName());
+        Subscription sub = consumer.getSubscription();
+        if (sub != null) {
+          traceDetails.put("subscriptionName", sub.getName());
           traceDetails.put(
-              "topicName",
-              TopicName.get(consumer.getSubscription().getTopicName()).getPartitionedTopicName());
+              "topicName", TopicName.get(sub.getTopicName()).getPartitionedTopicName());
         }
         break;
       case BASIC:
         populateConsumerDetails(TraceLevel.MINIMAL, consumer, traceDetails);
 
         traceDetails.put("priorityLevel", consumer.getPriorityLevel());
-        traceDetails.put("subType", consumer.subType().name());
+        traceDetails.put("subType", consumer.subType() == null ? null : consumer.subType().name());
         traceDetails.put("clientAddress", consumer.getClientAddress());
         break;
       case FULL:
-        populateConsumerDetails(TraceLevel.MINIMAL, consumer, traceDetails);
         populateConsumerDetails(TraceLevel.BASIC, consumer, traceDetails);
 
         traceDetails.put("metadata", consumer.getMetadata());
@@ -231,7 +232,9 @@ public class TracingUtils {
       case MINIMAL:
         traceDetails.put("producerId", producer.getProducerId());
         traceDetails.put("producerName", producer.getProducerName());
-        traceDetails.put("accessMode", producer.getAccessMode().name());
+        traceDetails.put(
+            "accessMode",
+            producer.getAccessMode() == null ? null : producer.getAccessMode().name());
         if (producer.getTopic() != null) {
           traceDetails.put(
               "topicName", TopicName.get(producer.getTopic().getName()).getPartitionedTopicName());
@@ -243,7 +246,6 @@ public class TracingUtils {
         traceDetails.put("clientAddress", producer.getClientAddress());
         break;
       case FULL:
-        populateProducerDetails(TraceLevel.MINIMAL, producer, traceDetails);
         populateProducerDetails(TraceLevel.BASIC, producer, traceDetails);
 
         traceDetails.put("metadata", producer.getMetadata());
@@ -277,25 +279,42 @@ public class TracingUtils {
 
     switch (level) {
       case MINIMAL:
-        traceDetails.put("sequenceId", msgMetadata.getSequenceId());
-        traceDetails.put("producerName", msgMetadata.getProducerName());
-        traceDetails.put("partitionKey", msgMetadata.getPartitionKey());
+        if (msgMetadata.hasPartitionKey()) {
+          traceDetails.put("partitionKey", msgMetadata.getPartitionKey());
+        }
+        if (msgMetadata.hasSequenceId()) {
+          traceDetails.put("sequenceId", msgMetadata.getSequenceId());
+        }
+        if (msgMetadata.hasProducerName()) {
+          traceDetails.put("producerName", msgMetadata.getProducerName());
+        }
         break;
       case BASIC:
         populateMessageMetadataDetails(TraceLevel.MINIMAL, msgMetadata, traceDetails);
 
-        traceDetails.put("uncompressedSize", msgMetadata.getUncompressedSize());
+        if (msgMetadata.hasUncompressedSize()) {
+          traceDetails.put("uncompressedSize", msgMetadata.getUncompressedSize());
+        }
+        if (msgMetadata.hasNumMessagesInBatch()) {
+          traceDetails.put("numMessagesInBatch", msgMetadata.getNumMessagesInBatch());
+        }
         traceDetails.put("serializedSize", msgMetadata.getSerializedSize());
-        traceDetails.put("numMessagesInBatch", msgMetadata.getNumMessagesInBatch());
         break;
       case FULL:
-        populateMessageMetadataDetails(TraceLevel.MINIMAL, msgMetadata, traceDetails);
         populateMessageMetadataDetails(TraceLevel.BASIC, msgMetadata, traceDetails);
 
-        traceDetails.put("publishTime", msgMetadata.getPublishTime());
-        traceDetails.put("eventTime", msgMetadata.getEventTime());
-        traceDetails.put("replicatedFrom", msgMetadata.getReplicatedFrom());
-        traceDetails.put("uuid", msgMetadata.getUuid());
+        if (msgMetadata.hasPublishTime()) {
+          traceDetails.put("publishTime", msgMetadata.getPublishTime());
+        }
+        if (msgMetadata.hasEventTime()) {
+          traceDetails.put("eventTime", msgMetadata.getEventTime());
+        }
+        if (msgMetadata.hasReplicatedFrom()) {
+          traceDetails.put("replicatedFrom", msgMetadata.getReplicatedFrom());
+        }
+        if (msgMetadata.hasUuid()) {
+          traceDetails.put("uuid", msgMetadata.getUuid());
+        }
         break;
       default:
         log.warn("Unknown tracing level: {}", level);
@@ -330,7 +349,6 @@ public class TracingUtils {
         traceDetails.put("length", entry.getLength());
         break;
       case FULL:
-        populateEntryDetails(TraceLevel.MINIMAL, entry, traceDetails);
         populateEntryDetails(TraceLevel.BASIC, entry, traceDetails);
 
         traceByteBuf("data", entry.getDataBuffer(), traceDetails);

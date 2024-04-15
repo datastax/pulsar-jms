@@ -79,7 +79,7 @@ public class BrokerTracing implements BrokerInterceptor {
 
     for (String event : events.split(",")) {
       try {
-        enabledEvents.add(EventReasons.valueOf(event.trim()));
+        enabledEvents.add(EventReasons.valueOf(event.trim().toUpperCase()));
       } catch (IllegalArgumentException e) {
         log.error("Invalid event: {}. Skipping", event);
       }
@@ -96,7 +96,7 @@ public class BrokerTracing implements BrokerInterceptor {
             .getProperties()
             .getProperty("jmsTracingLevel", defaultTraceLevel.toString());
     try {
-      return TraceLevel.valueOf(level);
+      return TraceLevel.valueOf(level.trim().toUpperCase());
     } catch (IllegalArgumentException e) {
       log.warn("Invalid tracing level: {}. Using default: {}", level, defaultTraceLevel);
       return defaultTraceLevel;
@@ -115,7 +115,7 @@ public class BrokerTracing implements BrokerInterceptor {
                   }
 
                   try {
-                    return TraceLevel.valueOf(subProps.get("trace"));
+                    return TraceLevel.valueOf(subProps.get("trace").trim().toUpperCase());
                   } catch (IllegalArgumentException e) {
                     log.warn(
                         "Invalid tracing level: {}. Setting to NONE for subscription {}",
@@ -137,7 +137,8 @@ public class BrokerTracing implements BrokerInterceptor {
                     return TraceLevel.NONE;
                   }
                   try {
-                    return TraceLevel.valueOf(producer.getMetadata().get("trace"));
+                    return TraceLevel.valueOf(
+                        producer.getMetadata().get("trace").trim().toUpperCase());
                   } catch (IllegalArgumentException e) {
                     log.warn(
                         "Invalid tracing level: {}. Setting to NONE for producer {}",
@@ -273,6 +274,9 @@ public class BrokerTracing implements BrokerInterceptor {
 
     Map<String, Object> traceDetails = new TreeMap<>();
     traceDetails.put("serverCnx", getConnectionDetails(traceLevel, cnx));
+    // todo: .toString() is not good enough
+    // {"message":"Pulsar command
+    // called","traceDetails":{"command":"org.apache.pulsar.common.api.proto.BaseCommand@2822d70c","serverCnx":{"authMethod":"none","authMethodName":"no provider","authRole":null,"clientAddress":"/127.0.0.1:54176","clientSourceAddressAndPort":"/127.0.0.1:54176","clientVersion":"Pulsar-Java-v3.1.3.1-SNAPSHOT"}}}
     traceDetails.put("command", command.toString());
 
     trace("Pulsar command called", traceDetails);
