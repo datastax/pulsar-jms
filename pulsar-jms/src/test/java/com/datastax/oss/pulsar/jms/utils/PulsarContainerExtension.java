@@ -18,6 +18,7 @@ package com.datastax.oss.pulsar.jms.utils;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -25,6 +26,7 @@ import java.util.function.Consumer;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.admin.PulsarAdmin;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.extension.AfterAllCallback;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
@@ -103,6 +105,18 @@ public class PulsarContainerExtension implements BeforeAllCallback, AfterAllCall
         PulsarAdmin.builder()
             .serviceHttpUrl("http://localhost:" + pulsarContainer.getMappedPort(8080))
             .build();
+    Awaitility.await()
+        .until(
+            () -> {
+              List<String> tenants = admin.tenants().getTenants();
+              log.info("Tenants: {}", tenants);
+              if (!tenants.contains("public")) {
+                return false;
+              }
+              List<String> namespaces = admin.namespaces().getNamespaces("public");
+              log.info("Namespaces: {}", namespaces);
+              return namespaces.contains("public/default");
+            });
     if (onContainerReady != null) {
       onContainerReady.accept(this);
     }
