@@ -2,7 +2,7 @@
 
 set -x -e
 
-IMAGENAME=${PULSAR_IMAGE_NAME:-apachepulsar/pulsar:3.0.0}
+IMAGENAME=${PULSAR_IMAGE_NAME:-datastax/lunastreaming:3.1_3.1}
 
 HERE=$(dirname $0)
 HERE=$(realpath "$HERE")
