@@ -16,6 +16,8 @@
 package com.datastax.oss.pulsar.jms.selectors;
 
 import io.netty.buffer.ByteBuf;
+import io.prometheus.client.CollectorRegistry;
+import io.prometheus.client.Histogram;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.Collections;
@@ -49,7 +51,23 @@ import org.apache.pulsar.common.protocol.Commands;
 @Slf4j
 public class JMSPublishFilters implements BrokerInterceptor {
   private static final String JMS_FILTER_METADATA = "jms-msg-metadata";
-  private final JMSFilter filter = new JMSFilter();
+
+  private static final Histogram filterProcessingTimeOnPublish =
+      Histogram.build()
+          .name("pulsar_jmsfilter_preprocessing_time_onpublish")
+          .help(
+              "Time taken to pre-process the message on the broker while accepting messages from producers before applying filters")
+          .labelNames("topic")
+          .create();
+  private static final Histogram filterProcessingTimeOnProduce =
+      Histogram.build()
+          .name("pulsar_jmsfilter_processing_time_onpublish")
+          .help(
+              "Time taken to process the message on the broker while accepting messages from producers and applying filters")
+          .labelNames("topic", "subscription")
+          .create();
+
+  private final JMSFilter filter = new JMSFilter(false);
   private boolean enabled = false;
 
   private static final Field dispatchMessagesThreadFieldPersistentDispatcherMultipleConsumers;
@@ -85,6 +103,15 @@ public class JMSPublishFilters implements BrokerInterceptor {
                 .getProperties()
                 .getProperty("jmsApplyFiltersOnPublish", "true"));
     log.info("jmsApplyFiltersOnPublish={}", enabled);
+
+    try {
+      log.info("Registering JMSFilter metrics");
+      CollectorRegistry.defaultRegistry.register(filterProcessingTimeOnPublish);
+      CollectorRegistry.defaultRegistry.register(filterProcessingTimeOnProduce);
+    } catch (IllegalArgumentException alreadyRegistered) {
+      // ignore
+      log.info("Filter metrics already registered", alreadyRegistered);
+    }
   }
 
   @Override
@@ -98,28 +125,33 @@ public class JMSPublishFilters implements BrokerInterceptor {
         || publishContext.getNumberOfMessages() > 1) {
       return;
     }
+    long now = System.nanoTime();
+    try {
+      for (Subscription subscription : producer.getTopic().getSubscriptions().values()) {
+        if (!(subscription instanceof PersistentSubscription)) {
+          continue;
+        }
+        Map<String, String> subscriptionProperties = subscription.getSubscriptionProperties();
+        if (!subscriptionProperties.containsKey("jms.selector")) {
+          continue;
+        }
 
-    for (Subscription subscription : producer.getTopic().getSubscriptions().values()) {
-      if (!(subscription instanceof PersistentSubscription)) {
-        continue;
+        // we must make a copy because the ByteBuf will be released
+        MessageMetadata messageMetadata =
+            new MessageMetadata()
+                .copyFrom(
+                    Commands.peekMessageMetadata(headersAndPayload, "jms-filter-on-publish", -1));
+
+        publishContext.setProperty(JMS_FILTER_METADATA, messageMetadata);
+        // as soon as we find a good reason to apply the filters in messageProduced
+        // we can exit
+        return;
       }
-      Map<String, String> subscriptionProperties = subscription.getSubscriptionProperties();
-      if (!subscriptionProperties.containsKey("jms.selector")) {
-        continue;
-      }
-
-      // we must make a copy because the ByteBuf will be released
-      MessageMetadata messageMetadata =
-          new MessageMetadata()
-              .copyFrom(
-                  Commands.peekMessageMetadata(headersAndPayload, "jms-filter-on-publish", -1));
-
-      publishContext.setProperty(JMS_FILTER_METADATA, messageMetadata);
-      // as soon as we find a good reason to apply the filters in messageProduced
-      // we can exit
-      return;
+    } finally {
+      filterProcessingTimeOnPublish
+          .labels(producer.getTopic().getName())
+          .observe(System.nanoTime() - now);
     }
-    ;
   }
 
   @Override
@@ -141,31 +173,40 @@ public class JMSPublishFilters implements BrokerInterceptor {
     if (messageMetadata.hasNumMessagesInBatch()) {
       return;
     }
+
     for (Subscription subscription : producer.getTopic().getSubscriptions().values()) {
       scheduleOnDispatchThread(
           subscription,
           () -> {
-            FilterContext filterContext = new FilterContext();
-            filterContext.setSubscription(subscription);
-            filterContext.setMsgMetadata(messageMetadata);
-            filterContext.setConsumer(null);
-            Entry entry = null; // we would need the Entry only in case of batch messages
-            EntryFilter.FilterResult filterResult = filter.filterEntry(entry, filterContext, true);
-            if (filterResult == EntryFilter.FilterResult.REJECT) {
-              if (log.isDebugEnabled()) {
-                log.debug(
-                    "Reject message {}:{} for subscription {}",
-                    ledgerId,
-                    entryId,
-                    subscription.getName());
+            long now = System.nanoTime();
+            try {
+              FilterContext filterContext = new FilterContext();
+              filterContext.setSubscription(subscription);
+              filterContext.setMsgMetadata(messageMetadata);
+              filterContext.setConsumer(null);
+              Entry entry = null; // we would need the Entry only in case of batch messages
+              EntryFilter.FilterResult filterResult =
+                  filter.filterEntry(entry, filterContext, true);
+              if (filterResult == EntryFilter.FilterResult.REJECT) {
+                if (log.isDebugEnabled()) {
+                  log.debug(
+                      "Reject message {}:{} for subscription {}",
+                      ledgerId,
+                      entryId,
+                      subscription.getName());
+                }
+                // ir is possible that calling this method in this thread may affect
+                // performance
+                // let's keep it simple for now, we can optimize it later
+                subscription.acknowledgeMessage(
+                    Collections.singletonList(new PositionImpl(ledgerId, entryId)),
+                    CommandAck.AckType.Individual,
+                    null);
               }
-              // ir is possible that calling this method in this thread may affect
-              // performance
-              // let's keep it simple for now, we can optimize it later
-              subscription.acknowledgeMessage(
-                  Collections.singletonList(new PositionImpl(ledgerId, entryId)),
-                  CommandAck.AckType.Individual,
-                  null);
+            } finally {
+              filterProcessingTimeOnProduce
+                  .labels(producer.getTopic().getName(), subscription.getName())
+                  .observe(System.nanoTime() - now);
             }
           });
     }
