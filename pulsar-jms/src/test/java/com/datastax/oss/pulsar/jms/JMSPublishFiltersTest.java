@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.UUID;
 import javax.jms.MessageProducer;
 import javax.jms.Queue;
+import javax.jms.Session;
 import javax.jms.TextMessage;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.api.SubscriptionType;
@@ -40,7 +41,7 @@ public class JMSPublishFiltersTest {
   @RegisterExtension
   static PulsarContainerExtension pulsarContainer =
       new PulsarContainerExtension()
-          .withEnv("PULSAR_PREFIX_transactionCoordinatorEnabled", "false")
+          .withEnv("PULSAR_PREFIX_transactionCoordinatorEnabled", "true")
           .withEnv("PULSAR_PREFIX_brokerInterceptorsDirectory", "/pulsar/interceptors")
           .withEnv("PULSAR_PREFIX_brokerInterceptors", "jms-publish-filters")
           .withEnv("PULSAR_PREFIX_jmsApplyFiltersOnPublish", "true")
@@ -59,13 +60,24 @@ public class JMSPublishFiltersTest {
 
   @Test
   public void sendMessageReceiveFromQueue() throws Exception {
-    Map<String, Object> properties = buildProperties();
+    sendMessageReceiveFromQueue(false);
+  }
 
+  @Test
+  public void sendMessageReceiveFromQueueInTransaction() throws Exception {
+    sendMessageReceiveFromQueue(true);
+  }
+
+  private void sendMessageReceiveFromQueue(boolean transacted) throws Exception {
+    Map<String, Object> properties = buildProperties();
+    properties.put("enableTransaction", true);
     String topicName = "persistent://public/default/test-" + UUID.randomUUID();
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (PulsarConnection connection = factory.createConnection()) {
         connection.start();
-        try (PulsarSession session = connection.createSession(); ) {
+        try (PulsarSession session =
+            connection.createSession(
+                transacted ? Session.SESSION_TRANSACTED : Session.AUTO_ACKNOWLEDGE); ) {
           Queue destination = session.createQueue(topicName);
 
           try (PulsarMessageConsumer consumer1 = session.createConsumer(destination); ) {
@@ -90,6 +102,9 @@ public class JMSPublishFiltersTest {
                 }
                 producer.send(textMessage);
               }
+              if (transacted) {
+                session.commit();
+              }
             }
 
             TextMessage textMessage = (TextMessage) consumer1.receive();
@@ -105,9 +120,19 @@ public class JMSPublishFiltersTest {
             // because the filter has been already applied on the write path
             TopicStats stats = pulsarContainer.getAdmin().topics().getStats(topicName);
             SubscriptionStats subscriptionStats = stats.getSubscriptions().get("jms-queue");
-            assertEquals(subscriptionStats.getFilterProcessedMsgCount(), 1);
-            assertEquals(subscriptionStats.getFilterRejectedMsgCount(), 0);
-            assertEquals(subscriptionStats.getFilterAcceptedMsgCount(), 1);
+            if (transacted) {
+              // when we enable transactions the stats are not updated correctly
+              // it seems that the transaction marker is counted as "processed by filters"
+              // but actually it is not processed by the JMSFilter at all
+              assertEquals(subscriptionStats.getFilterProcessedMsgCount(), 2);
+              assertEquals(subscriptionStats.getFilterRejectedMsgCount(), 0);
+              assertEquals(subscriptionStats.getFilterAcceptedMsgCount(), 1);
+              session.commit();
+            } else {
+              assertEquals(subscriptionStats.getFilterProcessedMsgCount(), 1);
+              assertEquals(subscriptionStats.getFilterRejectedMsgCount(), 0);
+              assertEquals(subscriptionStats.getFilterAcceptedMsgCount(), 1);
+            }
           }
 
           // create a message that doesn't match the filter
@@ -120,6 +145,10 @@ public class JMSPublishFiltersTest {
             TopicStats stats = pulsarContainer.getAdmin().topics().getStats(topicName);
             SubscriptionStats subscriptionStats = stats.getSubscriptions().get("jms-queue");
             assertEquals(0, subscriptionStats.getMsgBacklog());
+
+            if (transacted) {
+              session.commit();
+            }
           }
         }
       }

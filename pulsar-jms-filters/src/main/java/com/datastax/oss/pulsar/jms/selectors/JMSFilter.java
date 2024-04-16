@@ -65,7 +65,13 @@ public class JMSFilter implements EntryFilter {
     if (registerMetrics) {
       if (metricRegistered.compareAndSet(false, true)) {
         log.info("Registering JMSFilter metrics");
-        CollectorRegistry.defaultRegistry.register(filterProcessingTime);
+        try {
+          CollectorRegistry.defaultRegistry.register(filterProcessingTime);
+        } catch (IllegalArgumentException alreadyRegistered) {
+          // this happens in Pulsar 2.10, because each JMSFilter is created in a different classloader
+          // so the metricRegistered flag doesn't help
+          log.debug("JMSFilter metrics already registered");
+        }
       }
     }
   }
