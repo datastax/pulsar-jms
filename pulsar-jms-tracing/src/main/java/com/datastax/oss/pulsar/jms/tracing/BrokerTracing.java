@@ -62,6 +62,7 @@ public class BrokerTracing implements BrokerInterceptor {
 
   public enum EventReasons {
     ADMINISTRATIVE,
+    COMMANDS,
     MESSAGE,
     TRANSACTION,
     SERVLET,
@@ -269,7 +270,7 @@ public class BrokerTracing implements BrokerInterceptor {
   }
 
   public void onPulsarCommand(BaseCommand command, ServerCnx cnx) throws InterceptException {
-    if (!jmsTracingEventList.contains(EventReasons.ADMINISTRATIVE)) return;
+    if (!jmsTracingEventList.contains(EventReasons.COMMANDS)) return;
 
     if (traceLevel == TraceLevel.NONE) return;
 
@@ -278,7 +279,9 @@ public class BrokerTracing implements BrokerInterceptor {
 
     if (command.hasType()) {
       traceDetails.put("type", command.getType().name());
-      traceDetails.put("command", getCommandDetails(traceLevel, command));
+      if (traceLevel != TraceLevel.MINIMAL) {
+        traceDetails.put("command", getCommandDetails(traceLevel, command));
+      }
     } else {
       traceDetails.put("type", "unknown/null");
     }

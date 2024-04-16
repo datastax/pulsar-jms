@@ -18,12 +18,14 @@ package com.datastax.oss.pulsar.jms.tracing;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.google.common.collect.Sets;
 import io.netty.buffer.ByteBuf;
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
@@ -109,181 +111,180 @@ public class TracingUtils {
     }
 
     // trace all params otherwise
-
     switch (command.getType()) {
       case CONNECT:
-        populateByReflection(command.getConnect(), traceDetails);
+        populateByReflection(level, command.getConnect(), traceDetails);
         break;
       case CONNECTED:
-        populateByReflection(command.getConnected(), traceDetails);
+        populateByReflection(level, command.getConnected(), traceDetails);
         break;
       case SUBSCRIBE:
-        populateByReflection(command.getSubscribe(), traceDetails);
+        populateByReflection(level, command.getSubscribe(), traceDetails);
         break;
       case PRODUCER:
-        populateByReflection(command.getProducer(), traceDetails);
+        populateByReflection(level, command.getProducer(), traceDetails);
         break;
       case SEND:
-        populateByReflection(command.getSend(), traceDetails);
+        populateByReflection(level, command.getSend(), traceDetails);
         break;
       case SEND_RECEIPT:
-        populateByReflection(command.getSendReceipt(), traceDetails);
+        populateByReflection(level, command.getSendReceipt(), traceDetails);
         break;
       case SEND_ERROR:
-        populateByReflection(command.getSendError(), traceDetails);
+        populateByReflection(level, command.getSendError(), traceDetails);
         break;
       case MESSAGE:
-        populateByReflection(command.getMessage(), traceDetails);
+        populateByReflection(level, command.getMessage(), traceDetails);
         break;
       case ACK:
-        populateByReflection(command.getAck(), traceDetails);
+        populateByReflection(level, command.getAck(), traceDetails);
         break;
       case FLOW:
-        populateByReflection(command.getFlow(), traceDetails);
+        populateByReflection(level, command.getFlow(), traceDetails);
         break;
       case UNSUBSCRIBE:
-        populateByReflection(command.getUnsubscribe(), traceDetails);
+        populateByReflection(level, command.getUnsubscribe(), traceDetails);
         break;
       case SUCCESS:
-        populateByReflection(command.getSuccess(), traceDetails);
+        populateByReflection(level, command.getSuccess(), traceDetails);
         break;
       case ERROR:
-        populateByReflection(command.getError(), traceDetails);
+        populateByReflection(level, command.getError(), traceDetails);
         break;
       case CLOSE_PRODUCER:
-        populateByReflection(command.getCloseProducer(), traceDetails);
+        populateByReflection(level, command.getCloseProducer(), traceDetails);
         break;
       case CLOSE_CONSUMER:
-        populateByReflection(command.getCloseConsumer(), traceDetails);
+        populateByReflection(level, command.getCloseConsumer(), traceDetails);
         break;
       case PRODUCER_SUCCESS:
-        populateByReflection(command.getProducerSuccess(), traceDetails);
+        populateByReflection(level, command.getProducerSuccess(), traceDetails);
         break;
       case PING:
-        populateByReflection(command.getPing(), traceDetails);
+        populateByReflection(level, command.getPing(), traceDetails);
         break;
       case PONG:
-        populateByReflection(command.getPong(), traceDetails);
+        populateByReflection(level, command.getPong(), traceDetails);
         break;
       case REDELIVER_UNACKNOWLEDGED_MESSAGES:
-        populateByReflection(command.getRedeliverUnacknowledgedMessages(), traceDetails);
+        populateByReflection(level, command.getRedeliverUnacknowledgedMessages(), traceDetails);
         break;
       case PARTITIONED_METADATA:
-        populateByReflection(command.getPartitionMetadata(), traceDetails);
+        populateByReflection(level, command.getPartitionMetadata(), traceDetails);
         break;
       case PARTITIONED_METADATA_RESPONSE:
-        populateByReflection(command.getPartitionMetadataResponse(), traceDetails);
+        populateByReflection(level, command.getPartitionMetadataResponse(), traceDetails);
         break;
       case LOOKUP:
-        populateByReflection(command.getLookupTopic(), traceDetails);
+        populateByReflection(level, command.getLookupTopic(), traceDetails);
         break;
       case LOOKUP_RESPONSE:
-        populateByReflection(command.getLookupTopicResponse(), traceDetails);
+        populateByReflection(level, command.getLookupTopicResponse(), traceDetails);
         break;
       case CONSUMER_STATS:
-        populateByReflection(command.getConsumerStats(), traceDetails);
+        populateByReflection(level, command.getConsumerStats(), traceDetails);
         break;
       case CONSUMER_STATS_RESPONSE:
-        populateByReflection(command.getConsumerStatsResponse(), traceDetails);
+        populateByReflection(level, command.getConsumerStatsResponse(), traceDetails);
         break;
       case REACHED_END_OF_TOPIC:
-        populateByReflection(command.getReachedEndOfTopic(), traceDetails);
+        populateByReflection(level, command.getReachedEndOfTopic(), traceDetails);
         break;
       case SEEK:
-        populateByReflection(command.getSeek(), traceDetails);
+        populateByReflection(level, command.getSeek(), traceDetails);
         break;
       case GET_LAST_MESSAGE_ID:
-        populateByReflection(command.getGetLastMessageId(), traceDetails);
+        populateByReflection(level, command.getGetLastMessageId(), traceDetails);
         break;
       case GET_LAST_MESSAGE_ID_RESPONSE:
-        populateByReflection(command.getGetLastMessageIdResponse(), traceDetails);
+        populateByReflection(level, command.getGetLastMessageIdResponse(), traceDetails);
         break;
       case ACTIVE_CONSUMER_CHANGE:
-        populateByReflection(command.getActiveConsumerChange(), traceDetails);
+        populateByReflection(level, command.getActiveConsumerChange(), traceDetails);
         break;
       case GET_TOPICS_OF_NAMESPACE:
-        populateByReflection(command.getGetTopicsOfNamespace(), traceDetails);
+        populateByReflection(level, command.getGetTopicsOfNamespace(), traceDetails);
         break;
       case GET_TOPICS_OF_NAMESPACE_RESPONSE:
-        populateByReflection(command.getGetTopicsOfNamespaceResponse(), traceDetails);
+        populateByReflection(level, command.getGetTopicsOfNamespaceResponse(), traceDetails);
         break;
       case GET_SCHEMA:
-        populateByReflection(command.getGetSchema(), traceDetails);
+        populateByReflection(level, command.getGetSchema(), traceDetails);
         break;
       case GET_SCHEMA_RESPONSE:
-        populateByReflection(command.getGetSchemaResponse(), traceDetails);
+        populateByReflection(level, command.getGetSchemaResponse(), traceDetails);
         break;
       case AUTH_CHALLENGE:
-        populateByReflection(command.getAuthChallenge(), traceDetails);
+        populateByReflection(level, command.getAuthChallenge(), traceDetails);
         break;
       case AUTH_RESPONSE:
-        populateByReflection(command.getAuthResponse(), traceDetails);
+        populateByReflection(level, command.getAuthResponse(), traceDetails);
         break;
       case ACK_RESPONSE:
-        populateByReflection(command.getAckResponse(), traceDetails);
+        populateByReflection(level, command.getAckResponse(), traceDetails);
         break;
       case GET_OR_CREATE_SCHEMA:
-        populateByReflection(command.getGetOrCreateSchema(), traceDetails);
+        populateByReflection(level, command.getGetOrCreateSchema(), traceDetails);
         break;
       case GET_OR_CREATE_SCHEMA_RESPONSE:
-        populateByReflection(command.getGetOrCreateSchemaResponse(), traceDetails);
+        populateByReflection(level, command.getGetOrCreateSchemaResponse(), traceDetails);
         break;
       case NEW_TXN:
-        populateByReflection(command.getNewTxn(), traceDetails);
+        populateByReflection(level, command.getNewTxn(), traceDetails);
         break;
       case NEW_TXN_RESPONSE:
-        populateByReflection(command.getNewTxnResponse(), traceDetails);
+        populateByReflection(level, command.getNewTxnResponse(), traceDetails);
         break;
       case ADD_PARTITION_TO_TXN:
-        populateByReflection(command.getAddPartitionToTxn(), traceDetails);
+        populateByReflection(level, command.getAddPartitionToTxn(), traceDetails);
         break;
       case ADD_PARTITION_TO_TXN_RESPONSE:
-        populateByReflection(command.getAddPartitionToTxnResponse(), traceDetails);
+        populateByReflection(level, command.getAddPartitionToTxnResponse(), traceDetails);
         break;
       case ADD_SUBSCRIPTION_TO_TXN:
-        populateByReflection(command.getAddSubscriptionToTxn(), traceDetails);
+        populateByReflection(level, command.getAddSubscriptionToTxn(), traceDetails);
         break;
       case ADD_SUBSCRIPTION_TO_TXN_RESPONSE:
-        populateByReflection(command.getAddSubscriptionToTxnResponse(), traceDetails);
+        populateByReflection(level, command.getAddSubscriptionToTxnResponse(), traceDetails);
         break;
       case END_TXN:
-        populateByReflection(command.getEndTxn(), traceDetails);
+        populateByReflection(level, command.getEndTxn(), traceDetails);
         break;
       case END_TXN_RESPONSE:
-        populateByReflection(command.getEndTxnResponse(), traceDetails);
+        populateByReflection(level, command.getEndTxnResponse(), traceDetails);
         break;
       case END_TXN_ON_PARTITION:
-        populateByReflection(command.getEndTxnOnPartition(), traceDetails);
+        populateByReflection(level, command.getEndTxnOnPartition(), traceDetails);
         break;
       case END_TXN_ON_PARTITION_RESPONSE:
-        populateByReflection(command.getEndTxnOnPartitionResponse(), traceDetails);
+        populateByReflection(level, command.getEndTxnOnPartitionResponse(), traceDetails);
         break;
       case END_TXN_ON_SUBSCRIPTION:
-        populateByReflection(command.getEndTxnOnSubscription(), traceDetails);
+        populateByReflection(level, command.getEndTxnOnSubscription(), traceDetails);
         break;
       case END_TXN_ON_SUBSCRIPTION_RESPONSE:
-        populateByReflection(command.getEndTxnOnSubscriptionResponse(), traceDetails);
+        populateByReflection(level, command.getEndTxnOnSubscriptionResponse(), traceDetails);
         break;
       case TC_CLIENT_CONNECT_REQUEST:
-        populateByReflection(command.getTcClientConnectRequest(), traceDetails);
+        populateByReflection(level, command.getTcClientConnectRequest(), traceDetails);
         break;
       case TC_CLIENT_CONNECT_RESPONSE:
-        populateByReflection(command.getTcClientConnectResponse(), traceDetails);
+        populateByReflection(level, command.getTcClientConnectResponse(), traceDetails);
         break;
       case WATCH_TOPIC_LIST:
-        populateByReflection(command.getWatchTopicList(), traceDetails);
+        populateByReflection(level, command.getWatchTopicList(), traceDetails);
         break;
       case WATCH_TOPIC_LIST_SUCCESS:
-        populateByReflection(command.getWatchTopicListSuccess(), traceDetails);
+        populateByReflection(level, command.getWatchTopicListSuccess(), traceDetails);
         break;
       case WATCH_TOPIC_UPDATE:
-        populateByReflection(command.getWatchTopicUpdate(), traceDetails);
+        populateByReflection(level, command.getWatchTopicUpdate(), traceDetails);
         break;
       case WATCH_TOPIC_LIST_CLOSE:
-        populateByReflection(command.getWatchTopicListClose(), traceDetails);
+        populateByReflection(level, command.getWatchTopicListClose(), traceDetails);
         break;
       case TOPIC_MIGRATED:
-        populateByReflection(command.getTopicMigrated(), traceDetails);
+        populateByReflection(level, command.getTopicMigrated(), traceDetails);
         break;
       default:
         log.error("Unknown command type: {}", command.getType());
@@ -291,7 +292,18 @@ public class TracingUtils {
     }
   }
 
-  private static void populateByReflection(Object command, Map<String, Object> traceDetails) {
+  private static final Set<String> fullTraceFields =
+      Sets.newHashSet(
+          "authdata",
+          "authmethod",
+          "authmethodname",
+          "originalauthdata",
+          "orginalauthmethod",
+          "originalprincipal",
+          "schema");
+
+  private static void populateByReflection(
+      TraceLevel level, Object command, Map<String, Object> traceDetails) {
     if (command == null) {
       return;
     }
@@ -302,7 +314,14 @@ public class TracingUtils {
     Method[] allMethods = command.getClass().getMethods();
 
     Arrays.stream(allMethods)
-        .filter(method -> method.getName().startsWith("has"))
+        .filter(
+            method -> {
+              if (!method.getName().startsWith("has")) {
+                return false;
+              }
+              String fieldName = method.getName().substring(3);
+              return level != TraceLevel.FULL && !fullTraceFields.contains(fieldName.toLowerCase());
+            })
         .filter(
             method -> {
               try {
@@ -354,7 +373,7 @@ public class TracingUtils {
                     .getCanonicalName()
                     .contains("org.apache.pulsar.common.api.proto")) {
                   Map<String, Object> details = new TreeMap<>();
-                  populateByReflection(value, details);
+                  populateByReflection(level, value, details);
                   traceDetails.put(fieldName, details);
                 } else {
                   traceDetails.put(fieldName, value);
