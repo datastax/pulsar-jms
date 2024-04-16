@@ -42,21 +42,21 @@ class TracingUtilsTest {
     traces.clear();
     trace(mockTracer, "msg", null);
     assertEquals(1, traces.size());
-    assertEquals("{\"message\":\"msg\",\"traceDetails\":null}", traces.get(0));
+    assertEquals("{\"eventType\":\"msg\",\"traceDetails\":null}", traces.get(0));
 
     Map<String, Object> map = new TreeMap<>();
 
     traces.clear();
     trace(mockTracer, "msg", map);
     assertEquals(1, traces.size());
-    assertEquals("{\"message\":\"msg\",\"traceDetails\":{}}", traces.get(0));
+    assertEquals("{\"eventType\":\"msg\",\"traceDetails\":{}}", traces.get(0));
 
     map.put("key1", "value1");
 
     traces.clear();
     trace(mockTracer, "msg", map);
     assertEquals(1, traces.size());
-    assertEquals("{\"message\":\"msg\",\"traceDetails\":{\"key1\":\"value1\"}}", traces.get(0));
+    assertEquals("{\"eventType\":\"msg\",\"traceDetails\":{\"key1\":\"value1\"}}", traces.get(0));
   }
 
   // todo:
