@@ -1334,6 +1334,10 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
         });
   }
 
+  protected void rollbackEmulatedTransaction() {
+    uncommittedMessages = null;
+  }
+
   protected void commitEmulatedTransaction() throws JMSException {
     if (uncommittedMessages != null) {
       List<CompletableFuture<?>> callbacks = new ArrayList<>();
