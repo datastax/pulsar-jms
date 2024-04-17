@@ -708,15 +708,32 @@ public class TransactionsTest {
             try (Session transaction = connection.createSession(Session.SESSION_TRANSACTED); ) {
               assertTrue(transaction.getTransacted());
               try (MessageProducer producer = transaction.createProducer(destination); ) {
-                TextMessage textMsg = transaction.createTextMessage("foo");
-                producer.send(textMsg);
-                producer.send(textMsg);
+                TextMessage textMsg1 = transaction.createTextMessage("foo");
+                producer.send(textMsg1);
+                transaction.rollback();
+
+                TextMessage textMsg2 = transaction.createTextMessage("foo2");
+                producer.send(textMsg2);
+
+                TextMessage textMsg3 = transaction.createTextMessage("foo3");
+                producer.send(textMsg3);
               }
 
               transaction.commit();
 
-              assertNotNull(consumer.receive());
-              assertNotNull(consumer.receive());
+              Message receive1 = consumer.receive();
+              assertNotNull(receive1);
+              log.info("received {}", receive1);
+              assertEquals("foo2", receive1.getBody(String.class));
+
+              Message receive2 = consumer.receive();
+              assertNotNull(receive2);
+              log.info("received {}", receive2);
+              assertEquals("foo3", receive2.getBody(String.class));
+
+              Message receive3 = consumer.receiveNoWait();
+              log.info("received {}", receive3);
+              assertNull(receive3);
 
               consumerSession.commit();
             }
@@ -742,7 +759,11 @@ public class TransactionsTest {
 
           try (JMSContext transaction = factory.createContext(Session.SESSION_TRANSACTED); ) {
             assertTrue(transaction.getTransacted());
+
             transaction.createProducer().send(destination, "foo");
+            transaction.rollback();
+
+            transaction.createProducer().send(destination, "foo2");
             CompletableFuture<Message> wait = new CompletableFuture<>();
             transaction
                 .createProducer()
@@ -758,13 +779,25 @@ public class TransactionsTest {
                         wait.completeExceptionally(e);
                       }
                     })
-                .send(destination, "foo");
+                .send(destination, "foo3");
             wait.join();
 
             transaction.commit();
           }
-          assertNotNull(consumer.receive());
-          assertNotNull(consumer.receive());
+
+          Message receive1 = consumer.receive();
+          assertNotNull(receive1);
+          log.info("received {}", receive1);
+          assertEquals("foo2", receive1.getBody(String.class));
+
+          Message receive2 = consumer.receive();
+          assertNotNull(receive2);
+          log.info("received {}", receive2);
+          assertEquals("foo3", receive2.getBody(String.class));
+
+          Message receive3 = consumer.receiveNoWait();
+          log.info("received {}", receive3);
+          assertNull(receive3);
 
           consumerContext.commit();
         }

@@ -1229,6 +1229,10 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
                 }
                 uncommittedMessages.add(new PreparedMessage(typedMessageBuilder, pulsarMessage));
                 session.registerProducerWithTransaction(this);
+                if (defaultDeliveryDelay > 0) {
+                  typedMessageBuilder.deliverAfter(defaultDeliveryDelay, TimeUnit.MILLISECONDS);
+                }
+                return null;
               }
             } else {
               typedMessageBuilder = producer.newMessage();
@@ -1317,6 +1321,9 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
             } else {
               // emulated transactions
               typedMessageBuilder = producer.newMessage();
+              if (defaultDeliveryDelay > 0) {
+                typedMessageBuilder.deliverAfter(defaultDeliveryDelay, TimeUnit.MILLISECONDS);
+              }
               if (uncommittedMessages == null) {
                 uncommittedMessages = new ArrayList<>();
               }
@@ -1327,6 +1334,9 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
             }
           } else {
             typedMessageBuilder = producer.newMessage();
+          }
+          if (defaultDeliveryDelay > 0) {
+            typedMessageBuilder.deliverAfter(defaultDeliveryDelay, TimeUnit.MILLISECONDS);
           }
           pulsarMessage.sendAsync(
               typedMessageBuilder, finalCompletionListener, session, this, disableMessageTimestamp);
