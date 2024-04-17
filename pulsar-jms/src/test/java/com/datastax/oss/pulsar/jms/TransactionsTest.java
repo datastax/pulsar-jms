@@ -28,6 +28,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -720,6 +721,52 @@ public class TransactionsTest {
               consumerSession.commit();
             }
           }
+        }
+      }
+    }
+  }
+
+  @Test
+  public void emulatedTransactionsAsyncSendTest() throws Exception {
+
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
+
+    properties.put("enableTransaction", "false");
+    properties.put("jms.emulateTransactions", "true");
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+      try (JMSContext consumerContext = factory.createContext(JMSContext.SESSION_TRANSACTED)) {
+
+        Destination destination =
+            consumerContext.createTopic("persistent://public/default/test-" + UUID.randomUUID());
+        try (JMSConsumer consumer = consumerContext.createConsumer(destination)) {
+
+          try (JMSContext transaction = factory.createContext(Session.SESSION_TRANSACTED); ) {
+            assertTrue(transaction.getTransacted());
+            transaction.createProducer().send(destination, "foo");
+            CompletableFuture<Message> wait = new CompletableFuture<>();
+            transaction
+                .createProducer()
+                .setAsync(
+                    new CompletionListener() {
+                      @Override
+                      public void onCompletion(Message message) {
+                        wait.complete(message);
+                      }
+
+                      @Override
+                      public void onException(Message message, Exception e) {
+                        wait.completeExceptionally(e);
+                      }
+                    })
+                .send(destination, "foo");
+            wait.join();
+
+            transaction.commit();
+          }
+          assertNotNull(consumer.receive());
+          assertNotNull(consumer.receive());
+
+          consumerContext.commit();
         }
       }
     }

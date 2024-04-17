@@ -21,7 +21,10 @@ import com.datastax.oss.pulsar.jms.messages.PulsarObjectMessage;
 import com.datastax.oss.pulsar.jms.messages.PulsarSimpleMessage;
 import com.datastax.oss.pulsar.jms.messages.PulsarStreamMessage;
 import com.datastax.oss.pulsar.jms.messages.PulsarTextMessage;
+import java.util.ArrayList;
 import java.util.Enumeration;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import javax.jms.BytesMessage;
 import javax.jms.CompletionListener;
@@ -47,12 +50,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.api.Producer;
 import org.apache.pulsar.client.api.TypedMessageBuilder;
 import org.apache.pulsar.client.api.transaction.Transaction;
+import org.apache.pulsar.common.util.FutureUtil;
 
 @Slf4j
 class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSender {
   private final PulsarSession session;
   private final PulsarDestination defaultDestination;
   private final boolean jms20;
+  // only for "emulated transactions"
+  private List<PreparedMessage> uncommittedMessages;
 
   public PulsarMessageProducer(PulsarSession session, Destination defaultDestination)
       throws JMSException {
@@ -1218,6 +1224,11 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
               } else {
                 // emulated transactions
                 typedMessageBuilder = producer.newMessage();
+                if (uncommittedMessages == null) {
+                  uncommittedMessages = new ArrayList<>();
+                }
+                uncommittedMessages.add(new PreparedMessage(typedMessageBuilder, pulsarMessage));
+                session.registerProducerWithTransaction(this);
               }
             } else {
               typedMessageBuilder = producer.newMessage();
@@ -1225,7 +1236,6 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
             if (defaultDeliveryDelay > 0) {
               typedMessageBuilder.deliverAfter(defaultDeliveryDelay, TimeUnit.MILLISECONDS);
             }
-
             pulsarMessage.send(typedMessageBuilder, disableMessageTimestamp, session);
           } finally {
             session.unblockTransactionOperations();
@@ -1235,6 +1245,16 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
           }
           return null;
         });
+  }
+
+  private static class PreparedMessage {
+    final TypedMessageBuilder<byte[]> typedMessageBuilder;
+    final PulsarMessage pulsarMessage;
+
+    PreparedMessage(TypedMessageBuilder<byte[]> typedMessageBuilder, PulsarMessage pulsarMessage) {
+      this.typedMessageBuilder = typedMessageBuilder;
+      this.pulsarMessage = pulsarMessage;
+    }
   }
 
   private void sendMessage(
@@ -1297,6 +1317,13 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
             } else {
               // emulated transactions
               typedMessageBuilder = producer.newMessage();
+              if (uncommittedMessages == null) {
+                uncommittedMessages = new ArrayList<>();
+              }
+              uncommittedMessages.add(new PreparedMessage(typedMessageBuilder, pulsarMessage));
+              session.registerProducerWithTransaction(this);
+              finalCompletionListener.onCompletion(pulsarMessage);
+              return null;
             }
           } else {
             typedMessageBuilder = producer.newMessage();
@@ -1305,6 +1332,44 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
               typedMessageBuilder, finalCompletionListener, session, this, disableMessageTimestamp);
           return null;
         });
+  }
+
+  protected void commitEmulatedTransaction() throws JMSException {
+    if (uncommittedMessages != null) {
+      List<CompletableFuture<?>> callbacks = new ArrayList<>();
+
+      // we are sending all the messages in async mode
+      // users use emulated transactions in order to have a better performance
+      // even with sync mode
+      for (PreparedMessage message : uncommittedMessages) {
+        CompletableFuture<?> result = new CompletableFuture<>();
+        callbacks.add(result);
+        message.pulsarMessage.sendAsync(
+            message.typedMessageBuilder,
+            new CompletionListener() {
+              @Override
+              public void onCompletion(Message message) {
+                result.complete(null);
+              }
+
+              @Override
+              public void onException(Message message, Exception e) {
+                log.error("Error while sending message {} during emulated transaction", message, e);
+                result.completeExceptionally(e);
+              }
+            },
+            session,
+            this,
+            disableMessageTimestamp);
+      }
+      uncommittedMessages = null;
+      try {
+        FutureUtil.waitForAll(callbacks).join();
+      } catch (RuntimeException error) {
+        throw new JMSException(
+            "Some errors occurred while sending messages during emulated transaction");
+      }
+    }
   }
 
   private void applyBackMessageProperties(Message message, PulsarMessage pulsarMessage) {
