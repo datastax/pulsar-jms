@@ -665,9 +665,11 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     synchronized (unackedMessages) {
       unackedMessages.clear();
     }
-    synchronized (producersWithTransactions) {
-      producersWithTransactions.forEach(PulsarMessageProducer::rollbackEmulatedTransaction);
-      producersWithTransactions.clear();
+    if (emulateTransactions) {
+      synchronized (producersWithTransactions) {
+        producersWithTransactions.forEach(PulsarMessageProducer::rollbackEmulatedTransaction);
+        producersWithTransactions.clear();
+      }
     }
     if (transaction != null) {
       Utils.get(transaction.abort());

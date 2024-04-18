@@ -981,13 +981,11 @@ public class TransactionsTest {
                 TextMessage textMsg = producerSession.createTextMessage("foo");
                 producer.send(textMsg);
               }
+              producerSession.commit();
 
               // message is "visible" as producer transaction is not committed but
               // we are only emulating transactions and so the message is sent immediately
               Awaitility.await().until(() -> !received.isEmpty());
-
-              // commit producer (useless in this case)
-              producerSession.commit();
 
               received.clear();
 
