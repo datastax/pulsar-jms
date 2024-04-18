@@ -28,6 +28,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -707,19 +708,98 @@ public class TransactionsTest {
             try (Session transaction = connection.createSession(Session.SESSION_TRANSACTED); ) {
               assertTrue(transaction.getTransacted());
               try (MessageProducer producer = transaction.createProducer(destination); ) {
-                TextMessage textMsg = transaction.createTextMessage("foo");
-                producer.send(textMsg);
-                producer.send(textMsg);
+                TextMessage textMsg1 = transaction.createTextMessage("foo");
+                producer.send(textMsg1);
+                transaction.rollback();
+
+                TextMessage textMsg2 = transaction.createTextMessage("foo2");
+                producer.send(textMsg2);
+
+                TextMessage textMsg3 = transaction.createTextMessage("foo3");
+                producer.send(textMsg3);
               }
 
               transaction.commit();
 
-              assertNotNull(consumer.receive());
-              assertNotNull(consumer.receive());
+              Message receive1 = consumer.receive();
+              assertNotNull(receive1);
+              log.info("received {}", receive1);
+              assertEquals("foo2", receive1.getBody(String.class));
+
+              Message receive2 = consumer.receive();
+              assertNotNull(receive2);
+              log.info("received {}", receive2);
+              assertEquals("foo3", receive2.getBody(String.class));
+
+              Message receive3 = consumer.receiveNoWait();
+              log.info("received {}", receive3);
+              assertNull(receive3);
 
               consumerSession.commit();
             }
           }
+        }
+      }
+    }
+  }
+
+  @Test
+  public void emulatedTransactionsAsyncSendTest() throws Exception {
+
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
+
+    properties.put("enableTransaction", "false");
+    properties.put("jms.emulateTransactions", "true");
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+      try (JMSContext consumerContext = factory.createContext(JMSContext.SESSION_TRANSACTED)) {
+
+        Destination destination =
+            consumerContext.createTopic("persistent://public/default/test-" + UUID.randomUUID());
+        try (JMSConsumer consumer = consumerContext.createConsumer(destination)) {
+
+          try (JMSContext transaction = factory.createContext(Session.SESSION_TRANSACTED); ) {
+            assertTrue(transaction.getTransacted());
+
+            transaction.createProducer().send(destination, "foo");
+            transaction.rollback();
+
+            transaction.createProducer().send(destination, "foo2");
+            CompletableFuture<Message> wait = new CompletableFuture<>();
+            transaction
+                .createProducer()
+                .setAsync(
+                    new CompletionListener() {
+                      @Override
+                      public void onCompletion(Message message) {
+                        wait.complete(message);
+                      }
+
+                      @Override
+                      public void onException(Message message, Exception e) {
+                        wait.completeExceptionally(e);
+                      }
+                    })
+                .send(destination, "foo3");
+            wait.join();
+
+            transaction.commit();
+          }
+
+          Message receive1 = consumer.receive();
+          assertNotNull(receive1);
+          log.info("received {}", receive1);
+          assertEquals("foo2", receive1.getBody(String.class));
+
+          Message receive2 = consumer.receive();
+          assertNotNull(receive2);
+          log.info("received {}", receive2);
+          assertEquals("foo3", receive2.getBody(String.class));
+
+          Message receive3 = consumer.receiveNoWait();
+          log.info("received {}", receive3);
+          assertNull(receive3);
+
+          consumerContext.commit();
         }
       }
     }
@@ -901,13 +981,11 @@ public class TransactionsTest {
                 TextMessage textMsg = producerSession.createTextMessage("foo");
                 producer.send(textMsg);
               }
+              producerSession.commit();
 
               // message is "visible" as producer transaction is not committed but
               // we are only emulating transactions and so the message is sent immediately
               Awaitility.await().until(() -> !received.isEmpty());
-
-              // commit producer (useless in this case)
-              producerSession.commit();
 
               received.clear();
 
