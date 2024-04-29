@@ -54,6 +54,7 @@ import org.apache.pulsar.broker.service.Subscription;
 import org.apache.pulsar.broker.service.Topic;
 import org.apache.pulsar.common.api.proto.BaseCommand;
 import org.apache.pulsar.common.api.proto.CommandAck;
+import org.apache.pulsar.common.api.proto.MessageIdData;
 import org.apache.pulsar.common.api.proto.MessageMetadata;
 import org.apache.pulsar.common.intercept.InterceptException;
 import org.jetbrains.annotations.NotNull;
@@ -393,7 +394,6 @@ public class BrokerTracing implements BrokerInterceptor {
     traceDetails.put("publishContext", getPublishContextDetails(publishContext));
     traceDetails.put("messageId", ledgerId + ":" + entryId);
     traceDetails.put("startTimeNs", startTimeNs);
-
     trace("Message produced", traceDetails);
   }
 
@@ -446,7 +446,7 @@ public class BrokerTracing implements BrokerInterceptor {
         ackCmd
             .getMessageIdsList()
             .stream()
-            .map(x -> x.getLedgerId() + ":" + x.getEntryId())
+            .map(BrokerTracing::formatMessageId)
             .collect(Collectors.toList()));
 
     if (ackCmd.hasTxnidLeastBits() && ackCmd.hasTxnidMostBits()) {
@@ -460,6 +460,17 @@ public class BrokerTracing implements BrokerInterceptor {
     traceDetails.put("ack", ackDetails);
 
     trace("Message acked", traceDetails);
+  }
+
+  @NotNull
+  private static String formatMessageId(MessageIdData x) {
+    String msgId = x.getLedgerId() + ":" + x.getEntryId();
+    if (x.hasBatchIndex()) {
+      msgId += " (batchSize: " + x.getBatchSize() + "|ackSetCnt: " + x.getAckSetsCount() + ")";
+    } else if (x.getAckSetsCount() > 0) {
+      msgId += " (ackSetCnt " + x.getAckSetsCount() + ")";
+    }
+    return msgId;
   }
 
   /* ***************************
