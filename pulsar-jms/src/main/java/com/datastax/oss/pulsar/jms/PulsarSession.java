@@ -25,6 +25,7 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -136,6 +137,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   private final AtomicLong transactionStickyKey = new AtomicLong();
   private final ConsumersInterceptor consumerInterceptor = new ConsumersInterceptor();
   private final List<Message> connectionConsumerTasks = new ArrayList<>();
+  private final Set<PulsarMessageProducer> producersWithTransactions;
 
   private final AtomicReference<Runnable> connectionConsumerPostProcessingTask =
       new AtomicReference<>();
@@ -148,6 +150,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     if (sessionMode == SESSION_TRANSACTED && !connection.getFactory().isEnableTransaction()) {
       if (connection.getFactory().isEmulateTransactions()) {
         emulateTransactions = true;
+        producersWithTransactions = new HashSet<>();
       } else {
         throw new JMSException(
             "Please enable transactions on PulsarConnectionFactory with enableTransaction=true, you can configure "
@@ -155,6 +158,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
       }
     } else {
       emulateTransactions = false;
+      producersWithTransactions = null;
     }
     this.jms20 = false;
     this.connection = connection;
@@ -249,6 +253,12 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
 
   PulsarConnectionFactory getFactory() {
     return connection.getFactory();
+  }
+
+  protected void registerProducerWithTransaction(PulsarMessageProducer producer) {
+    synchronized (producersWithTransactions) {
+      producersWithTransactions.add(producer);
+    }
   }
 
   Producer<byte[]> getProducerForDestination(Destination destination) throws JMSException {
@@ -573,6 +583,13 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
             }
             unackedMessages.clear();
           }
+          // we are postponing to this moment the writes
+          synchronized (producersWithTransactions) {
+            for (PulsarMessageProducer producer : producersWithTransactions) {
+              producer.commitEmulatedTransaction();
+            }
+            producersWithTransactions.clear();
+          }
         }
         if (transaction != null) {
           // we are postponing to this moment the acknowledgment
@@ -647,6 +664,12 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     }
     synchronized (unackedMessages) {
       unackedMessages.clear();
+    }
+    if (emulateTransactions) {
+      synchronized (producersWithTransactions) {
+        producersWithTransactions.forEach(PulsarMessageProducer::rollbackEmulatedTransaction);
+        producersWithTransactions.clear();
+      }
     }
     if (transaction != null) {
       Utils.get(transaction.abort());
