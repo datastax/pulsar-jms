@@ -34,6 +34,7 @@ import io.netty.buffer.ByteBuf;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutionException;
@@ -72,6 +73,10 @@ public class BrokerTracing implements BrokerInterceptor {
 
   private final Set<EventReasons> jmsTracingEventList = new HashSet<>();
   private TraceLevel traceLevel = defaultTraceLevel;
+  private int maxBinaryDataLength = 256;
+  private boolean traceSystemTopics = false;
+  private boolean traceSchema = false;
+  private boolean reduceLevelForNestedComponents = true;
 
   private static Set<EventReasons> loadEnabledEvents(
       PulsarService pulsarService, Set<EventReasons> enabledEvents) {
@@ -136,7 +141,7 @@ public class BrokerTracing implements BrokerInterceptor {
                 public TraceLevel load(Producer producer) {
                   if (producer.getMetadata() == null
                       || !producer.getMetadata().containsKey("trace")) {
-                    return TraceLevel.NONE;
+                    return TraceLevel.FULL;
                   }
                   try {
                     return TraceLevel.valueOf(
@@ -146,7 +151,7 @@ public class BrokerTracing implements BrokerInterceptor {
                         "Invalid tracing level: {}. Setting to NONE for producer {}",
                         producer.getMetadata().get("trace"),
                         producer);
-                    return TraceLevel.NONE;
+                    return TraceLevel.FULL;
                   }
                 }
               });
@@ -156,6 +161,21 @@ public class BrokerTracing implements BrokerInterceptor {
 
     loadEnabledEvents(pulsarService, jmsTracingEventList);
     traceLevel = getTraceLevel(pulsarService);
+
+    Properties props = pulsarService.getConfiguration().getProperties();
+    if (props.containsKey("jmsTracingMaxBinaryDataLength")) {
+      maxBinaryDataLength = Integer.parseInt(props.getProperty("jmsTracingMaxBinaryDataLength"));
+    }
+    if (props.containsKey("jmsTracingTraceSystemTopics")) {
+      traceSystemTopics = Boolean.parseBoolean(props.getProperty("jmsTracingTraceSystemTopics"));
+    }
+    if (props.containsKey("jmsTracingTraceSchema")) {
+      traceSchema = Boolean.parseBoolean(props.getProperty("jmsTracingTraceSchema"));
+    }
+    if (props.containsKey("jmsTracingReduceLevelForNestedComponents")) {
+      reduceLevelForNestedComponents =
+          Boolean.parseBoolean(props.getProperty("jmsTracingReduceLevelForNestedComponents"));
+    }
   }
 
   @Override
@@ -163,13 +183,16 @@ public class BrokerTracing implements BrokerInterceptor {
     log.info("Closing BrokerTracing");
   }
 
-  private static TraceLevel getTracingLevel(Consumer consumer) {
+  private TraceLevel getTracingLevel(Consumer consumer) {
     if (consumer == null) return TraceLevel.NONE;
+
     return getTracingLevel(consumer.getSubscription());
   }
 
-  private static TraceLevel getTracingLevel(Subscription sub) {
+  private TraceLevel getTracingLevel(Subscription sub) {
     if (sub == null) return TraceLevel.NONE;
+
+    if (!traceSystemTopics && sub.getTopic().isSystemTopic()) return TraceLevel.NONE;
 
     try {
       return traceLevelForSubscription.get(sub);
@@ -179,8 +202,10 @@ public class BrokerTracing implements BrokerInterceptor {
     }
   }
 
-  private static TraceLevel getTracingLevel(Producer producer) {
+  private TraceLevel getTracingLevel(Producer producer) {
     if (producer == null) return TraceLevel.NONE;
+
+    if (!traceSystemTopics && producer.getTopic().isSystemTopic()) return TraceLevel.NONE;
 
     try {
       return traceLevelForProducer.get(producer);
@@ -188,6 +213,13 @@ public class BrokerTracing implements BrokerInterceptor {
       log.error("Error getting tracing level", e);
       return TraceLevel.NONE;
     }
+  }
+
+  private TraceLevel getTraceLevelForComponent(TraceLevel current) {
+    if (current == TraceLevel.NONE) return TraceLevel.NONE;
+    if (reduceLevelForNestedComponents) return TraceLevel.BASIC;
+
+    return current;
   }
 
   //    private boolean needToTraceTopic(Topic topic) {
@@ -218,8 +250,8 @@ public class BrokerTracing implements BrokerInterceptor {
     if (level == TraceLevel.NONE) return;
 
     Map<String, Object> traceDetails = new TreeMap<>();
-    traceDetails.put("serverCnx", getConnectionDetails(level, cnx));
-    traceDetails.put("producer", getProducerDetails(level, producer));
+    traceDetails.put("serverCnx", getConnectionDetails(getTraceLevelForComponent(level), cnx));
+    traceDetails.put("producer", getProducerDetails(level, producer, traceSchema));
     traceDetails.put("metadata", metadata);
 
     trace("Producer created", traceDetails);
@@ -232,8 +264,8 @@ public class BrokerTracing implements BrokerInterceptor {
     if (level == TraceLevel.NONE) return;
 
     Map<String, Object> traceDetails = new TreeMap<>();
-    traceDetails.put("serverCnx", getConnectionDetails(level, cnx));
-    traceDetails.put("producer", getProducerDetails(level, producer));
+    traceDetails.put("serverCnx", getConnectionDetails(getTraceLevelForComponent(level), cnx));
+    traceDetails.put("producer", getProducerDetails(level, producer, traceSchema));
     traceDetails.put("metadata", metadata);
 
     trace("Producer closed", traceDetails);
@@ -246,7 +278,7 @@ public class BrokerTracing implements BrokerInterceptor {
     if (level == TraceLevel.NONE) return;
 
     Map<String, Object> traceDetails = new TreeMap<>();
-    traceDetails.put("serverCnx", getConnectionDetails(level, cnx));
+    traceDetails.put("serverCnx", getConnectionDetails(getTraceLevelForComponent(level), cnx));
     traceDetails.put("consumer", getConsumerDetails(level, consumer));
     traceDetails.put("subscription", getSubscriptionDetails(level, consumer.getSubscription()));
     traceDetails.put("metadata", metadata);
@@ -275,7 +307,7 @@ public class BrokerTracing implements BrokerInterceptor {
     if (traceLevel == TraceLevel.NONE) return;
 
     Map<String, Object> traceDetails = new TreeMap<>();
-    traceDetails.put("serverCnx", getConnectionDetails(traceLevel, cnx));
+    traceDetails.put("serverCnx", getConnectionDetails(getTraceLevelForComponent(traceLevel), cnx));
 
     if (command.hasType()) {
       traceDetails.put("type", command.getType().name());
@@ -316,9 +348,10 @@ public class BrokerTracing implements BrokerInterceptor {
     if (level == TraceLevel.NONE) return;
 
     Map<String, Object> traceDetails = new TreeMap<>();
-    traceDetails.put("subscription", getSubscriptionDetails(level, subscription));
-    traceDetails.put("consumer", getConsumerDetails(level, consumer));
-    traceDetails.put("entry", getEntryDetails(level, entry));
+    traceDetails.put(
+        "subscription", getSubscriptionDetails(getTraceLevelForComponent(level), subscription));
+    traceDetails.put("consumer", getConsumerDetails(getTraceLevelForComponent(level), consumer));
+    traceDetails.put("entry", getEntryDetails(level, entry, maxBinaryDataLength));
     traceDetails.put("messageMetadata", getMessageMetadataDetails(level, msgMetadata));
 
     trace("Before sending message", traceDetails);
@@ -333,9 +366,10 @@ public class BrokerTracing implements BrokerInterceptor {
     if (level == TraceLevel.NONE) return;
 
     Map<String, Object> traceDetails = new TreeMap<>();
-    traceDetails.put("producer", getProducerDetails(level, producer));
+    traceDetails.put(
+        "producer", getProducerDetails(getTraceLevelForComponent(level), producer, traceSchema));
     traceDetails.put("publishContext", getPublishContextDetails(publishContext));
-    traceByteBuf("headersAndPayload", headersAndPayload, traceDetails);
+    traceByteBuf("headersAndPayload", headersAndPayload, traceDetails, maxBinaryDataLength);
 
     trace("Message publish", traceDetails);
   }
@@ -353,11 +387,11 @@ public class BrokerTracing implements BrokerInterceptor {
     if (level == TraceLevel.NONE) return;
 
     Map<String, Object> traceDetails = new TreeMap<>();
-    traceDetails.put("serverCnx", getConnectionDetails(level, cnx));
-    traceDetails.put("producer", getProducerDetails(level, producer));
+    traceDetails.put("serverCnx", getConnectionDetails(getTraceLevelForComponent(level), cnx));
+    traceDetails.put(
+        "producer", getProducerDetails(getTraceLevelForComponent(level), producer, traceSchema));
     traceDetails.put("publishContext", getPublishContextDetails(publishContext));
-    traceDetails.put("ledgerId", ledgerId);
-    traceDetails.put("entryId", entryId);
+    traceDetails.put("messageId", ledgerId + ":" + entryId);
     traceDetails.put("startTimeNs", startTimeNs);
 
     trace("Message produced", traceDetails);
@@ -371,12 +405,13 @@ public class BrokerTracing implements BrokerInterceptor {
     if (level == TraceLevel.NONE) return;
 
     Map<String, Object> traceDetails = new TreeMap<>();
-    traceDetails.put("serverCnx", getConnectionDetails(level, cnx));
-    traceDetails.put("consumer", getConsumerDetails(level, consumer));
-    traceDetails.put("subscription", getSubscriptionDetails(level, consumer.getSubscription()));
-    traceDetails.put("ledgerId", ledgerId);
-    traceDetails.put("entryId", entryId);
-    traceByteBuf("headersAndPayload", headersAndPayload, traceDetails);
+    traceDetails.put("serverCnx", getConnectionDetails(getTraceLevelForComponent(level), cnx));
+    traceDetails.put("consumer", getConsumerDetails(getTraceLevelForComponent(level), consumer));
+    traceDetails.put(
+        "subscription",
+        getSubscriptionDetails(getTraceLevelForComponent(level), consumer.getSubscription()));
+    traceDetails.put("messageId", ledgerId + ":" + entryId);
+    traceByteBuf("headersAndPayload", headersAndPayload, traceDetails, maxBinaryDataLength);
 
     trace("After dispatching message", traceDetails);
   }
@@ -388,13 +423,24 @@ public class BrokerTracing implements BrokerInterceptor {
     if (level == TraceLevel.NONE) return;
 
     Map<String, Object> traceDetails = new TreeMap<>();
-    traceDetails.put("serverCnx", getConnectionDetails(level, cnx));
-    traceDetails.put("consumer", getConsumerDetails(level, consumer));
-    traceDetails.put("subscription", getSubscriptionDetails(level, consumer.getSubscription()));
+    traceDetails.put("serverCnx", getConnectionDetails(getTraceLevelForComponent(level), cnx));
+    traceDetails.put("consumer", getConsumerDetails(getTraceLevelForComponent(level), consumer));
+    traceDetails.put(
+        "subscription",
+        getSubscriptionDetails(getTraceLevelForComponent(level), consumer.getSubscription()));
 
     Map<String, Object> ackDetails = new TreeMap<>();
-    ackDetails.put("type", ackCmd.getAckType().name());
-    ackDetails.put("consumerId", ackCmd.getConsumerId());
+    if (ackCmd.hasAckType()) {
+      ackDetails.put("type", ackCmd.getAckType().name());
+    } else {
+      ackDetails.put("type", "NOT SET");
+    }
+    if (ackCmd.hasConsumerId()) {
+      ackDetails.put("consumerId", ackCmd.getConsumerId());
+    } else {
+      ackDetails.put("consumerId", "NOT SET");
+    }
+    ackDetails.put("numAckedMessages", ackCmd.getMessageIdsCount());
     ackDetails.put(
         "messageIds",
         ackCmd
@@ -402,6 +448,14 @@ public class BrokerTracing implements BrokerInterceptor {
             .stream()
             .map(x -> x.getLedgerId() + ":" + x.getEntryId())
             .collect(Collectors.toList()));
+
+    if (ackCmd.hasTxnidLeastBits() && ackCmd.hasTxnidMostBits()) {
+      ackDetails.put(
+          "txnID", "(" + ackCmd.getTxnidMostBits() + "," + ackCmd.getTxnidLeastBits() + ")");
+    }
+    if (ackCmd.hasRequestId()) {
+      ackDetails.put("requestId", ackCmd.getRequestId());
+    }
 
     traceDetails.put("ack", ackDetails);
 

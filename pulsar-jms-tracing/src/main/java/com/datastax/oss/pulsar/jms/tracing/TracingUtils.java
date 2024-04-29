@@ -39,6 +39,7 @@ import org.apache.pulsar.broker.service.Topic;
 import org.apache.pulsar.common.api.proto.BaseCommand;
 import org.apache.pulsar.common.api.proto.MessageMetadata;
 import org.apache.pulsar.common.naming.TopicName;
+import org.apache.pulsar.common.protocol.schema.SchemaVersion;
 
 @Slf4j
 public class TracingUtils {
@@ -56,8 +57,6 @@ public class TracingUtils {
       new ObjectMapper()
           .enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS)
           .enable(SerializationFeature.WRITE_NULL_MAP_VALUES);
-
-  public static final int MAX_DATA_LENGTH = 1024;
 
   public enum TraceLevel {
     NONE,
@@ -522,18 +521,19 @@ public class TracingUtils {
     }
   }
 
-  public static Map<String, Object> getProducerDetails(TraceLevel level, Producer producer) {
+  public static Map<String, Object> getProducerDetails(
+      TraceLevel level, Producer producer, boolean traceSchema) {
     if (producer == null) {
       return null;
     }
 
     Map<String, Object> details = new TreeMap<>();
-    populateProducerDetails(level, producer, details);
+    populateProducerDetails(level, producer, details, traceSchema);
     return details;
   }
 
   private static void populateProducerDetails(
-      TraceLevel level, Producer producer, Map<String, Object> traceDetails) {
+      TraceLevel level, Producer producer, Map<String, Object> traceDetails, boolean traceSchema) {
     if (producer == null) {
       return;
     }
@@ -551,16 +551,25 @@ public class TracingUtils {
         }
         break;
       case BASIC:
-        populateProducerDetails(TraceLevel.MINIMAL, producer, traceDetails);
+        populateProducerDetails(TraceLevel.MINIMAL, producer, traceDetails, traceSchema);
 
         traceDetails.put("clientAddress", producer.getClientAddress());
         break;
       case FULL:
-        populateProducerDetails(TraceLevel.BASIC, producer, traceDetails);
+        populateProducerDetails(TraceLevel.BASIC, producer, traceDetails, traceSchema);
 
         traceDetails.put("metadata", producer.getMetadata());
-        if (producer.getSchemaVersion() != null) {
-          traceDetails.put("schemaVersion", producer.getSchemaVersion().toString());
+
+        if (traceSchema && producer.getSchemaVersion() != null) {
+          final String schemaVersion;
+          if (producer.getSchemaVersion() == SchemaVersion.Empty) {
+            schemaVersion = "Empty";
+          } else if (producer.getSchemaVersion() == SchemaVersion.Latest) {
+            schemaVersion = "Latest";
+          } else {
+            schemaVersion = "0x" + Hex.encodeHexString(producer.getSchemaVersion().bytes());
+          }
+          traceDetails.put("schemaVersion", schemaVersion);
         }
         traceDetails.put("remoteCluster", producer.getRemoteCluster());
         break;
@@ -636,36 +645,36 @@ public class TracingUtils {
     }
   }
 
-  public static Map<String, Object> getEntryDetails(TraceLevel level, Entry entry) {
+  public static Map<String, Object> getEntryDetails(
+      TraceLevel level, Entry entry, int maxBinaryDataLength) {
     if (entry == null) {
       return null;
     }
 
     Map<String, Object> details = new TreeMap<>();
-    populateEntryDetails(level, entry, details);
+    populateEntryDetails(level, entry, details, maxBinaryDataLength);
     return details;
   }
 
   private static void populateEntryDetails(
-      TraceLevel level, Entry entry, Map<String, Object> traceDetails) {
+      TraceLevel level, Entry entry, Map<String, Object> traceDetails, int maxBinaryDataLength) {
     if (entry == null) {
       return;
     }
 
     switch (level) {
       case MINIMAL:
-        traceDetails.put("ledgerId", entry.getLedgerId());
-        traceDetails.put("entryId", entry.getEntryId());
+        traceDetails.put("messageId", entry.getLedgerId() + ":" + entry.getEntryId());
         break;
       case BASIC:
-        populateEntryDetails(TraceLevel.MINIMAL, entry, traceDetails);
+        populateEntryDetails(TraceLevel.MINIMAL, entry, traceDetails, maxBinaryDataLength);
 
         traceDetails.put("length", entry.getLength());
         break;
       case FULL:
-        populateEntryDetails(TraceLevel.BASIC, entry, traceDetails);
+        populateEntryDetails(TraceLevel.BASIC, entry, traceDetails, maxBinaryDataLength);
 
-        traceByteBuf("data", entry.getDataBuffer(), traceDetails);
+        traceByteBuf("data", entry.getDataBuffer(), traceDetails, maxBinaryDataLength);
         break;
       case NONE:
         break;
@@ -699,14 +708,15 @@ public class TracingUtils {
     traceDetails.put("sequenceId", publishContext.getSequenceId());
   }
 
-  public static void traceByteBuf(String key, ByteBuf buf, Map<String, Object> traceDetails) {
-    if (buf == null) return;
+  public static void traceByteBuf(
+      String key, ByteBuf buf, Map<String, Object> traceDetails, int maxBinaryDataLength) {
+    if (buf == null || maxBinaryDataLength <= 0) return;
 
-    if (buf.readableBytes() < MAX_DATA_LENGTH) {
+    if (buf.readableBytes() < maxBinaryDataLength) {
       traceDetails.put(key, "0x" + Hex.encodeHexString(buf.nioBuffer()));
     } else {
       traceDetails.put(
-          key + "Slice", "0x" + Hex.encodeHexString(buf.slice(0, MAX_DATA_LENGTH).nioBuffer()));
+          key + "Slice", "0x" + Hex.encodeHexString(buf.slice(0, maxBinaryDataLength).nioBuffer()));
     }
   }
 }

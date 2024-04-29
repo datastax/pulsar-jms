@@ -92,27 +92,29 @@ class TracingUtilsTest {
   void traceByteBufTest() {
     Map<String, Object> traceDetails = new TreeMap<>();
 
-    traceByteBuf("key", null, traceDetails);
+    int maxBinaryDataLength = 1024;
+
+    traceByteBuf("key", null, traceDetails, maxBinaryDataLength);
     assertEquals(0, traceDetails.size());
 
     ByteBuf small = Unpooled.buffer(20);
     for (int i = 0; i < 20; i++) {
       small.writeByte(i);
     }
-    traceByteBuf("key", small, traceDetails);
+    traceByteBuf("key", small, traceDetails, maxBinaryDataLength);
     assertEquals(1, traceDetails.size());
     assertEquals(42, ((String) traceDetails.get("key")).length());
     assertEquals("0x000102030405060708090a0b0c0d0e0f10111213", traceDetails.get("key"));
 
-    ByteBuf big = Unpooled.buffer(MAX_DATA_LENGTH + 100);
-    for (int i = 0; i < MAX_DATA_LENGTH + 100; i++) {
+    ByteBuf big = Unpooled.buffer(maxBinaryDataLength + 100);
+    for (int i = 0; i < maxBinaryDataLength + 100; i++) {
       big.writeByte(i);
     }
 
     traceDetails.clear();
-    traceByteBuf("key", big, traceDetails);
+    traceByteBuf("key", big, traceDetails, maxBinaryDataLength);
     assertEquals(1, traceDetails.size());
-    assertEquals(2 + 2 * MAX_DATA_LENGTH, ((String) traceDetails.get("keySlice")).length());
+    assertEquals(2 + 2 * maxBinaryDataLength, ((String) traceDetails.get("keySlice")).length());
     assertTrue(((String) traceDetails.get("keySlice")).startsWith("0x000102"));
   }
 }
