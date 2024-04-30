@@ -31,6 +31,7 @@ import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.bookkeeper.mledger.Entry;
 import org.apache.commons.codec.binary.Hex;
+import org.apache.pulsar.broker.authentication.AuthenticationDataSource;
 import org.apache.pulsar.broker.service.Consumer;
 import org.apache.pulsar.broker.service.Producer;
 import org.apache.pulsar.broker.service.ServerCnx;
@@ -402,6 +403,7 @@ public class TracingUtils {
     switch (level) {
       case MINIMAL:
         traceDetails.put("clientAddress", cnx.clientAddress().toString());
+        traceDetails.put("authRole", cnx.getAuthRole());
         break;
       case BASIC:
         populateConnectionDetails(TraceLevel.MINIMAL, cnx, traceDetails);
@@ -412,19 +414,52 @@ public class TracingUtils {
       case FULL:
         populateConnectionDetails(TraceLevel.BASIC, cnx, traceDetails);
 
-        traceDetails.put("authRole", cnx.getAuthRole());
         traceDetails.put("authMethod", cnx.getAuthMethod());
         traceDetails.put(
             "authMethodName",
             cnx.getAuthenticationProvider() == null
                 ? "no provider"
                 : cnx.getAuthenticationProvider().getAuthMethodName());
+
+        AuthenticationDataSource authData = cnx.getAuthenticationData();
+        if (authData != null) {
+          traceDetails.put("authData", getAuthDataDetails(authData));
+        }
         break;
       case NONE:
         break;
       default:
         log.warn("Unknown tracing level: {}", level);
         break;
+    }
+  }
+
+  private static Object getAuthDataDetails(AuthenticationDataSource authData) {
+    if (authData == null) {
+      return null;
+    }
+
+    Map<String, Object> details = new TreeMap<>();
+    populateAuthDataDetails(authData, details);
+    return details;
+  }
+
+  private static void populateAuthDataDetails(
+      AuthenticationDataSource authData, Map<String, Object> details) {
+    if (authData == null) {
+      return;
+    }
+
+    details.put("peerAddress", authData.getPeerAddress());
+    details.put("commandData", authData.getCommandData());
+    details.put("httpAuthType", authData.getHttpAuthType());
+    details.put("subscription", authData.getSubscription());
+    if (authData.getTlsCertificates() != null) {
+      details.put(
+          "tlsCertificates",
+          Arrays.stream(authData.getTlsCertificates())
+              .map(Object::toString)
+              .collect(Collectors.toList()));
     }
   }
 

@@ -52,11 +52,13 @@ import org.apache.pulsar.broker.service.Producer;
 import org.apache.pulsar.broker.service.ServerCnx;
 import org.apache.pulsar.broker.service.Subscription;
 import org.apache.pulsar.broker.service.Topic;
+import org.apache.pulsar.client.admin.PulsarAdmin;
 import org.apache.pulsar.common.api.proto.BaseCommand;
 import org.apache.pulsar.common.api.proto.CommandAck;
 import org.apache.pulsar.common.api.proto.MessageIdData;
 import org.apache.pulsar.common.api.proto.MessageMetadata;
 import org.apache.pulsar.common.intercept.InterceptException;
+import org.apache.pulsar.common.naming.TopicName;
 import org.jetbrains.annotations.NotNull;
 
 @Slf4j
@@ -75,6 +77,7 @@ public class BrokerTracing implements BrokerInterceptor {
   private final Set<EventReasons> jmsTracingEventList = new HashSet<>();
   private TraceLevel traceLevel = defaultTraceLevel;
   private int maxBinaryDataLength = 256;
+  private int cacheTraceLevelsDurationSec = 10;
   private boolean traceSystemTopics = false;
   private boolean traceSchema = false;
   private boolean reduceLevelForNestedComponents = true;
@@ -111,18 +114,20 @@ public class BrokerTracing implements BrokerInterceptor {
     }
   }
 
-  private static final LoadingCache<Subscription, TraceLevel> traceLevelForSubscription =
+  private final LoadingCache<Subscription, TraceLevel> traceLevelForSubscription =
       CacheBuilder.newBuilder()
-          .expireAfterWrite(10, TimeUnit.SECONDS)
+          .expireAfterWrite(cacheTraceLevelsDurationSec, TimeUnit.SECONDS)
           .build(
               new CacheLoader<Subscription, TraceLevel>() {
                 public TraceLevel load(Subscription sub) {
                   Map<String, String> subProps = sub.getSubscriptionProperties();
-                  if (subProps == null || !subProps.containsKey("trace")) {
-                    return TraceLevel.NONE;
-                  }
-
                   try {
+                    if (subProps == null || !subProps.containsKey("trace")) {
+                      PulsarAdmin admin =
+                          sub.getTopic().getBrokerService().getPulsar().getAdminClient();
+                      return BrokerTracing.getTracingLevel(admin, sub.getTopic());
+                    }
+
                     return TraceLevel.valueOf(subProps.get("trace").trim().toUpperCase());
                   } catch (IllegalArgumentException e) {
                     log.warn(
@@ -130,32 +135,54 @@ public class BrokerTracing implements BrokerInterceptor {
                         subProps.get("trace"),
                         sub);
                     return TraceLevel.NONE;
+                  } catch (Throwable t) {
+                    log.error("Error getting tracing level", t);
+                    return TraceLevel.NONE;
                   }
                 }
               });
 
-  private static final LoadingCache<Producer, TraceLevel> traceLevelForProducer =
+  private final LoadingCache<Producer, TraceLevel> traceLevelForProducer =
       CacheBuilder.newBuilder()
-          .expireAfterWrite(10, TimeUnit.SECONDS)
+          .expireAfterWrite(cacheTraceLevelsDurationSec, TimeUnit.SECONDS)
           .build(
               new CacheLoader<Producer, TraceLevel>() {
                 public TraceLevel load(Producer producer) {
-                  if (producer.getMetadata() == null
-                      || !producer.getMetadata().containsKey("trace")) {
-                    return TraceLevel.FULL;
-                  }
                   try {
-                    return TraceLevel.valueOf(
-                        producer.getMetadata().get("trace").trim().toUpperCase());
-                  } catch (IllegalArgumentException e) {
-                    log.warn(
-                        "Invalid tracing level: {}. Setting to NONE for producer {}",
-                        producer.getMetadata().get("trace"),
-                        producer);
-                    return TraceLevel.FULL;
+                    PulsarAdmin admin =
+                        producer.getCnx().getBrokerService().getPulsar().getAdminClient();
+                    Topic topic = producer.getTopic();
+
+                    return BrokerTracing.getTracingLevel(admin, topic);
+                  } catch (Throwable t) {
+                    log.error("Error getting tracing level", t);
+                    return TraceLevel.NONE;
                   }
                 }
               });
+
+  @NotNull
+  private static TraceLevel getTracingLevel(PulsarAdmin admin, Topic topic) {
+    Map<String, String> props = null;
+    try {
+      props =
+          admin.topics().getProperties(TopicName.get(topic.getName()).getPartitionedTopicName());
+
+      if (props == null || !props.containsKey("trace")) {
+        return TraceLevel.NONE;
+      }
+
+      return TraceLevel.valueOf(props.get("trace").trim().toUpperCase());
+    } catch (IllegalArgumentException e) {
+      log.warn(
+          "Invalid tracing level: {}. Setting to NONE",
+          props == null ? "no props" : props.get("trace"));
+      return TraceLevel.NONE;
+    } catch (Throwable t) {
+      log.error("Error getting tracing level", t);
+      return TraceLevel.NONE;
+    }
+  }
 
   public void initialize(PulsarService pulsarService) {
     log.info("Initializing BrokerTracing");
@@ -176,6 +203,15 @@ public class BrokerTracing implements BrokerInterceptor {
     if (props.containsKey("jmsTracingReduceLevelForNestedComponents")) {
       reduceLevelForNestedComponents =
           Boolean.parseBoolean(props.getProperty("jmsTracingReduceLevelForNestedComponents"));
+    }
+    if (props.containsKey("jmsTracingCacheTraceLevelsDurationSec")) {
+      cacheTraceLevelsDurationSec =
+          Integer.parseInt(props.getProperty("jmsTracingCacheTraceLevelsDurationSec"));
+      if (cacheTraceLevelsDurationSec <= 0) {
+        log.warn(
+            "Invalid cache duration: {}. Setting to default: {}", cacheTraceLevelsDurationSec, 10);
+        cacheTraceLevelsDurationSec = 10;
+      }
     }
   }
 
@@ -223,13 +259,6 @@ public class BrokerTracing implements BrokerInterceptor {
     return current;
   }
 
-  //    private boolean needToTraceTopic(Topic topic) {
-  //        if (topic == null) return false;
-  //
-  //        // todo: how to read topic props
-  //        return true;
-  //    }
-
   /* ***************************
    **  Administrative events
    ******************************/
@@ -246,13 +275,13 @@ public class BrokerTracing implements BrokerInterceptor {
 
   public void producerCreated(ServerCnx cnx, Producer producer, Map<String, String> metadata) {
     if (!jmsTracingEventList.contains(EventReasons.ADMINISTRATIVE)) return;
+    if (!traceSystemTopics && producer.getTopic().isSystemTopic()) return;
 
-    TraceLevel level = getTracingLevel(producer);
-    if (level == TraceLevel.NONE) return;
+    if (traceLevel == TraceLevel.NONE) return;
 
     Map<String, Object> traceDetails = new TreeMap<>();
-    traceDetails.put("serverCnx", getConnectionDetails(getTraceLevelForComponent(level), cnx));
-    traceDetails.put("producer", getProducerDetails(level, producer, traceSchema));
+    traceDetails.put("serverCnx", getConnectionDetails(getTraceLevelForComponent(traceLevel), cnx));
+    traceDetails.put("producer", getProducerDetails(traceLevel, producer, traceSchema));
     traceDetails.put("metadata", metadata);
 
     trace("Producer created", traceDetails);
@@ -260,13 +289,13 @@ public class BrokerTracing implements BrokerInterceptor {
 
   public void producerClosed(ServerCnx cnx, Producer producer, Map<String, String> metadata) {
     if (!jmsTracingEventList.contains(EventReasons.ADMINISTRATIVE)) return;
+    if (!traceSystemTopics && producer.getTopic().isSystemTopic()) return;
 
-    TraceLevel level = getTracingLevel(producer);
-    if (level == TraceLevel.NONE) return;
+    if (traceLevel == TraceLevel.NONE) return;
 
     Map<String, Object> traceDetails = new TreeMap<>();
-    traceDetails.put("serverCnx", getConnectionDetails(getTraceLevelForComponent(level), cnx));
-    traceDetails.put("producer", getProducerDetails(level, producer, traceSchema));
+    traceDetails.put("serverCnx", getConnectionDetails(getTraceLevelForComponent(traceLevel), cnx));
+    traceDetails.put("producer", getProducerDetails(traceLevel, producer, traceSchema));
     traceDetails.put("metadata", metadata);
 
     trace("Producer closed", traceDetails);
@@ -274,14 +303,15 @@ public class BrokerTracing implements BrokerInterceptor {
 
   public void consumerCreated(ServerCnx cnx, Consumer consumer, Map<String, String> metadata) {
     if (!jmsTracingEventList.contains(EventReasons.ADMINISTRATIVE)) return;
+    if (!traceSystemTopics && consumer.getSubscription().getTopic().isSystemTopic()) return;
 
-    TraceLevel level = getTracingLevel(consumer);
-    if (level == TraceLevel.NONE) return;
+    if (traceLevel == TraceLevel.NONE) return;
 
     Map<String, Object> traceDetails = new TreeMap<>();
-    traceDetails.put("serverCnx", getConnectionDetails(getTraceLevelForComponent(level), cnx));
-    traceDetails.put("consumer", getConsumerDetails(level, consumer));
-    traceDetails.put("subscription", getSubscriptionDetails(level, consumer.getSubscription()));
+    traceDetails.put("serverCnx", getConnectionDetails(getTraceLevelForComponent(traceLevel), cnx));
+    traceDetails.put("consumer", getConsumerDetails(traceLevel, consumer));
+    traceDetails.put(
+        "subscription", getSubscriptionDetails(traceLevel, consumer.getSubscription()));
     traceDetails.put("metadata", metadata);
 
     trace("Consumer created", traceDetails);
@@ -289,14 +319,15 @@ public class BrokerTracing implements BrokerInterceptor {
 
   public void consumerClosed(ServerCnx cnx, Consumer consumer, Map<String, String> metadata) {
     if (!jmsTracingEventList.contains(EventReasons.ADMINISTRATIVE)) return;
+    if (!traceSystemTopics && consumer.getSubscription().getTopic().isSystemTopic()) return;
 
-    TraceLevel level = getTracingLevel(consumer);
-    if (level == TraceLevel.NONE) return;
+    if (traceLevel == TraceLevel.NONE) return;
 
     Map<String, Object> traceDetails = new TreeMap<>();
-    traceDetails.put("serverCnx", getConnectionDetails(level, cnx));
-    traceDetails.put("consumer", getConsumerDetails(level, consumer));
-    traceDetails.put("subscription", getSubscriptionDetails(level, consumer.getSubscription()));
+    traceDetails.put("serverCnx", getConnectionDetails(getTraceLevelForComponent(traceLevel), cnx));
+    traceDetails.put("consumer", getConsumerDetails(traceLevel, consumer));
+    traceDetails.put(
+        "subscription", getSubscriptionDetails(traceLevel, consumer.getSubscription()));
     traceDetails.put("metadata", metadata);
 
     trace("Consumer closed", traceDetails);
