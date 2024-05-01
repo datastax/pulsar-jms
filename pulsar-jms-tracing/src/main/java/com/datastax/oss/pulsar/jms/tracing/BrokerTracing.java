@@ -30,6 +30,8 @@ import static com.datastax.oss.pulsar.jms.tracing.TracingUtils.traceByteBuf;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.SettableFuture;
 import io.netty.buffer.ByteBuf;
 import java.io.IOException;
 import java.util.HashSet;
@@ -37,6 +39,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -116,72 +119,154 @@ public class BrokerTracing implements BrokerInterceptor {
 
   private final LoadingCache<Subscription, TraceLevel> traceLevelForSubscription =
       CacheBuilder.newBuilder()
-          .expireAfterWrite(cacheTraceLevelsDurationSec, TimeUnit.SECONDS)
+          .maximumSize(10_000L)
+          .concurrencyLevel(Runtime.getRuntime().availableProcessors())
+          .expireAfterWrite(10L * cacheTraceLevelsDurationSec, TimeUnit.SECONDS)
+          .refreshAfterWrite(cacheTraceLevelsDurationSec, TimeUnit.SECONDS)
           .build(
               new CacheLoader<Subscription, TraceLevel>() {
                 public TraceLevel load(Subscription sub) {
-                  Map<String, String> subProps = sub.getSubscriptionProperties();
-                  try {
-                    if (subProps == null || !subProps.containsKey("trace")) {
-                      PulsarAdmin admin =
-                          sub.getTopic().getBrokerService().getPulsar().getAdminClient();
-                      return BrokerTracing.getTracingLevel(admin, sub.getTopic());
-                    }
+                  log.info("Loading trace level for subscription {}", sub);
+                  return BrokerTracing.readTraceLevelForSubscription(sub);
+                }
 
-                    return TraceLevel.valueOf(subProps.get("trace").trim().toUpperCase());
-                  } catch (IllegalArgumentException e) {
-                    log.warn(
-                        "Invalid tracing level: {}. Setting to NONE for subscription {}",
-                        subProps.get("trace"),
-                        sub);
-                    return TraceLevel.NONE;
-                  } catch (Throwable t) {
-                    log.error("Error getting tracing level", t);
-                    return TraceLevel.NONE;
-                  }
+                public ListenableFuture<TraceLevel> reload(Subscription sub, TraceLevel oldValue)
+                    throws Exception {
+                  SettableFuture<TraceLevel> future = SettableFuture.create();
+                  BrokerTracing.readTraceLevelForSubscriptionAsync(sub)
+                      .whenComplete(
+                          (level, ex) -> {
+                            if (ex != null) {
+                              future.setException(ex);
+                            } else {
+                              future.set(level);
+                            }
+                          });
+                  return future;
                 }
               });
-
   private final LoadingCache<Producer, TraceLevel> traceLevelForProducer =
       CacheBuilder.newBuilder()
-          .expireAfterWrite(cacheTraceLevelsDurationSec, TimeUnit.SECONDS)
+          .maximumSize(10_000L)
+          .concurrencyLevel(Runtime.getRuntime().availableProcessors())
+          .expireAfterWrite(10L * cacheTraceLevelsDurationSec, TimeUnit.SECONDS)
+          .refreshAfterWrite(cacheTraceLevelsDurationSec, TimeUnit.SECONDS)
           .build(
               new CacheLoader<Producer, TraceLevel>() {
                 public TraceLevel load(Producer producer) {
                   try {
+                    log.info("Loading trace level for producer {}", producer);
                     PulsarAdmin admin =
                         producer.getCnx().getBrokerService().getPulsar().getAdminClient();
                     Topic topic = producer.getTopic();
 
-                    return BrokerTracing.getTracingLevel(admin, topic);
+                    return BrokerTracing.readTraceLevelForTopic(admin, topic);
                   } catch (Throwable t) {
                     log.error("Error getting tracing level", t);
                     return TraceLevel.NONE;
                   }
                 }
+
+                public ListenableFuture<TraceLevel> reload(Producer producer, TraceLevel oldValue)
+                    throws Exception {
+                  SettableFuture<TraceLevel> future = SettableFuture.create();
+
+                  PulsarAdmin admin =
+                      producer.getCnx().getBrokerService().getPulsar().getAdminClient();
+                  Topic topic = producer.getTopic();
+
+                  BrokerTracing.readTraceLevelForTopicAsync(admin, topic)
+                      .whenComplete(
+                          (level, ex) -> {
+                            if (ex != null) {
+                              future.setException(ex);
+                            } else {
+                              future.set(level);
+                            }
+                          });
+
+                  return future;
+                }
               });
 
   @NotNull
-  private static TraceLevel getTracingLevel(PulsarAdmin admin, Topic topic) {
-    Map<String, String> props = null;
+  private static TraceLevel readTraceLevelForSubscription(Subscription sub) {
     try {
-      props =
-          admin.topics().getProperties(TopicName.get(topic.getName()).getPartitionedTopicName());
-
-      if (props == null || !props.containsKey("trace")) {
-        return TraceLevel.NONE;
-      }
-
-      return TraceLevel.valueOf(props.get("trace").trim().toUpperCase());
-    } catch (IllegalArgumentException e) {
-      log.warn(
-          "Invalid tracing level: {}. Setting to NONE",
-          props == null ? "no props" : props.get("trace"));
+      return readTraceLevelForSubscriptionAsync(sub).get();
+    } catch (InterruptedException | ExecutionException e) {
+      log.error("Interrupted while getting subscription tracing level for {}", sub, e);
+      Thread.currentThread().interrupt();
       return TraceLevel.NONE;
     } catch (Throwable t) {
-      log.error("Error getting tracing level", t);
+      log.error("Error getting subscription tracing level for {}", sub, t);
       return TraceLevel.NONE;
     }
+  }
+
+  @NotNull
+  private static CompletableFuture<TraceLevel> readTraceLevelForSubscriptionAsync(
+      Subscription sub) {
+    Map<String, String> subProps = sub.getSubscriptionProperties();
+    try {
+      if (subProps == null || !subProps.containsKey("trace")) {
+        PulsarAdmin admin = sub.getTopic().getBrokerService().getPulsar().getAdminClient();
+        return BrokerTracing.readTraceLevelForTopicAsync(admin, sub.getTopic());
+      }
+
+      return CompletableFuture.completedFuture(
+          TraceLevel.valueOf(subProps.get("trace").trim().toUpperCase()));
+    } catch (IllegalArgumentException e) {
+      log.warn(
+          "Invalid tracing level: {}. Setting to NONE for subscription {}",
+          subProps.get("trace"),
+          sub);
+      return CompletableFuture.completedFuture(TraceLevel.NONE);
+    } catch (Throwable t) {
+      log.error("Error getting tracing level. Setting to NONE for subscription {}", sub, t);
+      return CompletableFuture.completedFuture(TraceLevel.NONE);
+    }
+  }
+
+  @NotNull
+  private static TraceLevel readTraceLevelForTopic(PulsarAdmin admin, Topic topic) {
+    try {
+      return readTraceLevelForTopicAsync(admin, topic).get();
+    } catch (InterruptedException | ExecutionException e) {
+      log.error("Interrupted while getting tracing level for topic {}", topic.getName(), e);
+      Thread.currentThread().interrupt();
+      return TraceLevel.NONE;
+    } catch (Throwable t) {
+      log.error("Error getting tracing level for topic {}", topic.getName(), t);
+      return TraceLevel.NONE;
+    }
+  }
+
+  @NotNull
+  private static CompletableFuture<TraceLevel> readTraceLevelForTopicAsync(
+      PulsarAdmin admin, Topic topic) {
+    CompletableFuture<Map<String, String>> propsFuture =
+        admin.topics().getPropertiesAsync(TopicName.get(topic.getName()).getPartitionedTopicName());
+    return propsFuture.handle(
+        (props, ex) -> {
+          if (ex != null) {
+            log.error("Error getting tracing level for topic {}", topic.getName(), ex);
+            return TraceLevel.NONE;
+          }
+
+          try {
+            if (props == null || !props.containsKey("trace")) {
+              return TraceLevel.NONE;
+            }
+
+            return TraceLevel.valueOf(props.get("trace").trim().toUpperCase());
+          } catch (IllegalArgumentException e) {
+            log.warn(
+                "Invalid tracing level for topic {}: {}. Setting to NONE",
+                topic.getName(),
+                props.get("trace"));
+            return TraceLevel.NONE;
+          }
+        });
   }
 
   public void initialize(PulsarService pulsarService) {
