@@ -32,10 +32,14 @@ class TracingUtilsTest {
   private Tracer mockTracer =
       new Tracer() {
         @Override
-        public void trace(String msg) {
+        public void trace(EventReasons reason, String msg) {
           traces.add(msg);
         }
       };
+
+  private static void trace(Tracer mockTracer, String msg, Map<String, Object> traceDetails) {
+    TracingUtils.trace(mockTracer, EventReasons.SERVLET, msg, traceDetails);
+  }
 
   @Test
   void traceTest() {

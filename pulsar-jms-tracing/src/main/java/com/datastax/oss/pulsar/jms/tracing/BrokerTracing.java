@@ -15,6 +15,7 @@
  */
 package com.datastax.oss.pulsar.jms.tracing;
 
+import static com.datastax.oss.pulsar.jms.tracing.TracingUtils.EventReasons;
 import static com.datastax.oss.pulsar.jms.tracing.TracingUtils.TraceLevel;
 import static com.datastax.oss.pulsar.jms.tracing.TracingUtils.getCommandDetails;
 import static com.datastax.oss.pulsar.jms.tracing.TracingUtils.getConnectionDetails;
@@ -34,6 +35,7 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import io.netty.buffer.ByteBuf;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Properties;
@@ -67,15 +69,7 @@ import org.jetbrains.annotations.NotNull;
 @Slf4j
 public class BrokerTracing implements BrokerInterceptor {
 
-  public enum EventReasons {
-    ADMINISTRATIVE,
-    COMMANDS,
-    MESSAGE,
-    TRANSACTION,
-    SERVLET,
-  }
-
-  private static final TraceLevel defaultTraceLevel = TraceLevel.BASIC;
+  private static final TraceLevel defaultTraceLevel = TraceLevel.OFF;
 
   private final Set<EventReasons> jmsTracingEventList = new HashSet<>();
   private TraceLevel traceLevel = defaultTraceLevel;
@@ -83,23 +77,26 @@ public class BrokerTracing implements BrokerInterceptor {
   private int cacheTraceLevelsDurationSec = 10;
   private boolean traceSystemTopics = false;
   private boolean traceSchema = false;
-  private boolean reduceLevelForNestedComponents = true;
 
-  private static Set<EventReasons> loadEnabledEvents(
+  private static void loadEnabledEvents(
       PulsarService pulsarService, Set<EventReasons> enabledEvents) {
-    String events =
-        pulsarService.getConfiguration().getProperties().getProperty("jmsTracingEventList", "");
-    log.debug("read jmsTracingEventList: {}", events);
+    Properties props = pulsarService.getConfiguration().getProperties();
+    if (props.contains("jmsTracingEventList")) {
+      String events = props.getProperty("jmsTracingEventList", "");
+      log.debug("read jmsTracingEventList: {}", events);
 
-    for (String event : events.split(",")) {
-      try {
-        enabledEvents.add(EventReasons.valueOf(event.trim().toUpperCase()));
-      } catch (IllegalArgumentException e) {
-        log.error("Invalid event: {}. Skipping", event);
+      enabledEvents.clear();
+      for (String event : events.split(",")) {
+        try {
+          enabledEvents.add(EventReasons.valueOf(event.trim().toUpperCase()));
+        } catch (IllegalArgumentException e) {
+          log.error("Invalid event: {}. Skipping", event);
+        }
       }
+    } else {
+      log.warn("jmsTracingEventList not set. Using all available.");
+      enabledEvents.addAll(Arrays.asList(EventReasons.values()));
     }
-
-    return enabledEvents;
   }
 
   @NotNull
@@ -163,7 +160,7 @@ public class BrokerTracing implements BrokerInterceptor {
                     return BrokerTracing.readTraceLevelForTopic(admin, topic);
                   } catch (Throwable t) {
                     log.error("Error getting tracing level", t);
-                    return TraceLevel.NONE;
+                    return TraceLevel.OFF;
                   }
                 }
 
@@ -196,10 +193,10 @@ public class BrokerTracing implements BrokerInterceptor {
     } catch (InterruptedException | ExecutionException e) {
       log.error("Interrupted while getting subscription tracing level for {}", sub, e);
       Thread.currentThread().interrupt();
-      return TraceLevel.NONE;
+      return TraceLevel.OFF;
     } catch (Throwable t) {
       log.error("Error getting subscription tracing level for {}", sub, t);
-      return TraceLevel.NONE;
+      return TraceLevel.OFF;
     }
   }
 
@@ -220,10 +217,10 @@ public class BrokerTracing implements BrokerInterceptor {
           "Invalid tracing level: {}. Setting to NONE for subscription {}",
           subProps.get("trace"),
           sub);
-      return CompletableFuture.completedFuture(TraceLevel.NONE);
+      return CompletableFuture.completedFuture(TraceLevel.OFF);
     } catch (Throwable t) {
       log.error("Error getting tracing level. Setting to NONE for subscription {}", sub, t);
-      return CompletableFuture.completedFuture(TraceLevel.NONE);
+      return CompletableFuture.completedFuture(TraceLevel.OFF);
     }
   }
 
@@ -234,10 +231,10 @@ public class BrokerTracing implements BrokerInterceptor {
     } catch (InterruptedException | ExecutionException e) {
       log.error("Interrupted while getting tracing level for topic {}", topic.getName(), e);
       Thread.currentThread().interrupt();
-      return TraceLevel.NONE;
+      return TraceLevel.OFF;
     } catch (Throwable t) {
       log.error("Error getting tracing level for topic {}", topic.getName(), t);
-      return TraceLevel.NONE;
+      return TraceLevel.OFF;
     }
   }
 
@@ -250,12 +247,12 @@ public class BrokerTracing implements BrokerInterceptor {
         (props, ex) -> {
           if (ex != null) {
             log.error("Error getting tracing level for topic {}", topic.getName(), ex);
-            return TraceLevel.NONE;
+            return TraceLevel.OFF;
           }
 
           try {
             if (props == null || !props.containsKey("trace")) {
-              return TraceLevel.NONE;
+              return TraceLevel.OFF;
             }
 
             return TraceLevel.valueOf(props.get("trace").trim().toUpperCase());
@@ -264,7 +261,7 @@ public class BrokerTracing implements BrokerInterceptor {
                 "Invalid tracing level for topic {}: {}. Setting to NONE",
                 topic.getName(),
                 props.get("trace"));
-            return TraceLevel.NONE;
+            return TraceLevel.OFF;
           }
         });
   }
@@ -285,10 +282,6 @@ public class BrokerTracing implements BrokerInterceptor {
     if (props.containsKey("jmsTracingTraceSchema")) {
       traceSchema = Boolean.parseBoolean(props.getProperty("jmsTracingTraceSchema"));
     }
-    if (props.containsKey("jmsTracingReduceLevelForNestedComponents")) {
-      reduceLevelForNestedComponents =
-          Boolean.parseBoolean(props.getProperty("jmsTracingReduceLevelForNestedComponents"));
-    }
     if (props.containsKey("jmsTracingCacheTraceLevelsDurationSec")) {
       cacheTraceLevelsDurationSec =
           Integer.parseInt(props.getProperty("jmsTracingCacheTraceLevelsDurationSec"));
@@ -306,42 +299,35 @@ public class BrokerTracing implements BrokerInterceptor {
   }
 
   private TraceLevel getTracingLevel(Consumer consumer) {
-    if (consumer == null) return TraceLevel.NONE;
+    if (consumer == null) return TraceLevel.OFF;
 
     return getTracingLevel(consumer.getSubscription());
   }
 
   private TraceLevel getTracingLevel(Subscription sub) {
-    if (sub == null) return TraceLevel.NONE;
+    if (sub == null) return TraceLevel.OFF;
 
-    if (!traceSystemTopics && sub.getTopic().isSystemTopic()) return TraceLevel.NONE;
+    if (!traceSystemTopics && sub.getTopic().isSystemTopic()) return TraceLevel.OFF;
 
     try {
       return traceLevelForSubscription.get(sub);
     } catch (ExecutionException e) {
       log.error("Error getting tracing level", e);
-      return TraceLevel.NONE;
+      return TraceLevel.OFF;
     }
   }
 
   private TraceLevel getTracingLevel(Producer producer) {
-    if (producer == null) return TraceLevel.NONE;
+    if (producer == null) return TraceLevel.OFF;
 
-    if (!traceSystemTopics && producer.getTopic().isSystemTopic()) return TraceLevel.NONE;
+    if (!traceSystemTopics && producer.getTopic().isSystemTopic()) return TraceLevel.OFF;
 
     try {
       return traceLevelForProducer.get(producer);
     } catch (ExecutionException e) {
       log.error("Error getting tracing level", e);
-      return TraceLevel.NONE;
+      return TraceLevel.OFF;
     }
-  }
-
-  private TraceLevel getTraceLevelForComponent(TraceLevel current) {
-    if (current == TraceLevel.NONE) return TraceLevel.NONE;
-    if (reduceLevelForNestedComponents) return TraceLevel.BASIC;
-
-    return current;
   }
 
   /* ***************************
@@ -351,102 +337,98 @@ public class BrokerTracing implements BrokerInterceptor {
   public void onConnectionCreated(ServerCnx cnx) {
     if (!jmsTracingEventList.contains(EventReasons.ADMINISTRATIVE)) return;
 
-    if (traceLevel == TraceLevel.NONE) return;
+    if (traceLevel == TraceLevel.OFF) return;
 
     Map<String, Object> traceDetails = new TreeMap<>();
-    traceDetails.put("serverCnx", getConnectionDetails(traceLevel, cnx));
-    trace("Connection created", traceDetails);
+    traceDetails.put("serverCnx", getConnectionDetails(cnx));
+    trace(EventReasons.ADMINISTRATIVE, "Connection created", traceDetails);
   }
 
   public void producerCreated(ServerCnx cnx, Producer producer, Map<String, String> metadata) {
     if (!jmsTracingEventList.contains(EventReasons.ADMINISTRATIVE)) return;
     if (!traceSystemTopics && producer.getTopic().isSystemTopic()) return;
 
-    if (traceLevel == TraceLevel.NONE) return;
+    if (traceLevel == TraceLevel.OFF) return;
 
     Map<String, Object> traceDetails = new TreeMap<>();
-    traceDetails.put("serverCnx", getConnectionDetails(getTraceLevelForComponent(traceLevel), cnx));
-    traceDetails.put("producer", getProducerDetails(traceLevel, producer, traceSchema));
+    traceDetails.put("serverCnx", getConnectionDetails(cnx));
+    traceDetails.put("producer", getProducerDetails(producer, traceSchema));
     traceDetails.put("metadata", metadata);
 
-    trace("Producer created", traceDetails);
+    trace(EventReasons.ADMINISTRATIVE, "Producer created", traceDetails);
   }
 
   public void producerClosed(ServerCnx cnx, Producer producer, Map<String, String> metadata) {
     if (!jmsTracingEventList.contains(EventReasons.ADMINISTRATIVE)) return;
     if (!traceSystemTopics && producer.getTopic().isSystemTopic()) return;
 
-    if (traceLevel == TraceLevel.NONE) return;
+    if (traceLevel == TraceLevel.OFF) return;
 
     Map<String, Object> traceDetails = new TreeMap<>();
-    traceDetails.put("serverCnx", getConnectionDetails(getTraceLevelForComponent(traceLevel), cnx));
-    traceDetails.put("producer", getProducerDetails(traceLevel, producer, traceSchema));
+    traceDetails.put("serverCnx", getConnectionDetails(cnx));
+    traceDetails.put("producer", getProducerDetails(producer, traceSchema));
     traceDetails.put("metadata", metadata);
 
-    trace("Producer closed", traceDetails);
+    trace(EventReasons.ADMINISTRATIVE, "Producer closed", traceDetails);
   }
 
   public void consumerCreated(ServerCnx cnx, Consumer consumer, Map<String, String> metadata) {
     if (!jmsTracingEventList.contains(EventReasons.ADMINISTRATIVE)) return;
     if (!traceSystemTopics && consumer.getSubscription().getTopic().isSystemTopic()) return;
 
-    if (traceLevel == TraceLevel.NONE) return;
+    if (traceLevel == TraceLevel.OFF) return;
 
     Map<String, Object> traceDetails = new TreeMap<>();
-    traceDetails.put("serverCnx", getConnectionDetails(getTraceLevelForComponent(traceLevel), cnx));
-    traceDetails.put("consumer", getConsumerDetails(traceLevel, consumer));
-    traceDetails.put(
-        "subscription", getSubscriptionDetails(traceLevel, consumer.getSubscription()));
+    traceDetails.put("serverCnx", getConnectionDetails(cnx));
+    traceDetails.put("consumer", getConsumerDetails(consumer));
+    traceDetails.put("subscription", getSubscriptionDetails(consumer.getSubscription()));
     traceDetails.put("metadata", metadata);
 
-    trace("Consumer created", traceDetails);
+    trace(EventReasons.ADMINISTRATIVE, "Consumer created", traceDetails);
   }
 
   public void consumerClosed(ServerCnx cnx, Consumer consumer, Map<String, String> metadata) {
     if (!jmsTracingEventList.contains(EventReasons.ADMINISTRATIVE)) return;
     if (!traceSystemTopics && consumer.getSubscription().getTopic().isSystemTopic()) return;
 
-    if (traceLevel == TraceLevel.NONE) return;
+    if (traceLevel == TraceLevel.OFF) return;
 
     Map<String, Object> traceDetails = new TreeMap<>();
-    traceDetails.put("serverCnx", getConnectionDetails(getTraceLevelForComponent(traceLevel), cnx));
-    traceDetails.put("consumer", getConsumerDetails(traceLevel, consumer));
-    traceDetails.put(
-        "subscription", getSubscriptionDetails(traceLevel, consumer.getSubscription()));
+    traceDetails.put("serverCnx", getConnectionDetails(cnx));
+    traceDetails.put("consumer", getConsumerDetails(consumer));
+    traceDetails.put("subscription", getSubscriptionDetails(consumer.getSubscription()));
     traceDetails.put("metadata", metadata);
 
-    trace("Consumer closed", traceDetails);
+    trace(EventReasons.ADMINISTRATIVE, "Consumer closed", traceDetails);
   }
 
   public void onPulsarCommand(BaseCommand command, ServerCnx cnx) throws InterceptException {
     if (!jmsTracingEventList.contains(EventReasons.COMMANDS)) return;
 
-    if (traceLevel == TraceLevel.NONE) return;
+    if (traceLevel == TraceLevel.OFF) return;
 
     Map<String, Object> traceDetails = new TreeMap<>();
-    traceDetails.put("serverCnx", getConnectionDetails(getTraceLevelForComponent(traceLevel), cnx));
+    traceDetails.put("serverCnx", getConnectionDetails(cnx));
 
     if (command.hasType()) {
       traceDetails.put("type", command.getType().name());
-      if (traceLevel != TraceLevel.MINIMAL) {
-        traceDetails.put("command", getCommandDetails(traceLevel, command));
-      }
+      traceDetails.put("command", getCommandDetails(command));
     } else {
       traceDetails.put("type", "unknown/null");
     }
 
-    trace("Pulsar command called", traceDetails);
+    trace(EventReasons.COMMANDS, "Pulsar command called", traceDetails);
   }
 
   public void onConnectionClosed(ServerCnx cnx) {
     if (!jmsTracingEventList.contains(EventReasons.ADMINISTRATIVE)) return;
 
-    if (traceLevel == TraceLevel.NONE) return;
+    if (traceLevel == TraceLevel.OFF) return;
 
     Map<String, Object> traceDetails = new TreeMap<>();
-    traceDetails.put("serverCnx", getConnectionDetails(traceLevel, cnx));
+    traceDetails.put("serverCnx", getConnectionDetails(cnx));
 
-    trace("Connection closed", traceDetails);
+    trace(EventReasons.ADMINISTRATIVE, "Connection closed", traceDetails);
   }
 
   /* ***************************
@@ -462,16 +444,15 @@ public class BrokerTracing implements BrokerInterceptor {
     if (!jmsTracingEventList.contains(EventReasons.MESSAGE)) return;
 
     TraceLevel level = getTracingLevel(subscription);
-    if (level == TraceLevel.NONE) return;
+    if (level == TraceLevel.OFF) return;
 
     Map<String, Object> traceDetails = new TreeMap<>();
-    traceDetails.put(
-        "subscription", getSubscriptionDetails(getTraceLevelForComponent(level), subscription));
-    traceDetails.put("consumer", getConsumerDetails(getTraceLevelForComponent(level), consumer));
-    traceDetails.put("entry", getEntryDetails(level, entry, maxBinaryDataLength));
-    traceDetails.put("messageMetadata", getMessageMetadataDetails(level, msgMetadata));
+    traceDetails.put("subscription", getSubscriptionDetails(subscription));
+    traceDetails.put("consumer", getConsumerDetails(consumer));
+    traceDetails.put("entry", getEntryDetails(entry, maxBinaryDataLength));
+    traceDetails.put("messageMetadata", getMessageMetadataDetails(msgMetadata));
 
-    trace("Before sending message", traceDetails);
+    trace(EventReasons.MESSAGE, "Before sending message", traceDetails);
   }
 
   public void onMessagePublish(
@@ -480,15 +461,14 @@ public class BrokerTracing implements BrokerInterceptor {
     if (!jmsTracingEventList.contains(EventReasons.MESSAGE)) return;
 
     TraceLevel level = getTracingLevel(producer);
-    if (level == TraceLevel.NONE) return;
+    if (level == TraceLevel.OFF) return;
 
     Map<String, Object> traceDetails = new TreeMap<>();
-    traceDetails.put(
-        "producer", getProducerDetails(getTraceLevelForComponent(level), producer, traceSchema));
+    traceDetails.put("producer", getProducerDetails(producer, traceSchema));
     traceDetails.put("publishContext", getPublishContextDetails(publishContext));
     traceByteBuf("headersAndPayload", headersAndPayload, traceDetails, maxBinaryDataLength);
 
-    trace("Message publish", traceDetails);
+    trace(EventReasons.MESSAGE, "Message publish", traceDetails);
   }
 
   public void messageProduced(
@@ -501,16 +481,15 @@ public class BrokerTracing implements BrokerInterceptor {
     if (!jmsTracingEventList.contains(EventReasons.MESSAGE)) return;
 
     TraceLevel level = getTracingLevel(producer);
-    if (level == TraceLevel.NONE) return;
+    if (level == TraceLevel.OFF) return;
 
     Map<String, Object> traceDetails = new TreeMap<>();
-    traceDetails.put("serverCnx", getConnectionDetails(getTraceLevelForComponent(level), cnx));
-    traceDetails.put(
-        "producer", getProducerDetails(getTraceLevelForComponent(level), producer, traceSchema));
+    traceDetails.put("serverCnx", getConnectionDetails(cnx));
+    traceDetails.put("producer", getProducerDetails(producer, traceSchema));
     traceDetails.put("publishContext", getPublishContextDetails(publishContext));
     traceDetails.put("messageId", ledgerId + ":" + entryId);
     traceDetails.put("startTimeNs", startTimeNs);
-    trace("Message produced", traceDetails);
+    trace(EventReasons.MESSAGE, "Message produced", traceDetails);
   }
 
   public void messageDispatched(
@@ -518,32 +497,28 @@ public class BrokerTracing implements BrokerInterceptor {
     if (!jmsTracingEventList.contains(EventReasons.MESSAGE)) return;
 
     TraceLevel level = getTracingLevel(consumer);
-    if (level == TraceLevel.NONE) return;
+    if (level == TraceLevel.OFF) return;
 
     Map<String, Object> traceDetails = new TreeMap<>();
-    traceDetails.put("serverCnx", getConnectionDetails(getTraceLevelForComponent(level), cnx));
-    traceDetails.put("consumer", getConsumerDetails(getTraceLevelForComponent(level), consumer));
-    traceDetails.put(
-        "subscription",
-        getSubscriptionDetails(getTraceLevelForComponent(level), consumer.getSubscription()));
+    traceDetails.put("serverCnx", getConnectionDetails(cnx));
+    traceDetails.put("consumer", getConsumerDetails(consumer));
+    traceDetails.put("subscription", getSubscriptionDetails(consumer.getSubscription()));
     traceDetails.put("messageId", ledgerId + ":" + entryId);
     traceByteBuf("headersAndPayload", headersAndPayload, traceDetails, maxBinaryDataLength);
 
-    trace("After dispatching message", traceDetails);
+    trace(EventReasons.MESSAGE, "After dispatching message", traceDetails);
   }
 
   public void messageAcked(ServerCnx cnx, Consumer consumer, CommandAck ackCmd) {
     if (!jmsTracingEventList.contains(EventReasons.MESSAGE)) return;
 
     TraceLevel level = getTracingLevel(consumer);
-    if (level == TraceLevel.NONE) return;
+    if (level == TraceLevel.OFF) return;
 
     Map<String, Object> traceDetails = new TreeMap<>();
-    traceDetails.put("serverCnx", getConnectionDetails(getTraceLevelForComponent(level), cnx));
-    traceDetails.put("consumer", getConsumerDetails(getTraceLevelForComponent(level), consumer));
-    traceDetails.put(
-        "subscription",
-        getSubscriptionDetails(getTraceLevelForComponent(level), consumer.getSubscription()));
+    traceDetails.put("serverCnx", getConnectionDetails(cnx));
+    traceDetails.put("consumer", getConsumerDetails(consumer));
+    traceDetails.put("subscription", getSubscriptionDetails(consumer.getSubscription()));
 
     Map<String, Object> ackDetails = new TreeMap<>();
     if (ackCmd.hasAckType()) {
@@ -575,7 +550,7 @@ public class BrokerTracing implements BrokerInterceptor {
 
     traceDetails.put("ack", ackDetails);
 
-    trace("Message acked", traceDetails);
+    trace(EventReasons.MESSAGE, "Message acked", traceDetails);
   }
 
   @NotNull
@@ -595,24 +570,24 @@ public class BrokerTracing implements BrokerInterceptor {
 
   public void txnOpened(long tcId, String txnID) {
     if (!jmsTracingEventList.contains(EventReasons.TRANSACTION)) return;
-    if (traceLevel == TraceLevel.NONE) return;
+    if (traceLevel == TraceLevel.OFF) return;
 
     Map<String, Object> traceDetails = new TreeMap<>();
     traceDetails.put("tcId", tcId);
     traceDetails.put("txnID", txnID);
 
-    trace("Transaction opened", traceDetails);
+    trace(EventReasons.TRANSACTION, "Transaction opened", traceDetails);
   }
 
   public void txnEnded(String txnID, long txnAction) {
     if (!jmsTracingEventList.contains(EventReasons.TRANSACTION)) return;
-    if (traceLevel == TraceLevel.NONE) return;
+    if (traceLevel == TraceLevel.OFF) return;
 
     Map<String, Object> traceDetails = new TreeMap<>();
     traceDetails.put("txnID", txnID);
     traceDetails.put("txnAction", txnAction);
 
-    trace("Transaction closed", traceDetails);
+    trace(EventReasons.TRANSACTION, "Transaction closed", traceDetails);
   }
 
   /* ***************************
