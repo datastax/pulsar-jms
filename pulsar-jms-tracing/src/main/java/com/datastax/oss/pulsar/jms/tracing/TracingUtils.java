@@ -18,9 +18,14 @@ package com.datastax.oss.pulsar.jms.tracing;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
 import com.google.common.collect.Sets;
 import io.netty.buffer.ByteBuf;
 import java.lang.reflect.Method;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -86,6 +91,44 @@ public class TracingUtils {
   public enum TraceLevel {
     OFF,
     ON
+  }
+
+  private static final LoadingCache<String, String> ipResolverCache =
+      CacheBuilder.newBuilder()
+          .maximumSize(10_000L)
+          .concurrencyLevel(Runtime.getRuntime().availableProcessors())
+          .build(
+              new CacheLoader<String, String>() {
+                public String load(String clientAddress) {
+                  // Dn resolution can be slow in some cases
+                  // and we do not want to create too many requests to DNS,
+                  // so we cache the result
+                  log.info("resolving DNS for {}", clientAddress);
+                  try {
+                    InetAddress address = InetAddress.getByName(clientAddress);
+                    String hostName = address.getCanonicalHostName();
+                    if (log.isDebugEnabled()) {
+                      log.debug("Resolved DNS for {} to {}", clientAddress, hostName);
+                    }
+                    return hostName;
+                  } catch (UnknownHostException e) {
+                    log.error("Failed to resolve DNS for {}", clientAddress, e);
+                    return clientAddress;
+                  }
+                }
+              });
+
+  public static String hostNameOf(String clientAddress) {
+    if (clientAddress == null || clientAddress.isEmpty()) {
+      return "unknown/null";
+    }
+
+    try {
+      return ipResolverCache.get(clientAddress);
+    } catch (Throwable t) {
+      log.error("Failed to resolve DNS for {}", clientAddress, t);
+      return clientAddress;
+    }
   }
 
   public static void trace(EventReasons reason, String message, Map<String, Object> traceDetails) {
@@ -418,7 +461,8 @@ public class TracingUtils {
       return;
     }
 
-    traceDetails.put("clientAddress", cnx.clientAddress());
+    traceDetails.put("clientAddress", hostNameOf(cnx.clientSourceAddress()));
+    traceDetails.put("clientSocket", cnx.clientAddress());
     traceDetails.put("authRole", cnx.getAuthRole());
     traceDetails.put("clientVersion", cnx.getClientVersion());
     traceDetails.put("clientSourceAddressAndPort", cnx.clientSourceAddressAndPort());
@@ -519,7 +563,7 @@ public class TracingUtils {
 
     traceDetails.put("priorityLevel", consumer.getPriorityLevel());
     traceDetails.put("subType", consumer.subType() == null ? null : consumer.subType().name());
-    traceDetails.put("clientAddress", consumer.getClientAddress());
+    traceDetails.put("clientAddress", hostNameOf(consumer.getClientAddress()));
 
     traceDetails.put("metadata", consumer.getMetadata());
   }
@@ -549,7 +593,7 @@ public class TracingUtils {
           "topicName", TopicName.get(producer.getTopic().getName()).getPartitionedTopicName());
     }
 
-    traceDetails.put("clientAddress", producer.getClientAddress());
+    traceDetails.put("clientAddress", hostNameOf(producer.getClientAddress()));
 
     traceDetails.put("metadata", producer.getMetadata());
 
