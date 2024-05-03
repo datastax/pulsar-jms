@@ -33,22 +33,20 @@ public class MessagePriorityGrowableArrayBlockingQueue extends GrowableArrayBloc
   private final PriorityBlockingQueue<Message> queue;
   private final AtomicBoolean terminated = new AtomicBoolean(false);
 
+  private static final Comparator<Message> comparator =
+      (o1, o2) -> {
+        int priority1 = getPriority(o1);
+        int priority2 = getPriority(o2);
+        return Integer.compare(priority2, priority1);
+      };
+
   public MessagePriorityGrowableArrayBlockingQueue() {
     this(10);
   }
 
   public MessagePriorityGrowableArrayBlockingQueue(int initialCapacity) {
     queue =
-        new PriorityBlockingQueue<>(
-            initialCapacity,
-            new Comparator<Message>() {
-              @Override
-              public int compare(Message o1, Message o2) {
-                int priority1 = getPriority(o1);
-                int priority2 = getPriority(o2);
-                return Integer.compare(priority2, priority1);
-              }
-            });
+        new PriorityBlockingQueue<>(initialCapacity, comparator);
   }
 
   @Override
@@ -145,7 +143,7 @@ public class MessagePriorityGrowableArrayBlockingQueue extends GrowableArrayBloc
 
   @Override
   public void forEach(Consumer<? super Message> action) {
-    queue.forEach(action);
+    queue.stream().sorted(comparator).forEach(action);
   }
 
   @Override
