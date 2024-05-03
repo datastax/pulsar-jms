@@ -466,7 +466,11 @@ public class BrokerTracing implements BrokerInterceptor {
     Map<String, Object> traceDetails = new TreeMap<>();
     traceDetails.put("producer", getProducerDetails(producer, traceSchema));
     traceDetails.put("publishContext", getPublishContextDetails(publishContext));
-    traceByteBuf("headersAndPayload", headersAndPayload, traceDetails, maxBinaryDataLength);
+
+    Map<String, Object> headersAndPayloadDetails = new TreeMap<>();
+    traceByteBuf(
+        "headersAndPayload", headersAndPayload, headersAndPayloadDetails, maxBinaryDataLength);
+    traceDetails.put("headersAndPayload", headersAndPayloadDetails);
 
     trace(EventReasons.MESSAGE, "Message publish", traceDetails);
   }

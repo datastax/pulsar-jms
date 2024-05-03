@@ -27,6 +27,7 @@ import java.lang.reflect.Method;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -45,7 +46,10 @@ import org.apache.pulsar.broker.service.Subscription;
 import org.apache.pulsar.broker.service.Topic;
 import org.apache.pulsar.common.api.proto.BaseCommand;
 import org.apache.pulsar.common.api.proto.MessageMetadata;
+import org.apache.pulsar.common.compression.CompressionCodec;
+import org.apache.pulsar.common.compression.CompressionCodecProvider;
 import org.apache.pulsar.common.naming.TopicName;
+import org.apache.pulsar.common.protocol.Commands;
 import org.apache.pulsar.common.protocol.schema.SchemaVersion;
 
 @Slf4j
@@ -709,12 +713,45 @@ public class TracingUtils {
   public static void traceByteBuf(
       String key, ByteBuf buf, Map<String, Object> traceDetails, int maxBinaryDataLength) {
     if (buf == null || maxBinaryDataLength <= 0) return;
+    try {
 
-    if (buf.readableBytes() < maxBinaryDataLength) {
-      traceDetails.put(key, "0x" + Hex.encodeHexString(buf.nioBuffer()));
-    } else {
-      traceDetails.put(
-          key + "Slice", "0x" + Hex.encodeHexString(buf.slice(0, maxBinaryDataLength).nioBuffer()));
+      final ByteBuf metadataAndPayload = buf.retainedDuplicate();
+      ByteBuf uncompressedPayload = null;
+      try {
+        // advance readerIndex
+        MessageMetadata metadata = Commands.parseMessageMetadata(metadataAndPayload);
+
+        // todo: do we need to trace this metadata?
+        populateMessageMetadataDetails(metadata, traceDetails);
+
+        // Decode if needed
+        CompressionCodec codec =
+            CompressionCodecProvider.getCompressionCodec(metadata.getCompression());
+        uncompressedPayload = codec.decode(metadataAndPayload, metadata.getUncompressedSize());
+
+        // todo: does this require additional steps if messages are batched?
+        if (uncompressedPayload.readableBytes() < maxBinaryDataLength + 3) {
+          String dataAsString = uncompressedPayload.toString(StandardCharsets.UTF_8);
+          traceDetails.put(key, dataAsString);
+        } else {
+          String dataAsString =
+              uncompressedPayload.toString(0, maxBinaryDataLength, StandardCharsets.UTF_8);
+          traceDetails.put(key, dataAsString + "...");
+        }
+      } finally {
+        metadataAndPayload.release();
+        if (uncompressedPayload != null) {
+          uncompressedPayload.release();
+        }
+      }
+    } catch (Throwable t) {
+      log.error("Failed to convert ByteBuf to string", t);
+      if (buf.readableBytes() < maxBinaryDataLength + 3) {
+        traceDetails.put(key, "0x" + Hex.encodeHexString(buf.nioBuffer()));
+      } else {
+        traceDetails.put(
+            key, "0x" + Hex.encodeHexString(buf.slice(0, maxBinaryDataLength).nioBuffer()) + "...");
+      }
     }
   }
 }
