@@ -64,6 +64,9 @@ import org.apache.pulsar.common.api.proto.MessageIdData;
 import org.apache.pulsar.common.api.proto.MessageMetadata;
 import org.apache.pulsar.common.intercept.InterceptException;
 import org.apache.pulsar.common.naming.TopicName;
+import org.apache.pulsar.common.policies.data.stats.ConsumerStatsImpl;
+import org.apache.pulsar.common.policies.data.stats.PublisherStatsImpl;
+import org.apache.pulsar.common.util.DateFormatter;
 import org.jetbrains.annotations.NotNull;
 
 @Slf4j
@@ -351,7 +354,6 @@ public class BrokerTracing implements BrokerInterceptor {
     if (traceLevel == TraceLevel.OFF) return;
 
     Map<String, Object> traceDetails = new TreeMap<>();
-    traceDetails.put("serverCnx", getConnectionDetails(cnx));
     traceDetails.put("producer", getProducerDetails(producer, traceSchema));
     traceDetails.put("metadata", metadata);
 
@@ -365,9 +367,16 @@ public class BrokerTracing implements BrokerInterceptor {
     if (traceLevel == TraceLevel.OFF) return;
 
     Map<String, Object> traceDetails = new TreeMap<>();
-    traceDetails.put("serverCnx", getConnectionDetails(cnx));
     traceDetails.put("producer", getProducerDetails(producer, traceSchema));
     traceDetails.put("metadata", metadata);
+
+    PublisherStatsImpl stats = producer.getStats();
+    traceDetails.put("connectedSince", stats.getConnectedSince());
+    traceDetails.put("closedAt", DateFormatter.now());
+    traceDetails.put("averageMsgSize", stats.getAverageMsgSize());
+    traceDetails.put("msgRateIn", stats.getMsgRateIn());
+    traceDetails.put("msgThroughputIn", stats.getMsgThroughputIn());
+    // no message count in stats? stats.getCount() is not it
 
     trace(EventReasons.ADMINISTRATIVE, "Producer closed", traceDetails);
   }
@@ -379,7 +388,6 @@ public class BrokerTracing implements BrokerInterceptor {
     if (traceLevel == TraceLevel.OFF) return;
 
     Map<String, Object> traceDetails = new TreeMap<>();
-    traceDetails.put("serverCnx", getConnectionDetails(cnx));
     traceDetails.put("consumer", getConsumerDetails(consumer));
     traceDetails.put("subscription", getSubscriptionDetails(consumer.getSubscription()));
     traceDetails.put("metadata", metadata);
@@ -394,10 +402,21 @@ public class BrokerTracing implements BrokerInterceptor {
     if (traceLevel == TraceLevel.OFF) return;
 
     Map<String, Object> traceDetails = new TreeMap<>();
-    traceDetails.put("serverCnx", getConnectionDetails(cnx));
     traceDetails.put("consumer", getConsumerDetails(consumer));
     traceDetails.put("subscription", getSubscriptionDetails(consumer.getSubscription()));
     traceDetails.put("metadata", metadata);
+
+    ConsumerStatsImpl stats = consumer.getStats();
+
+    traceDetails.put("connectedSince", stats.getConnectedSince());
+    traceDetails.put("closedAt", DateFormatter.now());
+    traceDetails.put("averageMsgSize", stats.getAvgMessagesPerEntry());
+    traceDetails.put("msgRateOut", stats.getMsgRateOut());
+    traceDetails.put("msgThroughputOut", stats.getMsgThroughputOut());
+    traceDetails.put("msgOutCounter", stats.getMsgOutCounter());
+    traceDetails.put("bytesOutCounter", stats.getBytesOutCounter());
+    traceDetails.put("unackedMessages", stats.getUnackedMessages());
+    traceDetails.put("messageAckRate", stats.getMessageAckRate());
 
     trace(EventReasons.ADMINISTRATIVE, "Consumer closed", traceDetails);
   }
@@ -452,7 +471,7 @@ public class BrokerTracing implements BrokerInterceptor {
     traceDetails.put("entry", getEntryDetails(entry, maxBinaryDataLength));
     traceDetails.put("messageMetadata", getMessageMetadataDetails(msgMetadata));
 
-    trace(EventReasons.MESSAGE, "Before sending message", traceDetails);
+    trace(EventReasons.MESSAGE, "Message read", traceDetails);
   }
 
   public void onMessagePublish(
@@ -472,7 +491,7 @@ public class BrokerTracing implements BrokerInterceptor {
         "headersAndPayload", headersAndPayload, headersAndPayloadDetails, maxBinaryDataLength);
     traceDetails.put("payload", headersAndPayloadDetails);
 
-    trace(EventReasons.MESSAGE, "Message publish", traceDetails);
+    trace(EventReasons.MESSAGE, "Message received", traceDetails);
   }
 
   public void messageProduced(
@@ -493,7 +512,7 @@ public class BrokerTracing implements BrokerInterceptor {
     traceDetails.put("publishContext", getPublishContextDetails(publishContext));
     traceDetails.put("messageId", ledgerId + ":" + entryId);
     traceDetails.put("startTimeNs", startTimeNs);
-    trace(EventReasons.MESSAGE, "Message produced", traceDetails);
+    trace(EventReasons.MESSAGE, "Message stored", traceDetails);
   }
 
   public void messageDispatched(
@@ -504,17 +523,18 @@ public class BrokerTracing implements BrokerInterceptor {
     if (level == TraceLevel.OFF) return;
 
     Map<String, Object> traceDetails = new TreeMap<>();
-    traceDetails.put("serverCnx", getConnectionDetails(cnx));
     traceDetails.put("consumer", getConsumerDetails(consumer));
-    traceDetails.put("subscription", getSubscriptionDetails(consumer.getSubscription()));
+    if (consumer != null) {
+      traceDetails.put("subscription", getSubscriptionDetails(consumer.getSubscription()));
+    }
     traceDetails.put("messageId", ledgerId + ":" + entryId);
 
     Map<String, Object> headersAndPayloadDetails = new TreeMap<>();
     traceByteBuf(
-            "headersAndPayload", headersAndPayload, headersAndPayloadDetails, maxBinaryDataLength);
+        "headersAndPayload", headersAndPayload, headersAndPayloadDetails, maxBinaryDataLength);
     traceDetails.put("payload", headersAndPayloadDetails);
 
-    trace(EventReasons.MESSAGE, "After dispatching message", traceDetails);
+    trace(EventReasons.MESSAGE, "Message dispatched", traceDetails);
   }
 
   public void messageAcked(ServerCnx cnx, Consumer consumer, CommandAck ackCmd) {
@@ -524,9 +544,10 @@ public class BrokerTracing implements BrokerInterceptor {
     if (level == TraceLevel.OFF) return;
 
     Map<String, Object> traceDetails = new TreeMap<>();
-    traceDetails.put("serverCnx", getConnectionDetails(cnx));
     traceDetails.put("consumer", getConsumerDetails(consumer));
-    traceDetails.put("subscription", getSubscriptionDetails(consumer.getSubscription()));
+    if (consumer != null) {
+      traceDetails.put("subscription", getSubscriptionDetails(consumer.getSubscription()));
+    }
 
     Map<String, Object> ackDetails = new TreeMap<>();
     if (ackCmd.hasAckType()) {

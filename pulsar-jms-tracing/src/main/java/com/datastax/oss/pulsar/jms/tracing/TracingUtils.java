@@ -34,6 +34,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.bookkeeper.mledger.Entry;
@@ -100,7 +101,7 @@ public class TracingUtils {
   private static final LoadingCache<String, String> ipResolverCache =
       CacheBuilder.newBuilder()
           .maximumSize(10_000L)
-          .concurrencyLevel(Runtime.getRuntime().availableProcessors())
+          .expireAfterWrite(4, TimeUnit.HOURS)
           .build(
               new CacheLoader<String, String>() {
                 public String load(String clientAddress) {
@@ -464,18 +465,15 @@ public class TracingUtils {
     if (cnx == null) {
       return;
     }
-
-    traceDetails.put("clientAddress", hostNameOf(cnx.clientSourceAddress()));
-    traceDetails.put("clientSocket", cnx.clientAddress());
+    traceDetails.put("clientHost", hostNameOf(cnx.clientSourceAddress()));
     traceDetails.put("authRole", cnx.getAuthRole());
+    traceDetails.put("principal", cnx.getPrincipal());
     traceDetails.put("clientVersion", cnx.getClientVersion());
     traceDetails.put("clientSourceAddressAndPort", cnx.clientSourceAddressAndPort());
     traceDetails.put("authMethod", cnx.getAuthMethod());
-    traceDetails.put(
-        "authMethodName",
-        cnx.getAuthenticationProvider() == null
-            ? "no provider"
-            : cnx.getAuthenticationProvider().getAuthMethodName());
+    if (cnx.getAuthenticationProvider() != null) {
+      traceDetails.put("authMethodName", cnx.getAuthenticationProvider().getAuthMethodName());
+    }
 
     AuthenticationDataSource authData = cnx.getAuthenticationData();
     if (authData != null) {
@@ -534,10 +532,10 @@ public class TracingUtils {
 
     if (sub.getConsumers() != null) {
       traceDetails.put("numberOfConsumers", sub.getConsumers().size());
-      traceDetails.put(
-          "namesOfConsumers",
-          sub.getConsumers().stream().map(Consumer::consumerName).collect(Collectors.toList()));
     }
+    traceDetails.put("isReplicated", sub.isReplicated());
+    traceDetails.put("numberOfEntriesDelayed", sub.getNumberOfEntriesDelayed());
+    traceDetails.put("numberOfEntriesInBacklog", sub.getNumberOfEntriesInBacklog(false));
 
     traceDetails.put("subscriptionProperties", sub.getSubscriptionProperties());
   }
@@ -567,9 +565,11 @@ public class TracingUtils {
 
     traceDetails.put("priorityLevel", consumer.getPriorityLevel());
     traceDetails.put("subType", consumer.subType() == null ? null : consumer.subType().name());
-    traceDetails.put("clientAddress", hostNameOf(consumer.getClientAddress()));
+    traceDetails.put("clientHost", hostNameOf(consumer.getClientAddress()));
 
     traceDetails.put("metadata", consumer.getMetadata());
+    traceDetails.put("unackedMessages", consumer.getUnackedMessages());
+    traceDetails.put("authRole", consumer.cnx().getAuthRole());
   }
 
   public static Map<String, Object> getProducerDetails(Producer producer, boolean traceSchema) {
@@ -597,7 +597,7 @@ public class TracingUtils {
           "topicName", TopicName.get(producer.getTopic().getName()).getPartitionedTopicName());
     }
 
-    traceDetails.put("clientAddress", hostNameOf(producer.getClientAddress()));
+    traceDetails.put("clientHost", hostNameOf(producer.getClientAddress()));
 
     traceDetails.put("metadata", producer.getMetadata());
 
@@ -613,6 +613,8 @@ public class TracingUtils {
       traceDetails.put("schemaVersion", schemaVersion);
     }
     traceDetails.put("remoteCluster", producer.getRemoteCluster());
+
+    traceDetails.put("authRole", producer.getCnx().getAuthRole());
   }
 
   public static Map<String, Object> getMessageMetadataDetails(MessageMetadata msgMetadata) {
