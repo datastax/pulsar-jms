@@ -131,7 +131,7 @@ public class MessagePriorityGrowableArrayBlockingQueue extends GrowableArrayBloc
 
   @Override
   public Iterator<Message> iterator() {
-    return queue.iterator();
+    return queue.stream().sorted(comparator).iterator();
   }
 
   @Override
