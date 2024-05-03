@@ -683,7 +683,7 @@ public class TracingUtils {
 
     traceDetails.put("length", entry.getLength());
 
-    traceByteBuf("data", entry.getDataBuffer(), traceDetails, maxBinaryDataLength);
+    traceByteBuf("payload", entry.getDataBuffer(), traceDetails, maxBinaryDataLength);
   }
 
   public static Map<String, Object> getPublishContextDetails(Topic.PublishContext publishContext) {

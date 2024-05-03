@@ -470,7 +470,7 @@ public class BrokerTracing implements BrokerInterceptor {
     Map<String, Object> headersAndPayloadDetails = new TreeMap<>();
     traceByteBuf(
         "headersAndPayload", headersAndPayload, headersAndPayloadDetails, maxBinaryDataLength);
-    traceDetails.put("headersAndPayload", headersAndPayloadDetails);
+    traceDetails.put("payload", headersAndPayloadDetails);
 
     trace(EventReasons.MESSAGE, "Message publish", traceDetails);
   }
@@ -508,7 +508,11 @@ public class BrokerTracing implements BrokerInterceptor {
     traceDetails.put("consumer", getConsumerDetails(consumer));
     traceDetails.put("subscription", getSubscriptionDetails(consumer.getSubscription()));
     traceDetails.put("messageId", ledgerId + ":" + entryId);
-    traceByteBuf("headersAndPayload", headersAndPayload, traceDetails, maxBinaryDataLength);
+
+    Map<String, Object> headersAndPayloadDetails = new TreeMap<>();
+    traceByteBuf(
+            "headersAndPayload", headersAndPayload, headersAndPayloadDetails, maxBinaryDataLength);
+    traceDetails.put("payload", headersAndPayloadDetails);
 
     trace(EventReasons.MESSAGE, "After dispatching message", traceDetails);
   }

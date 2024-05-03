@@ -118,7 +118,7 @@ class TracingUtilsTest {
     traceDetails.clear();
     traceByteBuf("key", big, traceDetails, maxBinaryDataLength);
     assertEquals(1, traceDetails.size());
-    assertEquals(2 + 2 * maxBinaryDataLength, ((String) traceDetails.get("keySlice")).length());
-    assertTrue(((String) traceDetails.get("keySlice")).startsWith("0x000102"));
+    assertEquals(2 + 2 * maxBinaryDataLength + 3, ((String) traceDetails.get("key")).length());
+    assertTrue(((String) traceDetails.get("key")).startsWith("0x000102"));
   }
 }
