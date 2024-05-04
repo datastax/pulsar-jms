@@ -1088,9 +1088,9 @@ public class PulsarConnectionFactory
                             @Override
                             public int choosePartition(Message<?> msg, TopicMetadata metadata) {
 
-                              Integer priority = PulsarMessage.readJMSPriority(msg);
                               int key =
-                                  priority == null ? PulsarMessage.DEFAULT_PRIORITY : priority;
+                                  PulsarMessage.readJMSPriority(
+                                      msg, PulsarMessage.DEFAULT_PRIORITY);
                               return Utils.mapPriorityToPartition(
                                   key,
                                   metadata.numPartitions(),
