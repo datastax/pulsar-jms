@@ -222,5 +222,9 @@ public class MessagePriorityGrowableArrayBlockingQueue extends GrowableArrayBloc
     throw new UnsupportedOperationException();
   }
 
+  public String getPriorityStats() {
+    return Arrays.toString(numberMessagesByPrority);
+  }
+
 
 }
