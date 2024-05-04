@@ -15,113 +15,38 @@
  */
 package com.datastax.oss.pulsar.jms;
 
-import com.google.common.collect.Streams;
 import java.util.*;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.pulsar.client.api.Message;
 import org.apache.pulsar.common.util.collections.GrowableArrayBlockingQueue;
 
+@Slf4j
 public class MessagePriorityGrowableArrayBlockingQueue extends GrowableArrayBlockingQueue<Message> {
 
   static int getPriority(Message m) {
     return PulsarMessage.readJMSPriority(m, PulsarMessage.DEFAULT_PRIORITY);
   }
 
-  // for drainTo only, needs .add() method and that's it
-  private static class ForwardingCollection implements Collection<Pair<Integer, Message>> {
-
-    private final Collection<? super Message> c;
-
-    public ForwardingCollection(Collection<? super Message> c) {
-      this.c = c;
-    }
-
-    @Override
-    public int size() {
-      throw new IllegalStateException("Not supported");
-    }
-
-    @Override
-    public boolean isEmpty() {
-      throw new IllegalStateException("Not supported");
-    }
-
-    @Override
-    public boolean contains(Object o) {
-      throw new IllegalStateException("Not supported");
-    }
-
-    @Override
-    public Iterator<Pair<Integer, Message>> iterator() {
-      throw new IllegalStateException("Not supported");
-    }
-
-    @Override
-    public Object[] toArray() {
-      throw new IllegalStateException("Not supported");
-    }
-
-    @Override
-    public <T> T[] toArray(T[] a) {
-      throw new IllegalStateException("Not supported");
-    }
-
-    @Override
-    public boolean add(Pair<Integer, Message> message) {
-      return c.add(message.getRight());
-    }
-
-    @Override
-    public boolean remove(Object o) {
-      throw new IllegalStateException("Not supported");
-    }
-
-    @Override
-    public boolean containsAll(Collection<?> c) {
-      throw new IllegalStateException("Not supported");
-    }
-
-    @Override
-    public boolean addAll(Collection<? extends Pair<Integer, Message>> c) {
-      throw new IllegalStateException("Not supported");
-    }
-
-    @Override
-    public boolean removeAll(Collection<?> c) {
-      throw new IllegalStateException("Not supported");
-    }
-
-    @Override
-    public boolean retainAll(Collection<?> c) {
-      throw new IllegalStateException("Not supported");
-    }
-
-    @Override
-    public void clear() {}
-
-    @Override
-    public boolean equals(Object o) {
-      // shouldn't be used, but we need to keep spotbugs happy
-      return this == o || c.equals(o);
-    }
-
-    @Override
-    public int hashCode() {
-      return c.hashCode();
-    }
-  }
-
   private final PriorityBlockingQueue<Pair<Integer, Message>> queue;
   private final AtomicBoolean terminated = new AtomicBoolean(false);
 
+  private volatile Consumer<Message> itemAfterTerminatedHandler;
+  private final AtomicInteger[] numberMessagesByPrority = new AtomicInteger[10];
+
   private static final Comparator<Pair<Integer, Message>> comparator =
       (o1, o2) -> {
-        int priority1 = getPriority(o1.getRight());
-        int priority2 = getPriority(o2.getRight());
+        int priority1 = o1.getLeft();
+        int priority2 = o2.getLeft();
+        if (priority1 == priority2) {
+          // if priorities are equal, we want to sort by messageId
+          return o2.getRight().getMessageId().compareTo(o1.getRight().getMessageId());
+        }
         return Integer.compare(priority2, priority1);
       };
 
@@ -131,11 +56,14 @@ public class MessagePriorityGrowableArrayBlockingQueue extends GrowableArrayBloc
 
   public MessagePriorityGrowableArrayBlockingQueue(int initialCapacity) {
     queue = new PriorityBlockingQueue<>(initialCapacity, comparator);
+    for (int i = 0; i < 10; i++) {
+      numberMessagesByPrority[i] =  new AtomicInteger();
+    }
   }
 
   @Override
   public Message remove() {
-    return queue.remove().getRight();
+    throw new UnsupportedOperationException();
   }
 
   @Override
@@ -144,12 +72,18 @@ public class MessagePriorityGrowableArrayBlockingQueue extends GrowableArrayBloc
     if (pair == null) {
       return null;
     }
-    return pair.getRight();
+    Message result = pair.getRight();
+    int prio = pair.getLeft();
+    if (log.isDebugEnabled()) {
+      log.debug("polled message prio {}  {}  stats {}", prio, result.getMessageId(), Arrays.toString(numberMessagesByPrority));
+    }
+    numberMessagesByPrority[prio].decrementAndGet();
+    return result;
   }
 
   @Override
   public Message element() {
-    return queue.element().getRight();
+    throw new UnsupportedOperationException();
   }
 
   @Override
@@ -158,32 +92,51 @@ public class MessagePriorityGrowableArrayBlockingQueue extends GrowableArrayBloc
     if (pair == null) {
       return null;
     }
-    return pair.getRight();
+    Message result = pair.getRight();
+    log.info("peeking message: {} prio {}", result.getMessageId(), getPriority(result));
+    return result;
   }
 
   @Override
   public boolean offer(Message e) {
-    return queue.offer(Pair.of(getPriority(e), e));
+
+    boolean result;
+    if (!this.terminated.get()) {
+      int prio = getPriority(e);
+      numberMessagesByPrority[prio].incrementAndGet();
+      result = queue.offer(Pair.of(prio, e));
+      if (log.isDebugEnabled()) {
+        log.debug("offered message: {} prio {} stats {}",
+                e.getMessageId(), getPriority(e), Arrays.toString(numberMessagesByPrority));
+      }
+    } else {
+      log.info("queue is terminated, not offering message: {}", e.getMessageId());
+      if (itemAfterTerminatedHandler != null) {
+        itemAfterTerminatedHandler.accept(e);
+      }
+      result = false;
+    }
+    return result;
   }
 
   @Override
   public void put(Message e) {
-    queue.put(Pair.of(getPriority(e), e));
+    throw new UnsupportedOperationException();
   }
 
   @Override
   public boolean add(Message e) {
-    return queue.add(Pair.of(getPriority(e), e));
+    throw new UnsupportedOperationException();
   }
 
   @Override
   public boolean offer(Message e, long timeout, TimeUnit unit) {
-    return queue.offer(Pair.of(getPriority(e), e), timeout, unit);
+    throw new UnsupportedOperationException();
   }
 
   @Override
   public Message take() throws InterruptedException {
-    return queue.take().getRight();
+    throw new UnsupportedOperationException();
   }
 
   @Override
@@ -192,22 +145,19 @@ public class MessagePriorityGrowableArrayBlockingQueue extends GrowableArrayBloc
     if (pair == null) {
       return null;
     }
-    return pair.getRight();
-  }
-
-  @Override
-  public int remainingCapacity() {
-    return queue.remainingCapacity();
-  }
-
-  @Override
-  public int drainTo(Collection<? super Message> c) {
-    return queue.drainTo(new ForwardingCollection(c));
-  }
-
-  @Override
-  public int drainTo(Collection<? super Message> c, int maxElements) {
-    return queue.drainTo(new ForwardingCollection(c), maxElements);
+    Message result = pair.getRight();
+    int prio = pair.getLeft();
+    if (log.isDebugEnabled()) {
+      log.debug(
+              "polled message (tm {} {}):prio {}  {} stats {}",
+              timeout,
+              unit,
+              prio,
+              result.getMessageId(),
+              Arrays.toString(numberMessagesByPrority));
+    }
+    numberMessagesByPrority[prio].decrementAndGet();
+    return result;
   }
 
   @Override
@@ -217,29 +167,12 @@ public class MessagePriorityGrowableArrayBlockingQueue extends GrowableArrayBloc
 
   @Override
   public boolean remove(Object o) {
-    for (Pair<Integer, Message> pair : queue) {
-      if (pair.getRight().equals(o)) {
-        return queue.remove(pair);
-      }
-    }
-    return false;
+    throw new UnsupportedOperationException();
   }
 
   @Override
   public int size() {
     return queue.size();
-  }
-
-  @Override
-  public Iterator<Message> iterator() {
-    return Streams.stream(queue.iterator()).sorted(comparator).map(Pair::getRight).iterator();
-  }
-
-  @Override
-  public List<Message> toList() {
-    List<Message> list = new ArrayList<>(size());
-    forEach(list::add);
-    return list;
   }
 
   @Override
@@ -254,6 +187,7 @@ public class MessagePriorityGrowableArrayBlockingQueue extends GrowableArrayBloc
 
   @Override
   public void terminate(Consumer<Message> itemAfterTerminatedHandler) {
+    this.itemAfterTerminatedHandler = itemAfterTerminatedHandler;
     terminated.set(true);
   }
 
@@ -261,4 +195,32 @@ public class MessagePriorityGrowableArrayBlockingQueue extends GrowableArrayBloc
   public boolean isTerminated() {
     return terminated.get();
   }
+
+  @Override
+  public int remainingCapacity() {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public int drainTo(Collection<? super Message> c) {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public int drainTo(Collection<? super Message> c, int maxElements) {
+    throw new UnsupportedOperationException();
+  }
+
+
+  @Override
+  public Iterator<Message> iterator() {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public List<Message> toList() {
+    throw new UnsupportedOperationException();
+  }
+
+
 }
