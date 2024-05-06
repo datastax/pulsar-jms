@@ -1377,9 +1377,8 @@ public abstract class PulsarMessage implements Message {
     if (msg.hasProperty("JMSCorrelationID")) {
       this.correlationId = Base64.getDecoder().decode(msg.getProperty("JMSCorrelationID"));
     }
-    Integer jmsPriorityValue = readJMSPriority(msg);
-    if (jmsPriorityValue != null) {
-      this.jmsPriority = jmsPriorityValue;
+    if (msg.hasProperty("JMSPriority")) {
+      this.jmsPriority = readJMSPriority(msg);
     }
     if (msg.hasProperty("JMSDeliveryMode")) {
       try {
@@ -1479,14 +1478,18 @@ public abstract class PulsarMessage implements Message {
     return receivedPulsarMessage;
   }
 
-  public static Integer readJMSPriority(org.apache.pulsar.client.api.Message<?> msg) {
+  public static int readJMSPriority(org.apache.pulsar.client.api.Message<?> msg) {
     if (msg.hasProperty("JMSPriority")) {
       try {
-        return Integer.parseInt(msg.getProperty("JMSPriority"));
+        int value = Integer.parseInt(msg.getProperty("JMSPriority"));
+        if (value < 0 || value >= 10) { // impossible values according to JMS Specs
+          return PulsarMessage.DEFAULT_PRIORITY;
+        }
+        return value;
       } catch (NumberFormatException err) {
         // cannot decode priority, not a big deal as it is not supported in Pulsar
       }
     }
-    return null;
+    return PulsarMessage.DEFAULT_PRIORITY;
   }
 }
