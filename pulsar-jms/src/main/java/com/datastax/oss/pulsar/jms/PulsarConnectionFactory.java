@@ -1090,8 +1090,7 @@ public class PulsarConnectionFactory
                             @Override
                             public int choosePartition(Message<?> msg, TopicMetadata metadata) {
 
-                              int key =
-                                  PulsarMessage.readJMSPriority(msg);
+                              int key = PulsarMessage.readJMSPriority(msg);
                               return Utils.mapPriorityToPartition(
                                   key,
                                   metadata.numPartitions(),
@@ -1372,33 +1371,33 @@ public class PulsarConnectionFactory
 
       incomingMessages.set(c, newQueue);
 
-
-      Field consumersField = MultiTopicsConsumerImpl.class
-              .getDeclaredField("consumers");
+      Field consumersField = MultiTopicsConsumerImpl.class.getDeclaredField("consumers");
 
       consumersField.setAccessible(true);
 
-      ConcurrentHashMap<String, ConsumerImpl<?>> consumers = (ConcurrentHashMap) consumersField
-          .get(consumerBase);
-         Method setCurrentReceiverQueueSizeMethod = ConsumerImpl.class.getDeclaredMethod("setCurrentReceiverQueueSize", int.class);
+      ConcurrentHashMap<String, ConsumerImpl<?>> consumers =
+          (ConcurrentHashMap) consumersField.get(consumerBase);
+      Method setCurrentReceiverQueueSizeMethod =
+          ConsumerImpl.class.getDeclaredMethod("setCurrentReceiverQueueSize", int.class);
       setCurrentReceiverQueueSizeMethod.setAccessible(true);
 
       // set the queue size for each consumer based on the partition index
       // we set a higher number to the consumers for the higher priority partitions
       // this way the backlog is drained more quickly for the higher priority partitions
       int numConsumers = consumers.size();
-      int sumPriorities = (numConsumers * (numConsumers + 1)) / 2; // 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10
+      int sumPriorities =
+          (numConsumers * (numConsumers + 1)) / 2; // 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10
       int receiverQueueSize = consumerBase.getCurrentReceiverQueueSize();
 
       for (ConsumerImpl<?> consumer : consumers.values()) {
-          String topic = consumer.getTopic();
-          int partitionIndex = TopicName.get(topic).getPartitionIndex();
-          // no need to map exactly the partition index to the priority
-          int prio = Math.max(partitionIndex, 0);
-          // the size is proportional to the priority (partition index)
-          int size = Math.max(1, (prio + 1) * receiverQueueSize / sumPriorities);
-          log.info("Setting receiverQueueSize={} for {} (to handle JMSPriority)", size, topic);
-          setCurrentReceiverQueueSizeMethod.invoke(consumer, size);
+        String topic = consumer.getTopic();
+        int partitionIndex = TopicName.get(topic).getPartitionIndex();
+        // no need to map exactly the partition index to the priority
+        int prio = Math.max(partitionIndex, 0);
+        // the size is proportional to the priority (partition index)
+        int size = Math.max(1, (prio + 1) * receiverQueueSize / sumPriorities);
+        log.info("Setting receiverQueueSize={} for {} (to handle JMSPriority)", size, topic);
+        setCurrentReceiverQueueSizeMethod.invoke(consumer, size);
       }
 
     } catch (Exception err) {

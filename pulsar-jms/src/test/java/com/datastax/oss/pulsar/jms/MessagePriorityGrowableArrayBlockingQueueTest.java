@@ -43,8 +43,8 @@ class MessagePriorityGrowableArrayBlockingQueueTest {
     List<Integer> sorted = prio;
     sorted.sort(Comparator.reverseOrder());
 
-    MessagePriorityGrowableArrayBlockingQueue queue =
-        new MessagePriorityGrowableArrayBlockingQueue();
+    MessagePriorityGrowableArrayBlockingQueue<String> queue =
+        new MessagePriorityGrowableArrayBlockingQueue<>();
     for (int i : priorities) {
       queue.offer(messageWithPriority(i));
     }
@@ -53,7 +53,7 @@ class MessagePriorityGrowableArrayBlockingQueueTest {
     queue.forEach(
         m -> {
           System.out.println("prio: " + m.getProperty("JMSPriority"));
-          prioritiesForEach.add(getPriority(m));
+          prioritiesForEach.add(PulsarMessage.readJMSPriority(m));
         });
     assertEquals(prioritiesForEach, sorted);
 
@@ -65,12 +65,8 @@ class MessagePriorityGrowableArrayBlockingQueueTest {
     assertEquals(polledPriorities, sorted);
   }
 
-  private static int getPriority(Message m) {
-    return PulsarMessage.readJMSPriority(m);
-  }
-
-  private static Message messageWithPriority(int priority) {
-    Message message = mock(Message.class);
+  private static Message<String> messageWithPriority(int priority) {
+    Message<String> message = mock(Message.class);
     when(message.hasProperty(eq("JMSPriority"))).thenReturn(true);
     when(message.getProperty("JMSPriority")).thenReturn(priority + "");
     return message;

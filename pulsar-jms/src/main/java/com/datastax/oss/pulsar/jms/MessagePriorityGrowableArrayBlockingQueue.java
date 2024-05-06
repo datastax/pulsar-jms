@@ -21,27 +21,34 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.tuple.Pair;
 import org.apache.pulsar.client.api.Message;
 import org.apache.pulsar.common.util.collections.GrowableArrayBlockingQueue;
 
 @Slf4j
-public class MessagePriorityGrowableArrayBlockingQueue extends GrowableArrayBlockingQueue<Message> {
-  private final PriorityBlockingQueue<Pair<Integer, Message>> queue;
+public class MessagePriorityGrowableArrayBlockingQueue<T>
+    extends GrowableArrayBlockingQueue<Message<T>> {
+  private final PriorityBlockingQueue<MessageWithPriority<T>> queue;
   private final AtomicBoolean terminated = new AtomicBoolean(false);
 
-  private volatile Consumer<Message> itemAfterTerminatedHandler;
-  private final AtomicInteger[] numberMessagesByPrority = new AtomicInteger[10];
+  private volatile Consumer<Message<T>> itemAfterTerminatedHandler;
+  private final AtomicInteger[] numberMessagesByPriority = new AtomicInteger[10];
 
-  private static final Comparator<Pair<Integer, Message>> comparator =
+  @AllArgsConstructor
+  private static final class MessageWithPriority<T> {
+    final int priority;
+    final Message<T> message;
+  }
+
+  private static final Comparator<MessageWithPriority<?>> comparator =
       (o1, o2) -> {
         // ORDER BY priority DESC, messageId ASC
-        int priority1 = o1.getLeft();
-        int priority2 = o2.getLeft();
+        int priority1 = o1.priority;
+        int priority2 = o2.priority;
         if (priority1 == priority2) {
           // if priorities are equal, we want to sort by messageId
-          return o1.getRight().getMessageId().compareTo(o2.getRight().getMessageId());
+          return o1.message.getMessageId().compareTo(o2.message.getMessageId());
         }
         return Integer.compare(priority2, priority1);
       };
@@ -53,60 +60,73 @@ public class MessagePriorityGrowableArrayBlockingQueue extends GrowableArrayBloc
   public MessagePriorityGrowableArrayBlockingQueue(int initialCapacity) {
     queue = new PriorityBlockingQueue<>(initialCapacity, comparator);
     for (int i = 0; i < 10; i++) {
-      numberMessagesByPrority[i] =  new AtomicInteger();
+      numberMessagesByPriority[i] = new AtomicInteger();
     }
   }
 
   @Override
-  public Message remove() {
+  public Message<T> remove() {
     throw new UnsupportedOperationException();
   }
 
   @Override
-  public Message poll() {
-    Pair<Integer, Message> pair = queue.poll();
+  public Message<T> poll() {
+    MessageWithPriority<T> pair = queue.poll();
     if (pair == null) {
       return null;
     }
-    Message result = pair.getRight();
-    int prio = pair.getLeft();
+    Message<T> result = pair.message;
+    int prio = pair.priority;
     if (log.isDebugEnabled()) {
-      log.debug("polled message prio {}  {}  stats {}", prio, result.getMessageId(), Arrays.toString(numberMessagesByPrority));
+      log.debug(
+          "polled message prio {}  {}  stats {}",
+          prio,
+          result.getMessageId(),
+          Arrays.toString(numberMessagesByPriority));
     }
-    numberMessagesByPrority[prio].decrementAndGet();
+    numberMessagesByPriority[prio].decrementAndGet();
     return result;
   }
 
   @Override
-  public Message element() {
+  public Message<T> element() {
     throw new UnsupportedOperationException();
   }
 
   @Override
-  public Message peek() {
-    Pair<Integer, Message> pair = queue.peek();
+  public Message<T> peek() {
+    MessageWithPriority<T> pair = queue.peek();
     if (pair == null) {
       return null;
     }
-    Message result = pair.getRight();
-    log.info("peeking message: {} prio {}", result.getMessageId(), PulsarMessage.readJMSPriority(result));
+    Message<T> result = pair.message;
+    if (log.isDebugEnabled()) {
+      log.debug(
+          "peeking message: {} prio {}",
+          result.getMessageId(),
+          PulsarMessage.readJMSPriority(result));
+    }
     return result;
   }
 
   @Override
-  public boolean offer(Message e) {
-
+  public boolean offer(Message<T> e) {
     boolean result;
     if (!this.terminated.get()) {
       int prio = PulsarMessage.readJMSPriority(e);
-      numberMessagesByPrority[prio].incrementAndGet();
-      result = queue.offer(Pair.of(prio, e));
+      numberMessagesByPriority[prio].incrementAndGet();
+      result = queue.offer(new MessageWithPriority(prio, e));
       if (log.isDebugEnabled()) {
-        log.debug("offered message: {} prio {} stats {}",
-                e.getMessageId(), prio, Arrays.toString(numberMessagesByPrority));
+        log.debug(
+            "offered message: {} prio {} stats {}",
+            e.getMessageId(),
+            prio,
+            Arrays.toString(numberMessagesByPriority));
       }
     } else {
-      log.info("queue is terminated, not offering message: {}", e.getMessageId());
+      if (log.isDebugEnabled()) {
+        log.debug("queue is terminated, not offering message: {}", e.getMessageId());
+      }
       if (itemAfterTerminatedHandler != null) {
         itemAfterTerminatedHandler.accept(e);
       }
@@ -116,12 +136,12 @@ public class MessagePriorityGrowableArrayBlockingQueue extends GrowableArrayBloc
   }
 
   @Override
-  public void put(Message e) {
+  public void put(Message<T> e) {
     throw new UnsupportedOperationException();
   }
 
   @Override
-  public boolean add(Message e) {
+  public boolean add(Message<T> e) {
     throw new UnsupportedOperationException();
   }
 
@@ -131,28 +151,28 @@ public class MessagePriorityGrowableArrayBlockingQueue extends GrowableArrayBloc
   }
 
   @Override
-  public Message take() throws InterruptedException {
+  public Message<T> take() throws InterruptedException {
     throw new UnsupportedOperationException();
   }
 
   @Override
-  public Message poll(long timeout, TimeUnit unit) throws InterruptedException {
-    Pair<Integer, Message> pair = queue.poll(timeout, unit);
+  public Message<T> poll(long timeout, TimeUnit unit) throws InterruptedException {
+    MessageWithPriority<T> pair = queue.poll(timeout, unit);
     if (pair == null) {
       return null;
     }
-    Message result = pair.getRight();
-    int prio = pair.getLeft();
+    Message<T> result = pair.message;
+    int prio = pair.priority;
     if (log.isDebugEnabled()) {
       log.debug(
-              "polled message (tm {} {}):prio {}  {} stats {}",
-              timeout,
-              unit,
-              prio,
-              result.getMessageId(),
-              Arrays.toString(numberMessagesByPrority));
+          "polled message (tm {} {}):prio {}  {} stats {}",
+          timeout,
+          unit,
+          prio,
+          result.getMessageId(),
+          Arrays.toString(numberMessagesByPriority));
     }
-    numberMessagesByPrority[prio].decrementAndGet();
+    numberMessagesByPriority[prio].decrementAndGet();
     return result;
   }
 
@@ -162,27 +182,22 @@ public class MessagePriorityGrowableArrayBlockingQueue extends GrowableArrayBloc
   }
 
   @Override
-  public boolean remove(Object o) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
   public int size() {
     return queue.size();
   }
 
   @Override
-  public void forEach(Consumer<? super Message> action) {
-    queue.stream().sorted(comparator).forEach(x -> action.accept(x.getRight()));
+  public void forEach(Consumer<? super Message<T>> action) {
+    queue.stream().sorted(comparator).forEach(x -> action.accept(x.message));
   }
 
   @Override
   public String toString() {
-    return queue.toString();
+    return "queue:" + queue + ", stats:" + getPriorityStats() + ", terminated:" + terminated.get();
   }
 
   @Override
-  public void terminate(Consumer<Message> itemAfterTerminatedHandler) {
+  public void terminate(Consumer<Message<T>> itemAfterTerminatedHandler) {
     this.itemAfterTerminatedHandler = itemAfterTerminatedHandler;
     terminated.set(true);
   }
@@ -193,34 +208,36 @@ public class MessagePriorityGrowableArrayBlockingQueue extends GrowableArrayBloc
   }
 
   @Override
+  public boolean remove(Object o) {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
   public int remainingCapacity() {
     throw new UnsupportedOperationException();
   }
 
   @Override
-  public int drainTo(Collection<? super Message> c) {
+  public int drainTo(Collection<? super Message<T>> c) {
     throw new UnsupportedOperationException();
   }
 
   @Override
-  public int drainTo(Collection<? super Message> c, int maxElements) {
-    throw new UnsupportedOperationException();
-  }
-
-
-  @Override
-  public Iterator<Message> iterator() {
+  public int drainTo(Collection<? super Message<T>> c, int maxElements) {
     throw new UnsupportedOperationException();
   }
 
   @Override
-  public List<Message> toList() {
+  public Iterator<Message<T>> iterator() {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public List<Message<T>> toList() {
     throw new UnsupportedOperationException();
   }
 
   public String getPriorityStats() {
-    return Arrays.toString(numberMessagesByPrority);
+    return Arrays.toString(numberMessagesByPriority);
   }
-
-
 }
