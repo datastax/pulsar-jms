@@ -21,7 +21,6 @@ import static com.datastax.oss.pulsar.jms.tracing.TracingUtils.getCommandDetails
 import static com.datastax.oss.pulsar.jms.tracing.TracingUtils.getConnectionDetails;
 import static com.datastax.oss.pulsar.jms.tracing.TracingUtils.getConsumerDetails;
 import static com.datastax.oss.pulsar.jms.tracing.TracingUtils.getEntryDetails;
-import static com.datastax.oss.pulsar.jms.tracing.TracingUtils.getMessageMetadataDetails;
 import static com.datastax.oss.pulsar.jms.tracing.TracingUtils.getProducerDetails;
 import static com.datastax.oss.pulsar.jms.tracing.TracingUtils.getPublishContextDetails;
 import static com.datastax.oss.pulsar.jms.tracing.TracingUtils.getSubscriptionDetails;
@@ -333,6 +332,47 @@ public class BrokerTracing implements BrokerInterceptor {
     }
   }
 
+  private static void addMinimumProducerDetails(
+      Producer producer, Map<String, Object> traceDetails) {
+    if (producer == null) return;
+
+    traceDetails.put("producerId", producer.getProducerId());
+    traceDetails.put("producerName", producer.getProducerName());
+    if (producer.getAccessMode() != null) {
+      traceDetails.put("accessMode", producer.getAccessMode().name());
+    }
+    traceDetails.put("clientHost", TracingUtils.hostNameOf(producer.getClientAddress()));
+    if (producer.getTopic() != null) {
+      traceDetails.put(
+          "topicName", TopicName.get(producer.getTopic().getName()).getPartitionedTopicName());
+    }
+    traceDetails.put("authRole", producer.getCnx().getAuthRole());
+  }
+
+  private static void addMinimumConsumerSubscriptionDetails(
+      Consumer consumer, Map<String, Object> traceDetails) {
+    if (consumer == null) return;
+
+    addMinimumConsumerSubscriptionDetails(consumer, consumer.getSubscription(), traceDetails);
+  }
+
+  private static void addMinimumConsumerSubscriptionDetails(
+      Consumer consumer, Subscription subscription, Map<String, Object> traceDetails) {
+    if (consumer != null) {
+      traceDetails.put("consumerName", consumer.consumerName());
+      traceDetails.put("consumerId", consumer.consumerId());
+      traceDetails.put("clientHost", TracingUtils.hostNameOf(consumer.getClientAddress()));
+      traceDetails.put("authRole", consumer.cnx().getAuthRole());
+    }
+
+    if (subscription != null) {
+      traceDetails.put("subscriptionName", subscription.getName());
+      traceDetails.put(
+          "topicName", TopicName.get(subscription.getTopicName()).getPartitionedTopicName());
+      traceDetails.put("subscriptionType", subscription.getType().name());
+    }
+  }
+
   /* ***************************
    **  Administrative events
    ******************************/
@@ -344,6 +384,8 @@ public class BrokerTracing implements BrokerInterceptor {
 
     Map<String, Object> traceDetails = new TreeMap<>();
     traceDetails.put("serverCnx", getConnectionDetails(cnx));
+    traceDetails.put("brokerUrl", cnx.getBrokerService().getPulsar().getBrokerServiceUrl());
+
     trace(EventReasons.ADMINISTRATIVE, "Connection created", traceDetails);
   }
 
@@ -356,6 +398,7 @@ public class BrokerTracing implements BrokerInterceptor {
     Map<String, Object> traceDetails = new TreeMap<>();
     traceDetails.put("producer", getProducerDetails(producer, traceSchema));
     traceDetails.put("metadata", metadata);
+    traceDetails.put("brokerUrl", cnx.getBrokerService().getPulsar().getBrokerServiceUrl());
 
     trace(EventReasons.ADMINISTRATIVE, "Producer created", traceDetails);
   }
@@ -369,6 +412,7 @@ public class BrokerTracing implements BrokerInterceptor {
     Map<String, Object> traceDetails = new TreeMap<>();
     traceDetails.put("producer", getProducerDetails(producer, traceSchema));
     traceDetails.put("metadata", metadata);
+    traceDetails.put("brokerUrl", cnx.getBrokerService().getPulsar().getBrokerServiceUrl());
 
     PublisherStatsImpl stats = producer.getStats();
     traceDetails.put("connectedSince", stats.getConnectedSince());
@@ -391,6 +435,7 @@ public class BrokerTracing implements BrokerInterceptor {
     traceDetails.put("consumer", getConsumerDetails(consumer));
     traceDetails.put("subscription", getSubscriptionDetails(consumer.getSubscription()));
     traceDetails.put("metadata", metadata);
+    traceDetails.put("brokerUrl", cnx.getBrokerService().getPulsar().getBrokerServiceUrl());
 
     trace(EventReasons.ADMINISTRATIVE, "Consumer created", traceDetails);
   }
@@ -405,9 +450,9 @@ public class BrokerTracing implements BrokerInterceptor {
     traceDetails.put("consumer", getConsumerDetails(consumer));
     traceDetails.put("subscription", getSubscriptionDetails(consumer.getSubscription()));
     traceDetails.put("metadata", metadata);
+    traceDetails.put("brokerUrl", cnx.getBrokerService().getPulsar().getBrokerServiceUrl());
 
     ConsumerStatsImpl stats = consumer.getStats();
-
     traceDetails.put("connectedSince", stats.getConnectedSince());
     traceDetails.put("closedAt", DateFormatter.now());
     traceDetails.put("averageMsgSize", stats.getAvgMessagesPerEntry());
@@ -417,6 +462,7 @@ public class BrokerTracing implements BrokerInterceptor {
     traceDetails.put("bytesOutCounter", stats.getBytesOutCounter());
     traceDetails.put("unackedMessages", stats.getUnackedMessages());
     traceDetails.put("messageAckRate", stats.getMessageAckRate());
+    traceDetails.put("msgRateRedeliver", stats.getMsgRateRedeliver());
 
     trace(EventReasons.ADMINISTRATIVE, "Consumer closed", traceDetails);
   }
@@ -446,6 +492,7 @@ public class BrokerTracing implements BrokerInterceptor {
 
     Map<String, Object> traceDetails = new TreeMap<>();
     traceDetails.put("serverCnx", getConnectionDetails(cnx));
+    traceDetails.put("brokerUrl", cnx.getBrokerService().getPulsar().getBrokerServiceUrl());
 
     trace(EventReasons.ADMINISTRATIVE, "Connection closed", traceDetails);
   }
@@ -466,12 +513,12 @@ public class BrokerTracing implements BrokerInterceptor {
     if (level == TraceLevel.OFF) return;
 
     Map<String, Object> traceDetails = new TreeMap<>();
-    traceDetails.put("subscription", getSubscriptionDetails(subscription));
-    traceDetails.put("consumer", getConsumerDetails(consumer));
-    traceDetails.put("entry", getEntryDetails(entry, maxBinaryDataLength));
-    traceDetails.put("messageMetadata", getMessageMetadataDetails(msgMetadata));
 
-    trace(EventReasons.MESSAGE, "Message read", traceDetails);
+    addMinimumConsumerSubscriptionDetails(consumer, subscription, traceDetails);
+
+    traceDetails.put("entry", getEntryDetails(entry, maxBinaryDataLength));
+
+    trace(EventReasons.MESSAGE, "read", traceDetails);
   }
 
   public void onMessagePublish(
@@ -483,7 +530,9 @@ public class BrokerTracing implements BrokerInterceptor {
     if (level == TraceLevel.OFF) return;
 
     Map<String, Object> traceDetails = new TreeMap<>();
-    traceDetails.put("producer", getProducerDetails(producer, traceSchema));
+
+    addMinimumProducerDetails(producer, traceDetails);
+
     traceDetails.put("publishContext", getPublishContextDetails(publishContext));
 
     Map<String, Object> headersAndPayloadDetails = new TreeMap<>();
@@ -491,7 +540,7 @@ public class BrokerTracing implements BrokerInterceptor {
         "headersAndPayload", headersAndPayload, headersAndPayloadDetails, maxBinaryDataLength);
     traceDetails.put("payload", headersAndPayloadDetails);
 
-    trace(EventReasons.MESSAGE, "Message received", traceDetails);
+    trace(EventReasons.MESSAGE, "received", traceDetails);
   }
 
   public void messageProduced(
@@ -507,12 +556,12 @@ public class BrokerTracing implements BrokerInterceptor {
     if (level == TraceLevel.OFF) return;
 
     Map<String, Object> traceDetails = new TreeMap<>();
-    traceDetails.put("serverCnx", getConnectionDetails(cnx));
-    traceDetails.put("producer", getProducerDetails(producer, traceSchema));
+    addMinimumProducerDetails(producer, traceDetails);
+
     traceDetails.put("publishContext", getPublishContextDetails(publishContext));
     traceDetails.put("messageId", ledgerId + ":" + entryId);
     traceDetails.put("startTimeNs", startTimeNs);
-    trace(EventReasons.MESSAGE, "Message stored", traceDetails);
+    trace(EventReasons.MESSAGE, "stored", traceDetails);
   }
 
   public void messageDispatched(
@@ -523,10 +572,7 @@ public class BrokerTracing implements BrokerInterceptor {
     if (level == TraceLevel.OFF) return;
 
     Map<String, Object> traceDetails = new TreeMap<>();
-    traceDetails.put("consumer", getConsumerDetails(consumer));
-    if (consumer != null) {
-      traceDetails.put("subscription", getSubscriptionDetails(consumer.getSubscription()));
-    }
+    addMinimumConsumerSubscriptionDetails(consumer, traceDetails);
     traceDetails.put("messageId", ledgerId + ":" + entryId);
 
     Map<String, Object> headersAndPayloadDetails = new TreeMap<>();
@@ -534,31 +580,41 @@ public class BrokerTracing implements BrokerInterceptor {
         "headersAndPayload", headersAndPayload, headersAndPayloadDetails, maxBinaryDataLength);
     traceDetails.put("payload", headersAndPayloadDetails);
 
-    trace(EventReasons.MESSAGE, "Message dispatched", traceDetails);
+    trace(EventReasons.MESSAGE, "dispatched", traceDetails);
   }
 
   public void messageAcked(ServerCnx cnx, Consumer consumer, CommandAck ackCmd) {
     if (!jmsTracingEventList.contains(EventReasons.MESSAGE)) return;
 
     TraceLevel level = getTracingLevel(consumer);
-    if (level == TraceLevel.OFF) return;
+    if (consumer != null && level == TraceLevel.OFF) return;
 
     Map<String, Object> traceDetails = new TreeMap<>();
-    traceDetails.put("consumer", getConsumerDetails(consumer));
-    if (consumer != null) {
-      traceDetails.put("subscription", getSubscriptionDetails(consumer.getSubscription()));
+
+    addMinimumConsumerSubscriptionDetails(consumer, traceDetails);
+
+    if (consumer == null) {
+      // ack with empty consumer == message filtered by JMSFilter
+      traceDetails.put("reason", "filtered by JMSFilter");
+    } else {
+      // todo: am I right that unacked/nacked messages never go through broker interceptor?
+      // in this case we need consumer interceptor to track nacks
+      traceDetails.put("reason", "acked");
+    }
+
+    if (consumer != null && consumer.getSubscription() != null) {
+      Subscription sub = consumer.getSubscription();
+      traceDetails.put("subscriptionName", sub.getName());
+      traceDetails.put("topicName", TopicName.get(sub.getTopicName()).getPartitionedTopicName());
+      traceDetails.put("subscriptionType", sub.getType().name());
     }
 
     Map<String, Object> ackDetails = new TreeMap<>();
     if (ackCmd.hasAckType()) {
       ackDetails.put("type", ackCmd.getAckType().name());
-    } else {
-      ackDetails.put("type", "NOT SET");
     }
     if (ackCmd.hasConsumerId()) {
-      ackDetails.put("consumerId", ackCmd.getConsumerId());
-    } else {
-      ackDetails.put("consumerId", "NOT SET");
+      ackDetails.put("ackConsumerId", ackCmd.getConsumerId());
     }
     ackDetails.put("numAckedMessages", ackCmd.getMessageIdsCount());
     ackDetails.put(
@@ -579,7 +635,7 @@ public class BrokerTracing implements BrokerInterceptor {
 
     traceDetails.put("ack", ackDetails);
 
-    trace(EventReasons.MESSAGE, "Message acked", traceDetails);
+    trace(EventReasons.MESSAGE, "acknowledged", traceDetails);
   }
 
   @NotNull

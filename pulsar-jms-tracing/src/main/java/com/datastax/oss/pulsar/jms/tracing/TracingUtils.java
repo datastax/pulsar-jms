@@ -475,6 +475,8 @@ public class TracingUtils {
       traceDetails.put("authMethodName", cnx.getAuthenticationProvider().getAuthMethodName());
     }
 
+    traceDetails.put("state", cnx.getState());
+
     AuthenticationDataSource authData = cnx.getAuthenticationData();
     if (authData != null) {
       traceDetails.put("authData", getAuthDataDetails(authData));
@@ -639,10 +641,6 @@ public class TracingUtils {
     if (msgMetadata.hasSequenceId()) {
       traceDetails.put("sequenceId", msgMetadata.getSequenceId());
     }
-    if (msgMetadata.hasProducerName()) {
-      traceDetails.put("producerName", msgMetadata.getProducerName());
-    }
-
     if (msgMetadata.hasUncompressedSize()) {
       traceDetails.put("uncompressedSize", msgMetadata.getUncompressedSize());
     }
@@ -703,12 +701,12 @@ public class TracingUtils {
     traceDetails.put("isMarkerMessage", publishContext.isMarkerMessage());
     traceDetails.put("isChunked", publishContext.isChunked());
     traceDetails.put("numberOfMessages", publishContext.getNumberOfMessages());
-
     traceDetails.put("entryTimestamp", publishContext.getEntryTimestamp());
     traceDetails.put("msgSize", publishContext.getMsgSize());
-    traceDetails.put("producerName", publishContext.getProducerName());
-    traceDetails.put("originalProducerName", publishContext.getOriginalProducerName());
-    traceDetails.put("originalSequenceId", publishContext.getOriginalSequenceId());
+    if (publishContext.getOriginalProducerName() != null) {
+      traceDetails.put("originalProducerName", publishContext.getOriginalProducerName());
+      traceDetails.put("originalSequenceId", publishContext.getOriginalSequenceId());
+    }
     traceDetails.put("sequenceId", publishContext.getSequenceId());
   }
 
