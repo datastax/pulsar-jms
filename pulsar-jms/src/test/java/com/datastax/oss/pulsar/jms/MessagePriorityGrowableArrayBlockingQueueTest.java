@@ -24,14 +24,15 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import org.apache.pulsar.client.api.Message;
+import org.apache.pulsar.client.impl.MessageIdImpl;
 import org.junit.jupiter.api.Test;
 
 class MessagePriorityGrowableArrayBlockingQueueTest {
   @Test
   public void basicTest() {
-    test(1, 2, 10);
-    test(2, 1, 10);
-    test(2, 10, 1);
+    test(1, 2, 9);
+    test(2, 1, 9);
+    test(2, 9, 1);
   }
 
   private static void test(int... priorities) {
@@ -45,8 +46,9 @@ class MessagePriorityGrowableArrayBlockingQueueTest {
 
     MessagePriorityGrowableArrayBlockingQueue<String> queue =
         new MessagePriorityGrowableArrayBlockingQueue<>();
+    int position = 0;
     for (int i : priorities) {
-      queue.offer(messageWithPriority(i));
+      queue.offer(messageWithPriority(i, position++));
     }
 
     List<Integer> prioritiesForEach = new ArrayList<>();
@@ -65,10 +67,11 @@ class MessagePriorityGrowableArrayBlockingQueueTest {
     assertEquals(polledPriorities, sorted);
   }
 
-  private static Message<String> messageWithPriority(int priority) {
+  private static Message<String> messageWithPriority(int priority, int position) {
     Message<String> message = mock(Message.class);
     when(message.hasProperty(eq("JMSPriority"))).thenReturn(true);
     when(message.getProperty("JMSPriority")).thenReturn(priority + "");
+    when(message.getMessageId()).thenReturn(new MessageIdImpl(1, position, 1));
     return message;
   }
 }

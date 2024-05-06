@@ -1482,9 +1482,10 @@ public abstract class PulsarMessage implements Message {
     if (msg.hasProperty("JMSPriority")) {
       try {
         int value = Integer.parseInt(msg.getProperty("JMSPriority"));
-        if (value < 0 || value >= 10) {
+        if (value < 0 || value >= 10) { // impossible values according to JMS Specs
           return PulsarMessage.DEFAULT_PRIORITY;
         }
+        return value;
       } catch (NumberFormatException err) {
         // cannot decode priority, not a big deal as it is not supported in Pulsar
       }
