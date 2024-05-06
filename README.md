@@ -9,7 +9,7 @@ This [website](https://javaee.github.io/jms-spec/) is useful as well as it conta
 
 You can find the official Apache Pulsar documentation [here](https://pulsar.apache.org).
 
-The documentation for this project is located [here](https://docs.datastax.com/en/fast-pulsar-jms/docs/1.1/).
+The documentation for this project is located [here](https://docs.datastax.com/en/streaming/starlight-for-jms/3.2/index.html).
 
 ## Installation
 
@@ -125,8 +125,8 @@ jndiContext.close();
 
 We have two example apps, one for Pulsar standalone, and one for Astra Streaming:
 
-- [Pulsar standalone](https://docs.datastax.com/en/fast-pulsar-jms/docs/1.1/pulsar-jms-quickstart-sa.html)
-- [Astra Streaming](https://docs.datastax.com/en/fast-pulsar-jms/docs/1.1/pulsar-jms-quickstart-astra.html)
+- [Pulsar standalone](https://docs.datastax.com/en/streaming/starlight-for-jms/3.2/jms-migration/pulsar-jms-quickstart-sa.html)
+- [Astra Streaming](https://docs.datastax.com/en/streaming/streaming-learning/use-cases-architectures/starlight/jms/index.html)
 
 In addition, we’ve provided the following integration examples:
 
@@ -184,11 +184,11 @@ This is a standard Maven project, so use the default commands:
 
 ## Configuration reference
 
-For a complete list of configuration options, please see [Starlight for JMS Configuration Reference](https://docs.datastax.com/en/fast-pulsar-jms/docs/1.1/pulsar-jms-reference.html#_configuration_options)
+For a complete list of configuration options, please see [Starlight for JMS Configuration Reference](https://docs.datastax.com/en/streaming/starlight-for-jms/3.2/reference/pulsar-jms-reference.html)
 
 ## Implementation details
 
 For general background as well as implementation details, see:
 
-- [Mapping Pulsar concepts to JMS specifications](https://docs.datastax.com/en/fast-pulsar-jms/docs/1.1/pulsar-jms-mappings.html)
-- [Starlight for JMS implementation details](https://docs.datastax.com/en/fast-pulsar-jms/docs/1.1/pulsar-jms-implementation.html)
+- [Mapping Pulsar concepts to JMS specifications](https://docs.datastax.com/en/streaming/starlight-for-jms/3.2/reference/pulsar-jms-mappings.html)
+- [Starlight for JMS implementation details](https://docs.datastax.com/en/streaming/starlight-for-jms/3.2/examples/pulsar-jms-implementation.html)
