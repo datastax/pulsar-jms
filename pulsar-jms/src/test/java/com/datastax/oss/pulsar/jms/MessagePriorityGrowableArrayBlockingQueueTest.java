@@ -66,7 +66,7 @@ class MessagePriorityGrowableArrayBlockingQueueTest {
   }
 
   private static int getPriority(Message m) {
-    return PulsarMessage.readJMSPriority(m, PulsarMessage.DEFAULT_PRIORITY);
+    return PulsarMessage.readJMSPriority(m);
   }
 
   private static Message messageWithPriority(int priority) {

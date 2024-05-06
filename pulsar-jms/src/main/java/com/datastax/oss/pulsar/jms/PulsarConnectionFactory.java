@@ -1091,8 +1091,7 @@ public class PulsarConnectionFactory
                             public int choosePartition(Message<?> msg, TopicMetadata metadata) {
 
                               int key =
-                                  PulsarMessage.readJMSPriority(
-                                      msg, PulsarMessage.DEFAULT_PRIORITY);
+                                  PulsarMessage.readJMSPriority(msg);
                               return Utils.mapPriorityToPartition(
                                   key,
                                   metadata.numPartitions(),
@@ -1348,8 +1347,8 @@ public class PulsarConnectionFactory
                 new Comparator<Message>() {
                   @Override
                   public int compare(Message o1, Message o2) {
-                    int priority1 = MessagePriorityGrowableArrayBlockingQueue.getPriority(o1);
-                    int priority2 = MessagePriorityGrowableArrayBlockingQueue.getPriority(o2);
+                    int priority1 = PulsarMessage.readJMSPriority(o1);
+                    int priority2 = PulsarMessage.readJMSPriority(o2);
                     return Integer.compare(priority2, priority1);
                   }
                 });

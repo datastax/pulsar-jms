@@ -28,11 +28,6 @@ import org.apache.pulsar.common.util.collections.GrowableArrayBlockingQueue;
 
 @Slf4j
 public class MessagePriorityGrowableArrayBlockingQueue extends GrowableArrayBlockingQueue<Message> {
-
-  static int getPriority(Message m) {
-    return PulsarMessage.readJMSPriority(m, PulsarMessage.DEFAULT_PRIORITY);
-  }
-
   private final PriorityBlockingQueue<Pair<Integer, Message>> queue;
   private final AtomicBoolean terminated = new AtomicBoolean(false);
 
@@ -41,11 +36,12 @@ public class MessagePriorityGrowableArrayBlockingQueue extends GrowableArrayBloc
 
   private static final Comparator<Pair<Integer, Message>> comparator =
       (o1, o2) -> {
+        // ORDER BY priority DESC, messageId ASC
         int priority1 = o1.getLeft();
         int priority2 = o2.getLeft();
         if (priority1 == priority2) {
           // if priorities are equal, we want to sort by messageId
-          return o2.getRight().getMessageId().compareTo(o1.getRight().getMessageId());
+          return o1.getRight().getMessageId().compareTo(o2.getRight().getMessageId());
         }
         return Integer.compare(priority2, priority1);
       };
@@ -93,7 +89,7 @@ public class MessagePriorityGrowableArrayBlockingQueue extends GrowableArrayBloc
       return null;
     }
     Message result = pair.getRight();
-    log.info("peeking message: {} prio {}", result.getMessageId(), getPriority(result));
+    log.info("peeking message: {} prio {}", result.getMessageId(), PulsarMessage.readJMSPriority(result));
     return result;
   }
 
@@ -102,12 +98,12 @@ public class MessagePriorityGrowableArrayBlockingQueue extends GrowableArrayBloc
 
     boolean result;
     if (!this.terminated.get()) {
-      int prio = getPriority(e);
+      int prio = PulsarMessage.readJMSPriority(e);
       numberMessagesByPrority[prio].incrementAndGet();
       result = queue.offer(Pair.of(prio, e));
       if (log.isDebugEnabled()) {
         log.debug("offered message: {} prio {} stats {}",
-                e.getMessageId(), getPriority(e), Arrays.toString(numberMessagesByPrority));
+                e.getMessageId(), prio, Arrays.toString(numberMessagesByPrority));
       }
     } else {
       log.info("queue is terminated, not offering message: {}", e.getMessageId());
