@@ -63,7 +63,7 @@ public class PriorityExample
                 try (JMSConsumer consumer = jmsContext.createConsumer(topic1, null);){
                 }
 
-                int numMessages = 10000;
+                int numMessages = 20000;
                 for (int i = 0; i < numMessages; i++) {
                     JMSProducer producer = jmsContext.createProducer();
                     if (i % 2 == 0) {
@@ -71,6 +71,7 @@ public class PriorityExample
                     } else {
                         producer.setPriority(9);
                     }
+                    producer.setPriority(i % 10);
                     String text = "text-"+i+"-"+producer.getPriority();
                     producer.send(topic1, text);
                     //System.out.println("Sent message "+ i + " with priority: " + producer.getPriority() + " and body: " + text);
@@ -78,6 +79,9 @@ public class PriorityExample
                         System.out.println("Sent " + i + " messages");
                     }
                 }
+
+                // give time to Prom to see the backlog
+                Thread.sleep(60000);
 
                 int lastPrio = -1;
                 int groupSize = 0;
