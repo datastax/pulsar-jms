@@ -95,6 +95,7 @@ import org.apache.pulsar.client.impl.ConsumerImpl;
 import org.apache.pulsar.client.impl.MultiTopicsConsumerImpl;
 import org.apache.pulsar.client.impl.PulsarClientImpl;
 import org.apache.pulsar.client.impl.auth.AuthenticationToken;
+import org.apache.pulsar.common.naming.TopicName;
 import org.apache.pulsar.common.partition.PartitionedTopicMetadata;
 
 @Slf4j
@@ -1382,14 +1383,24 @@ public class PulsarConnectionFactory
           .get(consumerBase);
          Method setCurrentReceiverQueueSizeMethod = ConsumerImpl.class.getDeclaredMethod("setCurrentReceiverQueueSize", int.class);
       setCurrentReceiverQueueSizeMethod.setAccessible(true);
-        for (ConsumerImpl<?> consumer : consumers.values()) {
-            String topic = consumer.getTopic();
-            int last = topic.lastIndexOf('-');
-            int prio = Integer.parseInt(topic.substring(last + 1));
-            int size = (prio + 1) * 10;
-            log.info("Setting queue size for {} to {}", topic, size);
-            setCurrentReceiverQueueSizeMethod.invoke(consumer, size);
-        }
+
+      // set the queue size for each consumer based on the partition index
+      // we set a higher number to the consumers for the higher priority partitions
+      // this way the backlog is drained more quickly for the higher priority partitions
+      int numConsumers = consumers.size();
+      int sumPriorities = (numConsumers * (numConsumers + 1)) / 2; // 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10
+      int receiverQueueSize = consumerBase.getCurrentReceiverQueueSize();
+
+      for (ConsumerImpl<?> consumer : consumers.values()) {
+          String topic = consumer.getTopic();
+          int partitionIndex = TopicName.get(topic).getPartitionIndex();
+          // no need to map exactly the partition index to the priority
+          int prio = Math.max(partitionIndex, 0);
+          // the size is proportional to the priority (partition index)
+          int size = Math.max(1, (prio + 1) * receiverQueueSize / sumPriorities);
+          log.info("Setting receiverQueueSize={} for {} (to handle JMSPriority)", size, topic);
+          setCurrentReceiverQueueSizeMethod.invoke(consumer, size);
+      }
 
     } catch (Exception err) {
       throw new RuntimeException(err);
