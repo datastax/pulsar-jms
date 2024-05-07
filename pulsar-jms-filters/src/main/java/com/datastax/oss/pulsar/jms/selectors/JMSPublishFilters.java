@@ -53,7 +53,7 @@ import org.apache.pulsar.common.api.proto.BaseCommand;
 import org.apache.pulsar.common.api.proto.CommandAck;
 import org.apache.pulsar.common.api.proto.MessageMetadata;
 import org.apache.pulsar.common.intercept.InterceptException;
-import org.apache.pulsar.common.protocol.Commands;
+import org.jetbrains.annotations.NotNull;
 
 @Slf4j
 public class JMSPublishFilters implements BrokerInterceptor {
@@ -284,8 +284,7 @@ public class JMSPublishFilters implements BrokerInterceptor {
       // this operation has been enqueued before the broker shutdown
       return;
     }
-    MessageMetadata messageMetadata = new MessageMetadata();
-    Commands.parseMessageMetadata(messageMetadataUnparsed, messageMetadata);
+    MessageMetadata messageMetadata = getMessageMetadata(messageMetadataUnparsed);
     long now = System.nanoTime();
     try {
       FilterContext filterContext = new FilterContext();
@@ -315,6 +314,17 @@ public class JMSPublishFilters implements BrokerInterceptor {
           .labels(subscription.getTopic().getName(), subscription.getName())
           .observe(System.nanoTime() - now);
     }
+  }
+
+  @NotNull
+  private static MessageMetadata getMessageMetadata(ByteBuf messageMetadataUnparsed) {
+    MessageMetadata messageMetadata = new MessageMetadata();
+    synchronized (messageMetadataUnparsed) {
+      int index = messageMetadataUnparsed.readerIndex();
+      messageMetadata.parseFrom(messageMetadataUnparsed, messageMetadataUnparsed.readableBytes());
+      messageMetadataUnparsed.readerIndex(index);
+    }
+    return messageMetadata;
   }
 
   private static void scheduleOnDispatchThread(Subscription subscription, Runnable runnable) {
