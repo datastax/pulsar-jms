@@ -15,19 +15,25 @@
  */
 package com.datastax.oss.pulsar.jms.selectors;
 
+import static org.apache.pulsar.common.protocol.Commands.skipBrokerEntryMetadataIfExist;
+import static org.apache.pulsar.common.protocol.Commands.skipChecksumIfPresent;
 import io.netty.buffer.ByteBuf;
 import io.prometheus.client.CollectorRegistry;
 import io.prometheus.client.Histogram;
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.servlet.ServletException;
 import javax.servlet.ServletRequest;
 import javax.servlet.ServletResponse;
+import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.bookkeeper.mledger.Entry;
 import org.apache.bookkeeper.mledger.impl.PositionImpl;
@@ -139,11 +145,7 @@ public class JMSPublishFilters implements BrokerInterceptor {
         }
 
         // we must make a copy because the ByteBuf will be released
-        MessageMetadata messageMetadata =
-            new MessageMetadata()
-                .copyFrom(
-                    Commands.peekMessageMetadata(headersAndPayload, "jms-filter-on-publish", -1));
-
+        ByteBuf messageMetadata = copyMessageMetadata(headersAndPayload);
         publishContext.setProperty(JMS_FILTER_METADATA, messageMetadata);
         // as soon as we find a good reason to apply the filters in messageProduced
         // we can exit
@@ -154,6 +156,16 @@ public class JMSPublishFilters implements BrokerInterceptor {
           .labels(producer.getTopic().getName())
           .observe(System.nanoTime() - now);
     }
+  }
+
+  public static ByteBuf copyMessageMetadata(ByteBuf buffer) {
+    int readerIndex = buffer.readerIndex();
+    skipBrokerEntryMetadataIfExist(buffer);
+    skipChecksumIfPresent(buffer);
+    int metadataSize = (int)buffer.readUnsignedInt();
+    ByteBuf copy = buffer.slice(readerIndex, metadataSize).copy();
+    buffer.readerIndex(readerIndex);
+    return copy;
   }
 
   @Override
@@ -167,35 +179,56 @@ public class JMSPublishFilters implements BrokerInterceptor {
     if (!enabled) {
       return;
     }
-    MessageMetadata messageMetadata =
-        (MessageMetadata) publishContext.getProperty(JMS_FILTER_METADATA);
-    if (messageMetadata == null) {
+    ByteBuf messageMetadataUnparsed = (ByteBuf) publishContext.getProperty(JMS_FILTER_METADATA);
+    if (messageMetadataUnparsed == null) {
       return;
     }
-    if (messageMetadata.hasNumMessagesInBatch()) {
-      return;
+    try {
+      producer.getTopic().getSubscriptions().forEach((___, subscription) -> {
+        if (!(subscription instanceof PersistentSubscription)) {
+          return;
+        }
+        Map<String, String> subscriptionProperties = subscription.getSubscriptionProperties();
+        if (!subscriptionProperties.containsKey("jms.selector")) {
+          return;
+        }
+        messageMetadataUnparsed.retain();
+        scheduleOnDispatchThread(subscription, new FilterAndAckMessageOperation(ledgerId, entryId, subscription, messageMetadataUnparsed));
+      });
+    } finally {
+      messageMetadataUnparsed.release();
     }
+  }
 
-    for (Subscription subscription : producer.getTopic().getSubscriptions().values()) {
-      scheduleOnDispatchThread(
-          subscription,
-          () -> {
-            filterAndAckMessage(producer, ledgerId, entryId, subscription, messageMetadata);
-          });
+  @AllArgsConstructor
+  private class FilterAndAckMessageOperation implements Runnable {
+    final long ledgerId;
+    final long entryId;
+    final Subscription subscription;
+    final ByteBuf messageMetadataUnparsed;
+
+    @Override
+    public void run() {
+      try {
+        filterAndAckMessage(ledgerId, entryId, subscription, messageMetadataUnparsed);
+      } finally {
+        messageMetadataUnparsed.release();
+      }
     }
   }
 
   private void filterAndAckMessage(
-      Producer producer,
       long ledgerId,
       long entryId,
       Subscription subscription,
-      MessageMetadata messageMetadata) {
-    if (closed.get()) {
+      ByteBuf messageMetadataUnparsed) {
+   if (closed.get()) {
       // the broker is shutting down, we cannot process the entries
       // this operation has been enqueued before the broker shutdown
       return;
     }
+    MessageMetadata messageMetadata = new MessageMetadata();
+    Commands.parseMessageMetadata(messageMetadataUnparsed, messageMetadata);
     long now = System.nanoTime();
     try {
       FilterContext filterContext = new FilterContext();
@@ -207,23 +240,23 @@ public class JMSPublishFilters implements BrokerInterceptor {
       if (filterResult == EntryFilter.FilterResult.REJECT) {
         if (log.isDebugEnabled()) {
           log.debug(
-              "Reject message {}:{} for subscription {}",
-              ledgerId,
-              entryId,
-              subscription.getName());
+                  "Reject message {}:{} for subscription {}",
+                  ledgerId,
+                  entryId,
+                  subscription.getName());
         }
         // ir is possible that calling this method in this thread may affect
         // performance
         // let's keep it simple for now, we can optimize it later
         subscription.acknowledgeMessage(
-            Collections.singletonList(new PositionImpl(ledgerId, entryId)),
-            CommandAck.AckType.Individual,
-            null);
+                Collections.singletonList(new PositionImpl(ledgerId, entryId)),
+                CommandAck.AckType.Individual,
+                null);
       }
     } finally {
       filterProcessingTimeOnProduce
-          .labels(producer.getTopic().getName(), subscription.getName())
-          .observe(System.nanoTime() - now);
+              .labels(subscription.getTopic().getName(), subscription.getName())
+              .observe(System.nanoTime() - now);
     }
   }
 
