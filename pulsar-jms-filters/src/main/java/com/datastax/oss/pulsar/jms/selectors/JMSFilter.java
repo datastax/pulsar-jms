@@ -49,7 +49,23 @@ import org.apache.pulsar.common.protocol.Commands;
 
 @Slf4j
 public class JMSFilter implements EntryFilter {
-
+  private static final double MS_IN_NANOS = 1_000_000;
+  static final double[] BUCKETS =
+      new double[] {
+        1 * MS_IN_NANOS,
+        3 * MS_IN_NANOS,
+        5 * MS_IN_NANOS,
+        10 * MS_IN_NANOS,
+        20 * MS_IN_NANOS,
+        50 * MS_IN_NANOS,
+        100 * MS_IN_NANOS,
+        200 * MS_IN_NANOS,
+        500 * MS_IN_NANOS,
+        1000 * MS_IN_NANOS,
+        2000 * MS_IN_NANOS,
+        5000 * MS_IN_NANOS,
+        10000 * MS_IN_NANOS
+      };
   private final ConcurrentHashMap<String, SelectorSupport> selectors = new ConcurrentHashMap<>();
   private static final Histogram filterProcessingTime =
       Histogram.build()
@@ -57,6 +73,7 @@ public class JMSFilter implements EntryFilter {
           .help(
               "Time taken to compute filters on the broker while dispatching messages to consumers")
           .labelNames("topic", "subscription")
+          .buckets(BUCKETS)
           .create();
 
   private static final AtomicBoolean metricRegistered = new AtomicBoolean(false);
@@ -144,9 +161,9 @@ public class JMSFilter implements EntryFilter {
             jmsSelector,
             s -> {
               try {
-                return SelectorSupport.build(s, !jmsSelector.isEmpty());
+                return SelectorSupport.build(s, !s.isEmpty());
               } catch (JMSException err) {
-                log.error("Cannot build selector from '{}'", jmsSelector, err);
+                log.error("Cannot build selector from '{}'", s, err);
                 return null;
               }
             });
@@ -160,10 +177,10 @@ public class JMSFilter implements EntryFilter {
             jmsSelectorOnSubscription,
             s -> {
               try {
-                return SelectorSupport.build(s, !jmsSelectorOnSubscription.isEmpty());
+                return SelectorSupport.build(s, !s.isEmpty());
               } catch (JMSException err) {
                 log.error(
-                    "Cannot build subscription selector from '{}'", jmsSelectorOnSubscription, err);
+                    "Cannot build subscription selector from '{}'", s, err);
                 return null;
               }
             });
