@@ -19,17 +19,26 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.datastax.oss.pulsar.jms.utils.PulsarContainerExtension;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import javax.jms.CompletionListener;
 import javax.jms.MessageProducer;
 import javax.jms.Queue;
 import javax.jms.Session;
 import javax.jms.TextMessage;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.api.SubscriptionType;
+import org.apache.pulsar.common.policies.data.ManagedLedgerInternalStats;
+import org.apache.pulsar.common.policies.data.PartitionedTopicInternalStats;
+import org.apache.pulsar.common.policies.data.PartitionedTopicStats;
 import org.apache.pulsar.common.policies.data.SubscriptionStats;
 import org.apache.pulsar.common.policies.data.TopicStats;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -149,6 +158,78 @@ public class JMSPublishFiltersTest {
             if (transacted) {
               session.commit();
             }
+          }
+        }
+      }
+    }
+  }
+
+  @Test
+  void testManyMessagesWithPartitions() throws Exception {
+    Map<String, Object> properties = buildProperties();
+    String topicName = "persistent://public/default/test-" + UUID.randomUUID();
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
+      try (PulsarConnection connection = factory.createConnection()) {
+        connection.start();
+        try (PulsarSession session = connection.createSession(Session.AUTO_ACKNOWLEDGE); ) {
+          factory.getPulsarAdmin().topics().createPartitionedTopic(topicName, 20);
+
+          Queue destination = session.createQueue(topicName);
+
+          try (PulsarMessageConsumer consumer1 = session.createConsumer(destination); ) {
+            assertEquals(
+                SubscriptionType.Shared, ((PulsarMessageConsumer) consumer1).getSubscriptionType());
+
+            String newSelector = "foo='bar'";
+            Map<String, String> subscriptionProperties = new HashMap<>();
+            subscriptionProperties.put("jms.selector", newSelector);
+            subscriptionProperties.put("jms.filtering", "true");
+
+            pulsarContainer
+                .getAdmin()
+                .topics()
+                .updateSubscriptionProperties(topicName, "jms-queue", subscriptionProperties);
+
+            int numMessages = 10000;
+            try (MessageProducer producer = session.createProducer(destination); ) {
+              List<CompletableFutureCompletionListener> futures = new ArrayList<>();
+              for (int i = 0; i < numMessages; i++) {
+                TextMessage textMessage = session.createTextMessage("foo-" + i);
+                for (int j = 0; j < 10; j++) {
+                  textMessage.setIntProperty("some" + j, j);
+                }
+                // half of the messages pass the filter
+                if (i % 2 == 0) {
+                  textMessage.setStringProperty("foo", "bar");
+                }
+                CompletableFutureCompletionListener listener = new CompletableFutureCompletionListener();
+                futures.add(listener);
+                producer.send(textMessage, listener);
+                if (futures.size() == 1000) {
+                  for (CompletableFutureCompletionListener future : futures) {
+                    future.get();
+                  }
+                  futures.clear();
+                }
+              }
+              for (CompletableFutureCompletionListener future : futures) {
+                future.get();
+              }
+            }
+
+            // wait for the filters to be processed in background
+            Awaitility.await().untilAsserted(() -> {
+              PartitionedTopicStats partitionedInternalStats =
+                      factory.getPulsarAdmin().topics().getPartitionedStats(topicName, true);
+              AtomicLong sum = new AtomicLong();
+              partitionedInternalStats.getPartitions().forEach((partition, stats) -> {
+                SubscriptionStats subscriptionStats = stats.getSubscriptions().get("jms-queue");
+                log.info("backlog for partition {}: {}", partition, subscriptionStats.getMsgBacklog());
+                sum.addAndGet(subscriptionStats.getMsgBacklog());
+              });
+              log.info("total backlog: {}", sum.get());
+              assertEquals(numMessages / 2, sum.get());
+            });
           }
         }
       }
