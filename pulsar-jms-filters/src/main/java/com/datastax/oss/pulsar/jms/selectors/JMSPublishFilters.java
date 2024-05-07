@@ -19,6 +19,8 @@ import static org.apache.pulsar.common.protocol.Commands.skipBrokerEntryMetadata
 import static org.apache.pulsar.common.protocol.Commands.skipChecksumIfPresent;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufUtil;
+import io.netty.buffer.PooledByteBufAllocator;
 import io.prometheus.client.CollectorRegistry;
 import io.prometheus.client.Gauge;
 import io.prometheus.client.Histogram;
@@ -196,14 +198,28 @@ public class JMSPublishFilters implements BrokerInterceptor {
     int metadataSize = (int) buffer.readUnsignedInt();
     // this is going to throttle the producer if the memory limit is reached
     // please note that this is a blocking operation on the Netty eventpool
-    // currently we cannnot do better than this, as the interceptor API is blocking
+    // currently we cannot do better than this, as the interceptor API is blocking
     memoryLimit.acquireUninterruptibly(metadataSize);
     // please note that Netty would probably retain more memory than this buffer
     // but this is the best approximation we can do
     memoryUsed.inc(metadataSize);
-    ByteBuf copy = buffer.slice(readerIndex, metadataSize).copy();
+    ByteBuf copy = PooledByteBufAllocator.DEFAULT.buffer(metadataSize);
+    buffer.readBytes(copy);
     buffer.readerIndex(readerIndex);
     return copy;
+  }
+
+  private static void dumpMetadata(ByteBuf copy, int metadataSize) {
+    int index = copy.readerIndex();
+    MessageMetadata msgMetadata = new MessageMetadata();
+    msgMetadata.parseFrom(copy, metadataSize);
+    msgMetadata
+        .getPropertiesList()
+        .forEach(
+            p -> {
+              log.info("Property: {}={}", p.getKey(), p.getValue());
+            });
+    copy.readerIndex(index);
   }
 
   @Override
@@ -244,10 +260,11 @@ public class JMSPublishFilters implements BrokerInterceptor {
                 }
                 pending.incrementAndGet();
                 pendingOperations.inc();
-                scheduleOnDispatchThread(
-                    subscription,
+                ByteBuf duplicate = messageMetadataUnparsed.duplicate();
+                FilterAndAckMessageOperation filterAndAckMessageOperation =
                     new FilterAndAckMessageOperation(
-                        ledgerId, entryId, subscription, messageMetadataUnparsed, onComplete));
+                        ledgerId, entryId, subscription, duplicate, onComplete);
+                scheduleOnDispatchThread(subscription, filterAndAckMessageOperation);
               });
     } finally {
       onComplete.run();
@@ -319,11 +336,10 @@ public class JMSPublishFilters implements BrokerInterceptor {
   @NotNull
   private static MessageMetadata getMessageMetadata(ByteBuf messageMetadataUnparsed) {
     MessageMetadata messageMetadata = new MessageMetadata();
-    synchronized (messageMetadataUnparsed) {
-      int index = messageMetadataUnparsed.readerIndex();
-      messageMetadata.parseFrom(messageMetadataUnparsed, messageMetadataUnparsed.readableBytes());
-      messageMetadataUnparsed.readerIndex(index);
-    }
+    int size = messageMetadataUnparsed.readableBytes();
+    log.info("size {}", size);
+    log.info("here     {}", ByteBufUtil.hexDump(messageMetadataUnparsed));
+    messageMetadata.parseFrom(messageMetadataUnparsed, messageMetadataUnparsed.readableBytes());
     return messageMetadata;
   }
 
