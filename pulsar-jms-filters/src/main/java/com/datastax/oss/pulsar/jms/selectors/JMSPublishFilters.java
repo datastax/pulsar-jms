@@ -19,17 +19,18 @@ import static org.apache.pulsar.common.protocol.Commands.skipBrokerEntryMetadata
 import static org.apache.pulsar.common.protocol.Commands.skipChecksumIfPresent;
 import io.netty.buffer.ByteBuf;
 import io.prometheus.client.CollectorRegistry;
+import io.prometheus.client.Gauge;
 import io.prometheus.client.Histogram;
 import java.io.IOException;
 import java.lang.reflect.Field;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import javax.servlet.ServletException;
 import javax.servlet.ServletRequest;
 import javax.servlet.ServletResponse;
@@ -74,8 +75,23 @@ public class JMSPublishFilters implements BrokerInterceptor {
           .labelNames("topic", "subscription")
           .create();
 
+  private static final Gauge memoryUsed =
+          Gauge.build()
+                  .name("pulsar_jmsfilter_processing_memory")
+                  .help(
+                          "Current memory held by the JMSPublishFilters interceptor")
+                  .create();
+
+  private static final Gauge pendingOperations =
+          Gauge.build()
+                  .name("pulsar_jmsfilter_processing_pending_operations")
+                  .help(
+                          "Number of pending operations in the JMSPublishFilters interceptor")
+                  .create();
+
   private final JMSFilter filter = new JMSFilter(false);
   private boolean enabled = false;
+  private Semaphore memoryLimit;
   private final AtomicBoolean closed = new AtomicBoolean();
 
   private static final Field dispatchMessagesThreadFieldPersistentDispatcherMultipleConsumers;
@@ -120,6 +136,21 @@ public class JMSPublishFilters implements BrokerInterceptor {
       // ignore
       log.info("Filter metrics already registered", alreadyRegistered);
     }
+    String memoryLimitString = pulsarService
+            .getConfiguration()
+            .getProperties()
+            .getProperty("jmsFiltersOnPublishMaxMemoryMB", "128");
+
+    try {
+       int memoryLimitBytes = Integer.parseInt(pulsarService
+              .getConfiguration()
+              .getProperties()
+              .getProperty("jmsFiltersOnPublishMaxMemoryMB", "64")) * 1024 * 1024;
+       memoryLimit = new Semaphore(memoryLimitBytes);
+       log.info("jmsFiltersOnPublishMaxMemoryMB={} ({} bytes)", memoryLimitString, memoryLimitBytes);
+    } catch (NumberFormatException e) {
+      throw new RuntimeException("Invalid memory limit jmsFiltersOnPublishMaxMemoryMB=" + memoryLimitString, e);
+    }
   }
 
   @Override
@@ -136,16 +167,11 @@ public class JMSPublishFilters implements BrokerInterceptor {
     long now = System.nanoTime();
     try {
       for (Subscription subscription : producer.getTopic().getSubscriptions().values()) {
-        if (!(subscription instanceof PersistentSubscription)) {
+        if (!(isPersistentSubscriptionWithSelector(subscription))) {
           continue;
         }
-        Map<String, String> subscriptionProperties = subscription.getSubscriptionProperties();
-        if (!subscriptionProperties.containsKey("jms.selector")) {
-          continue;
-        }
-
         // we must make a copy because the ByteBuf will be released
-        ByteBuf messageMetadata = copyMessageMetadata(headersAndPayload);
+        ByteBuf messageMetadata = copyMessageMetadataAndAcquireMemory(headersAndPayload);
         publishContext.setProperty(JMS_FILTER_METADATA, messageMetadata);
         // as soon as we find a good reason to apply the filters in messageProduced
         // we can exit
@@ -158,11 +184,18 @@ public class JMSPublishFilters implements BrokerInterceptor {
     }
   }
 
-  public static ByteBuf copyMessageMetadata(ByteBuf buffer) {
+  public ByteBuf copyMessageMetadataAndAcquireMemory(ByteBuf buffer) {
     int readerIndex = buffer.readerIndex();
     skipBrokerEntryMetadataIfExist(buffer);
     skipChecksumIfPresent(buffer);
-    int metadataSize = (int)buffer.readUnsignedInt();
+     int metadataSize = (int) buffer.readUnsignedInt();
+    // this is going to throttle the producer if the memory limit is reached
+    // please note that this is a blocking operation on the Netty eventpool
+    // currently we cannnot do better than this, as the interceptor API is blocking
+    memoryLimit.acquireUninterruptibly(metadataSize);
+    // please note that Netty would probably retain more memory than this buffer
+    // but this is the best approximation we can do
+    memoryUsed.inc(metadataSize);
     ByteBuf copy = buffer.slice(readerIndex, metadataSize).copy();
     buffer.readerIndex(readerIndex);
     return copy;
@@ -176,28 +209,41 @@ public class JMSPublishFilters implements BrokerInterceptor {
       long ledgerId,
       long entryId,
       Topic.PublishContext publishContext) {
-    if (!enabled) {
-      return;
-    }
     ByteBuf messageMetadataUnparsed = (ByteBuf) publishContext.getProperty(JMS_FILTER_METADATA);
     if (messageMetadataUnparsed == null) {
       return;
     }
+    if (!enabled) {
+      return;
+    }
+    int memorySize = messageMetadataUnparsed.readableBytes();
+    AtomicInteger pending = new AtomicInteger(1);
+    Runnable onComplete = () -> {
+      pendingOperations.dec();
+      if (pending.decrementAndGet() == 0) {
+        messageMetadataUnparsed.release();
+        memoryLimit.release(memorySize);
+        memoryUsed.dec(memorySize);
+      }
+    };
     try {
       producer.getTopic().getSubscriptions().forEach((___, subscription) -> {
-        if (!(subscription instanceof PersistentSubscription)) {
+        if (!(isPersistentSubscriptionWithSelector(subscription))) {
           return;
         }
-        Map<String, String> subscriptionProperties = subscription.getSubscriptionProperties();
-        if (!subscriptionProperties.containsKey("jms.selector")) {
-          return;
-        }
-        messageMetadataUnparsed.retain();
-        scheduleOnDispatchThread(subscription, new FilterAndAckMessageOperation(ledgerId, entryId, subscription, messageMetadataUnparsed));
+        pending.incrementAndGet();
+        pendingOperations.inc();
+        scheduleOnDispatchThread(subscription,
+                new FilterAndAckMessageOperation(ledgerId, entryId, subscription, messageMetadataUnparsed, onComplete));
       });
     } finally {
-      messageMetadataUnparsed.release();
+      onComplete.run();
     }
+  }
+
+  private static boolean isPersistentSubscriptionWithSelector(Subscription subscription) {
+    return subscription instanceof PersistentSubscription
+        && subscription.getSubscriptionProperties().containsKey("jms.selector");
   }
 
   @AllArgsConstructor
@@ -206,13 +252,14 @@ public class JMSPublishFilters implements BrokerInterceptor {
     final long entryId;
     final Subscription subscription;
     final ByteBuf messageMetadataUnparsed;
+    final Runnable onComplete;
 
     @Override
     public void run() {
       try {
         filterAndAckMessage(ledgerId, entryId, subscription, messageMetadataUnparsed);
       } finally {
-        messageMetadataUnparsed.release();
+        onComplete.run();
       }
     }
   }
