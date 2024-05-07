@@ -17,6 +17,7 @@ package com.datastax.oss.pulsar.jms.selectors;
 
 import static org.apache.pulsar.common.protocol.Commands.skipBrokerEntryMetadataIfExist;
 import static org.apache.pulsar.common.protocol.Commands.skipChecksumIfPresent;
+
 import io.netty.buffer.ByteBuf;
 import io.prometheus.client.CollectorRegistry;
 import io.prometheus.client.Gauge;
@@ -24,13 +25,11 @@ import io.prometheus.client.Histogram;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.Collections;
-import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import javax.servlet.ServletException;
 import javax.servlet.ServletRequest;
 import javax.servlet.ServletResponse;
@@ -76,18 +75,16 @@ public class JMSPublishFilters implements BrokerInterceptor {
           .create();
 
   private static final Gauge memoryUsed =
-          Gauge.build()
-                  .name("pulsar_jmsfilter_processing_memory")
-                  .help(
-                          "Current memory held by the JMSPublishFilters interceptor")
-                  .create();
+      Gauge.build()
+          .name("pulsar_jmsfilter_processing_memory")
+          .help("Current memory held by the JMSPublishFilters interceptor")
+          .create();
 
   private static final Gauge pendingOperations =
-          Gauge.build()
-                  .name("pulsar_jmsfilter_processing_pending_operations")
-                  .help(
-                          "Number of pending operations in the JMSPublishFilters interceptor")
-                  .create();
+      Gauge.build()
+          .name("pulsar_jmsfilter_processing_pending_operations")
+          .help("Number of pending operations in the JMSPublishFilters interceptor")
+          .create();
 
   private final JMSFilter filter = new JMSFilter(false);
   private boolean enabled = false;
@@ -132,24 +129,32 @@ public class JMSPublishFilters implements BrokerInterceptor {
       log.info("Registering JMSFilter metrics");
       CollectorRegistry.defaultRegistry.register(filterProcessingTimeOnPublish);
       CollectorRegistry.defaultRegistry.register(filterProcessingTimeOnProduce);
+      CollectorRegistry.defaultRegistry.register(memoryUsed);
+      CollectorRegistry.defaultRegistry.register(pendingOperations);
     } catch (IllegalArgumentException alreadyRegistered) {
       // ignore
       log.info("Filter metrics already registered", alreadyRegistered);
     }
-    String memoryLimitString = pulsarService
+    String memoryLimitString =
+        pulsarService
             .getConfiguration()
             .getProperties()
             .getProperty("jmsFiltersOnPublishMaxMemoryMB", "128");
 
     try {
-       int memoryLimitBytes = Integer.parseInt(pulsarService
-              .getConfiguration()
-              .getProperties()
-              .getProperty("jmsFiltersOnPublishMaxMemoryMB", "64")) * 1024 * 1024;
-       memoryLimit = new Semaphore(memoryLimitBytes);
-       log.info("jmsFiltersOnPublishMaxMemoryMB={} ({} bytes)", memoryLimitString, memoryLimitBytes);
+      int memoryLimitBytes =
+          Integer.parseInt(
+                  pulsarService
+                      .getConfiguration()
+                      .getProperties()
+                      .getProperty("jmsFiltersOnPublishMaxMemoryMB", "64"))
+              * 1024
+              * 1024;
+      memoryLimit = new Semaphore(memoryLimitBytes);
+      log.info("jmsFiltersOnPublishMaxMemoryMB={} ({} bytes)", memoryLimitString, memoryLimitBytes);
     } catch (NumberFormatException e) {
-      throw new RuntimeException("Invalid memory limit jmsFiltersOnPublishMaxMemoryMB=" + memoryLimitString, e);
+      throw new RuntimeException(
+          "Invalid memory limit jmsFiltersOnPublishMaxMemoryMB=" + memoryLimitString, e);
     }
   }
 
@@ -188,7 +193,7 @@ public class JMSPublishFilters implements BrokerInterceptor {
     int readerIndex = buffer.readerIndex();
     skipBrokerEntryMetadataIfExist(buffer);
     skipChecksumIfPresent(buffer);
-     int metadataSize = (int) buffer.readUnsignedInt();
+    int metadataSize = (int) buffer.readUnsignedInt();
     // this is going to throttle the producer if the memory limit is reached
     // please note that this is a blocking operation on the Netty eventpool
     // currently we cannnot do better than this, as the interceptor API is blocking
@@ -218,24 +223,31 @@ public class JMSPublishFilters implements BrokerInterceptor {
     }
     int memorySize = messageMetadataUnparsed.readableBytes();
     AtomicInteger pending = new AtomicInteger(1);
-    Runnable onComplete = () -> {
-      pendingOperations.dec();
-      if (pending.decrementAndGet() == 0) {
-        messageMetadataUnparsed.release();
-        memoryLimit.release(memorySize);
-        memoryUsed.dec(memorySize);
-      }
-    };
+    Runnable onComplete =
+        () -> {
+          pendingOperations.dec();
+          if (pending.decrementAndGet() == 0) {
+            messageMetadataUnparsed.release();
+            memoryLimit.release(memorySize);
+            memoryUsed.dec(memorySize);
+          }
+        };
     try {
-      producer.getTopic().getSubscriptions().forEach((___, subscription) -> {
-        if (!(isPersistentSubscriptionWithSelector(subscription))) {
-          return;
-        }
-        pending.incrementAndGet();
-        pendingOperations.inc();
-        scheduleOnDispatchThread(subscription,
-                new FilterAndAckMessageOperation(ledgerId, entryId, subscription, messageMetadataUnparsed, onComplete));
-      });
+      producer
+          .getTopic()
+          .getSubscriptions()
+          .forEach(
+              (___, subscription) -> {
+                if (!(isPersistentSubscriptionWithSelector(subscription))) {
+                  return;
+                }
+                pending.incrementAndGet();
+                pendingOperations.inc();
+                scheduleOnDispatchThread(
+                    subscription,
+                    new FilterAndAckMessageOperation(
+                        ledgerId, entryId, subscription, messageMetadataUnparsed, onComplete));
+              });
     } finally {
       onComplete.run();
     }
@@ -265,11 +277,8 @@ public class JMSPublishFilters implements BrokerInterceptor {
   }
 
   private void filterAndAckMessage(
-      long ledgerId,
-      long entryId,
-      Subscription subscription,
-      ByteBuf messageMetadataUnparsed) {
-   if (closed.get()) {
+      long ledgerId, long entryId, Subscription subscription, ByteBuf messageMetadataUnparsed) {
+    if (closed.get()) {
       // the broker is shutting down, we cannot process the entries
       // this operation has been enqueued before the broker shutdown
       return;
@@ -287,23 +296,23 @@ public class JMSPublishFilters implements BrokerInterceptor {
       if (filterResult == EntryFilter.FilterResult.REJECT) {
         if (log.isDebugEnabled()) {
           log.debug(
-                  "Reject message {}:{} for subscription {}",
-                  ledgerId,
-                  entryId,
-                  subscription.getName());
+              "Reject message {}:{} for subscription {}",
+              ledgerId,
+              entryId,
+              subscription.getName());
         }
         // ir is possible that calling this method in this thread may affect
         // performance
         // let's keep it simple for now, we can optimize it later
         subscription.acknowledgeMessage(
-                Collections.singletonList(new PositionImpl(ledgerId, entryId)),
-                CommandAck.AckType.Individual,
-                null);
+            Collections.singletonList(new PositionImpl(ledgerId, entryId)),
+            CommandAck.AckType.Individual,
+            null);
       }
     } finally {
       filterProcessingTimeOnProduce
-              .labels(subscription.getTopic().getName(), subscription.getName())
-              .observe(System.nanoTime() - now);
+          .labels(subscription.getTopic().getName(), subscription.getName())
+          .observe(System.nanoTime() - now);
     }
   }
 
