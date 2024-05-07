@@ -223,6 +223,7 @@ public class JMSPublishFilters implements BrokerInterceptor {
     }
     int memorySize = messageMetadataUnparsed.readableBytes();
     AtomicInteger pending = new AtomicInteger(1);
+    pendingOperations.inc();
     Runnable onComplete =
         () -> {
           pendingOperations.dec();
