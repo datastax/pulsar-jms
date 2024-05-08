@@ -40,7 +40,9 @@ import org.junit.jupiter.params.provider.MethodSource;
 @Slf4j
 public class TimeToLiveTest {
   @RegisterExtension
-  static PulsarContainerExtension pulsarContainer = new PulsarContainerExtension();
+  static PulsarContainerExtension pulsarContainer = new PulsarContainerExtension()
+          .withEnv("PULSAR_PREFIX_jmsProcessingMode","full")
+          .withEnv("PULSAR_PREFIX_jmsProcessJMSExpiration","true");
 
   private static Stream<Arguments> combinations() {
     return Stream.of(

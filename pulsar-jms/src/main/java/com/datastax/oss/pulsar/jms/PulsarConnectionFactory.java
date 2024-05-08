@@ -133,6 +133,7 @@ public class PulsarConnectionFactory
   private transient boolean enableClientSideEmulation = false;
   private transient boolean transactionsStickyPartitions = false;
   private transient boolean useServerSideFiltering = false;
+  private transient boolean serverSideOnlySelectors = false;
   private transient boolean enableJMSPriority = false;
 
   private transient boolean priorityUseLinearMapping = true;
@@ -397,6 +398,10 @@ public class PulsarConnectionFactory
           Boolean.parseBoolean(
               getAndRemoveString("jms.useServerSideFiltering", "false", configurationCopy));
 
+      this.serverSideOnlySelectors =
+          Boolean.parseBoolean(
+              getAndRemoveString("jms.serverSideOnlySelectors", "false", configurationCopy));
+
       this.enableJMSPriority =
           Boolean.parseBoolean(
               getAndRemoveString("jms.enableJMSPriority", "false", configurationCopy));
@@ -610,6 +615,10 @@ public class PulsarConnectionFactory
 
   public synchronized boolean isUseServerSideFiltering() {
     return useServerSideFiltering;
+  }
+
+  public synchronized boolean isServerSideOnlySelectors() {
+    return serverSideOnlySelectors;
   }
 
   public synchronized boolean isEnableJMSPriority() {
@@ -1231,6 +1240,9 @@ public class PulsarConnectionFactory
       // the plugin will apply filtering only on these subscriptions/consumers,
       // in order to not impact on other subscriptions
       consumerMetadata.put("jms.filtering", "true");
+      // this is an optimization to avoid to process metadata on the server to handle some
+      // advanced features
+      consumerMetadata.put("jms.onlyselectors", isServerSideOnlySelectors() ? "true" : "false");
       subscriptionProperties.put("jms.destination.type", destination.isQueue() ? "queue" : "topic");
       if (noLocal) {
         consumerMetadata.put(
