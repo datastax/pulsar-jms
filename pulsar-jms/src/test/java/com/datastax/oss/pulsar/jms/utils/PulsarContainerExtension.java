@@ -161,6 +161,8 @@ public class PulsarContainerExtension implements BeforeAllCallback, AfterAllCall
     Map<String, Object> properties = new HashMap<>();
     properties.put("webServiceUrl", getHttpServiceUrl());
     properties.put("brokerServiceUrl", getBrokerUrl());
+    // disable stats, save logs on CI
+    properties.put("statsIntervalSeconds", "0");
     return properties;
   }
 

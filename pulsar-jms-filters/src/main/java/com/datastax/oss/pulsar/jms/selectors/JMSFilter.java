@@ -179,7 +179,18 @@ public class JMSFilter implements EntryFilter {
     if (mode == null) {
       mode = "selectors-only";
     }
-    handleOnlySelectors = "selectors-only".equals(mode);
+    boolean handleOnlySelectors;
+    switch (mode.toString()) {
+        case "full":
+          handleOnlySelectors = false;
+          break;
+        case "selectors-only":
+          handleOnlySelectors = true;
+          break;
+        default:
+           throw new IllegalArgumentException("Invalid jmsProcessingMode: " + mode + " only 'full' or 'selectors-only' are supported");
+    }
+    this.handleOnlySelectors = handleOnlySelectors;
     if (handleOnlySelectors) {
       log.info(
           "jmsProcessingMode={} The broker will process only selectors and not other JMS features (like JMSExpiration, noLocal)",
