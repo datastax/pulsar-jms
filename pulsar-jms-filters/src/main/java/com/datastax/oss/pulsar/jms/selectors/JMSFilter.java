@@ -181,14 +181,17 @@ public class JMSFilter implements EntryFilter {
     }
     boolean handleOnlySelectors;
     switch (mode.toString()) {
-        case "full":
-          handleOnlySelectors = false;
-          break;
-        case "selectors-only":
-          handleOnlySelectors = true;
-          break;
-        default:
-           throw new IllegalArgumentException("Invalid jmsProcessingMode: " + mode + " only 'full' or 'selectors-only' are supported");
+      case "full":
+        handleOnlySelectors = false;
+        break;
+      case "selectors-only":
+        handleOnlySelectors = true;
+        break;
+      default:
+        throw new IllegalArgumentException(
+            "Invalid jmsProcessingMode: "
+                + mode
+                + " only 'full' or 'selectors-only' are supported");
     }
     this.handleOnlySelectors = handleOnlySelectors;
     if (handleOnlySelectors) {

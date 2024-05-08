@@ -64,8 +64,8 @@ public abstract class SelectorsTestsBase {
   static PulsarContainerExtension pulsarContainer =
       new PulsarContainerExtension()
           .withEnv("PULSAR_PREFIX_transactionCoordinatorEnabled", "false")
-          .withEnv("PULSAR_PREFIX_jmsProcessingMode","full")
-          .withEnv("PULSAR_PREFIX_jmsProcessJMSExpiration","true");
+          .withEnv("PULSAR_PREFIX_jmsProcessingMode", "full")
+          .withEnv("PULSAR_PREFIX_jmsProcessJMSExpiration", "true");
 
   private final boolean useServerSideFiltering;
   private final boolean enableBatching;
