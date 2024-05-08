@@ -15,9 +15,9 @@
  */
 package com.datastax.oss.pulsar.jms.tracing;
 
-import static com.datastax.oss.pulsar.jms.tracing.TracingUtils.EventReasons;
+import static com.datastax.oss.pulsar.jms.tracing.TracingUtils.EventCategory;
+import static com.datastax.oss.pulsar.jms.tracing.TracingUtils.EventSubCategory;
 import static com.datastax.oss.pulsar.jms.tracing.TracingUtils.TraceLevel;
-import static com.datastax.oss.pulsar.jms.tracing.TracingUtils.getCommandDetails;
 import static com.datastax.oss.pulsar.jms.tracing.TracingUtils.getConnectionDetails;
 import static com.datastax.oss.pulsar.jms.tracing.TracingUtils.getConsumerDetails;
 import static com.datastax.oss.pulsar.jms.tracing.TracingUtils.getEntryDetails;
@@ -34,7 +34,6 @@ import com.google.common.cache.LoadingCache;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import io.netty.buffer.ByteBuf;
-import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Properties;
@@ -63,7 +62,7 @@ import org.apache.pulsar.common.api.proto.BaseCommand;
 import org.apache.pulsar.common.api.proto.CommandAck;
 import org.apache.pulsar.common.api.proto.MessageIdData;
 import org.apache.pulsar.common.api.proto.MessageMetadata;
-import org.apache.pulsar.common.intercept.InterceptException;
+import org.apache.pulsar.common.api.proto.TxnAction;
 import org.apache.pulsar.common.naming.TopicName;
 import org.apache.pulsar.common.policies.data.stats.ConsumerStatsImpl;
 import org.apache.pulsar.common.policies.data.stats.PublisherStatsImpl;
@@ -75,7 +74,7 @@ public class BrokerTracing implements BrokerInterceptor {
 
   private static final TraceLevel defaultTraceLevel = TraceLevel.OFF;
 
-  private final Set<EventReasons> jmsTracingEventList = new HashSet<>();
+  private final Set<EventCategory> jmsTracingEventCategory = new HashSet<>();
   private TraceLevel traceLevel = defaultTraceLevel;
   private int maxBinaryDataLength = 256;
   private int cacheTraceLevelsDurationSec = 10;
@@ -83,23 +82,30 @@ public class BrokerTracing implements BrokerInterceptor {
   private boolean traceSchema = false;
 
   private static void loadEnabledEvents(
-      PulsarService pulsarService, Set<EventReasons> enabledEvents) {
+      PulsarService pulsarService, Set<EventCategory> enabledEvents, TraceLevel traceLevel) {
+
+    if (traceLevel == TraceLevel.OFF) {
+      log.info("Tracing is disabled. jmsTracingEventCategory is ignored.");
+      enabledEvents.clear();
+      return;
+    }
+
     Properties props = pulsarService.getConfiguration().getProperties();
-    if (props.containsKey("jmsTracingEventList")) {
-      String events = props.getProperty("jmsTracingEventList", "");
-      log.info("read jmsTracingEventList: {}", events);
+    if (props.containsKey("jmsTracingEventCategory")) {
+      String events = props.getProperty("jmsTracingEventCategory", "");
+      log.info("read jmsTracingEventCategory: {}", events);
 
       enabledEvents.clear();
       for (String event : events.split(",")) {
         try {
-          enabledEvents.add(EventReasons.valueOf(event.trim().toUpperCase()));
+          enabledEvents.add(EventCategory.valueOf(event.trim().toUpperCase()));
         } catch (IllegalArgumentException e) {
           log.error("Invalid event: {}. Skipping", event);
         }
       }
     } else {
-      log.warn("jmsTracingEventList not set. Using all available.");
-      enabledEvents.addAll(Arrays.asList(EventReasons.values()));
+      log.warn("jmsTracingEventCategory is not set. Using ADMIN, CONN.");
+      enabledEvents.add(EventCategory.CONN);
     }
   }
 
@@ -286,8 +292,9 @@ public class BrokerTracing implements BrokerInterceptor {
   public void initialize(PulsarService pulsarService) {
     log.info("Initializing BrokerTracing");
 
-    loadEnabledEvents(pulsarService, jmsTracingEventList);
     traceLevel = getTraceLevel(pulsarService);
+
+    loadEnabledEvents(pulsarService, jmsTracingEventCategory, traceLevel);
 
     Properties props = pulsarService.getConfiguration().getProperties();
     if (props.containsKey("jmsTracingMaxBinaryDataLength")) {
@@ -393,40 +400,48 @@ public class BrokerTracing implements BrokerInterceptor {
   }
 
   /* ***************************
-   **  Administrative events
+   **  Connection events
    ******************************/
 
   public void onConnectionCreated(ServerCnx cnx) {
-    if (!jmsTracingEventList.contains(EventReasons.ADMINISTRATIVE)) return;
-
-    if (traceLevel == TraceLevel.OFF) return;
+    if (!jmsTracingEventCategory.contains(EventCategory.CONN)) return;
 
     Map<String, Object> traceDetails = new TreeMap<>();
     traceDetails.put("serverCnx", getConnectionDetails(cnx));
     traceDetails.put("brokerUrl", cnx.getBrokerService().getPulsar().getBrokerServiceUrl());
 
-    trace(EventReasons.ADMINISTRATIVE, "Connection created", traceDetails);
+    trace(EventCategory.CONN, EventSubCategory.CREATED, traceDetails);
   }
 
-  public void producerCreated(ServerCnx cnx, Producer producer, Map<String, String> metadata) {
-    if (!jmsTracingEventList.contains(EventReasons.ADMINISTRATIVE)) return;
-    if (!traceSystemTopics && producer.getTopic().isSystemTopic()) return;
+  public void onConnectionClosed(ServerCnx cnx) {
+    if (!jmsTracingEventCategory.contains(EventCategory.CONN)) return;
 
-    if (traceLevel == TraceLevel.OFF) return;
+    Map<String, Object> traceDetails = new TreeMap<>();
+    traceDetails.put("serverCnx", getConnectionDetails(cnx));
+    traceDetails.put("brokerUrl", cnx.getBrokerService().getPulsar().getBrokerServiceUrl());
+
+    trace(EventCategory.CONN, EventSubCategory.CLOSED, traceDetails);
+  }
+
+  /* **************************
+   * Producer connection events
+   *****************************/
+
+  public void producerCreated(ServerCnx cnx, Producer producer, Map<String, String> metadata) {
+    if (!jmsTracingEventCategory.contains(EventCategory.PROD)) return;
+    if (!traceSystemTopics && producer.getTopic().isSystemTopic()) return;
 
     Map<String, Object> traceDetails = new TreeMap<>();
     traceDetails.put("producer", getProducerDetails(producer, traceSchema));
     traceDetails.put("metadata", metadata);
     traceDetails.put("brokerUrl", cnx.getBrokerService().getPulsar().getBrokerServiceUrl());
 
-    trace(EventReasons.ADMINISTRATIVE, "Producer created", traceDetails);
+    trace(EventCategory.PROD, EventSubCategory.CREATED, traceDetails);
   }
 
   public void producerClosed(ServerCnx cnx, Producer producer, Map<String, String> metadata) {
-    if (!jmsTracingEventList.contains(EventReasons.ADMINISTRATIVE)) return;
+    if (!jmsTracingEventCategory.contains(EventCategory.PROD)) return;
     if (!traceSystemTopics && producer.getTopic().isSystemTopic()) return;
-
-    if (traceLevel == TraceLevel.OFF) return;
 
     Map<String, Object> traceDetails = new TreeMap<>();
     traceDetails.put("producer", getProducerDetails(producer, traceSchema));
@@ -441,14 +456,16 @@ public class BrokerTracing implements BrokerInterceptor {
     traceDetails.put("msgThroughputIn", stats.getMsgThroughputIn());
     // no message count in stats? stats.getCount() is not it
 
-    trace(EventReasons.ADMINISTRATIVE, "Producer closed", traceDetails);
+    trace(EventCategory.PROD, EventSubCategory.CLOSED, traceDetails);
   }
 
-  public void consumerCreated(ServerCnx cnx, Consumer consumer, Map<String, String> metadata) {
-    if (!jmsTracingEventList.contains(EventReasons.ADMINISTRATIVE)) return;
-    if (!traceSystemTopics && consumer.getSubscription().getTopic().isSystemTopic()) return;
+  /* **************************
+   * Consumer connection events
+   *****************************/
 
-    if (traceLevel == TraceLevel.OFF) return;
+  public void consumerCreated(ServerCnx cnx, Consumer consumer, Map<String, String> metadata) {
+    if (!jmsTracingEventCategory.contains(EventCategory.CONS)) return;
+    if (!traceSystemTopics && consumer.getSubscription().getTopic().isSystemTopic()) return;
 
     Map<String, Object> traceDetails = new TreeMap<>();
     traceDetails.put("consumer", getConsumerDetails(consumer));
@@ -456,14 +473,12 @@ public class BrokerTracing implements BrokerInterceptor {
     traceDetails.put("metadata", metadata);
     traceDetails.put("brokerUrl", cnx.getBrokerService().getPulsar().getBrokerServiceUrl());
 
-    trace(EventReasons.ADMINISTRATIVE, "Consumer created", traceDetails);
+    trace(EventCategory.CONS, EventSubCategory.CREATED, traceDetails);
   }
 
   public void consumerClosed(ServerCnx cnx, Consumer consumer, Map<String, String> metadata) {
-    if (!jmsTracingEventList.contains(EventReasons.ADMINISTRATIVE)) return;
+    if (!jmsTracingEventCategory.contains(EventCategory.CONS)) return;
     if (!traceSystemTopics && consumer.getSubscription().getTopic().isSystemTopic()) return;
-
-    if (traceLevel == TraceLevel.OFF) return;
 
     Map<String, Object> traceDetails = new TreeMap<>();
     traceDetails.put("consumer", getConsumerDetails(consumer));
@@ -483,102 +498,16 @@ public class BrokerTracing implements BrokerInterceptor {
     traceDetails.put("messageAckRate", stats.getMessageAckRate());
     traceDetails.put("msgRateRedeliver", stats.getMsgRateRedeliver());
 
-    trace(EventReasons.ADMINISTRATIVE, "Consumer closed", traceDetails);
-  }
-
-  public void onPulsarCommand(BaseCommand command, ServerCnx cnx) throws InterceptException {
-    if (!jmsTracingEventList.contains(EventReasons.COMMANDS)) return;
-
-    if (traceLevel == TraceLevel.OFF) return;
-
-    traceCommandInternal(command, cnx);
-
-    // todo: cache topics, and check if system topic
-    // without cache:
-
-    //    final String topicName = getCommandTopic(command);
-    //    if (topicName == null) {
-    //      // don't know if a system topic, trace it
-    //      traceCommandInternal(command, cnx);
-    //      return;
-    //    }
-    //
-    //    cnx.getBrokerService()
-    //        .getTopicIfExists(topicName)
-    //        .whenComplete(
-    //            (topic, ex) -> {
-    //              if (ex != null) {
-    //                log.error("Error getting topic {} to trace command {}", topicName, command,
-    // ex);
-    //                return;
-    //              }
-    //
-    //              // skip system topics if needed
-    //              if (!traceSystemTopics && topic.isPresent() && topic.get().isSystemTopic())
-    // return;
-    //
-    //              traceCommandInternal(command, cnx);
-    //            });
-  }
-
-  private static void traceCommandInternal(BaseCommand command, ServerCnx cnx) {
-    Map<String, Object> traceDetails = new TreeMap<>();
-
-    traceDetails.put("authMethod", cnx.getAuthMethod());
-    traceDetails.put("authRole", cnx.getAuthRole());
-    traceDetails.put("clientHost", hostNameOf(cnx.clientSourceAddress()));
-    traceDetails.put("clientSourceAddressAndPort", cnx.clientSourceAddressAndPort());
-
-    if (command.hasType()) {
-      traceDetails.put("command", command.getType().name());
-      traceDetails.put("parameters", getCommandDetails(command));
-    } else {
-      traceDetails.put("type", "unknown/null");
-    }
-
-    trace(EventReasons.COMMANDS, "Pulsar command called", traceDetails);
-  }
-
-  public void onConnectionClosed(ServerCnx cnx) {
-    if (!jmsTracingEventList.contains(EventReasons.ADMINISTRATIVE)) return;
-
-    if (traceLevel == TraceLevel.OFF) return;
-
-    Map<String, Object> traceDetails = new TreeMap<>();
-    traceDetails.put("serverCnx", getConnectionDetails(cnx));
-    traceDetails.put("brokerUrl", cnx.getBrokerService().getPulsar().getBrokerServiceUrl());
-
-    trace(EventReasons.ADMINISTRATIVE, "Connection closed", traceDetails);
+    trace(EventCategory.CONS, EventSubCategory.CLOSED, traceDetails);
   }
 
   /* ***************************
    **  Message events
    ******************************/
 
-  public void beforeSendMessage(
-      Subscription subscription,
-      Entry entry,
-      long[] ackSet,
-      MessageMetadata msgMetadata,
-      Consumer consumer) {
-    if (!jmsTracingEventList.contains(EventReasons.MESSAGE)) return;
-
-    TraceLevel level = getTracingLevel(subscription);
-    if (level == TraceLevel.OFF) return;
-
-    Map<String, Object> traceDetails = new TreeMap<>();
-
-    addMinimumConsumerSubscriptionDetails(consumer, subscription, traceDetails);
-
-    traceDetails.put("entry", getEntryDetails(entry, maxBinaryDataLength));
-
-    trace(EventReasons.MESSAGE, "read", traceDetails);
-  }
-
   public void onMessagePublish(
       Producer producer, ByteBuf headersAndPayload, Topic.PublishContext publishContext) {
-
-    if (!jmsTracingEventList.contains(EventReasons.MESSAGE)) return;
+    if (!jmsTracingEventCategory.contains(EventCategory.MSG)) return;
 
     TraceLevel level = getTracingLevel(producer);
     if (level == TraceLevel.OFF) return;
@@ -594,7 +523,7 @@ public class BrokerTracing implements BrokerInterceptor {
         "headersAndPayload", headersAndPayload, headersAndPayloadDetails, maxBinaryDataLength);
     traceDetails.put("payload", headersAndPayloadDetails);
 
-    trace(EventReasons.MESSAGE, "received", traceDetails);
+    trace(EventCategory.MSG, EventSubCategory.PRODUCED, traceDetails);
   }
 
   public void messageProduced(
@@ -604,7 +533,7 @@ public class BrokerTracing implements BrokerInterceptor {
       long ledgerId,
       long entryId,
       Topic.PublishContext publishContext) {
-    if (!jmsTracingEventList.contains(EventReasons.MESSAGE)) return;
+    if (!jmsTracingEventCategory.contains(EventCategory.MSG)) return;
 
     TraceLevel level = getTracingLevel(producer);
     if (level == TraceLevel.OFF) return;
@@ -615,12 +544,32 @@ public class BrokerTracing implements BrokerInterceptor {
     traceDetails.put("publishContext", getPublishContextDetails(publishContext));
     traceDetails.put("messageId", ledgerId + ":" + entryId);
     traceDetails.put("startTimeNs", startTimeNs);
-    trace(EventReasons.MESSAGE, "stored", traceDetails);
+    trace(EventCategory.MSG, EventSubCategory.STORED, traceDetails);
+  }
+
+  public void beforeSendMessage(
+      Subscription subscription,
+      Entry entry,
+      long[] ackSet,
+      MessageMetadata msgMetadata,
+      Consumer consumer) {
+    if (!jmsTracingEventCategory.contains(EventCategory.MSG)) return;
+
+    TraceLevel level = getTracingLevel(subscription);
+    if (level == TraceLevel.OFF) return;
+
+    Map<String, Object> traceDetails = new TreeMap<>();
+
+    addMinimumConsumerSubscriptionDetails(consumer, subscription, traceDetails);
+
+    traceDetails.put("entry", getEntryDetails(entry, maxBinaryDataLength));
+
+    trace(EventCategory.MSG, EventSubCategory.READ, traceDetails);
   }
 
   public void messageDispatched(
       ServerCnx cnx, Consumer consumer, long ledgerId, long entryId, ByteBuf headersAndPayload) {
-    if (!jmsTracingEventList.contains(EventReasons.MESSAGE)) return;
+    if (!jmsTracingEventCategory.contains(EventCategory.MSG)) return;
 
     TraceLevel level = getTracingLevel(consumer);
     if (level == TraceLevel.OFF) return;
@@ -634,14 +583,16 @@ public class BrokerTracing implements BrokerInterceptor {
         "headersAndPayload", headersAndPayload, headersAndPayloadDetails, maxBinaryDataLength);
     traceDetails.put("payload", headersAndPayloadDetails);
 
-    trace(EventReasons.MESSAGE, "dispatched", traceDetails);
+    trace(EventCategory.MSG, EventSubCategory.DISPATCHED, traceDetails);
   }
 
   public void messageAcked(ServerCnx cnx, Consumer consumer, CommandAck ackCmd) {
-    if (!jmsTracingEventList.contains(EventReasons.MESSAGE)) return;
+    if (!jmsTracingEventCategory.contains(EventCategory.MSG)) return;
 
     TraceLevel level = getTracingLevel(consumer);
     if (consumer != null && level == TraceLevel.OFF) return;
+
+    EventSubCategory subcategory = EventSubCategory.ACKED;
 
     Map<String, Object> traceDetails = new TreeMap<>();
 
@@ -650,6 +601,7 @@ public class BrokerTracing implements BrokerInterceptor {
     if (consumer == null) {
       // ack with empty consumer == message filtered by JMSFilter
       traceDetails.put("reason", "filtered by JMSFilter");
+      subcategory = EventSubCategory.FILTERED;
     } else {
       // todo: am I right that unacked/nacked messages never go through broker interceptor?
       // in this case we need consumer interceptor to track nacks
@@ -662,7 +614,6 @@ public class BrokerTracing implements BrokerInterceptor {
       traceDetails.put("topicName", TopicName.get(sub.getTopicName()).getPartitionedTopicName());
       traceDetails.put("subscriptionType", sub.getType().name());
     }
-
     Map<String, Object> ackDetails = new TreeMap<>();
     if (ackCmd.hasAckType()) {
       ackDetails.put("type", ackCmd.getAckType().name());
@@ -689,7 +640,7 @@ public class BrokerTracing implements BrokerInterceptor {
 
     traceDetails.put("ack", ackDetails);
 
-    trace(EventReasons.MESSAGE, "acknowledged", traceDetails);
+    trace(EventCategory.MSG, subcategory, traceDetails);
   }
 
   /* ***************************
@@ -697,39 +648,51 @@ public class BrokerTracing implements BrokerInterceptor {
    ******************************/
 
   public void txnOpened(long tcId, String txnID) {
-    if (!jmsTracingEventList.contains(EventReasons.TRANSACTION)) return;
-    if (traceLevel == TraceLevel.OFF) return;
+    if (!jmsTracingEventCategory.contains(EventCategory.TX)) return;
 
     Map<String, Object> traceDetails = new TreeMap<>();
-    traceDetails.put("tcId", tcId);
+    traceDetails.put("tcId", tcId); // transaction coordinator id
     traceDetails.put("txnID", txnID);
 
-    trace(EventReasons.TRANSACTION, "Transaction opened", traceDetails);
+    trace(EventCategory.TX, EventSubCategory.OPENED, traceDetails);
   }
 
   public void txnEnded(String txnID, long txnAction) {
-    if (!jmsTracingEventList.contains(EventReasons.TRANSACTION)) return;
-    if (traceLevel == TraceLevel.OFF) return;
+    if (!jmsTracingEventCategory.contains(EventCategory.TX)) return;
 
+    final EventSubCategory subcategory;
     Map<String, Object> traceDetails = new TreeMap<>();
     traceDetails.put("txnID", txnID);
-    traceDetails.put("txnAction", txnAction);
 
-    trace(EventReasons.TRANSACTION, "Transaction closed", traceDetails);
+    TxnAction action = TxnAction.valueOf((int) txnAction);
+    if (action == null) {
+      subcategory = EventSubCategory.CLOSED;
+      traceDetails.put("txnAction", "unknown action code " + txnAction);
+    } else {
+      traceDetails.put("txnAction", action.name());
+      switch (action) {
+        case COMMIT:
+          subcategory = EventSubCategory.COMMITTED;
+          break;
+        case ABORT:
+          subcategory = EventSubCategory.ABORTED;
+          break;
+        default:
+          subcategory = EventSubCategory.CLOSED;
+          traceDetails.put("txnAction", "unknown action code " + txnAction + " " + action.name());
+          break;
+      }
+    }
+
+    trace(EventCategory.TX, subcategory, traceDetails);
   }
 
   /* ***************************
    **  Servlet events
    ******************************/
 
-  public void onWebserviceRequest(ServletRequest request) {
-    // skipping, it is the same as onWebserviceResponse
-    // but without response status.
-  }
-
   public void onWebserviceResponse(ServletRequest request, ServletResponse response) {
-    if (!jmsTracingEventList.contains(EventReasons.SERVLET)) return;
-    if (traceLevel == TraceLevel.OFF) return;
+    if (!jmsTracingEventCategory.contains(EventCategory.REST)) return;
 
     Map<String, Object> traceDetails = new TreeMap<>();
 
@@ -737,6 +700,7 @@ public class BrokerTracing implements BrokerInterceptor {
     traceDetails.put("protocol", request.getProtocol());
     traceDetails.put("scheme", request.getScheme());
 
+    // todo: log POST payload?
     try {
       HttpServletRequest req = (HttpServletRequest) FieldUtils.readField(request, "request", true);
       traceDetails.put("method", req.getMethod());
@@ -753,9 +717,21 @@ public class BrokerTracing implements BrokerInterceptor {
       log.error("Error getting request details", t);
     }
 
-    trace(EventReasons.SERVLET, "WebService response", traceDetails);
+    trace(EventCategory.REST, EventSubCategory.CALLED, traceDetails);
   }
 
-  // not needed
+  /* ***************************
+   **  Skipped
+   ******************************/
+
+  public void onPulsarCommand(BaseCommand command, ServerCnx cnx) {
+    // skipping, output is not useful
+  }
+
+  public void onWebserviceRequest(ServletRequest request) {
+    // skipping, it is the same as onWebserviceResponse
+    // but without response status.
+  }
+
   // public void onFilter(ServletRequest request, ServletResponse response, FilterChain chain)
 }

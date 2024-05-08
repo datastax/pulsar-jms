@@ -21,18 +21,13 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
-import com.google.common.collect.Sets;
 import io.netty.buffer.ByteBuf;
-import java.lang.reflect.Method;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -45,7 +40,6 @@ import org.apache.pulsar.broker.service.Producer;
 import org.apache.pulsar.broker.service.ServerCnx;
 import org.apache.pulsar.broker.service.Subscription;
 import org.apache.pulsar.broker.service.Topic;
-import org.apache.pulsar.common.api.proto.BaseCommand;
 import org.apache.pulsar.common.api.proto.MessageMetadata;
 import org.apache.pulsar.common.compression.CompressionCodec;
 import org.apache.pulsar.common.compression.CompressionCodecProvider;
@@ -56,33 +50,53 @@ import org.apache.pulsar.common.protocol.schema.SchemaVersion;
 @Slf4j
 public class TracingUtils {
 
-  public enum EventReasons {
-    ADMINISTRATIVE,
-    COMMANDS,
-    MESSAGE,
-    TRANSACTION,
-    SERVLET,
+  public enum EventCategory {
+    CONN, // connection creation, closure,
+    PROD, // producer creation, closure,
+    CONS, // consumer creation, closure,
+    TX, // (transaction creation, commit, rollback,etc),
+    MSG, // (message level send,dispatch,ack,expire,acktimeout, negative ack, etc),
+    REST, // (rest api calls),
+  }
+
+  public enum EventSubCategory {
+    CREATED,
+    CLOSED,
+
+    PRODUCED,
+    STORED,
+
+    READ,
+    DISPATCHED,
+    ACKED,
+    FILTERED,
+
+    OPENED,
+    COMMITTED,
+    ABORTED,
+
+    CALLED,
   }
 
   @FunctionalInterface
   public interface Tracer {
-    void trace(EventReasons reason, String message);
+    void trace(EventCategory category, String message);
   }
 
   public static class Slf4jTracer implements Tracer {
-    private static final Map<EventReasons, org.slf4j.Logger> traceLoggers = new HashMap<>();
+    private static final Map<EventCategory, org.slf4j.Logger> traceLoggers = new HashMap<>();
 
     static {
-      for (EventReasons reason : EventReasons.values()) {
+      for (EventCategory category : EventCategory.values()) {
         traceLoggers.put(
-            reason,
-            org.slf4j.LoggerFactory.getLogger("jms-tracing-" + reason.name().toLowerCase()));
+            category,
+            org.slf4j.LoggerFactory.getLogger("jms-tracing-" + category.name().toLowerCase()));
       }
     }
 
     @Override
-    public void trace(EventReasons reason, String message) {
-      traceLoggers.get(reason).info(message);
+    public void trace(EventCategory category, String message) {
+      traceLoggers.get(category).info(message);
     }
   }
 
@@ -136,395 +150,31 @@ public class TracingUtils {
     }
   }
 
-  public static void trace(EventReasons reason, String message, Map<String, Object> traceDetails) {
-    trace(SLF4J_TRACER, reason, message, traceDetails);
+  public static void trace(
+      EventCategory category, EventSubCategory subCategory, Map<String, Object> traceDetails) {
+    trace(SLF4J_TRACER, category, subCategory, traceDetails);
   }
 
   public static void trace(
-      Tracer tracer, EventReasons reason, String message, Map<String, Object> traceDetails) {
+      Tracer tracer,
+      EventCategory category,
+      EventSubCategory subCategory,
+      Map<String, Object> traceDetails) {
     Map<String, Object> trace = new TreeMap<>();
-    trace.put("eventType", message);
+    trace.put("event", category + "_" + subCategory);
     trace.put("traceDetails", traceDetails);
 
     try {
       String loggableJsonString = mapper.writeValueAsString(trace);
-      tracer.trace(reason, loggableJsonString);
+      tracer.trace(category, loggableJsonString);
     } catch (JsonProcessingException e) {
       log.error(
-          "Failed to serialize trace event type '{}' as json, traceDetails: {}",
-          message,
+          "Failed to serialize trace event '{}_{}' as json, traceDetails: {}",
+          category,
+          subCategory,
           traceDetails,
           e);
     }
-  }
-
-  public static Map<String, Object> getCommandDetails(BaseCommand command) {
-    if (command == null) {
-      return null;
-    }
-
-    Map<String, Object> details = new TreeMap<>();
-    populateCommandDetails(command, details);
-    return details;
-  }
-
-  private static void populateCommandDetails(
-      BaseCommand command, Map<String, Object> traceDetails) {
-    if (command == null) {
-      return;
-    }
-
-    if (!command.hasType()) {
-      return;
-    }
-
-    // trace all params otherwise
-    switch (command.getType()) {
-      case CONNECT:
-        populateByReflection(command.getConnect(), traceDetails);
-        break;
-      case CONNECTED:
-        populateByReflection(command.getConnected(), traceDetails);
-        break;
-      case SUBSCRIBE:
-        populateByReflection(command.getSubscribe(), traceDetails);
-        break;
-      case PRODUCER:
-        populateByReflection(command.getProducer(), traceDetails);
-        break;
-      case SEND:
-        populateByReflection(command.getSend(), traceDetails);
-        break;
-      case SEND_RECEIPT:
-        populateByReflection(command.getSendReceipt(), traceDetails);
-        break;
-      case SEND_ERROR:
-        populateByReflection(command.getSendError(), traceDetails);
-        break;
-      case MESSAGE:
-        populateByReflection(command.getMessage(), traceDetails);
-        break;
-      case ACK:
-        populateByReflection(command.getAck(), traceDetails);
-        break;
-      case FLOW:
-        populateByReflection(command.getFlow(), traceDetails);
-        break;
-      case UNSUBSCRIBE:
-        populateByReflection(command.getUnsubscribe(), traceDetails);
-        break;
-      case SUCCESS:
-        populateByReflection(command.getSuccess(), traceDetails);
-        break;
-      case ERROR:
-        populateByReflection(command.getError(), traceDetails);
-        break;
-      case CLOSE_PRODUCER:
-        populateByReflection(command.getCloseProducer(), traceDetails);
-        break;
-      case CLOSE_CONSUMER:
-        populateByReflection(command.getCloseConsumer(), traceDetails);
-        break;
-      case PRODUCER_SUCCESS:
-        populateByReflection(command.getProducerSuccess(), traceDetails);
-        break;
-      case PING:
-        populateByReflection(command.getPing(), traceDetails);
-        break;
-      case PONG:
-        populateByReflection(command.getPong(), traceDetails);
-        break;
-      case REDELIVER_UNACKNOWLEDGED_MESSAGES:
-        populateByReflection(command.getRedeliverUnacknowledgedMessages(), traceDetails);
-        break;
-      case PARTITIONED_METADATA:
-        populateByReflection(command.getPartitionMetadata(), traceDetails);
-        break;
-      case PARTITIONED_METADATA_RESPONSE:
-        populateByReflection(command.getPartitionMetadataResponse(), traceDetails);
-        break;
-      case LOOKUP:
-        populateByReflection(command.getLookupTopic(), traceDetails);
-        break;
-      case LOOKUP_RESPONSE:
-        populateByReflection(command.getLookupTopicResponse(), traceDetails);
-        break;
-      case CONSUMER_STATS:
-        populateByReflection(command.getConsumerStats(), traceDetails);
-        break;
-      case CONSUMER_STATS_RESPONSE:
-        populateByReflection(command.getConsumerStatsResponse(), traceDetails);
-        break;
-      case REACHED_END_OF_TOPIC:
-        populateByReflection(command.getReachedEndOfTopic(), traceDetails);
-        break;
-      case SEEK:
-        populateByReflection(command.getSeek(), traceDetails);
-        break;
-      case GET_LAST_MESSAGE_ID:
-        populateByReflection(command.getGetLastMessageId(), traceDetails);
-        break;
-      case GET_LAST_MESSAGE_ID_RESPONSE:
-        populateByReflection(command.getGetLastMessageIdResponse(), traceDetails);
-        break;
-      case ACTIVE_CONSUMER_CHANGE:
-        populateByReflection(command.getActiveConsumerChange(), traceDetails);
-        break;
-      case GET_TOPICS_OF_NAMESPACE:
-        populateByReflection(command.getGetTopicsOfNamespace(), traceDetails);
-        break;
-      case GET_TOPICS_OF_NAMESPACE_RESPONSE:
-        populateByReflection(command.getGetTopicsOfNamespaceResponse(), traceDetails);
-        break;
-      case GET_SCHEMA:
-        populateByReflection(command.getGetSchema(), traceDetails);
-        break;
-      case GET_SCHEMA_RESPONSE:
-        populateByReflection(command.getGetSchemaResponse(), traceDetails);
-        break;
-      case AUTH_CHALLENGE:
-        populateByReflection(command.getAuthChallenge(), traceDetails);
-        break;
-      case AUTH_RESPONSE:
-        populateByReflection(command.getAuthResponse(), traceDetails);
-        break;
-      case ACK_RESPONSE:
-        populateByReflection(command.getAckResponse(), traceDetails);
-        break;
-      case GET_OR_CREATE_SCHEMA:
-        populateByReflection(command.getGetOrCreateSchema(), traceDetails);
-        break;
-      case GET_OR_CREATE_SCHEMA_RESPONSE:
-        populateByReflection(command.getGetOrCreateSchemaResponse(), traceDetails);
-        break;
-      case NEW_TXN:
-        populateByReflection(command.getNewTxn(), traceDetails);
-        break;
-      case NEW_TXN_RESPONSE:
-        populateByReflection(command.getNewTxnResponse(), traceDetails);
-        break;
-      case ADD_PARTITION_TO_TXN:
-        populateByReflection(command.getAddPartitionToTxn(), traceDetails);
-        break;
-      case ADD_PARTITION_TO_TXN_RESPONSE:
-        populateByReflection(command.getAddPartitionToTxnResponse(), traceDetails);
-        break;
-      case ADD_SUBSCRIPTION_TO_TXN:
-        populateByReflection(command.getAddSubscriptionToTxn(), traceDetails);
-        break;
-      case ADD_SUBSCRIPTION_TO_TXN_RESPONSE:
-        populateByReflection(command.getAddSubscriptionToTxnResponse(), traceDetails);
-        break;
-      case END_TXN:
-        populateByReflection(command.getEndTxn(), traceDetails);
-        break;
-      case END_TXN_RESPONSE:
-        populateByReflection(command.getEndTxnResponse(), traceDetails);
-        break;
-      case END_TXN_ON_PARTITION:
-        populateByReflection(command.getEndTxnOnPartition(), traceDetails);
-        break;
-      case END_TXN_ON_PARTITION_RESPONSE:
-        populateByReflection(command.getEndTxnOnPartitionResponse(), traceDetails);
-        break;
-      case END_TXN_ON_SUBSCRIPTION:
-        populateByReflection(command.getEndTxnOnSubscription(), traceDetails);
-        break;
-      case END_TXN_ON_SUBSCRIPTION_RESPONSE:
-        populateByReflection(command.getEndTxnOnSubscriptionResponse(), traceDetails);
-        break;
-      case TC_CLIENT_CONNECT_REQUEST:
-        populateByReflection(command.getTcClientConnectRequest(), traceDetails);
-        break;
-      case TC_CLIENT_CONNECT_RESPONSE:
-        populateByReflection(command.getTcClientConnectResponse(), traceDetails);
-        break;
-      case WATCH_TOPIC_LIST:
-        populateByReflection(command.getWatchTopicList(), traceDetails);
-        break;
-      case WATCH_TOPIC_LIST_SUCCESS:
-        populateByReflection(command.getWatchTopicListSuccess(), traceDetails);
-        break;
-      case WATCH_TOPIC_UPDATE:
-        populateByReflection(command.getWatchTopicUpdate(), traceDetails);
-        break;
-      case WATCH_TOPIC_LIST_CLOSE:
-        populateByReflection(command.getWatchTopicListClose(), traceDetails);
-        break;
-      case TOPIC_MIGRATED:
-        populateByReflection(command.getTopicMigrated(), traceDetails);
-        break;
-      default:
-        log.error("Unknown command type: {}", command.getType());
-        traceDetails.put("error", "unknownCommandType " + command.getType());
-    }
-  }
-
-  public static String getCommandTopic(BaseCommand command) {
-    if (command == null) {
-      return null;
-    }
-
-    if (!command.hasType()) {
-      return null;
-    }
-
-    // Currently not doing transitive topic resolution by e.g. topic pattern
-    // or by producerId/consumerId to the topic they are using.
-    // Also, _RESPONSE counterparts do not have topic, and we aren't matching to the request's by
-    // requestId.
-    switch (command.getType()) {
-      case SUBSCRIBE:
-        if (command.getSubscribe().hasTopic()) {
-          return command.getSubscribe().getTopic();
-        }
-        break;
-      case PRODUCER:
-        if (command.getProducer().hasTopic()) {
-          return command.getProducer().getTopic();
-        }
-        break;
-      case PARTITIONED_METADATA:
-        if (command.getPartitionMetadata().hasTopic()) {
-          return command.getPartitionMetadata().getTopic();
-        }
-        break;
-      case LOOKUP:
-        if (command.getLookupTopic().hasTopic()) {
-          return command.getLookupTopic().getTopic();
-        }
-        break;
-      case GET_SCHEMA:
-        if (command.getGetSchema().hasTopic()) {
-          return command.getGetSchema().getTopic();
-        }
-        break;
-      case GET_OR_CREATE_SCHEMA:
-        if (command.getGetOrCreateSchema().hasTopic()) {
-          return command.getGetOrCreateSchema().getTopic();
-        }
-        break;
-      case ADD_SUBSCRIPTION_TO_TXN:
-        if (command.getAddSubscriptionToTxn().getSubscriptionsCount() > 0
-            && command.getAddSubscriptionToTxn().getSubscriptionsList().get(0).hasTopic()) {
-          Optional<org.apache.pulsar.common.api.proto.Subscription> subscription =
-              command
-                  .getAddSubscriptionToTxn()
-                  .getSubscriptionsList()
-                  .stream()
-                  .filter(sub -> sub.hasTopic())
-                  .findFirst();
-          if (subscription.isPresent()) {
-            return subscription.get().getTopic();
-          }
-        }
-        break;
-      case END_TXN_ON_PARTITION:
-        if (command.getEndTxnOnPartition().hasTopic()) {
-          return command.getEndTxnOnPartition().getTopic();
-        }
-        break;
-      case END_TXN_ON_SUBSCRIPTION:
-        if (command.getEndTxnOnSubscription().hasSubscription()
-            && command.getEndTxnOnSubscription().getSubscription().hasTopic()) {
-          return command.getEndTxnOnSubscription().getSubscription().getTopic();
-        }
-        break;
-      default:
-        return null;
-    }
-    return null;
-  }
-
-  private static final Set<String> skipTraceFields =
-      Sets.newHashSet(
-          "authdata",
-          "authmethod",
-          "authmethodname",
-          "originalauthdata",
-          "orginalauthmethod",
-          "originalprincipal",
-          "schema");
-
-  private static void populateByReflection(Object command, Map<String, Object> traceDetails) {
-    if (command == null) {
-      return;
-    }
-    if (!command.getClass().getCanonicalName().contains("org.apache.pulsar.common.api.proto")) {
-      return;
-    }
-
-    Method[] allMethods = command.getClass().getMethods();
-
-    Arrays.stream(allMethods)
-        .filter(
-            method -> {
-              if (!method.getName().startsWith("has")) {
-                return false;
-              }
-              String fieldName = method.getName().substring(3);
-              return !skipTraceFields.contains(fieldName.toLowerCase());
-            })
-        .filter(
-            method -> {
-              try {
-                return (boolean) method.invoke(command);
-              } catch (Exception e) {
-                return false;
-              }
-            })
-        .forEach(
-            method -> {
-              String fieldName = method.getName().substring(3);
-              try {
-                Optional<Method> accessor =
-                    Arrays.stream(allMethods)
-                        .filter(
-                            m ->
-                                m.getName().equals("get" + fieldName)
-                                    || m.getName().equals("is" + fieldName))
-                        .findFirst();
-                if (!accessor.isPresent()) {
-                  log.warn(
-                      "No accessor found for field (but has.. counterpart was found): {} of {}",
-                      fieldName,
-                      command.getClass().getCanonicalName());
-                  return;
-                }
-                Object value = accessor.get().invoke(command);
-
-                if (value == null) return;
-
-                // skip logging of binary data
-                if (value instanceof byte[]
-                    || value instanceof ByteBuf
-                    || value instanceof ByteBuffer) {
-                  final int size;
-                  if (value instanceof byte[]) {
-                    size = ((byte[]) value).length;
-                  } else if (value instanceof ByteBuf) {
-                    size = ((ByteBuf) value).readableBytes();
-                  } else {
-                    size = ((ByteBuffer) value).remaining();
-                  }
-                  traceDetails.put(fieldName + "_size", size);
-                  return;
-                }
-
-                if (value
-                    .getClass()
-                    .getCanonicalName()
-                    .contains("org.apache.pulsar.common.api.proto")) {
-                  Map<String, Object> details = new TreeMap<>();
-                  populateByReflection(value, details);
-                  traceDetails.put(fieldName, details);
-                } else {
-                  traceDetails.put(fieldName, value);
-                }
-              } catch (Exception e) {
-                log.error("Failed to access field: {}", fieldName, e);
-              }
-            });
   }
 
   public static Map<String, Object> getConnectionDetails(ServerCnx cnx) {

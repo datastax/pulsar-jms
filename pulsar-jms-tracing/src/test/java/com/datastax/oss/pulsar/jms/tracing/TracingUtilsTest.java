@@ -32,33 +32,33 @@ class TracingUtilsTest {
   private Tracer mockTracer =
       new Tracer() {
         @Override
-        public void trace(EventReasons reason, String msg) {
+        public void trace(EventCategory reason, String msg) {
           traces.add(msg);
         }
       };
 
-  private static void trace(Tracer mockTracer, String msg, Map<String, Object> traceDetails) {
-    TracingUtils.trace(mockTracer, EventReasons.SERVLET, msg, traceDetails);
+  private static void trace(Tracer mockTracer, Map<String, Object> traceDetails) {
+    TracingUtils.trace(mockTracer, EventCategory.MSG, EventSubCategory.PRODUCED, traceDetails);
   }
 
   @Test
   void traceTest() {
     traces.clear();
-    trace(mockTracer, "msg", null);
+    trace(mockTracer, null);
     assertEquals(1, traces.size());
     assertEquals("{\"eventType\":\"msg\",\"traceDetails\":null}", traces.get(0));
 
     Map<String, Object> map = new TreeMap<>();
 
     traces.clear();
-    trace(mockTracer, "msg", map);
+    trace(mockTracer, map);
     assertEquals(1, traces.size());
     assertEquals("{\"eventType\":\"msg\",\"traceDetails\":{}}", traces.get(0));
 
     map.put("key1", "value1");
 
     traces.clear();
-    trace(mockTracer, "msg", map);
+    trace(mockTracer, map);
     assertEquals(1, traces.size());
     assertEquals("{\"eventType\":\"msg\",\"traceDetails\":{\"key1\":\"value1\"}}", traces.get(0));
   }
