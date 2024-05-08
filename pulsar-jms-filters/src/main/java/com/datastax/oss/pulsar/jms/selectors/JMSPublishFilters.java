@@ -15,6 +15,7 @@
  */
 package com.datastax.oss.pulsar.jms.selectors;
 
+import static com.datastax.oss.pulsar.jms.selectors.JMSFilter.BUCKETS;
 import static org.apache.pulsar.common.protocol.Commands.skipBrokerEntryMetadataIfExist;
 import static org.apache.pulsar.common.protocol.Commands.skipChecksumIfPresent;
 
@@ -66,6 +67,7 @@ public class JMSPublishFilters implements BrokerInterceptor {
           .help(
               "Time taken to pre-process the message on the broker while accepting messages from producers before applying filters")
           .labelNames("topic")
+          .buckets(BUCKETS)
           .create();
   private static final Histogram filterProcessingTimeOnProduce =
       Histogram.build()
@@ -73,6 +75,7 @@ public class JMSPublishFilters implements BrokerInterceptor {
           .help(
               "Time taken to process the message on the broker while accepting messages from producers and applying filters")
           .labelNames("topic", "subscription")
+          .buckets(BUCKETS)
           .create();
 
   private static final Gauge memoryUsed =
@@ -254,7 +257,8 @@ public class JMSPublishFilters implements BrokerInterceptor {
 
   private static boolean isPersistentSubscriptionWithSelector(Subscription subscription) {
     return subscription instanceof PersistentSubscription
-        && subscription.getSubscriptionProperties().containsKey("jms.selector");
+        && subscription.getSubscriptionProperties().containsKey("jms.selector")
+        && "true".equals(subscription.getSubscriptionProperties().get("jms.filtering"));
   }
 
   @AllArgsConstructor

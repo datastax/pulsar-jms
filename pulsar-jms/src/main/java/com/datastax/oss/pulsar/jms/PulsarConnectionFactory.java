@@ -1231,7 +1231,7 @@ public class PulsarConnectionFactory
       // the plugin will apply filtering only on these subscriptions/consumers,
       // in order to not impact on other subscriptions
       consumerMetadata.put("jms.filtering", "true");
-      subscriptionProperties.put("jms.destination.type", destination.isQueue() ? "queue" : "topic");
+     subscriptionProperties.put("jms.destination.type", destination.isQueue() ? "queue" : "topic");
       if (noLocal) {
         consumerMetadata.put(
             "jms.filter.JMSConnectionID", session.getConnection().getConnectionId());

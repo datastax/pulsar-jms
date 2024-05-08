@@ -24,17 +24,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import javax.jms.CompletionListener;
 import javax.jms.MessageProducer;
 import javax.jms.Queue;
 import javax.jms.Session;
 import javax.jms.TextMessage;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.api.SubscriptionType;
-import org.apache.pulsar.common.policies.data.ManagedLedgerInternalStats;
-import org.apache.pulsar.common.policies.data.PartitionedTopicInternalStats;
 import org.apache.pulsar.common.policies.data.PartitionedTopicStats;
 import org.apache.pulsar.common.policies.data.SubscriptionStats;
 import org.apache.pulsar.common.policies.data.TopicStats;
@@ -202,7 +198,8 @@ public class JMSPublishFiltersTest {
                 if (i % 2 == 0) {
                   textMessage.setStringProperty("foo", "bar");
                 }
-                CompletableFutureCompletionListener listener = new CompletableFutureCompletionListener();
+                CompletableFutureCompletionListener listener =
+                    new CompletableFutureCompletionListener();
                 futures.add(listener);
                 producer.send(textMessage, listener);
                 if (futures.size() == 1000) {
@@ -218,18 +215,27 @@ public class JMSPublishFiltersTest {
             }
 
             // wait for the filters to be processed in background
-            Awaitility.await().untilAsserted(() -> {
-              PartitionedTopicStats partitionedInternalStats =
-                      factory.getPulsarAdmin().topics().getPartitionedStats(topicName, true);
-              AtomicLong sum = new AtomicLong();
-              partitionedInternalStats.getPartitions().forEach((partition, stats) -> {
-                SubscriptionStats subscriptionStats = stats.getSubscriptions().get("jms-queue");
-                log.info("backlog for partition {}: {}", partition, subscriptionStats.getMsgBacklog());
-                sum.addAndGet(subscriptionStats.getMsgBacklog());
-              });
-              log.info("total backlog: {}", sum.get());
-              assertEquals(numMessages / 2, sum.get());
-            });
+            Awaitility.await()
+                .untilAsserted(
+                    () -> {
+                      PartitionedTopicStats partitionedInternalStats =
+                          factory.getPulsarAdmin().topics().getPartitionedStats(topicName, true);
+                      AtomicLong sum = new AtomicLong();
+                      partitionedInternalStats
+                          .getPartitions()
+                          .forEach(
+                              (partition, stats) -> {
+                                SubscriptionStats subscriptionStats =
+                                    stats.getSubscriptions().get("jms-queue");
+                                log.info(
+                                    "backlog for partition {}: {}",
+                                    partition,
+                                    subscriptionStats.getMsgBacklog());
+                                sum.addAndGet(subscriptionStats.getMsgBacklog());
+                              });
+                      log.info("total backlog: {}", sum.get());
+                      assertEquals(numMessages / 2, sum.get());
+                    });
           }
         }
       }
