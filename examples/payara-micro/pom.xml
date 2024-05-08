@@ -24,7 +24,7 @@
   <parent>
     <groupId>com.datastax.oss</groupId>
     <artifactId>pulsar-jms-parent</artifactId>
-    <version>4.1.5-SNAPSHOT</version>
+    <version>5.0.0-alpha</version>
     <relativePath>../../pom.xml</relativePath>
   </parent>
   <properties>
