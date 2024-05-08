@@ -56,7 +56,7 @@
     <jms.version>2.0.3</jms.version>
     <pulsar.groupId>org.apache.pulsar</pulsar.groupId>
     <pulsar.version>3.2.2</pulsar.version>
-    <activemq.version>5.16.1</activemq.version>
+    <activemq.version>5.16.7</activemq.version>
     <hawtbuf.version>1.11</hawtbuf.version>
     <curator.version>5.1.0</curator.version>
     <slf4j.version>1.7.30</slf4j.version>
