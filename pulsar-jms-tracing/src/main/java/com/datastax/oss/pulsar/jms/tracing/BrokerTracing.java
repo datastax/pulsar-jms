@@ -24,6 +24,7 @@ import static com.datastax.oss.pulsar.jms.tracing.TracingUtils.getEntryDetails;
 import static com.datastax.oss.pulsar.jms.tracing.TracingUtils.getProducerDetails;
 import static com.datastax.oss.pulsar.jms.tracing.TracingUtils.getPublishContextDetails;
 import static com.datastax.oss.pulsar.jms.tracing.TracingUtils.getSubscriptionDetails;
+import static com.datastax.oss.pulsar.jms.tracing.TracingUtils.hostNameOf;
 import static com.datastax.oss.pulsar.jms.tracing.TracingUtils.trace;
 import static com.datastax.oss.pulsar.jms.tracing.TracingUtils.traceByteBuf;
 
@@ -33,7 +34,6 @@ import com.google.common.cache.LoadingCache;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import io.netty.buffer.ByteBuf;
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Map;
@@ -44,11 +44,13 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-import javax.servlet.ServletException;
 import javax.servlet.ServletRequest;
 import javax.servlet.ServletResponse;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.bookkeeper.mledger.Entry;
+import org.apache.commons.lang3.reflect.FieldUtils;
 import org.apache.pulsar.broker.PulsarService;
 import org.apache.pulsar.broker.intercept.BrokerInterceptor;
 import org.apache.pulsar.broker.service.Consumer;
@@ -83,9 +85,9 @@ public class BrokerTracing implements BrokerInterceptor {
   private static void loadEnabledEvents(
       PulsarService pulsarService, Set<EventReasons> enabledEvents) {
     Properties props = pulsarService.getConfiguration().getProperties();
-    if (props.contains("jmsTracingEventList")) {
+    if (props.containsKey("jmsTracingEventList")) {
       String events = props.getProperty("jmsTracingEventList", "");
-      log.debug("read jmsTracingEventList: {}", events);
+      log.info("read jmsTracingEventList: {}", events);
 
       enabledEvents.clear();
       for (String event : events.split(",")) {
@@ -109,7 +111,9 @@ public class BrokerTracing implements BrokerInterceptor {
             .getProperties()
             .getProperty("jmsTracingLevel", defaultTraceLevel.toString());
     try {
-      return TraceLevel.valueOf(level.trim().toUpperCase());
+      TraceLevel traceLevel = TraceLevel.valueOf(level.trim().toUpperCase());
+      log.info("Using tracing level: {}", traceLevel);
+      return traceLevel;
     } catch (IllegalArgumentException e) {
       log.warn("Invalid tracing level: {}. Using default: {}", level, defaultTraceLevel);
       return defaultTraceLevel;
@@ -268,6 +272,17 @@ public class BrokerTracing implements BrokerInterceptor {
         });
   }
 
+  @NotNull
+  private static String formatMessageId(MessageIdData x) {
+    String msgId = x.getLedgerId() + ":" + x.getEntryId();
+    if (x.hasBatchIndex()) {
+      msgId += " (batchSize: " + x.getBatchSize() + "|ackSetCnt: " + x.getAckSetsCount() + ")";
+    } else if (x.getAckSetsCount() > 0) {
+      msgId += " (ackSetCnt " + x.getAckSetsCount() + ")";
+    }
+    return msgId;
+  }
+
   public void initialize(PulsarService pulsarService) {
     log.info("Initializing BrokerTracing");
 
@@ -277,12 +292,15 @@ public class BrokerTracing implements BrokerInterceptor {
     Properties props = pulsarService.getConfiguration().getProperties();
     if (props.containsKey("jmsTracingMaxBinaryDataLength")) {
       maxBinaryDataLength = Integer.parseInt(props.getProperty("jmsTracingMaxBinaryDataLength"));
+      log.info("Setting maxBinaryDataLength to {}", maxBinaryDataLength);
     }
     if (props.containsKey("jmsTracingTraceSystemTopics")) {
       traceSystemTopics = Boolean.parseBoolean(props.getProperty("jmsTracingTraceSystemTopics"));
+      log.info("Setting traceSystemTopics to {}", traceSystemTopics);
     }
     if (props.containsKey("jmsTracingTraceSchema")) {
       traceSchema = Boolean.parseBoolean(props.getProperty("jmsTracingTraceSchema"));
+      log.info("Setting traceSchema to {}", traceSchema);
     }
     if (props.containsKey("jmsTracingCacheTraceLevelsDurationSec")) {
       cacheTraceLevelsDurationSec =
@@ -292,6 +310,7 @@ public class BrokerTracing implements BrokerInterceptor {
             "Invalid cache duration: {}. Setting to default: {}", cacheTraceLevelsDurationSec, 10);
         cacheTraceLevelsDurationSec = 10;
       }
+      log.info("Setting cacheTraceLevelsDurationSec to {}", cacheTraceLevelsDurationSec);
     }
   }
 
@@ -472,12 +491,47 @@ public class BrokerTracing implements BrokerInterceptor {
 
     if (traceLevel == TraceLevel.OFF) return;
 
+    traceCommandInternal(command, cnx);
+
+    // todo: cache topics, and check if system topic
+    // without cache:
+
+    //    final String topicName = getCommandTopic(command);
+    //    if (topicName == null) {
+    //      // don't know if a system topic, trace it
+    //      traceCommandInternal(command, cnx);
+    //      return;
+    //    }
+    //
+    //    cnx.getBrokerService()
+    //        .getTopicIfExists(topicName)
+    //        .whenComplete(
+    //            (topic, ex) -> {
+    //              if (ex != null) {
+    //                log.error("Error getting topic {} to trace command {}", topicName, command,
+    // ex);
+    //                return;
+    //              }
+    //
+    //              // skip system topics if needed
+    //              if (!traceSystemTopics && topic.isPresent() && topic.get().isSystemTopic())
+    // return;
+    //
+    //              traceCommandInternal(command, cnx);
+    //            });
+  }
+
+  private static void traceCommandInternal(BaseCommand command, ServerCnx cnx) {
     Map<String, Object> traceDetails = new TreeMap<>();
-    traceDetails.put("serverCnx", getConnectionDetails(cnx));
+
+    traceDetails.put("authMethod", cnx.getAuthMethod());
+    traceDetails.put("authRole", cnx.getAuthRole());
+    traceDetails.put("clientHost", hostNameOf(cnx.clientSourceAddress()));
+    traceDetails.put("clientSourceAddressAndPort", cnx.clientSourceAddressAndPort());
 
     if (command.hasType()) {
-      traceDetails.put("type", command.getType().name());
-      traceDetails.put("command", getCommandDetails(command));
+      traceDetails.put("command", command.getType().name());
+      traceDetails.put("parameters", getCommandDetails(command));
     } else {
       traceDetails.put("type", "unknown/null");
     }
@@ -638,17 +692,6 @@ public class BrokerTracing implements BrokerInterceptor {
     trace(EventReasons.MESSAGE, "acknowledged", traceDetails);
   }
 
-  @NotNull
-  private static String formatMessageId(MessageIdData x) {
-    String msgId = x.getLedgerId() + ":" + x.getEntryId();
-    if (x.hasBatchIndex()) {
-      msgId += " (batchSize: " + x.getBatchSize() + "|ackSetCnt: " + x.getAckSetsCount() + ")";
-    } else if (x.getAckSetsCount() > 0) {
-      msgId += " (ackSetCnt " + x.getAckSetsCount() + ")";
-    }
-    return msgId;
-  }
-
   /* ***************************
    **  Transaction events
    ******************************/
@@ -679,18 +722,38 @@ public class BrokerTracing implements BrokerInterceptor {
    **  Servlet events
    ******************************/
 
-  public void onWebserviceRequest(ServletRequest request)
-      throws IOException, ServletException, InterceptException {
-    //    if (getEnabledEvents(???).contains(EventReasons.SERVLET)) {
-    //      log.info("onWebserviceRequest: Tracing servlet requests not supported");
-    //    }
+  public void onWebserviceRequest(ServletRequest request) {
+    // skipping, it is the same as onWebserviceResponse
+    // but without response status.
   }
 
-  public void onWebserviceResponse(ServletRequest request, ServletResponse response)
-      throws IOException, ServletException {
-    //    if (getEnabledEvents(???).contains(EventReasons.SERVLET)) {
-    //      log.info("onWebserviceResponse: Tracing servlet requests not supported");
-    //    }
+  public void onWebserviceResponse(ServletRequest request, ServletResponse response) {
+    if (!jmsTracingEventList.contains(EventReasons.SERVLET)) return;
+    if (traceLevel == TraceLevel.OFF) return;
+
+    Map<String, Object> traceDetails = new TreeMap<>();
+
+    traceDetails.put("remoteHost", hostNameOf(request.getRemoteHost()));
+    traceDetails.put("protocol", request.getProtocol());
+    traceDetails.put("scheme", request.getScheme());
+
+    try {
+      HttpServletRequest req = (HttpServletRequest) FieldUtils.readField(request, "request", true);
+      traceDetails.put("method", req.getMethod());
+      traceDetails.put("uri", req.getRequestURI());
+      if (req.getQueryString() != null) {
+        traceDetails.put("queryString", req.getQueryString());
+      }
+      traceDetails.put("authType", req.getAuthType());
+      traceDetails.put("remoteUser", req.getRemoteUser());
+
+      HttpServletResponse resp = (HttpServletResponse) response;
+      traceDetails.put("status", resp.getStatus());
+    } catch (Throwable t) {
+      log.error("Error getting request details", t);
+    }
+
+    trace(EventReasons.SERVLET, "WebService response", traceDetails);
   }
 
   // not needed

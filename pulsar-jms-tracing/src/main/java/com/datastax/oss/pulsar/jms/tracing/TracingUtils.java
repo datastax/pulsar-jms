@@ -360,6 +360,82 @@ public class TracingUtils {
     }
   }
 
+  public static String getCommandTopic(BaseCommand command) {
+    if (command == null) {
+      return null;
+    }
+
+    if (!command.hasType()) {
+      return null;
+    }
+
+    // Currently not doing transitive topic resolution by e.g. topic pattern
+    // or by producerId/consumerId to the topic they are using.
+    // Also, _RESPONSE counterparts do not have topic, and we aren't matching to the request's by
+    // requestId.
+    switch (command.getType()) {
+      case SUBSCRIBE:
+        if (command.getSubscribe().hasTopic()) {
+          return command.getSubscribe().getTopic();
+        }
+        break;
+      case PRODUCER:
+        if (command.getProducer().hasTopic()) {
+          return command.getProducer().getTopic();
+        }
+        break;
+      case PARTITIONED_METADATA:
+        if (command.getPartitionMetadata().hasTopic()) {
+          return command.getPartitionMetadata().getTopic();
+        }
+        break;
+      case LOOKUP:
+        if (command.getLookupTopic().hasTopic()) {
+          return command.getLookupTopic().getTopic();
+        }
+        break;
+      case GET_SCHEMA:
+        if (command.getGetSchema().hasTopic()) {
+          return command.getGetSchema().getTopic();
+        }
+        break;
+      case GET_OR_CREATE_SCHEMA:
+        if (command.getGetOrCreateSchema().hasTopic()) {
+          return command.getGetOrCreateSchema().getTopic();
+        }
+        break;
+      case ADD_SUBSCRIPTION_TO_TXN:
+        if (command.getAddSubscriptionToTxn().getSubscriptionsCount() > 0
+            && command.getAddSubscriptionToTxn().getSubscriptionsList().get(0).hasTopic()) {
+          Optional<org.apache.pulsar.common.api.proto.Subscription> subscription =
+              command
+                  .getAddSubscriptionToTxn()
+                  .getSubscriptionsList()
+                  .stream()
+                  .filter(sub -> sub.hasTopic())
+                  .findFirst();
+          if (subscription.isPresent()) {
+            return subscription.get().getTopic();
+          }
+        }
+        break;
+      case END_TXN_ON_PARTITION:
+        if (command.getEndTxnOnPartition().hasTopic()) {
+          return command.getEndTxnOnPartition().getTopic();
+        }
+        break;
+      case END_TXN_ON_SUBSCRIPTION:
+        if (command.getEndTxnOnSubscription().hasSubscription()
+            && command.getEndTxnOnSubscription().getSubscription().hasTopic()) {
+          return command.getEndTxnOnSubscription().getSubscription().getTopic();
+        }
+        break;
+      default:
+        return null;
+    }
+    return null;
+  }
+
   private static final Set<String> skipTraceFields =
       Sets.newHashSet(
           "authdata",
