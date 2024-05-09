@@ -108,8 +108,9 @@ public class TracingUtils {
           .enable(SerializationFeature.WRITE_NULL_MAP_VALUES);
 
   public enum TraceLevel {
-    OFF,
-    ON
+    OFF, // disabled
+    ON, // enabled without payload tracing
+    PAYLOAD, // enabled with payload tracing
   }
 
   private static final LoadingCache<String, String> ipResolverCache =
@@ -137,13 +138,28 @@ public class TracingUtils {
                 }
               });
 
-  public static String hostNameOf(String clientAddress) {
+  public static String hostNameOf(String clientAddress, String clientSourceAddressAndPort) {
+    if (clientAddress == null || clientAddress.isEmpty()
+            || clientSourceAddressAndPort == null || !clientSourceAddressAndPort.contains(":")) {
+      return "unknown/null";
+    }
+
+    try {
+      String port = clientSourceAddressAndPort.split(":")[1];
+      return ipResolverCache.get(clientAddress) + ":" + port;
+    } catch (Throwable t) {
+      log.error("Failed to resolve DNS for {}", clientAddress, t);
+      return clientAddress;
+    }
+  }
+
+  public static String hostNameOf(String clientAddress, int remotePort) {
     if (clientAddress == null || clientAddress.isEmpty()) {
       return "unknown/null";
     }
 
     try {
-      return ipResolverCache.get(clientAddress);
+      return ipResolverCache.get(clientAddress) + ":" + remotePort;
     } catch (Throwable t) {
       log.error("Failed to resolve DNS for {}", clientAddress, t);
       return clientAddress;
@@ -191,9 +207,8 @@ public class TracingUtils {
     if (cnx == null) {
       return;
     }
-    traceDetails.put("clientHost", hostNameOf(cnx.clientSourceAddress()));
+    traceDetails.put("clientHost", hostNameOf(cnx.clientSourceAddress(), cnx.clientSourceAddressAndPort()));
     traceDetails.put("authRole", cnx.getAuthRole());
-    traceDetails.put("principal", cnx.getPrincipal());
     traceDetails.put("clientVersion", cnx.getClientVersion());
     traceDetails.put("clientSourceAddressAndPort", cnx.clientSourceAddressAndPort());
     traceDetails.put("authMethod", cnx.getAuthMethod());
@@ -293,7 +308,7 @@ public class TracingUtils {
 
     traceDetails.put("priorityLevel", consumer.getPriorityLevel());
     traceDetails.put("subType", consumer.subType() == null ? null : consumer.subType().name());
-    traceDetails.put("clientHost", hostNameOf(consumer.getClientAddress()));
+    traceDetails.put("clientHost", hostNameOf(consumer.getClientAddress(), consumer.cnx().clientSourceAddressAndPort()));
 
     traceDetails.put("metadata", consumer.getMetadata());
     traceDetails.put("unackedMessages", consumer.getUnackedMessages());
@@ -325,7 +340,7 @@ public class TracingUtils {
           "topicName", TopicName.get(producer.getTopic().getName()).getPartitionedTopicName());
     }
 
-    traceDetails.put("clientHost", hostNameOf(producer.getClientAddress()));
+    traceDetails.put("clientHost", hostNameOf(producer.getClientAddress(), producer.getCnx().clientSourceAddressAndPort()));
 
     traceDetails.put("metadata", producer.getMetadata());
 
@@ -389,18 +404,19 @@ public class TracingUtils {
     }
   }
 
-  public static Map<String, Object> getEntryDetails(Entry entry, int maxBinaryDataLength) {
+  public static Map<String, Object> getEntryDetails(
+      TraceLevel level, Entry entry, int maxBinaryDataLength) {
     if (entry == null) {
       return null;
     }
 
     Map<String, Object> details = new TreeMap<>();
-    populateEntryDetails(entry, details, maxBinaryDataLength);
+    populateEntryDetails(level, entry, details, maxBinaryDataLength);
     return details;
   }
 
   private static void populateEntryDetails(
-      Entry entry, Map<String, Object> traceDetails, int maxBinaryDataLength) {
+      TraceLevel level, Entry entry, Map<String, Object> traceDetails, int maxBinaryDataLength) {
     if (entry == null) {
       return;
     }
@@ -409,75 +425,98 @@ public class TracingUtils {
 
     traceDetails.put("length", entry.getLength());
 
-    traceByteBuf("payload", entry.getDataBuffer(), traceDetails, maxBinaryDataLength);
+    if (TraceLevel.PAYLOAD == level && entry.getDataBuffer() != null) {
+      traceMetadataAndPayload(
+          "payload", entry.getDataBuffer().slice(), traceDetails, maxBinaryDataLength);
+    }
   }
 
-  public static Map<String, Object> getPublishContextDetails(Topic.PublishContext publishContext) {
+  public static Map<String, Object> getPublishContextDetails(TraceLevel level, Topic.PublishContext publishContext) {
     if (publishContext == null) {
       return null;
     }
 
     Map<String, Object> details = new TreeMap<>();
-    populatePublishContext(publishContext, details);
+    populatePublishContext(level, publishContext, details);
     return details;
   }
 
-  private static void populatePublishContext(
+  private static void populatePublishContext(TraceLevel level,
       Topic.PublishContext publishContext, Map<String, Object> traceDetails) {
-    traceDetails.put("isMarkerMessage", publishContext.isMarkerMessage());
-    traceDetails.put("isChunked", publishContext.isChunked());
-    traceDetails.put("numberOfMessages", publishContext.getNumberOfMessages());
+    traceDetails.put("sequenceId", publishContext.getSequenceId());
     traceDetails.put("entryTimestamp", publishContext.getEntryTimestamp());
     traceDetails.put("msgSize", publishContext.getMsgSize());
-    if (publishContext.getOriginalProducerName() != null) {
-      traceDetails.put("originalProducerName", publishContext.getOriginalProducerName());
-      traceDetails.put("originalSequenceId", publishContext.getOriginalSequenceId());
+
+    if (TraceLevel.PAYLOAD == level) {
+      traceDetails.put("numberOfMessages", publishContext.getNumberOfMessages());
+      traceDetails.put("isMarkerMessage", publishContext.isMarkerMessage());
+      traceDetails.put("isChunked", publishContext.isChunked());
+      if (publishContext.getOriginalProducerName() != null) {
+        traceDetails.put("originalProducerName", publishContext.getOriginalProducerName());
+        traceDetails.put("originalSequenceId", publishContext.getOriginalSequenceId());
+      }
     }
-    traceDetails.put("sequenceId", publishContext.getSequenceId());
   }
 
-  public static void traceByteBuf(
-      String key, ByteBuf buf, Map<String, Object> traceDetails, int maxBinaryDataLength) {
-    if (buf == null || maxBinaryDataLength <= 0) return;
+  /** this will release metadataAndPayload */
+  public static void traceMetadataAndPayload(
+      String key,
+      ByteBuf metadataAndPayload,
+      Map<String, Object> traceDetails,
+      int maxPayloadLength) {
+    if (metadataAndPayload == null) return;
+    if (maxPayloadLength <= 0) {
+      metadataAndPayload.release();
+      return;
+    }
     try {
+      // advance readerIndex
+      MessageMetadata metadata = Commands.parseMessageMetadata(metadataAndPayload);
 
-      final ByteBuf metadataAndPayload = buf.retainedDuplicate();
-      ByteBuf uncompressedPayload = null;
-      try {
-        // advance readerIndex
-        MessageMetadata metadata = Commands.parseMessageMetadata(metadataAndPayload);
+      // todo: do we need to trace this metadata?
+      populateMessageMetadataDetails(metadata, traceDetails);
 
-        // todo: do we need to trace this metadata?
-        populateMessageMetadataDetails(metadata, traceDetails);
+      // Decode if needed
+      CompressionCodec codec =
+          CompressionCodecProvider.getCompressionCodec(metadata.getCompression());
+      ByteBuf uncompressedPayload =
+          codec.decode(metadataAndPayload, metadata.getUncompressedSize());
+      traceByteBuf(key, uncompressedPayload, traceDetails, maxPayloadLength);
+    } catch (Throwable t) {
+      log.error("Failed to trace metadataAndPayload", t);
+    } finally {
+      metadataAndPayload.release();
+    }
+  }
 
-        // Decode if needed
-        CompressionCodec codec =
-            CompressionCodecProvider.getCompressionCodec(metadata.getCompression());
-        uncompressedPayload = codec.decode(metadataAndPayload, metadata.getUncompressedSize());
+  /** this will release payload */
+  public static void traceByteBuf(
+      String key, ByteBuf payload, Map<String, Object> traceDetails, int maxPayloadLength) {
+    if (payload == null) return;
 
-        // todo: does this require additional steps if messages are batched?
-        if (uncompressedPayload.readableBytes() < maxBinaryDataLength + 3) {
-          String dataAsString = uncompressedPayload.toString(StandardCharsets.UTF_8);
-          traceDetails.put(key, dataAsString);
-        } else {
-          String dataAsString =
-              uncompressedPayload.toString(0, maxBinaryDataLength, StandardCharsets.UTF_8);
-          traceDetails.put(key, dataAsString + "...");
-        }
-      } finally {
-        metadataAndPayload.release();
-        if (uncompressedPayload != null) {
-          uncompressedPayload.release();
-        }
+    if (maxPayloadLength <= 0) {
+      payload.release();
+      return;
+    }
+
+    try {
+      // todo: does this require additional steps if messages are batched?
+      String dataAsString = payload.toString(StandardCharsets.UTF_8);
+      if (dataAsString.length() > maxPayloadLength + 3) {
+        dataAsString = dataAsString.substring(0, maxPayloadLength) + "...";
       }
+      traceDetails.put(key, dataAsString);
     } catch (Throwable t) {
       log.error("Failed to convert ByteBuf to string", t);
-      if (buf.readableBytes() < maxBinaryDataLength + 3) {
-        traceDetails.put(key, "0x" + Hex.encodeHexString(buf.nioBuffer()));
+      if (payload.readableBytes() < maxPayloadLength) {
+        traceDetails.put(key, "0x" + Hex.encodeHexString(payload.nioBuffer()));
       } else {
-        traceDetails.put(
-            key, "0x" + Hex.encodeHexString(buf.slice(0, maxBinaryDataLength).nioBuffer()) + "...");
+        ByteBuf buf = payload.slice(0, maxPayloadLength / 2);
+        traceDetails.put(key, "0x" + Hex.encodeHexString(buf.nioBuffer()) + "...");
+        buf.release();
       }
+    } finally {
+      payload.release();
     }
   }
 }

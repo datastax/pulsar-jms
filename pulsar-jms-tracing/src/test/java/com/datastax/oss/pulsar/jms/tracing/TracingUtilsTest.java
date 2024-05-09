@@ -20,9 +20,11 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.TreeMap;
 import org.junit.jupiter.api.Test;
 
@@ -46,21 +48,22 @@ class TracingUtilsTest {
     traces.clear();
     trace(mockTracer, null);
     assertEquals(1, traces.size());
-    assertEquals("{\"eventType\":\"msg\",\"traceDetails\":null}", traces.get(0));
+    assertEquals("{\"event\":\"MSG_PRODUCED\",\"traceDetails\":null}", traces.get(0));
 
     Map<String, Object> map = new TreeMap<>();
 
     traces.clear();
     trace(mockTracer, map);
     assertEquals(1, traces.size());
-    assertEquals("{\"eventType\":\"msg\",\"traceDetails\":{}}", traces.get(0));
+    assertEquals("{\"event\":\"MSG_PRODUCED\",\"traceDetails\":{}}", traces.get(0));
 
     map.put("key1", "value1");
 
     traces.clear();
     trace(mockTracer, map);
     assertEquals(1, traces.size());
-    assertEquals("{\"eventType\":\"msg\",\"traceDetails\":{\"key1\":\"value1\"}}", traces.get(0));
+    assertEquals(
+        "{\"event\":\"MSG_PRODUCED\",\"traceDetails\":{\"key1\":\"value1\"}}", traces.get(0));
   }
 
   // todo:
@@ -96,29 +99,40 @@ class TracingUtilsTest {
   void traceByteBufTest() {
     Map<String, Object> traceDetails = new TreeMap<>();
 
-    int maxBinaryDataLength = 1024;
+    int maxBinaryDataLength = 100;
 
     traceByteBuf("key", null, traceDetails, maxBinaryDataLength);
     assertEquals(0, traceDetails.size());
 
+    Random rand = new Random();
+
     ByteBuf small = Unpooled.buffer(20);
     for (int i = 0; i < 20; i++) {
-      small.writeByte(i);
+      char randomChar = (char) (rand.nextInt(26) + 'a');
+      small.writeByte(randomChar);
     }
+    String smallStr = small.toString(StandardCharsets.UTF_8);
+    assertEquals(1, small.refCnt());
+
     traceByteBuf("key", small, traceDetails, maxBinaryDataLength);
     assertEquals(1, traceDetails.size());
-    assertEquals(42, ((String) traceDetails.get("key")).length());
-    assertEquals("0x000102030405060708090a0b0c0d0e0f10111213", traceDetails.get("key"));
+    assertEquals(20, ((String) traceDetails.get("key")).length());
+    assertEquals(smallStr, traceDetails.get("key"));
+    assertEquals(0, small.refCnt());
 
     ByteBuf big = Unpooled.buffer(maxBinaryDataLength + 100);
     for (int i = 0; i < maxBinaryDataLength + 100; i++) {
-      big.writeByte(i);
+      char randomChar = (char) (rand.nextInt(26) + 'a');
+      big.writeByte(randomChar);
     }
+    assertEquals(1, big.refCnt());
+    String bigStr = big.toString(StandardCharsets.UTF_8);
 
     traceDetails.clear();
     traceByteBuf("key", big, traceDetails, maxBinaryDataLength);
     assertEquals(1, traceDetails.size());
-    assertEquals(2 + 2 * maxBinaryDataLength + 3, ((String) traceDetails.get("key")).length());
-    assertTrue(((String) traceDetails.get("key")).startsWith("0x000102"));
+    assertEquals(maxBinaryDataLength + 3, ((String) traceDetails.get("key")).length());
+    assertEquals(bigStr.substring(0, maxBinaryDataLength) + "...", traceDetails.get("key"));
+    assertEquals(0, big.refCnt());
   }
 }

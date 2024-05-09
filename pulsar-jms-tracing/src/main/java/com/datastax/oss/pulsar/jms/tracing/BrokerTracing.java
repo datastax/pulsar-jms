@@ -26,7 +26,7 @@ import static com.datastax.oss.pulsar.jms.tracing.TracingUtils.getPublishContext
 import static com.datastax.oss.pulsar.jms.tracing.TracingUtils.getSubscriptionDetails;
 import static com.datastax.oss.pulsar.jms.tracing.TracingUtils.hostNameOf;
 import static com.datastax.oss.pulsar.jms.tracing.TracingUtils.trace;
-import static com.datastax.oss.pulsar.jms.tracing.TracingUtils.traceByteBuf;
+import static com.datastax.oss.pulsar.jms.tracing.TracingUtils.traceMetadataAndPayload;
 
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
@@ -76,7 +76,7 @@ public class BrokerTracing implements BrokerInterceptor {
 
   private final Set<EventCategory> jmsTracingEventCategory = new HashSet<>();
   private TraceLevel traceLevel = defaultTraceLevel;
-  private int maxBinaryDataLength = 256;
+  private int maxPayloadLength = 256;
   private int cacheTraceLevelsDurationSec = 10;
   private boolean traceSystemTopics = false;
   private boolean traceSchema = false;
@@ -297,9 +297,9 @@ public class BrokerTracing implements BrokerInterceptor {
     loadEnabledEvents(pulsarService, jmsTracingEventCategory, traceLevel);
 
     Properties props = pulsarService.getConfiguration().getProperties();
-    if (props.containsKey("jmsTracingMaxBinaryDataLength")) {
-      maxBinaryDataLength = Integer.parseInt(props.getProperty("jmsTracingMaxBinaryDataLength"));
-      log.info("Setting maxBinaryDataLength to {}", maxBinaryDataLength);
+    if (props.containsKey("jmsTracingMaxPayloadLength")) {
+      maxPayloadLength = Integer.parseInt(props.getProperty("jmsTracingMaxPayloadLength"));
+      log.info("Setting maxPayloadLength to {}", maxPayloadLength);
     }
     if (props.containsKey("jmsTracingTraceSystemTopics")) {
       traceSystemTopics = Boolean.parseBoolean(props.getProperty("jmsTracingTraceSystemTopics"));
@@ -367,7 +367,9 @@ public class BrokerTracing implements BrokerInterceptor {
     if (producer.getAccessMode() != null) {
       traceDetails.put("accessMode", producer.getAccessMode().name());
     }
-    traceDetails.put("clientHost", TracingUtils.hostNameOf(producer.getClientAddress()));
+    traceDetails.put("clientHost",
+            TracingUtils.hostNameOf(producer.getClientAddress(), producer.getCnx().clientSourceAddressAndPort()));
+
     if (producer.getTopic() != null) {
       traceDetails.put(
           "topicName", TopicName.get(producer.getTopic().getName()).getPartitionedTopicName());
@@ -387,7 +389,8 @@ public class BrokerTracing implements BrokerInterceptor {
     if (consumer != null) {
       traceDetails.put("consumerName", consumer.consumerName());
       traceDetails.put("consumerId", consumer.consumerId());
-      traceDetails.put("clientHost", TracingUtils.hostNameOf(consumer.getClientAddress()));
+      traceDetails.put("clientHost",
+              TracingUtils.hostNameOf(consumer.getClientAddress(), consumer.cnx().clientSourceAddressAndPort()));
       traceDetails.put("authRole", consumer.cnx().getAuthRole());
     }
 
@@ -516,12 +519,17 @@ public class BrokerTracing implements BrokerInterceptor {
 
     addMinimumProducerDetails(producer, traceDetails);
 
-    traceDetails.put("publishContext", getPublishContextDetails(publishContext));
+    traceDetails.put("publishContext", getPublishContextDetails(level, publishContext));
 
-    Map<String, Object> headersAndPayloadDetails = new TreeMap<>();
-    traceByteBuf(
-        "headersAndPayload", headersAndPayload, headersAndPayloadDetails, maxBinaryDataLength);
-    traceDetails.put("payload", headersAndPayloadDetails);
+    if (TraceLevel.PAYLOAD == level && headersAndPayload != null) {
+      Map<String, Object> headersAndPayloadDetails = new TreeMap<>();
+      traceMetadataAndPayload(
+          "headersAndPayload",
+          headersAndPayload.slice(),
+          headersAndPayloadDetails,
+          maxPayloadLength);
+      traceDetails.put("payload", headersAndPayloadDetails);
+    }
 
     trace(EventCategory.MSG, EventSubCategory.PRODUCED, traceDetails);
   }
@@ -541,9 +549,8 @@ public class BrokerTracing implements BrokerInterceptor {
     Map<String, Object> traceDetails = new TreeMap<>();
     addMinimumProducerDetails(producer, traceDetails);
 
-    traceDetails.put("publishContext", getPublishContextDetails(publishContext));
+    traceDetails.put("publishContext", getPublishContextDetails(level, publishContext));
     traceDetails.put("messageId", ledgerId + ":" + entryId);
-    traceDetails.put("startTimeNs", startTimeNs);
     trace(EventCategory.MSG, EventSubCategory.STORED, traceDetails);
   }
 
@@ -562,7 +569,7 @@ public class BrokerTracing implements BrokerInterceptor {
 
     addMinimumConsumerSubscriptionDetails(consumer, subscription, traceDetails);
 
-    traceDetails.put("entry", getEntryDetails(entry, maxBinaryDataLength));
+    traceDetails.put("entry", getEntryDetails(level, entry, maxPayloadLength));
 
     trace(EventCategory.MSG, EventSubCategory.READ, traceDetails);
   }
@@ -578,10 +585,15 @@ public class BrokerTracing implements BrokerInterceptor {
     addMinimumConsumerSubscriptionDetails(consumer, traceDetails);
     traceDetails.put("messageId", ledgerId + ":" + entryId);
 
-    Map<String, Object> headersAndPayloadDetails = new TreeMap<>();
-    traceByteBuf(
-        "headersAndPayload", headersAndPayload, headersAndPayloadDetails, maxBinaryDataLength);
-    traceDetails.put("payload", headersAndPayloadDetails);
+    if (TraceLevel.PAYLOAD == level && headersAndPayload != null) {
+      Map<String, Object> headersAndPayloadDetails = new TreeMap<>();
+      traceMetadataAndPayload(
+          "headersAndPayload",
+          headersAndPayload.slice(),
+          headersAndPayloadDetails,
+          maxPayloadLength);
+      traceDetails.put("payload", headersAndPayloadDetails);
+    }
 
     trace(EventCategory.MSG, EventSubCategory.DISPATCHED, traceDetails);
   }
@@ -696,7 +708,7 @@ public class BrokerTracing implements BrokerInterceptor {
 
     Map<String, Object> traceDetails = new TreeMap<>();
 
-    traceDetails.put("remoteHost", hostNameOf(request.getRemoteHost()));
+    traceDetails.put("remoteHost", hostNameOf(request.getRemoteHost(), request.getRemotePort()));
     traceDetails.put("protocol", request.getProtocol());
     traceDetails.put("scheme", request.getScheme());
 
