@@ -50,6 +50,8 @@ public class JMSPublishFiltersTest {
           .withEnv("PULSAR_PREFIX_brokerInterceptorsDirectory", "/pulsar/interceptors")
           .withEnv("PULSAR_PREFIX_brokerInterceptors", "jms-publish-filters")
           .withEnv("PULSAR_PREFIX_jmsApplyFiltersOnPublish", "true")
+          .withEnv("PULSAR_PREFIX_jmsFiltersOnPublishMaxMemoryMB", "1")
+          .withEnv("PULSAR_PREFIX_jmsFiltersOnPublishThreads", "1")
           .withLogContainerOutput(true);
 
   private Map<String, Object> buildProperties() {

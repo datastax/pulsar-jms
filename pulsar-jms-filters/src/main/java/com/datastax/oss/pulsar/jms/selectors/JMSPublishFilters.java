@@ -21,35 +21,37 @@ import static org.apache.pulsar.common.protocol.Commands.skipChecksumIfPresent;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.PooledByteBufAllocator;
+import io.netty.buffer.Unpooled;
 import io.prometheus.client.CollectorRegistry;
 import io.prometheus.client.Gauge;
 import io.prometheus.client.Histogram;
 import java.io.IOException;
-import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.Collections;
-import java.util.concurrent.Executor;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 import javax.servlet.ServletException;
 import javax.servlet.ServletRequest;
 import javax.servlet.ServletResponse;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.bookkeeper.mledger.AsyncCallbacks;
 import org.apache.bookkeeper.mledger.Entry;
+import org.apache.bookkeeper.mledger.ManagedLedgerException;
+import org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl;
 import org.apache.bookkeeper.mledger.impl.PositionImpl;
 import org.apache.pulsar.broker.PulsarService;
 import org.apache.pulsar.broker.intercept.BrokerInterceptor;
-import org.apache.pulsar.broker.service.Dispatcher;
 import org.apache.pulsar.broker.service.Producer;
 import org.apache.pulsar.broker.service.ServerCnx;
 import org.apache.pulsar.broker.service.Subscription;
 import org.apache.pulsar.broker.service.Topic;
-import org.apache.pulsar.broker.service.persistent.PersistentDispatcherMultipleConsumers;
-import org.apache.pulsar.broker.service.persistent.PersistentDispatcherSingleActiveConsumer;
 import org.apache.pulsar.broker.service.persistent.PersistentSubscription;
+import org.apache.pulsar.broker.service.persistent.PersistentTopic;
 import org.apache.pulsar.broker.service.plugin.EntryFilter;
 import org.apache.pulsar.broker.service.plugin.FilterContext;
 import org.apache.pulsar.common.api.proto.BaseCommand;
@@ -60,6 +62,7 @@ import org.apache.pulsar.common.intercept.InterceptException;
 @Slf4j
 public class JMSPublishFilters implements BrokerInterceptor {
   private static final String JMS_FILTER_METADATA = "jms-msg-metadata";
+  private static final ByteBuf COULDNOT_ACQUIRE_MEMORY_PLACEHOLDER = Unpooled.EMPTY_BUFFER;
 
   private static final Histogram filterProcessingTimeOnPublish =
       Histogram.build()
@@ -94,30 +97,7 @@ public class JMSPublishFilters implements BrokerInterceptor {
   private boolean enabled = false;
   private Semaphore memoryLimit;
   private final AtomicBoolean closed = new AtomicBoolean();
-
-  private static final Field dispatchMessagesThreadFieldPersistentDispatcherMultipleConsumers;
-  private static final Field dispatchMessagesThreadFieldPersistentDispatcherSingleActiveConsumer;
-
-  static {
-    Field fieldPersistentDispatcherMultipleConsumers = null;
-    Field fieldPersistentDispatcherSingleActiveConsumer = null;
-    try {
-      fieldPersistentDispatcherMultipleConsumers =
-          PersistentDispatcherMultipleConsumers.class.getDeclaredField("dispatchMessagesThread");
-      fieldPersistentDispatcherMultipleConsumers.setAccessible(true);
-
-      fieldPersistentDispatcherSingleActiveConsumer =
-          PersistentDispatcherSingleActiveConsumer.class.getDeclaredField("executor");
-      fieldPersistentDispatcherSingleActiveConsumer.setAccessible(true);
-
-    } catch (NoSuchFieldException e) {
-      log.error("Cannot access thread field: " + e);
-    }
-    dispatchMessagesThreadFieldPersistentDispatcherMultipleConsumers =
-        fieldPersistentDispatcherMultipleConsumers;
-    dispatchMessagesThreadFieldPersistentDispatcherSingleActiveConsumer =
-        fieldPersistentDispatcherSingleActiveConsumer;
-  }
+  private ExecutorService executor;
 
   @Override
   public void initialize(PulsarService pulsarService) {
@@ -129,6 +109,16 @@ public class JMSPublishFilters implements BrokerInterceptor {
                 .getProperty("jmsApplyFiltersOnPublish", "true"));
     log.info("jmsApplyFiltersOnPublish={}", enabled);
 
+    int numThreads =
+        Integer.parseInt(
+            pulsarService
+                .getConfiguration()
+                .getProperties()
+                .getProperty(
+                    "jmsFiltersOnPublishThreads",
+                    (Runtime.getRuntime().availableProcessors() * 2) + ""));
+    log.info("jmsFiltersOnPublishThreads={}", numThreads);
+    executor = Executors.newFixedThreadPool(numThreads);
     try {
       log.info("Registering JMSFilter metrics");
       CollectorRegistry.defaultRegistry.register(filterProcessingTimeOnPublish);
@@ -174,7 +164,11 @@ public class JMSPublishFilters implements BrokerInterceptor {
         }
         // we must make a copy because the ByteBuf will be released
         ByteBuf messageMetadata = copyMessageMetadataAndAcquireMemory(headersAndPayload);
-        publishContext.setProperty(JMS_FILTER_METADATA, messageMetadata);
+        if (messageMetadata != null) {
+          publishContext.setProperty(JMS_FILTER_METADATA, messageMetadata);
+        } else {
+          publishContext.setProperty(JMS_FILTER_METADATA, COULDNOT_ACQUIRE_MEMORY_PLACEHOLDER);
+        }
         // as soon as we find a good reason to apply the filters in messageProduced
         // we can exit
         return;
@@ -191,10 +185,18 @@ public class JMSPublishFilters implements BrokerInterceptor {
     skipBrokerEntryMetadataIfExist(buffer);
     skipChecksumIfPresent(buffer);
     int metadataSize = (int) buffer.readUnsignedInt();
-    // this is going to throttle the producer if the memory limit is reached
-    // please note that this is a blocking operation on the Netty eventpool
-    // currently we cannot do better than this, as the interceptor API is blocking
-    memoryLimit.acquireUninterruptibly(metadataSize);
+    // we cannot block the producer thread
+    // if there is no memory available we must return null and the entry will be read before
+    // applying the filters
+    boolean acquired = memoryLimit.tryAcquire(metadataSize);
+    if (!acquired) {
+      log.info(
+          "Could not acquire memory for entry, {} bytes, allowed only {} bytes",
+          metadataSize,
+          memoryLimit.availablePermits());
+      buffer.readerIndex(readerIndex);
+      return null;
+    }
     // please note that Netty would probably retain more memory than this buffer
     // but this is the best approximation we can do
     memoryUsed.inc(metadataSize);
@@ -220,39 +222,38 @@ public class JMSPublishFilters implements BrokerInterceptor {
       return;
     }
     int memorySize = messageMetadataUnparsed.readableBytes();
-    AtomicInteger pending = new AtomicInteger(1);
-    Consumer<Boolean> onComplete =
-        (mainThread) -> {
-          if (!mainThread) {
-            // the main thread doesn't count as a pending operation
-            pendingOperations.dec();
-          }
-          if (pending.decrementAndGet() == 0) {
-            messageMetadataUnparsed.release();
-            memoryLimit.release(memorySize);
-            memoryUsed.dec(memorySize);
-          }
+    Runnable onComplete =
+        () -> {
+          pendingOperations.dec();
+          messageMetadataUnparsed.release();
+          memoryLimit.release(memorySize);
+          memoryUsed.dec(memorySize);
         };
-    try {
-      producer
-          .getTopic()
-          .getSubscriptions()
-          .forEach(
-              (___, subscription) -> {
-                if (!(isPersistentSubscriptionWithSelector(subscription))) {
-                  return;
-                }
-                pending.incrementAndGet();
-                pendingOperations.inc();
-                ByteBuf duplicate = messageMetadataUnparsed.duplicate();
-                FilterAndAckMessageOperation filterAndAckMessageOperation =
-                    new FilterAndAckMessageOperation(
-                        ledgerId, entryId, subscription, duplicate, onComplete);
-                scheduleOnDispatchThread(subscription, filterAndAckMessageOperation);
-              });
-    } finally {
-      onComplete.accept(true);
+    List<Subscription> subscriptions = new ArrayList<>();
+    Topic topic = producer.getTopic();
+    topic
+        .getSubscriptions()
+        .forEach(
+            (___, subscription) -> {
+              if (!(isPersistentSubscriptionWithSelector(subscription))) {
+                return;
+              }
+              subscriptions.add(subscription);
+            });
+    if (subscriptions.isEmpty()) { // this is very unlikely
+      onComplete.run();
+      return;
     }
+    pendingOperations.inc();
+    FilterAndAckMessageOperation filterAndAckMessageOperation =
+        new FilterAndAckMessageOperation(
+            ledgerId,
+            entryId,
+            (PersistentTopic) topic,
+            subscriptions,
+            messageMetadataUnparsed,
+            onComplete);
+    scheduleOnDispatchThread(filterAndAckMessageOperation);
   }
 
   private static boolean isPersistentSubscriptionWithSelector(Subscription subscription) {
@@ -265,92 +266,132 @@ public class JMSPublishFilters implements BrokerInterceptor {
   private class FilterAndAckMessageOperation implements Runnable {
     final long ledgerId;
     final long entryId;
-    final Subscription subscription;
+    final PersistentTopic topic;
+    final List<Subscription> subscriptions;
     final ByteBuf messageMetadataUnparsed;
-    final Consumer<Boolean> onComplete;
+    final Runnable onComplete;
 
     @Override
     public void run() {
       try {
-        filterAndAckMessage(ledgerId, entryId, subscription, messageMetadataUnparsed);
+        filterAndAckMessage(ledgerId, entryId, topic, subscriptions, messageMetadataUnparsed);
       } finally {
-        onComplete.accept(false);
+        onComplete.run();
       }
     }
   }
 
   private void filterAndAckMessage(
-      long ledgerId, long entryId, Subscription subscription, ByteBuf messageMetadataUnparsed) {
+      long ledgerId,
+      long entryId,
+      PersistentTopic topic,
+      List<Subscription> subscriptions,
+      ByteBuf messageMetadataUnparsed) {
     if (closed.get()) {
       // the broker is shutting down, we cannot process the entries
       // this operation has been enqueued before the broker shutdown
       return;
     }
-    MessageMetadata messageMetadata = getMessageMetadata(messageMetadataUnparsed);
-    long now = System.nanoTime();
+    ByteBuf entryReadFromBookie = null;
     try {
-      FilterContext filterContext = new FilterContext();
-      filterContext.setSubscription(subscription);
-      filterContext.setMsgMetadata(messageMetadata);
-      filterContext.setConsumer(null);
-      Entry entry = null; // we would need the Entry only in case of batch messages
-      EntryFilter.FilterResult filterResult = filter.filterEntry(entry, filterContext, true);
-      if (filterResult == EntryFilter.FilterResult.REJECT) {
-        if (log.isDebugEnabled()) {
-          log.debug(
-              "Reject message {}:{} for subscription {}",
-              ledgerId,
-              entryId,
-              subscription.getName());
+      final MessageMetadata messageMetadata;
+      if (messageMetadataUnparsed == COULDNOT_ACQUIRE_MEMORY_PLACEHOLDER) {
+        entryReadFromBookie = readSingleEntry(ledgerId, entryId, topic).join();
+        if (entryReadFromBookie == null) {
+          log.error("Could not read entry {}:{} from topic {}", ledgerId, entryId, topic);
+          return;
         }
-        // ir is possible that calling this method in this thread may affect
-        // performance
-        // let's keep it simple for now, we can optimize it later
-        subscription.acknowledgeMessage(
-            Collections.singletonList(new PositionImpl(ledgerId, entryId)),
-            CommandAck.AckType.Individual,
-            null);
+        messageMetadata = new MessageMetadata();
+        skipBrokerEntryMetadataIfExist(entryReadFromBookie);
+        skipChecksumIfPresent(entryReadFromBookie);
+        int metadataSize = (int) entryReadFromBookie.readUnsignedInt();
+        messageMetadata.parseFrom(entryReadFromBookie, metadataSize);
+      } else {
+        messageMetadata =
+            getMessageMetadata(messageMetadataUnparsed, messageMetadataUnparsed.readableBytes());
       }
+      for (Subscription subscription : subscriptions) {
+        if (closed.get()) {
+          // the broker is shutting down, we cannot process the entries
+          // this operation has been enqueued before the broker shutdown
+          return;
+        }
+        long now = System.nanoTime();
+        try {
+          FilterContext filterContext = new FilterContext();
+          filterContext.setSubscription(subscription);
+          filterContext.setMsgMetadata(messageMetadata);
+          filterContext.setConsumer(null);
+          Entry entry = null; // we would need the Entry only in case of batch messages
+          EntryFilter.FilterResult filterResult = filter.filterEntry(entry, filterContext, true);
+          if (filterResult == EntryFilter.FilterResult.REJECT) {
+            if (log.isDebugEnabled()) {
+              log.debug(
+                  "Reject message {}:{} for subscription {}",
+                  ledgerId,
+                  entryId,
+                  subscription.getName());
+            }
+            // ir is possible that calling this method in this thread may affect
+            // performance
+            // let's keep it simple for now, we can optimize it later
+            subscription.acknowledgeMessage(
+                Collections.singletonList(new PositionImpl(ledgerId, entryId)),
+                CommandAck.AckType.Individual,
+                null);
+          }
+        } finally {
+          filterProcessingTimeOnProduce
+              .labels(topic.getName(), subscription.getName())
+              .observe(System.nanoTime() - now);
+        }
+      }
+    } catch (Throwable error) {
+      log.error("Error while filtering message", error);
     } finally {
-      filterProcessingTimeOnProduce
-          .labels(subscription.getTopic().getName(), subscription.getName())
-          .observe(System.nanoTime() - now);
+      if (entryReadFromBookie != null) {
+        entryReadFromBookie.release();
+      }
     }
   }
 
-  private static MessageMetadata getMessageMetadata(ByteBuf messageMetadataUnparsed) {
+  private static CompletableFuture<ByteBuf> readSingleEntry(
+      long ledgerId, long entryId, PersistentTopic topic) {
+    log.info("Reading entry {}:{} from topic {}", ledgerId, entryId, topic.getName());
+    CompletableFuture<ByteBuf> entryFuture = new CompletableFuture<>();
+
+    PositionImpl position = new PositionImpl(ledgerId, entryId);
+    ManagedLedgerImpl managedLedger = (ManagedLedgerImpl) topic.getManagedLedger();
+    managedLedger.asyncReadEntry(
+        position,
+        new AsyncCallbacks.ReadEntryCallback() {
+          @Override
+          public void readEntryComplete(Entry entry, Object ctx) {
+            ByteBuf data = entry.getDataBuffer();
+            entryFuture.complete(data);
+          }
+
+          @Override
+          public void readEntryFailed(ManagedLedgerException exception, Object ctx) {
+            log.error("Failed to read entry", exception);
+            entryFuture.completeExceptionally(exception);
+          }
+        },
+        null);
+    return entryFuture;
+  }
+
+  private static MessageMetadata getMessageMetadata(ByteBuf messageMetadataUnparsed, int size) {
     MessageMetadata messageMetadata = new MessageMetadata();
-    messageMetadata.parseFrom(messageMetadataUnparsed, messageMetadataUnparsed.readableBytes());
+    messageMetadata.parseFrom(messageMetadataUnparsed, size);
     return messageMetadata;
   }
 
-  private static void scheduleOnDispatchThread(Subscription subscription, Runnable runnable) {
+  private void scheduleOnDispatchThread(Runnable runnable) {
+    // we let the threadpool peek any thread,
+    // this way a broker owning few paritions can still use all the threads
     try {
-      Dispatcher dispatcher = subscription.getDispatcher();
-      if (dispatcher instanceof PersistentDispatcherMultipleConsumers) {
-        ExecutorService singleThreadExecutor =
-            (ExecutorService)
-                dispatchMessagesThreadFieldPersistentDispatcherMultipleConsumers.get(dispatcher);
-        if (singleThreadExecutor != null) {
-          singleThreadExecutor.submit(runnable);
-          return;
-        }
-      }
-      if (dispatcher instanceof PersistentDispatcherSingleActiveConsumer) {
-        Executor singleThreadExecutor =
-            (Executor)
-                dispatchMessagesThreadFieldPersistentDispatcherSingleActiveConsumer.get(dispatcher);
-        if (singleThreadExecutor != null) {
-          singleThreadExecutor.execute(runnable);
-          return;
-        }
-      }
-      // this case also happens when there is no dispatcher (no consumer has connected since the
-      // last
-      // topic load)
-      // this thread is on the same threadpool that is used by PersistentDispatcherMultipleConsumers
-      // and PersistentDispatcherSingleActiveConsumer
-      subscription.getTopic().getBrokerService().getTopicOrderedExecutor().execute(runnable);
+      executor.submit(runnable);
     } catch (Throwable error) {
       log.error("Error while scheduling on dispatch thread", error);
     }
@@ -361,6 +402,7 @@ public class JMSPublishFilters implements BrokerInterceptor {
     log.info("Broker is shutting down. Disabling JMSPublishFilters interceptor");
     closed.set(true);
     filter.close();
+    executor.shutdown();
   }
 
   @Override
