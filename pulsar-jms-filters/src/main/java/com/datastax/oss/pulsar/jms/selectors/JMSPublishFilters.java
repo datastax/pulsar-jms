@@ -23,6 +23,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.prometheus.client.CollectorRegistry;
+import io.prometheus.client.Counter;
 import io.prometheus.client.Gauge;
 import io.prometheus.client.Histogram;
 import java.io.IOException;
@@ -93,6 +94,12 @@ public class JMSPublishFilters implements BrokerInterceptor {
           .help("Number of pending operations in the JMSPublishFilters interceptor")
           .create();
 
+  private static final Counter readFromLedger =
+          Counter.build()
+                  .name("pulsar_jmsfilter_entries_read_from_ledger")
+                  .help("Number of entries read from ledgers by JMSPublishFilters interceptor")
+                  .create();
+
   private final JMSFilter filter = new JMSFilter(false);
   private boolean enabled = false;
   private Semaphore memoryLimit;
@@ -125,6 +132,7 @@ public class JMSPublishFilters implements BrokerInterceptor {
       CollectorRegistry.defaultRegistry.register(filterProcessingTimeOnProduce);
       CollectorRegistry.defaultRegistry.register(memoryUsed);
       CollectorRegistry.defaultRegistry.register(pendingOperations);
+      CollectorRegistry.defaultRegistry.register(readFromLedger);
     } catch (IllegalArgumentException alreadyRegistered) {
       // ignore
       log.info("Filter metrics already registered", alreadyRegistered);
@@ -366,7 +374,8 @@ public class JMSPublishFilters implements BrokerInterceptor {
 
   private static CompletableFuture<ByteBuf> readSingleEntry(
       long ledgerId, long entryId, PersistentTopic topic) {
-    log.info("Reading entry {}:{} from topic {}", ledgerId, entryId, topic.getName());
+    log.debug("Reading entry {}:{} from topic {}", ledgerId, entryId, topic.getName());
+    readFromLedger.inc();
     CompletableFuture<ByteBuf> entryFuture = new CompletableFuture<>();
 
     PositionImpl position = new PositionImpl(ledgerId, entryId);
