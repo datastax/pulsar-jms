@@ -139,8 +139,10 @@ public class TracingUtils {
               });
 
   public static String hostNameOf(String clientAddress, String clientSourceAddressAndPort) {
-    if (clientAddress == null || clientAddress.isEmpty()
-            || clientSourceAddressAndPort == null || !clientSourceAddressAndPort.contains(":")) {
+    if (clientAddress == null
+        || clientAddress.isEmpty()
+        || clientSourceAddressAndPort == null
+        || !clientSourceAddressAndPort.contains(":")) {
       return "unknown/null";
     }
 
@@ -207,7 +209,8 @@ public class TracingUtils {
     if (cnx == null) {
       return;
     }
-    traceDetails.put("clientHost", hostNameOf(cnx.clientSourceAddress(), cnx.clientSourceAddressAndPort()));
+    traceDetails.put(
+        "clientHost", hostNameOf(cnx.clientSourceAddress(), cnx.clientSourceAddressAndPort()));
     traceDetails.put("authRole", cnx.getAuthRole());
     traceDetails.put("clientVersion", cnx.getClientVersion());
     traceDetails.put("clientSourceAddressAndPort", cnx.clientSourceAddressAndPort());
@@ -300,15 +303,12 @@ public class TracingUtils {
 
     traceDetails.put("name", consumer.consumerName());
     traceDetails.put("consumerId", consumer.consumerId());
-    Subscription sub = consumer.getSubscription();
-    if (sub != null) {
-      traceDetails.put("subscriptionName", sub.getName());
-      traceDetails.put("topicName", TopicName.get(sub.getTopicName()).getPartitionedTopicName());
-    }
 
     traceDetails.put("priorityLevel", consumer.getPriorityLevel());
     traceDetails.put("subType", consumer.subType() == null ? null : consumer.subType().name());
-    traceDetails.put("clientHost", hostNameOf(consumer.getClientAddress(), consumer.cnx().clientSourceAddressAndPort()));
+    traceDetails.put(
+        "clientHost",
+        hostNameOf(consumer.getClientAddress(), consumer.cnx().clientSourceAddressAndPort()));
 
     traceDetails.put("metadata", consumer.getMetadata());
     traceDetails.put("unackedMessages", consumer.getUnackedMessages());
@@ -340,7 +340,9 @@ public class TracingUtils {
           "topicName", TopicName.get(producer.getTopic().getName()).getPartitionedTopicName());
     }
 
-    traceDetails.put("clientHost", hostNameOf(producer.getClientAddress(), producer.getCnx().clientSourceAddressAndPort()));
+    traceDetails.put(
+        "clientHost",
+        hostNameOf(producer.getClientAddress(), producer.getCnx().clientSourceAddressAndPort()));
 
     traceDetails.put("metadata", producer.getMetadata());
 
@@ -421,17 +423,16 @@ public class TracingUtils {
       return;
     }
 
-    traceDetails.put("messageId", entry.getLedgerId() + ":" + entry.getEntryId());
-
     traceDetails.put("length", entry.getLength());
 
     if (TraceLevel.PAYLOAD == level && entry.getDataBuffer() != null) {
       traceMetadataAndPayload(
-          "payload", entry.getDataBuffer().slice(), traceDetails, maxBinaryDataLength);
+          "payload", entry.getDataBuffer().retainedDuplicate(), traceDetails, maxBinaryDataLength);
     }
   }
 
-  public static Map<String, Object> getPublishContextDetails(TraceLevel level, Topic.PublishContext publishContext) {
+  public static Map<String, Object> getPublishContextDetails(
+      TraceLevel level, Topic.PublishContext publishContext) {
     if (publishContext == null) {
       return null;
     }
@@ -441,8 +442,8 @@ public class TracingUtils {
     return details;
   }
 
-  private static void populatePublishContext(TraceLevel level,
-      Topic.PublishContext publishContext, Map<String, Object> traceDetails) {
+  private static void populatePublishContext(
+      TraceLevel level, Topic.PublishContext publishContext, Map<String, Object> traceDetails) {
     traceDetails.put("sequenceId", publishContext.getSequenceId());
     traceDetails.put("entryTimestamp", publishContext.getEntryTimestamp());
     traceDetails.put("msgSize", publishContext.getMsgSize());
