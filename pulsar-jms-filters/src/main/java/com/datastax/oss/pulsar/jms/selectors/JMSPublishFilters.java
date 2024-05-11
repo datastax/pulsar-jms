@@ -137,8 +137,16 @@ public class JMSPublishFilters implements BrokerInterceptor {
 
     try {
       int memoryLimitBytes = Integer.parseInt(memoryLimitString) * 1024 * 1024;
-      memoryLimit = new Semaphore(memoryLimitBytes);
-      log.info("jmsFiltersOnPublishMaxMemoryMB={} ({} bytes)", memoryLimitString, memoryLimitBytes);
+      if (memoryLimitBytes > 0) {
+        memoryLimit = new Semaphore(memoryLimitBytes);
+        log.info(
+            "jmsFiltersOnPublishMaxMemoryMB={} ({} bytes)", memoryLimitString, memoryLimitBytes);
+      } else {
+        memoryLimit = null;
+        log.info(
+            "jmsFiltersOnPublishMaxMemoryMB={} (no cache for JMSPublishFilters)",
+            memoryLimitString);
+      }
     } catch (NumberFormatException e) {
       throw new RuntimeException(
           "Invalid memory limit jmsFiltersOnPublishMaxMemoryMB=" + memoryLimitString, e);
@@ -181,6 +189,9 @@ public class JMSPublishFilters implements BrokerInterceptor {
   }
 
   public ByteBuf copyMessageMetadataAndAcquireMemory(ByteBuf buffer) {
+    if (memoryLimit == null) {
+      return null;
+    }
     int readerIndex = buffer.readerIndex();
     skipBrokerEntryMetadataIfExist(buffer);
     skipChecksumIfPresent(buffer);
@@ -190,10 +201,6 @@ public class JMSPublishFilters implements BrokerInterceptor {
     // applying the filters
     boolean acquired = memoryLimit.tryAcquire(metadataSize);
     if (!acquired) {
-      log.info(
-          "Could not acquire memory for entry, {} bytes, allowed only {} bytes",
-          metadataSize,
-          memoryLimit.availablePermits());
       buffer.readerIndex(readerIndex);
       return null;
     }
@@ -226,7 +233,9 @@ public class JMSPublishFilters implements BrokerInterceptor {
         () -> {
           pendingOperations.dec();
           messageMetadataUnparsed.release();
-          memoryLimit.release(memorySize);
+          if (memoryLimit != null) {
+            memoryLimit.release(memorySize);
+          }
           memoryUsed.dec(memorySize);
         };
     List<Subscription> subscriptions = new ArrayList<>();
