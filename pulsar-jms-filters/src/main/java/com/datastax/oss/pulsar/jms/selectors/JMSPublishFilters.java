@@ -31,9 +31,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.servlet.ServletException;
 import javax.servlet.ServletRequest;
@@ -64,6 +67,7 @@ import org.apache.pulsar.common.intercept.InterceptException;
 public class JMSPublishFilters implements BrokerInterceptor {
   private static final String JMS_FILTER_METADATA = "jms-msg-metadata";
   private static final ByteBuf COULDNOT_ACQUIRE_MEMORY_PLACEHOLDER = Unpooled.EMPTY_BUFFER;
+  private static final int TIMEOUT_READ_ENTRY = 10000; // 10 seconds to read
 
   private static final Histogram filterProcessingTimeOnPublish =
       Histogram.build()
@@ -95,10 +99,10 @@ public class JMSPublishFilters implements BrokerInterceptor {
           .create();
 
   private static final Counter readFromLedger =
-          Counter.build()
-                  .name("pulsar_jmsfilter_entries_read_from_ledger")
-                  .help("Number of entries read from ledgers by JMSPublishFilters interceptor")
-                  .create();
+      Counter.build()
+          .name("pulsar_jmsfilter_entries_read_from_ledger")
+          .help("Number of entries read from ledgers by JMSPublishFilters interceptor")
+          .create();
 
   private final JMSFilter filter = new JMSFilter(false);
   private boolean enabled = false;
@@ -313,7 +317,16 @@ public class JMSPublishFilters implements BrokerInterceptor {
     try {
       final MessageMetadata messageMetadata;
       if (messageMetadataUnparsed == COULDNOT_ACQUIRE_MEMORY_PLACEHOLDER) {
-        entryReadFromBookie = readSingleEntry(ledgerId, entryId, topic).join();
+        try {
+          entryReadFromBookie =
+              readSingleEntry(ledgerId, entryId, topic).get(TIMEOUT_READ_ENTRY, TimeUnit.SECONDS);
+        } catch (InterruptedException interruptedException) {
+          Thread.currentThread().interrupt();
+        } catch (TimeoutException timeoutException) {
+          // timeout
+        } catch (ExecutionException err) {
+          throw err.getCause();
+        }
         if (entryReadFromBookie == null) {
           log.error("Could not read entry {}:{} from topic {}", ledgerId, entryId, topic);
           return;
@@ -327,6 +340,11 @@ public class JMSPublishFilters implements BrokerInterceptor {
         messageMetadata =
             getMessageMetadata(messageMetadataUnparsed, messageMetadataUnparsed.readableBytes());
       }
+
+      // if we have more than one subscription we can save a lot of resources by caching the
+      // properties
+      MessageMetadataCache messageMetadataCache =
+          subscriptions.size() > 1 ? new MessageMetadataCache() : null;
       for (Subscription subscription : subscriptions) {
         if (closed.get()) {
           // the broker is shutting down, we cannot process the entries
@@ -340,7 +358,8 @@ public class JMSPublishFilters implements BrokerInterceptor {
           filterContext.setMsgMetadata(messageMetadata);
           filterContext.setConsumer(null);
           Entry entry = null; // we would need the Entry only in case of batch messages
-          EntryFilter.FilterResult filterResult = filter.filterEntry(entry, filterContext, true);
+          EntryFilter.FilterResult filterResult =
+              filter.filterEntry(entry, filterContext, true, messageMetadataCache);
           if (filterResult == EntryFilter.FilterResult.REJECT) {
             if (log.isDebugEnabled()) {
               log.debug(
@@ -380,6 +399,8 @@ public class JMSPublishFilters implements BrokerInterceptor {
 
     PositionImpl position = new PositionImpl(ledgerId, entryId);
     ManagedLedgerImpl managedLedger = (ManagedLedgerImpl) topic.getManagedLedger();
+    // asyncReadEntry reads from the Broker cache, and falls bach to the Bookie
+    // is also leverage bookie read deduplication
     managedLedger.asyncReadEntry(
         position,
         new AsyncCallbacks.ReadEntryCallback() {
