@@ -13,14 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.datastax.oss.pulsar.jms;
+package io.streamnative.oss.pulsar.jms;
 
-import static com.datastax.oss.pulsar.jms.Utils.getAndRemoveString;
+import static io.streamnative.oss.pulsar.jms.Utils.getAndRemoveString;
 import static org.apache.pulsar.client.util.MathUtils.signSafeMod;
 
-import com.datastax.oss.pulsar.jms.api.JMSAdmin;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import io.streamnative.oss.pulsar.jms.api.JMSAdmin;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
@@ -107,7 +107,7 @@ public class PulsarConnectionFactory
   private static final long serialVersionUID = 1231231L;
 
   private static final String PENDING_ACK_STORE_SUFFIX = "__transaction_pending_ack";
-  private static final String SHADED_PREFIX = "com.datastax.oss.pulsar.jms.shaded.";
+  private static final String SHADED_PREFIX = "io.streamnative.oss.pulsar.jms.shaded.";
   private static final boolean NEEDS_RELOCATION =
       PulsarClient.class.getName().startsWith(SHADED_PREFIX);
 

@@ -13,9 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.datastax.oss.pulsar.jms.messages;
+package io.streamnative.oss.pulsar.jms.messages;
 
-import com.datastax.oss.pulsar.jms.PulsarMessage;
+import io.streamnative.oss.pulsar.jms.PulsarMessage;
 import javax.jms.JMSException;
 import org.apache.pulsar.client.api.TypedMessageBuilder;
 

@@ -13,16 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.datastax.oss.pulsar.jms;
+package io.streamnative.oss.pulsar.jms;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.datastax.oss.pulsar.jms.selectors.SelectorSupport;
-import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
 import com.google.common.collect.ImmutableMap;
+import io.streamnative.oss.pulsar.jms.selectors.SelectorSupport;
+import io.streamnative.oss.pulsar.jms.utils.PulsarCluster;
 import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.util.ArrayList;

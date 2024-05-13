@@ -13,15 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.datastax.oss.pulsar.jms.cli;
+package io.streamnative.oss.pulsar.jms.cli;
 
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.ParameterException;
 import com.beust.jcommander.Parameters;
-import com.datastax.oss.pulsar.jms.PulsarConnectionFactory;
-import com.datastax.oss.pulsar.jms.Utils;
-import com.datastax.oss.pulsar.jms.selectors.SelectorSupport;
+import io.streamnative.oss.pulsar.jms.PulsarConnectionFactory;
+import io.streamnative.oss.pulsar.jms.Utils;
+import io.streamnative.oss.pulsar.jms.selectors.SelectorSupport;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.File;
 import java.nio.charset.StandardCharsets;

@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.datastax.oss.pulsar.jms.selectors;
+package io.streamnative.oss.pulsar.jms.selectors;
 
 import io.netty.buffer.ByteBuf;
 import java.nio.charset.StandardCharsets;

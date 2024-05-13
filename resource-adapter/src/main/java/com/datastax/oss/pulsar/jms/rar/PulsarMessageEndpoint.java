@@ -13,15 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.datastax.oss.pulsar.jms.rar;
+package io.streamnative.oss.pulsar.jms.rar;
 
-import com.datastax.oss.pulsar.jms.PulsarConnectionFactory;
-import com.datastax.oss.pulsar.jms.PulsarDestination;
-import com.datastax.oss.pulsar.jms.PulsarJMSContext;
-import com.datastax.oss.pulsar.jms.PulsarMessage;
-import com.datastax.oss.pulsar.jms.PulsarQueue;
-import com.datastax.oss.pulsar.jms.PulsarTopic;
 import com.google.common.collect.ImmutableMap;
+import io.streamnative.oss.pulsar.jms.PulsarConnectionFactory;
+import io.streamnative.oss.pulsar.jms.PulsarDestination;
+import io.streamnative.oss.pulsar.jms.PulsarJMSContext;
+import io.streamnative.oss.pulsar.jms.PulsarMessage;
+import io.streamnative.oss.pulsar.jms.PulsarQueue;
+import io.streamnative.oss.pulsar.jms.PulsarTopic;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Hashtable;

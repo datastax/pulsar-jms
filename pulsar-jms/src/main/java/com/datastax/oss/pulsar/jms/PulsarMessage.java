@@ -13,15 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.datastax.oss.pulsar.jms;
+package io.streamnative.oss.pulsar.jms;
 
-import com.datastax.oss.pulsar.jms.messages.PulsarBytesMessage;
-import com.datastax.oss.pulsar.jms.messages.PulsarMapMessage;
-import com.datastax.oss.pulsar.jms.messages.PulsarObjectMessage;
-import com.datastax.oss.pulsar.jms.messages.PulsarSimpleMessage;
-import com.datastax.oss.pulsar.jms.messages.PulsarStreamMessage;
-import com.datastax.oss.pulsar.jms.messages.PulsarTextMessage;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import io.streamnative.oss.pulsar.jms.messages.PulsarBytesMessage;
+import io.streamnative.oss.pulsar.jms.messages.PulsarMapMessage;
+import io.streamnative.oss.pulsar.jms.messages.PulsarObjectMessage;
+import io.streamnative.oss.pulsar.jms.messages.PulsarSimpleMessage;
+import io.streamnative.oss.pulsar.jms.messages.PulsarStreamMessage;
+import io.streamnative.oss.pulsar.jms.messages.PulsarTextMessage;
 import java.io.EOFException;
 import java.io.Serializable;
 import java.nio.charset.StandardCharsets;

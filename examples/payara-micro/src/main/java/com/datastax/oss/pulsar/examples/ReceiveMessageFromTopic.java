@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.datastax.oss.pulsar.examples;
+package io.streamnative.oss.pulsar.examples;
 
 import java.util.concurrent.atomic.AtomicInteger;
 import javax.ejb.ActivationConfigProperty;

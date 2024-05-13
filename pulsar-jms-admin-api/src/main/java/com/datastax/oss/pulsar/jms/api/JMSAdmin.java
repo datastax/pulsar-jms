@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.datastax.oss.pulsar.jms.api;
+package io.streamnative.oss.pulsar.jms.api;
 
 import javax.jms.Destination;
 import javax.jms.JMSException;
@@ -55,10 +55,10 @@ public interface JMSAdmin {
    * @return Depending on the destination type this function returns * one of the subclasses of
    *     {@link JMSDestinationMetadata}
    * @throws JMSException
-   * @see com.datastax.oss.pulsar.jms.api.JMSDestinationMetadata.QueueMetadata
-   * @see com.datastax.oss.pulsar.jms.api.JMSDestinationMetadata.TopicMetadata
-   * @see com.datastax.oss.pulsar.jms.api.JMSDestinationMetadata.VirtualDestinationMetadata
-   * @see com.datastax.oss.pulsar.jms.api.JMSDestinationMetadata.PhysicalPulsarTopicMetadata
+   * @see io.streamnative.oss.pulsar.jms.api.JMSDestinationMetadata.QueueMetadata
+   * @see io.streamnative.oss.pulsar.jms.api.JMSDestinationMetadata.TopicMetadata
+   * @see io.streamnative.oss.pulsar.jms.api.JMSDestinationMetadata.VirtualDestinationMetadata
+   * @see io.streamnative.oss.pulsar.jms.api.JMSDestinationMetadata.PhysicalPulsarTopicMetadata
    */
   JMSDestinationMetadata describe(Destination destination) throws JMSException;
 

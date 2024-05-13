@@ -13,13 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.datastax.oss.pulsar.jms.tests;
+package io.streamnative.oss.pulsar.jms.tests;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.datastax.oss.pulsar.jms.PulsarConnectionFactory;
-import com.datastax.oss.pulsar.jms.shaded.org.apache.pulsar.client.impl.auth.AuthenticationToken;
+import io.streamnative.oss.pulsar.jms.PulsarConnectionFactory;
+import io.streamnative.oss.pulsar.jms.shaded.org.apache.pulsar.client.impl.auth.AuthenticationToken;
 import java.util.HashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -32,7 +32,7 @@ public class RelocatedClassesTest {
 
     // here we are using the repackaged Pulsar client and actually the class name is
     assertTrue(
-        AuthenticationToken.class.getName().startsWith("com.datastax.oss.pulsar.jms.shaded"));
+        AuthenticationToken.class.getName().startsWith("io.streamnative.oss.pulsar.jms.shaded"));
 
     properties.put("authPlugin", "org.apache.pulsar.client.impl.auth.AuthenticationToken");
 
@@ -50,11 +50,11 @@ public class RelocatedClassesTest {
       assertEquals(AuthenticationToken.class.getName(), adjustedConfiguration.get("authPlugin"));
 
       assertEquals(
-          "com.datastax.oss.pulsar.jms.shaded.org.apache.pulsar.client.something",
+          "io.streamnative.oss.pulsar.jms.shaded.org.apache.pulsar.client.something",
           ((Map) adjustedConfiguration.get("consumerConfig")).get("something"));
 
       assertEquals(
-          "com.datastax.oss.pulsar.jms.shaded.org.apache.pulsar.somethingElse",
+          "io.streamnative.oss.pulsar.jms.shaded.org.apache.pulsar.somethingElse",
           ((Map) adjustedConfiguration.get("producerConfig")).get("somethingElse"));
     }
   }

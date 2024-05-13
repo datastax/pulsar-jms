@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.datastax.oss.pulsar.jms.selectors;
+package io.streamnative.oss.pulsar.jms.selectors;
 
 import java.util.Enumeration;
 import java.util.HashMap;

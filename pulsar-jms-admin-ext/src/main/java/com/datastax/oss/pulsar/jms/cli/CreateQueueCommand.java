@@ -13,9 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.datastax.oss.pulsar.jms.cli;
+package io.streamnative.oss.pulsar.jms.cli;
 
-import com.datastax.oss.pulsar.jms.PulsarDestination;
+import io.streamnative.oss.pulsar.jms.PulsarDestination;
 import java.util.Arrays;
 import java.util.List;
 import javax.jms.Queue;

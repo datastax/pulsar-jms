@@ -27,7 +27,7 @@
     <license-required>false</license-required>
   </license>
   <resourceadapter>
-    <resourceadapter-class>com.datastax.oss.pulsar.jms.rar.PulsarResourceAdapter</resourceadapter-class>
+    <resourceadapter-class>io.streamnative.oss.pulsar.jms.rar.PulsarResourceAdapter</resourceadapter-class>
     <config-property>
       <config-property-name>Configuration</config-property-name>
       <config-property-type>java.lang.String</config-property-type>
@@ -35,7 +35,7 @@
     </config-property>
     <outbound-resourceadapter>
       <connection-definition>
-        <managedconnectionfactory-class>com.datastax.oss.pulsar.jms.rar.PulsarManagedConnectionFactory</managedconnectionfactory-class>
+        <managedconnectionfactory-class>io.streamnative.oss.pulsar.jms.rar.PulsarManagedConnectionFactory</managedconnectionfactory-class>
         <config-property>
           <!-- JSON configuration -->
           <config-property-name>Configuration</config-property-name>
@@ -43,12 +43,12 @@
           <config-property-value></config-property-value>
         </config-property>
         <connectionfactory-interface>javax.jms.ConnectionFactory</connectionfactory-interface>
-        <connectionfactory-impl-class>com.datastax.oss.pulsar.jms.PulsarConnectionFactory</connectionfactory-impl-class>
+        <connectionfactory-impl-class>io.streamnative.oss.pulsar.jms.PulsarConnectionFactory</connectionfactory-impl-class>
         <connection-interface>javax.jms.Connection</connection-interface>
-        <connection-impl-class>com.datastax.oss.pulsar.jms.PulsarConnection</connection-impl-class>
+        <connection-impl-class>io.streamnative.oss.pulsar.jms.PulsarConnection</connection-impl-class>
       </connection-definition>
       <connection-definition>
-        <managedconnectionfactory-class>com.datastax.oss.pulsar.jms.rar.PulsarManagedConnectionFactory</managedconnectionfactory-class>
+        <managedconnectionfactory-class>io.streamnative.oss.pulsar.jms.rar.PulsarManagedConnectionFactory</managedconnectionfactory-class>
         <config-property>
           <!-- JSON configuration -->
           <config-property-name>Configuration</config-property-name>
@@ -56,12 +56,12 @@
           <config-property-value></config-property-value>
         </config-property>
         <connectionfactory-interface>javax.jms.QueueConnectionFactory</connectionfactory-interface>
-        <connectionfactory-impl-class>com.datastax.oss.pulsar.jms.PulsarConnectionFactory</connectionfactory-impl-class>
+        <connectionfactory-impl-class>io.streamnative.oss.pulsar.jms.PulsarConnectionFactory</connectionfactory-impl-class>
         <connection-interface>javax.jms.QueueConnection</connection-interface>
-        <connection-impl-class>com.datastax.oss.pulsar.jms.PulsarConnection</connection-impl-class>
+        <connection-impl-class>io.streamnative.oss.pulsar.jms.PulsarConnection</connection-impl-class>
       </connection-definition>
       <connection-definition>
-        <managedconnectionfactory-class>com.datastax.oss.pulsar.jms.rar.PulsarManagedConnectionFactory</managedconnectionfactory-class>
+        <managedconnectionfactory-class>io.streamnative.oss.pulsar.jms.rar.PulsarManagedConnectionFactory</managedconnectionfactory-class>
         <config-property>
           <!-- JSON configuration -->
           <config-property-name>Configuration</config-property-name>
@@ -69,9 +69,9 @@
           <config-property-value></config-property-value>
         </config-property>
         <connectionfactory-interface>javax.jms.TopicConnectionFactory</connectionfactory-interface>
-        <connectionfactory-impl-class>com.datastax.oss.pulsar.jms.PulsarConnectionFactory</connectionfactory-impl-class>
+        <connectionfactory-impl-class>io.streamnative.oss.pulsar.jms.PulsarConnectionFactory</connectionfactory-impl-class>
         <connection-interface>javax.jms.TopicConnection</connection-interface>
-        <connection-impl-class>com.datastax.oss.pulsar.jms.PulsarConnection</connection-impl-class>
+        <connection-impl-class>io.streamnative.oss.pulsar.jms.PulsarConnection</connection-impl-class>
       </connection-definition>
       <transaction-support>NoTransaction</transaction-support>
       <reauthentication-support>false</reauthentication-support>
@@ -81,7 +81,7 @@
         <messagelistener>
           <messagelistener-type>javax.jms.MessageListener</messagelistener-type>
           <activationspec>
-            <activationspec-class>com.datastax.oss.pulsar.jms.rar.PulsarActivationSpec</activationspec-class>
+            <activationspec-class>io.streamnative.oss.pulsar.jms.rar.PulsarActivationSpec</activationspec-class>
             <required-config-property>
               <config-property-name>Destination</config-property-name>
             </required-config-property>
@@ -104,7 +104,7 @@
     </inbound-resourceadapter>
     <adminobject>
       <adminobject-interface>javax.jms.Queue</adminobject-interface>
-      <adminobject-class>com.datastax.oss.pulsar.jms.PulsarQueue</adminobject-class>
+      <adminobject-class>io.streamnative.oss.pulsar.jms.PulsarQueue</adminobject-class>
       <config-property>
         <config-property-name>Name</config-property-name>
         <config-property-type>java.lang.String</config-property-type>
@@ -113,7 +113,7 @@
     </adminobject>
     <adminobject>
       <adminobject-interface>javax.jms.Topic</adminobject-interface>
-      <adminobject-class>com.datastax.oss.pulsar.jms.PulsarTopic</adminobject-class>
+      <adminobject-class>io.streamnative.oss.pulsar.jms.PulsarTopic</adminobject-class>
       <config-property>
         <config-property-name>Name</config-property-name>
         <config-property-type>java.lang.String</config-property-type>

@@ -33,8 +33,8 @@
     <logger name="org.apache.curator" level="error" additivity="true"/>
     <logger name="org.eclipse.jetty" level="error" additivity="true"/>
     <logger name="org.glassfish.jersey" level="error" additivity="false"/>
-    <logger name="com.datastax.oss.pulsar.jms" level="info" additivity="true"/>
-    <logger name="com.datastax.oss.pulsar.jms.utils" level="info" additivity="false"/>
+    <logger name="io.streamnative.oss.pulsar.jms" level="info" additivity="true"/>
+    <logger name="io.streamnative.oss.pulsar.jms.utils" level="info" additivity="false"/>
     <logger name="io.netty" level="error" additivity="true"/>
     <logger name="org.asynchttpclient" level="error" additivity="true"/>
   </Loggers>

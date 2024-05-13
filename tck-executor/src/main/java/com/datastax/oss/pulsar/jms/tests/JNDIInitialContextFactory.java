@@ -13,11 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.datastax.oss.pulsar.jms.tests;
+package io.streamnative.oss.pulsar.jms.tests;
 
-import com.datastax.oss.pulsar.jms.PulsarConnectionFactory;
-import com.datastax.oss.pulsar.jms.PulsarQueue;
-import com.datastax.oss.pulsar.jms.PulsarTopic;
+import io.streamnative.oss.pulsar.jms.PulsarConnectionFactory;
+import io.streamnative.oss.pulsar.jms.PulsarQueue;
+import io.streamnative.oss.pulsar.jms.PulsarTopic;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;

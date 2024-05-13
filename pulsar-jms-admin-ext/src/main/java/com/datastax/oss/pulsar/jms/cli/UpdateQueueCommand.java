@@ -13,9 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.datastax.oss.pulsar.jms.cli;
+package io.streamnative.oss.pulsar.jms.cli;
 
-import com.datastax.oss.pulsar.jms.api.JMSAdmin;
+import io.streamnative.oss.pulsar.jms.api.JMSAdmin;
 import javax.jms.Destination;
 import javax.jms.Queue;
 import lombok.extern.slf4j.Slf4j;

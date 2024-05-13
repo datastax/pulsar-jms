@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.datastax.oss.pulsar.jms;
+package io.streamnative.oss.pulsar.jms;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -23,8 +23,8 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
-import com.datastax.oss.pulsar.jms.messages.PulsarTextMessage;
-import com.datastax.oss.pulsar.jms.utils.PulsarCluster;
+import io.streamnative.oss.pulsar.jms.messages.PulsarTextMessage;
+import io.streamnative.oss.pulsar.jms.utils.PulsarCluster;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;

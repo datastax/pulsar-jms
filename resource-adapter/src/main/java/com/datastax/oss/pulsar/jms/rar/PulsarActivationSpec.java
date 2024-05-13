@@ -13,10 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.datastax.oss.pulsar.jms.rar;
+package io.streamnative.oss.pulsar.jms.rar;
 
-import com.datastax.oss.pulsar.jms.Utils;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.streamnative.oss.pulsar.jms.Utils;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;

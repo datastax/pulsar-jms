@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.datastax.oss.pulsar.jms.utils;
+package io.streamnative.oss.pulsar.jms.utils;
 
 import java.io.File;
 import java.io.IOException;

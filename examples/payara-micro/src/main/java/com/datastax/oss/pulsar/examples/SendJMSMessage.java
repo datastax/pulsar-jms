@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.datastax.oss.pulsar.examples;
+package io.streamnative.oss.pulsar.examples;
 
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -41,14 +41,14 @@ import javax.resource.ConnectionFactoryDefinition;
   @AdministeredObjectDefinition(
     resourceAdapter = "pulsarra",
     interfaceName = "javax.jms.Queue",
-    className = "com.datastax.oss.pulsar.jms.PulsarQueue",
+    className = "io.streamnative.oss.pulsar.jms.PulsarQueue",
     name = "java:app/jms/MyQueue",
     properties = {"Name=${MPCONFIG=queue.name}"}
   ),
   @AdministeredObjectDefinition(
     resourceAdapter = "pulsarra",
     interfaceName = "javax.jms.Topic",
-    className = "com.datastax.oss.pulsar.jms.PulsarTopic",
+    className = "io.streamnative.oss.pulsar.jms.PulsarTopic",
     name = "java:app/jms/MyTopic",
     properties = {"Name=${MPCONFIG=topic.name}"}
   )
@@ -78,7 +78,7 @@ public class SendJMSMessage {
       if (!factory
           .getClass()
           .getName()
-          .equals("com.datastax.oss.pulsar.jms.PulsarConnectionFactory")) {
+          .equals("io.streamnative.oss.pulsar.jms.PulsarConnectionFactory")) {
         throw new RuntimeException("Unexpected Factory type " + factory.getClass());
       }
       context.createProducer().send(queue, "This is a test");

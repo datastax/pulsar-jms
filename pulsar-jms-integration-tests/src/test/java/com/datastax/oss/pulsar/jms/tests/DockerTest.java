@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.datastax.oss.pulsar.jms.tests;
+package io.streamnative.oss.pulsar.jms.tests;
 
 import static org.junit.Assume.assumeTrue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -21,14 +21,14 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
-import com.datastax.oss.pulsar.jms.PulsarConnectionFactory;
-import com.datastax.oss.pulsar.jms.PulsarJMSConsumer;
-import com.datastax.oss.pulsar.jms.PulsarMessageConsumer;
+import io.streamnative.oss.pulsar.jms.PulsarConnectionFactory;
+import io.streamnative.oss.pulsar.jms.PulsarJMSConsumer;
+import io.streamnative.oss.pulsar.jms.PulsarMessageConsumer;
 // it is important that Jackson Annotations are not shaded
 import com.fasterxml.jackson.annotation.JsonInclude;
 // but Jackson Databind is shaded
-import com.datastax.oss.pulsar.jms.shaded.com.fasterxml.jackson.databind.ObjectMapper;
-import com.datastax.oss.pulsar.jms.shaded.org.apache.pulsar.client.impl.auth.AuthenticationToken;
+import io.streamnative.oss.pulsar.jms.shaded.com.fasterxml.jackson.databind.ObjectMapper;
+import io.streamnative.oss.pulsar.jms.shaded.org.apache.pulsar.client.impl.auth.AuthenticationToken;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -154,7 +154,7 @@ public class DockerTest {
 
       // here we are using the repackaged Pulsar client and actually the class name is
       assertTrue(
-          AuthenticationToken.class.getName().startsWith("com.datastax.oss.pulsar.jms.shaded"));
+          AuthenticationToken.class.getName().startsWith("io.streamnative.oss.pulsar.jms.shaded"));
 
       org.apache.pulsar.shade.com.fasterxml.jackson.databind.ObjectMapper objectMapper =
           new org.apache.pulsar.shade.com.fasterxml.jackson.databind.ObjectMapper();

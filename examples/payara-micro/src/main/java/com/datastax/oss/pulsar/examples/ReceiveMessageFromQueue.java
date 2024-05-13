@@ -13,10 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.datastax.oss.pulsar.examples;
+package io.streamnative.oss.pulsar.examples;
 
-import static com.datastax.oss.pulsar.examples.ReceiveMessageFromTopic.countQueue;
-import static com.datastax.oss.pulsar.examples.ReceiveMessageFromTopic.countTopic;
+import static io.streamnative.oss.pulsar.examples.ReceiveMessageFromTopic.countQueue;
+import static io.streamnative.oss.pulsar.examples.ReceiveMessageFromTopic.countTopic;
 
 import javax.ejb.ActivationConfigProperty;
 import javax.ejb.MessageDriven;
