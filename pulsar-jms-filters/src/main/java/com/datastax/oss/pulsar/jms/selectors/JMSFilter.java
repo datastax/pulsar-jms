@@ -127,7 +127,7 @@ public class JMSFilter implements EntryFilter {
   public FilterResult filterEntry(Entry entry, FilterContext context) {
     long start = System.nanoTime();
     try {
-      return filterEntry(entry, context, false);
+      return filterEntry(entry, context, false, null);
     } finally {
       filterProcessingTime
           .labels(context.getSubscription().getTopicName(), context.getSubscription().getName())
@@ -206,7 +206,11 @@ public class JMSFilter implements EntryFilter {
     return handleOnlySelectors;
   }
 
-  public FilterResult filterEntry(Entry entry, FilterContext context, boolean onMessagePublish) {
+  public FilterResult filterEntry(
+      Entry entry,
+      FilterContext context,
+      boolean onMessagePublish,
+      MessageMetadataCache messageMetadataCache) {
     Consumer consumer = context.getConsumer();
     Map<String, String> consumerMetadata =
         consumer != null ? consumer.getMetadata() : Collections.emptyMap();
@@ -279,7 +283,8 @@ public class JMSFilter implements EntryFilter {
             selectorOnSubscription,
             selector,
             subscription,
-            consumerMetadata);
+            consumerMetadata,
+            messageMetadataCache);
       }
     } catch (Throwable err) {
       log.error("Error while processing entry " + err, err);
@@ -325,13 +330,19 @@ public class JMSFilter implements EntryFilter {
       SelectorSupport selectorOnSubscription,
       SelectorSupport selector,
       Subscription subscription,
-      Map<String, String> consumerMetadata)
+      Map<String, String> consumerMetadata,
+      MessageMetadataCache messageMetadataCache)
       throws JMSException {
     // here we are dealing with a single message,
     // so we can reject the message more easily
     PropertyEvaluator typedProperties =
         new PropertyEvaluator(
-            metadata.getPropertiesCount(), metadata.getPropertiesList(), null, metadata, context);
+            metadata.getPropertiesCount(),
+            metadata.getPropertiesList(),
+            null,
+            metadata,
+            context,
+            messageMetadataCache);
 
     if (selectorOnSubscription != null) {
       boolean matchesSubscriptionFilter = matches(typedProperties, selectorOnSubscription);
@@ -414,7 +425,8 @@ public class JMSFilter implements EntryFilter {
                   singleMessageMetadata.getPropertiesList(),
                   singleMessageMetadata,
                   null,
-                  context);
+                  context,
+                  null);
 
           // noLocal filter
           // all the messages in the batch come from the Producer/Connection
@@ -545,8 +557,13 @@ public class JMSFilter implements EntryFilter {
     private SingleMessageMetadata singleMessageMetadata;
     private MessageMetadata metadata;
     private FilterContext context;
+    private MessageMetadataCache messageMetadataCache;
 
     private Object getProperty(String name) {
+      if (messageMetadataCache != null) {
+        return messageMetadataCache.getProperty(
+            name, n -> JMSFilter.getProperty(propertiesCount, propertiesList, n));
+      }
       return JMSFilter.getProperty(propertiesCount, propertiesList, name);
     }
 

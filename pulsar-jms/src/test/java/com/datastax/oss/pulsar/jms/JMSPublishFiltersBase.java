@@ -37,23 +37,15 @@ import org.apache.pulsar.common.policies.data.TopicStats;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
-import org.junit.jupiter.api.extension.RegisterExtension;
 
 @Slf4j
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-public class JMSPublishFiltersTest {
+public abstract class JMSPublishFiltersBase {
 
-  @RegisterExtension
-  static PulsarContainerExtension pulsarContainer =
-      new PulsarContainerExtension()
-          .withEnv("PULSAR_PREFIX_transactionCoordinatorEnabled", "true")
-          .withEnv("PULSAR_PREFIX_brokerInterceptorsDirectory", "/pulsar/interceptors")
-          .withEnv("PULSAR_PREFIX_brokerInterceptors", "jms-publish-filters")
-          .withEnv("PULSAR_PREFIX_jmsApplyFiltersOnPublish", "true")
-          .withLogContainerOutput(true);
+  abstract PulsarContainerExtension getPulsarContainer();
 
   private Map<String, Object> buildProperties() {
-    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
+    Map<String, Object> properties = getPulsarContainer().buildJMSConnectionProperties();
     properties.put("jms.useServerSideFiltering", true);
     properties.put("jms.enableClientSideEmulation", false);
 
@@ -94,7 +86,7 @@ public class JMSPublishFiltersTest {
             subscriptionProperties.put("jms.selector", newSelector);
             subscriptionProperties.put("jms.filtering", "true");
 
-            pulsarContainer
+            getPulsarContainer()
                 .getAdmin()
                 .topics()
                 .updateSubscriptionProperties(topicName, "jms-queue", subscriptionProperties);
@@ -112,6 +104,9 @@ public class JMSPublishFiltersTest {
               }
             }
 
+            // wait for the filters to be processed in background
+            Thread.sleep(5000);
+
             TextMessage textMessage = (TextMessage) consumer1.receive();
             assertEquals("foo-9", textMessage.getText());
 
@@ -121,23 +116,30 @@ public class JMSPublishFiltersTest {
             // no more messages
             assertNull(consumer1.receiveNoWait());
 
-            // ensure that the filter didn't reject any message while dispatching to the consumer
-            // because the filter has been already applied on the write path
-            TopicStats stats = pulsarContainer.getAdmin().topics().getStats(topicName);
-            SubscriptionStats subscriptionStats = stats.getSubscriptions().get("jms-queue");
-            if (transacted) {
-              // when we enable transactions the stats are not updated correctly
-              // it seems that the transaction marker is counted as "processed by filters"
-              // but actually it is not processed by the JMSFilter at all
-              assertEquals(subscriptionStats.getFilterProcessedMsgCount(), 2);
-              assertEquals(subscriptionStats.getFilterRejectedMsgCount(), 0);
-              assertEquals(subscriptionStats.getFilterAcceptedMsgCount(), 1);
-              session.commit();
-            } else {
-              assertEquals(subscriptionStats.getFilterProcessedMsgCount(), 1);
-              assertEquals(subscriptionStats.getFilterRejectedMsgCount(), 0);
-              assertEquals(subscriptionStats.getFilterAcceptedMsgCount(), 1);
-            }
+            Awaitility.await()
+                .untilAsserted(
+                    () -> {
+                      // ensure that the filter didn't reject any message while dispatching to the
+                      // consumer
+                      // because the filter has been already applied on the write path
+                      TopicStats stats =
+                          getPulsarContainer().getAdmin().topics().getStats(topicName);
+                      SubscriptionStats subscriptionStats =
+                          stats.getSubscriptions().get("jms-queue");
+                      if (transacted) {
+                        // when we enable transactions the stats are not updated correctly
+                        // it seems that the transaction marker is counted as "processed by filters"
+                        // but actually it is not processed by the JMSFilter at all
+                        assertEquals(subscriptionStats.getFilterProcessedMsgCount(), 2);
+                        assertEquals(subscriptionStats.getFilterRejectedMsgCount(), 0);
+                        assertEquals(subscriptionStats.getFilterAcceptedMsgCount(), 1);
+                        session.commit();
+                      } else {
+                        assertEquals(subscriptionStats.getFilterProcessedMsgCount(), 1);
+                        assertEquals(subscriptionStats.getFilterRejectedMsgCount(), 0);
+                        assertEquals(subscriptionStats.getFilterAcceptedMsgCount(), 1);
+                      }
+                    });
           }
 
           // create a message that doesn't match the filter
@@ -147,9 +149,15 @@ public class JMSPublishFiltersTest {
             TextMessage textMessage = session.createTextMessage("backlog");
             producer.send(textMessage);
 
-            TopicStats stats = pulsarContainer.getAdmin().topics().getStats(topicName);
-            SubscriptionStats subscriptionStats = stats.getSubscriptions().get("jms-queue");
-            assertEquals(0, subscriptionStats.getMsgBacklog());
+            Awaitility.await()
+                .untilAsserted(
+                    () -> {
+                      TopicStats stats =
+                          getPulsarContainer().getAdmin().topics().getStats(topicName);
+                      SubscriptionStats subscriptionStats =
+                          stats.getSubscriptions().get("jms-queue");
+                      assertEquals(0, subscriptionStats.getMsgBacklog());
+                    });
 
             if (transacted) {
               session.commit();
@@ -181,7 +189,7 @@ public class JMSPublishFiltersTest {
             subscriptionProperties.put("jms.selector", newSelector);
             subscriptionProperties.put("jms.filtering", "true");
 
-            pulsarContainer
+            getPulsarContainer()
                 .getAdmin()
                 .topics()
                 .updateSubscriptionProperties(topicName, "jms-queue", subscriptionProperties);
