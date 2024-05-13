@@ -311,11 +311,16 @@ public class JMSFilter implements EntryFilter {
   }
 
   private SelectorSupport parseSelector(String jmsSelector) {
+    // null returned by SelectorSupport.build in computeIfAbsent won't be cached
+    // and in such cases it is better to not avoid the calls/synchronization there.
+    if (jmsSelector == null || jmsSelector.isEmpty()) {
+      return null;
+    }
     return selectors.computeIfAbsent(
         jmsSelector,
         s -> {
           try {
-            return SelectorSupport.build(s, !s.isEmpty());
+            return SelectorSupport.build(s, true);
           } catch (JMSException err) {
             log.error("Cannot parse selector {}", s, err);
             return null;
