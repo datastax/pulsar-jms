@@ -736,7 +736,7 @@ public class JMSFilter implements EntryFilter {
     // we pre-compute the type in order to avoid to scan the list to fine the type
     String type = SYSTEM_PROPERTIES_TYPES.get(name);
     if (type == null) {
-      type = cacheProperties.get(propertyType(name));
+      type = propertyType(name);
     }
     String value = cacheProperties.get(name);
     return getObjectProperty(value, type);
