@@ -17,12 +17,36 @@ package com.datastax.oss.pulsar.jms.selectors;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Function;
+import org.apache.pulsar.common.api.proto.MessageMetadata;
 
 class MessageMetadataCache {
+  final Map<String, String> rawProperties = new HashMap<>();
   final Map<String, Object> properties = new HashMap<>();
+  private static final Object CACHED_NULL = new Object();
 
-  Object getProperty(String key, Function<String, Object> compute) {
-    return properties.computeIfAbsent(key, compute);
+  MessageMetadataCache(MessageMetadata metadata) {
+    // computing this is expensive because it involves a lot of string manipulation
+    // protobuf has to parse the bytes and then convert them to Strings
+    // so we want to do it only once
+    // please note that when a selector references a property that is not
+    // in the message we would end up in scanning the whole list
+    metadata.getPropertiesList().forEach(p -> rawProperties.put(p.getKey(), p.getValue()));
+  }
+
+  Object getProperty(String key) {
+    Object cached = properties.get(key);
+    if (cached == CACHED_NULL) {
+      return null;
+    }
+    if (cached != null) {
+      return cached;
+    }
+    Object result = JMSFilter.getProperty(rawProperties, key);
+    if (result == null) {
+      properties.put(key, CACHED_NULL);
+    } else {
+      properties.put(key, result);
+    }
+    return result;
   }
 }

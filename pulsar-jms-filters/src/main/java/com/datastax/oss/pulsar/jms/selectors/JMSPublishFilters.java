@@ -411,7 +411,7 @@ public class JMSPublishFilters implements BrokerInterceptor {
       // if we have more than one subscription we can save a lot of resources by caching the
       // properties
       MessageMetadataCache messageMetadataCache =
-          subscriptions.size() > 1 ? new MessageMetadataCache() : null;
+          subscriptions.size() > 1 ? new MessageMetadataCache(messageMetadata) : null;
       for (Subscription subscription : subscriptions) {
         if (closed.get()) {
           // the broker is shutting down, we cannot process the entries
