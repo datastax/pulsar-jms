@@ -566,8 +566,7 @@ public class JMSFilter implements EntryFilter {
 
     private Object getProperty(String name) {
       if (messageMetadataCache != null) {
-        return messageMetadataCache.getProperty(
-            name, n -> JMSFilter.getProperty(propertiesCount, propertiesList, n));
+        return messageMetadataCache.getProperty(name);
       }
       return JMSFilter.getProperty(propertiesCount, propertiesList, name);
     }
@@ -726,6 +725,20 @@ public class JMSFilter implements EntryFilter {
         break;
       }
     }
+    return getObjectProperty(value, type);
+  }
+
+  static Object getProperty(Map<String, String> cacheProperties, String name) {
+    if (cacheProperties.isEmpty()) {
+      return null;
+    }
+    // we don't write the type for system fields
+    // we pre-compute the type in order to avoid to scan the list to fine the type
+    String type = SYSTEM_PROPERTIES_TYPES.get(name);
+    if (type == null) {
+      type = propertyType(name);
+    }
+    String value = cacheProperties.get(name);
     return getObjectProperty(value, type);
   }
 
