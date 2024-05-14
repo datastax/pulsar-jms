@@ -592,7 +592,12 @@ public class JMSPublishFilters implements BrokerInterceptor {
     log.info("Broker is shutting down. Disabling JMSPublishFilters interceptor");
     closed.set(true);
     filter.close();
-    executor.shutdown();
+    if (executor != null) {
+      executor.shutdown();
+    }
+    if (drainAckQueueExecutor != null) {
+      drainAckQueueExecutor.shutdown();
+    }
   }
 
   @Override
