@@ -31,6 +31,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -48,7 +49,6 @@ import javax.servlet.ServletRequest;
 import javax.servlet.ServletResponse;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.bookkeeper.common.collections.BatchedArrayBlockingQueue;
 import org.apache.bookkeeper.mledger.AsyncCallbacks;
 import org.apache.bookkeeper.mledger.Entry;
 import org.apache.bookkeeper.mledger.ManagedLedgerException;
@@ -140,8 +140,9 @@ public class JMSPublishFilters implements BrokerInterceptor {
   private Semaphore memoryLimit;
   private final AtomicBoolean closed = new AtomicBoolean();
   private ExecutorService executor;
-  private final BlockingQueue<AckFuture> ackQueue = new BatchedArrayBlockingQueue<>(100000);
+  private final BlockingQueue<AckFuture> ackQueue = new ArrayBlockingQueue<>(100000);
   private final Runnable drainAckQueueTask = SafeRunnable.safeRun(this::drainAckQueue);
+  private ExecutorService drainAckQueueExecutor;
 
   @Override
   public void initialize(PulsarService pulsarService) {
@@ -164,7 +165,19 @@ public class JMSPublishFilters implements BrokerInterceptor {
                     "jmsFiltersOnPublishThreads",
                     (Runtime.getRuntime().availableProcessors() * 4) + ""));
     log.info("jmsFiltersOnPublishThreads={}", numThreads);
-    executor = Executors.newFixedThreadPool(numThreads, new WorkersThreadFactory());
+    executor =
+        Executors.newFixedThreadPool(numThreads, new WorkersThreadFactory("jms-filters-workers-"));
+    int numThreadsAcks =
+        Integer.parseInt(
+            pulsarService
+                .getConfiguration()
+                .getProperties()
+                .getProperty(
+                    "jmsFiltersOnPublishAckThreads",
+                    (Math.max(2, Runtime.getRuntime().availableProcessors() / 2)) + ""));
+    log.info("jmsFiltersOnPublishAckThreads={}", numThreadsAcks);
+    drainAckQueueExecutor =
+        Executors.newFixedThreadPool(numThreadsAcks, new WorkersThreadFactory("jms-filters-acks-"));
     try {
       log.info("Registering JMSFilter metrics");
       CollectorRegistry.defaultRegistry.register(filterProcessingTimeOnPublish);
@@ -203,7 +216,7 @@ public class JMSPublishFilters implements BrokerInterceptor {
     }
 
     // start the ack queue draining
-    executor.submit(drainAckQueueTask);
+    drainAckQueueExecutor.submit(drainAckQueueTask);
   }
 
   @Override
@@ -323,12 +336,14 @@ public class JMSPublishFilters implements BrokerInterceptor {
         && "true".equals(subscription.getSubscriptionProperties().get("jms.filtering"));
   }
 
+  @AllArgsConstructor
   private static class WorkersThreadFactory implements ThreadFactory {
     private static final AtomicInteger THREAD_COUNT = new AtomicInteger();
+    private final String name;
 
     @Override
     public Thread newThread(Runnable r) {
-      return new Thread(r, "jms-filters-workers-" + THREAD_COUNT.getAndIncrement());
+      return new Thread(r, name + THREAD_COUNT.getAndIncrement());
     }
   }
 
@@ -482,10 +497,15 @@ public class JMSPublishFilters implements BrokerInterceptor {
               acksBySubscription.computeIfAbsent(ackFuture.subscription, k -> new ArrayList<>());
           acks.add(ackFuture.position);
         }
+      } catch (InterruptedException exit) {
+        Thread.currentThread().interrupt();
+        log.info("JMSPublishFilter Ack queue draining interrupted");
+      } catch (Throwable error) {
+        log.error("Error while draining ack queue", error);
       } finally {
         // continue draining the queue
         if (!closed.get()) {
-          executor.submit(drainAckQueueTask);
+          drainAckQueueExecutor.submit(drainAckQueueTask);
         }
       }
       for (Map.Entry<Subscription, List<Position>> entry : acksBySubscription.entrySet()) {
@@ -493,7 +513,7 @@ public class JMSPublishFilters implements BrokerInterceptor {
         Subscription subscription = entry.getKey();
         PersistentTopic topic = (PersistentTopic) subscription.getTopic();
         if (!isTopicOwned(topic)) {
-          return;
+          continue;
         }
         try {
           List<Position> acks = entry.getValue();
@@ -504,9 +524,6 @@ public class JMSPublishFilters implements BrokerInterceptor {
               .observe(System.nanoTime() - now);
         }
       }
-    } catch (InterruptedException exit) {
-      Thread.currentThread().interrupt();
-      log.info("JMSPublishFilter Ack queue draining interrupted");
     } catch (Throwable error) {
       log.error("Error while draining ack queue", error);
     }
