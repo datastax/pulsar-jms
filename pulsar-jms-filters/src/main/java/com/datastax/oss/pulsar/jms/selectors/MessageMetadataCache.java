@@ -19,7 +19,7 @@ import java.util.HashMap;
 import java.util.Map;
 import org.apache.pulsar.common.api.proto.MessageMetadata;
 
-class MessageMetadataCache {
+final class MessageMetadataCache {
   final Map<String, String> rawProperties = new HashMap<>();
   final Map<String, Object> properties = new HashMap<>();
   private static final Object CACHED_NULL = new Object();
@@ -34,18 +34,18 @@ class MessageMetadataCache {
   }
 
   Object getProperty(String key) {
-    Object cached = properties.get(key);
-    if (cached == CACHED_NULL) {
-      return null;
-    }
-    if (cached != null) {
-      return cached;
-    }
-    Object result = JMSFilter.getProperty(rawProperties, key);
+    Object result = properties.get(key);
     if (result == null) {
-      properties.put(key, CACHED_NULL);
-    } else {
-      properties.put(key, result);
+      result = JMSFilter.getProperty(rawProperties, key);
+      if (result == null) {
+        properties.put(key, CACHED_NULL);
+      } else {
+        properties.put(key, result);
+      }
+      return result;
+    }
+    if (result == CACHED_NULL) {
+      return null;
     }
     return result;
   }

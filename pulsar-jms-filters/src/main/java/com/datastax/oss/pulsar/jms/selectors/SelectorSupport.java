@@ -55,13 +55,40 @@ public final class SelectorSupport {
     return new SelectorSupport(parse, selector);
   }
 
+  private static class PropertiesCache implements Function<String, Object> {
+    final Function<String, Object> messagePropertiesAccessor;
+    private static final Object CACHED_NULL = new Object();
+
+    final Map<String, Object> cache = new HashMap<>();
+
+    public PropertiesCache(Function<String, Object> messagePropertiesAccessor) {
+      this.messagePropertiesAccessor = messagePropertiesAccessor;
+    }
+
+    @Override
+    public Object apply(String s) {
+      Object result = cache.get(s);
+      if (result == null) {
+        result = messagePropertiesAccessor.apply(s);
+        if (result == null) {
+          cache.put(s, CACHED_NULL);
+        } else {
+          cache.put(s, result);
+        }
+        return result;
+      }
+      if (result == CACHED_NULL) {
+        return null;
+      }
+      return result;
+    }
+  }
+
   public boolean matches(Function<String, Object> messagePropertiesAccessor) throws JMSException {
-    Map<String, Object> cache = new HashMap<>();
 
     // this cache is important in order to be able to not parse Message Metadata more than once
     // for complex selectors that refer more times to the same property
-    Function<String, Object> messageProperties =
-        (name) -> cache.computeIfAbsent(name, messagePropertiesAccessor::apply);
+    PropertiesCache messageProperties = new PropertiesCache(messagePropertiesAccessor);
 
     // convert anything that can be used by the selector
     // https://github.com/apache/activemq/blob/d54d046b8a8f2e9e5c0a28e1f8c7634b3c8b18e4/activemq-client/src/main/java/org/apache/activemq/filter/PropertyExpression.java#L35
