@@ -8,9 +8,9 @@ In this case the Pulsar Resource Adapter allows you to easily connect to Pulsar 
 ## Contents of the Resource Adapter
 
 This resource adapter defines:
-- The main ResourceAdapter implementation (PulsarResourceAdapter)
-- The implementation for Outbound Connections (PulsarManagedConnectionFactory)
-- The implementation for Inbound Messages (PulsarActivationSpec) 
+- The main ResourceAdapter implementation (io.streamnative.oss.pulsar.jms.rar.PulsarResourceAdapter)
+- The implementation for Outbound Connections (io.streamnative.oss.pulsar.jms.rar.PulsarManagedConnectionFactory)
+- The implementation for Inbound Messages (io.streamnative.oss.pulsar.jms.rar.PulsarActivationSpec)
 - The mapping for Queues and for Topics administered objects
 
 Usually you do not have to use directly the names of the Java Classes, because the AppServer is able to discover
@@ -19,8 +19,8 @@ them automatically using the [ra.xml](src/main/rar/META-INF/ra.xml) file.
 ## Destinations
 
 In JMS you define Queues and Topics, in case of this ResourceAdapter you must use:
-- PulsarQueue for Queues
-- PulsarTopic for Topics
+- io.streamnative.oss.pulsar.jms.PulsarQueue for Queues
+- io.streamnative.oss.pulsar.jms.PulsarTopic for Topics
 
 These to types define the "Name" configuration entry, that represents the fully qualified name of the Pulsar topic, like
 persistent://public/default/topic.
