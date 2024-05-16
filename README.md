@@ -18,7 +18,7 @@ In order to use this library just add this dependency to your Maven pom:
 ```
 <dependency>
    <artifactId>pulsar-jms</artifactId>
-   <groupId>com.datastax.oss</groupId>
+   <groupId>io.streamnative.oss</groupId>
    <version>VERSION</version>
 </dependency>
 ```
@@ -30,7 +30,7 @@ You can also use a "fat" JAR that includes all dependencies:
 ```
 <dependency>
    <artifactId>pulsar-jms-all</artifactId>
-   <groupId>com.datastax.oss</groupId>
+   <groupId>io.streamnative.oss</groupId>
    <version>VERSION</version>
 </dependency>
 ```
@@ -48,9 +48,9 @@ If you want to use Server Side Filtering then you must use Pulsar 2.10.1 or abov
 ## Getting started
 
 In JMS you need these three concepts to get started:
-- a ConnectionFactory: use com.datastax.oss.pulsar.jms.PulsarConnectionFactory
-- a Queue: use com.datastax.oss.pulsar.jms.PulsarQueue (or better Session#createQueue)
-- a Topic: use com.datastax.oss.pulsar.jms.PulsarTopic (or better Session#createTopic)
+- a ConnectionFactory: use PulsarConnectionFactory
+- a Queue: use PulsarQueue (or better Session#createQueue)
+- a Topic: use PulsarTopic (or better Session#createTopic)
 
 This is how you access them with Starlight for JMS:
 
@@ -89,14 +89,14 @@ The source code for the resource adapter is in this [directory](resource-adapter
 You can use the JNDI API to build the ConnectionFactory and the Destination references.
 
 Steps:
-* Use `com.datastax.oss.pulsar.jms.jndi.PulsarInitialContextFactory` as `Context.INITIAL_CONTEXT_FACTORY`
+* Use `PulsarInitialContextFactory` as `Context.INITIAL_CONTEXT_FACTORY`
 * Pass the configuration (authentication, broker address...) using the `Properties` object
 * Lookup the ConnectionFactory using the system name `ConnectionFactory`
 * Lookup destinations using `queues/` or `topics/` prefix
 
 ```
 Properties properties = new Properties();
-properties.setProperty(Context.INITIAL_CONTEXT_FACTORY, "com.datastax.oss.pulsar.jms.jndi.PulsarInitialContextFactory");
+properties.setProperty(Context.INITIAL_CONTEXT_FACTORY, "PulsarInitialContextFactory");
 properties.setProperty(Context.PROVIDER_URL, "pulsar://localhost:6650");
 properties.setProperty("webServiceUrl", "http://localhost:8080");
 // automatically close the ConnectionFactory when closing the JDNI context

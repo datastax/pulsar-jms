@@ -15,7 +15,7 @@
  */
 package examples;
 
-import com.datastax.oss.pulsar.jms.PulsarConnectionFactory;
+import io.streamnative.oss.pulsar.jms.PulsarConnectionFactory;
 import java.util.HashMap;
 import java.util.Map;
 import javax.jms.ConnectionFactory;

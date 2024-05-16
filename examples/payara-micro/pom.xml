@@ -22,7 +22,7 @@
   <packaging>ejb</packaging>
   <name>Payara Micro® JMS Pulsar Example</name>
   <parent>
-    <groupId>com.datastax.oss</groupId>
+    <groupId>io.streamnative.oss</groupId>
     <artifactId>pulsar-jms-parent</artifactId>
     <version>4.0.2-SNAPSHOT</version>
     <relativePath>../../pom.xml</relativePath>

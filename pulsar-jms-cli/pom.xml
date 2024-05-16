@@ -19,7 +19,7 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <parent>
     <artifactId>pulsar-jms-parent</artifactId>
-    <groupId>com.datastax.oss</groupId>
+    <groupId>io.streamnative.oss</groupId>
     <version>4.0.2-SNAPSHOT</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
@@ -29,7 +29,7 @@
   <name>Pulsar JMS CLI</name>
   <dependencies>
     <dependency>
-      <groupId>com.datastax.oss</groupId>
+      <groupId>io.streamnative.oss</groupId>
       <artifactId>pulsar-jms</artifactId>
       <version>${project.version}</version>
     </dependency>
@@ -55,7 +55,6 @@
     <dependency>
       <groupId>org.projectlombok</groupId>
       <artifactId>lombok</artifactId>
-      <scope>provided</scope>
     </dependency>
     <dependency>
       <groupId>com.beust</groupId>
@@ -88,7 +87,7 @@
               <appendAssemblyId>false</appendAssemblyId>
               <archive>
                 <manifest>
-                  <mainClass>com.datastax.oss.pulsar.jms.cli.Main</mainClass>
+                  <mainClass>io.streamnative.oss.pulsar.jms.cli.Main</mainClass>
                 </manifest>
               </archive>
               <descriptorRefs>

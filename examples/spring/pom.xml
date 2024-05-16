@@ -20,7 +20,7 @@
   <modelVersion>4.0.0</modelVersion>
   <parent>
     <artifactId>pulsar-jms-parent</artifactId>
-    <groupId>com.datastax.oss</groupId>
+    <groupId>io.streamnative.oss</groupId>
     <version>4.0.2-SNAPSHOT</version>
     <relativePath>../../pom.xml</relativePath>
   </parent>
@@ -45,7 +45,7 @@
   <dependencies>
     <dependency>
       <!-- DataStax Apache Pulsar JMS Client -->
-      <groupId>com.datastax.oss</groupId>
+      <groupId>io.streamnative.oss</groupId>
       <artifactId>pulsar-jms</artifactId>
       <version>${project.version}</version>
     </dependency>

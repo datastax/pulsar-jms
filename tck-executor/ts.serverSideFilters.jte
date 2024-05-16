@@ -284,5 +284,5 @@ admin.user=admin
 admin.pass=admin
 admin.pass.file=/tmp/ripassword
 #jndi.fs.dir=/tmp/ri_admin_objects
-java.naming.factory.initial="com.datastax.oss.pulsar.jms.tests.JNDIInitialContextFactory"
+java.naming.factory.initial="JNDIInitialContextFactory"
 #jndi.provider.url="java.naming.provider.url=file:///${jndi.fs.dir}"
