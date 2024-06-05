@@ -1,0 +1,3 @@
+interceptorClass: com.datastax.oss.pulsar.jms.tracing.BrokerTracing
+name: jms-tracing
+description: Starlight for JMS - support for server side tracing
