@@ -1167,7 +1167,7 @@ public abstract class PulsarMessage implements Message {
    * identifier start character; all following characters must be Java identifier part characters.
    *
    * @param name
-   * @return @See Section 3.8 “Message selection” for more information.
+   * @return Section 3.8 “Message selection” for more information.
    */
   protected final boolean isValidIdentifier(String name) {
     if (StringUtils.isBlank(name)

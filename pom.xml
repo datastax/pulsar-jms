@@ -18,17 +18,17 @@
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
   <modelVersion>4.0.0</modelVersion>
-  <groupId>com.datastax.oss</groupId>
+  <groupId>io.streamnative.oss</groupId>
   <artifactId>pulsar-jms-parent</artifactId>
   <packaging>pom</packaging>
   <version>4.0.2-SNAPSHOT</version>
   <name>DataStax Starlight for JMS</name>
   <description>Implementation of the Java Messaging Service Client API around Apache Pulsar Java Client</description>
-  <url>https://github.com/datastax/pulsar-jms</url>
+  <url>https://github.com/streamnative/pulsar-jms</url>
   <inceptionYear>2021</inceptionYear>
   <organization>
-    <name>DataStax</name>
-    <url>http://www.datastax.com</url>
+    <name>StreamNative</name>
+    <url>https://streamnative.io</url>
   </organization>
   <modules>
     <module>activemq-filters</module>
@@ -428,8 +428,8 @@ limitations under the License.]]></inlineHeader>
     </license>
   </licenses>
   <scm>
-    <connection>scm:git:git@github.com:datastax/pulsar-jms.git</connection>
-    <developerConnection>scm:git:git@github.com:datastax/pulsar-jms.git</developerConnection>
+    <connection>scm:git:git@github.com:streamnative/pulsar-jms.git</connection>
+    <developerConnection>scm:git:git@github.com:streamnative/pulsar-jms.git</developerConnection>
     <url>https://github.com/datastax/pulsar-jms</url>
     <tag>HEAD</tag>
   </scm>
@@ -452,6 +452,9 @@ limitations under the License.]]></inlineHeader>
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-javadoc-plugin</artifactId>
             <version>3.2.0</version>
+            <configuration>
+              <sourcepath>src/main/java/</sourcepath>
+            </configuration>
             <executions>
               <execution>
                 <id>attach-javadocs</id>
