@@ -1,8 +1,8 @@
 name: Release
 
-on: 
-  push: 
-    tags: 
+on:
+  push:
+    tags:
       - '*'
 
 jobs:
@@ -10,12 +10,21 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
+        with:
+          repository: streamnative/streamnative-ci
+          token: ${{ secrets.SNBOT_GITHUB_TOKEN }}
+          ref: master
+          path: ci
+
+      - uses: actions/checkout@v4
+
       - name: Set up JDK 17
         uses: actions/setup-java@v2
         with:
           java-version: '17'
           distribution: 'temurin'
+
       - name: Build with Maven
         run: mvn -B package -DskipTests
       - uses: ncipollo/release-action@v1
@@ -23,3 +32,13 @@ jobs:
           artifacts: "pulsar-jms-all/target/pulsar-jms-all-*.jar,resource-adapter/target/pulsarra-rar.rar,pulsar-jms-filters/target/pulsar-jms*.nar,pulsar-jms-cli/target/jms-cli.jar,pulsar-jms-admin-ext/target/pulsar-jms*.nar"
           token: ${{ secrets.GITHUB_TOKEN }}
           generateReleaseNotes: true
+
+      - name: Deploy to Maven Central
+        env:
+          SNBOT_GITHUB_TOKEN: ${{ secrets.SNBOT_GITHUB_TOKEN }}
+          SNBOT_SECRET_PASSPHRASE: ${{ secrets.SNBOT_SECRET_PASSPHRASE }}
+          SNBOT_SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
+          SNBOT_SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
+        run: |-
+          ci/.github/bot/setup-git.sh
+          mvn -U clean deploy -s ../ci/tools/maven/settings.xml -DskipTests -Prelease
