@@ -194,14 +194,14 @@ public class PulsarJMSProducer implements JMSProducer {
     if (message.getJMSPriority() != Message.DEFAULT_PRIORITY) {
       message.setJMSPriority(priority);
     }
-    if (message.getJMSCorrelationIDAsBytes() != null) {
-      message.setJMSCorrelationIDAsBytes(message.getJMSCorrelationIDAsBytes());
+    if (message.getJMSCorrelationIDAsBytes() == null || correlationID != null) {
+      message.setJMSCorrelationIDAsBytes(correlationID);
     }
-    if (message.getJMSType() != null) {
-      message.setJMSType(message.getJMSType());
+    if (message.getJMSType() == null || jmsType != null) {
+      message.setJMSType(jmsType);
     }
-    if (message.getJMSReplyTo() != null) {
-      message.setJMSReplyTo(message.getJMSReplyTo());
+    if (message.getJMSReplyTo() == null || jmsReplyTo != null) {
+      message.setJMSReplyTo(jmsReplyTo);
     }
 
     if (completionListener != null) {
