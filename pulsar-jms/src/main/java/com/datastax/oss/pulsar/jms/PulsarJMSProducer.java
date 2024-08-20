@@ -191,6 +191,7 @@ public class PulsarJMSProducer implements JMSProducer {
     for (Map.Entry<String, Object> prop : properties.entrySet()) {
       message.setObjectProperty(prop.getKey(), prop.getValue());
     }
+    message.setJMSPriority(priority);
 
     if (completionListener != null) {
       producer.send(destination, message, deliveryMode, priority, timeToLive, completionListener);
