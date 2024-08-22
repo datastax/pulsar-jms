@@ -192,9 +192,15 @@ public class PulsarJMSProducer implements JMSProducer {
       message.setObjectProperty(prop.getKey(), prop.getValue());
     }
     message.setJMSPriority(priority);
-    message.setJMSCorrelationIDAsBytes(correlationID);
-    message.setJMSType(jmsType);
-    message.setJMSReplyTo(jmsReplyTo);
+    if (message.getJMSCorrelationIDAsBytes() == null) {
+      message.setJMSCorrelationIDAsBytes(correlationID);
+    }
+    if (message.getJMSType() == null) {
+      message.setJMSType(jmsType);
+    }
+    if (message.getJMSReplyTo() == null) {
+      message.setJMSReplyTo(jmsReplyTo);
+    }
 
     if (completionListener != null) {
       producer.send(destination, message, deliveryMode, priority, timeToLive, completionListener);
