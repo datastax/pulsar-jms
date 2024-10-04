@@ -145,6 +145,8 @@ public class PulsarConnectionFactory
   private transient String lastConnectUsername = null;
   private transient String lastConnectPassword = null;
   private transient String queueSubscriptionName = "jms-queue";
+  // The queue browser subscription name is generated as reader-XYZ where XYZ is 10 random characters.
+  private transient String queueBrowserSubscriptionName = null;
   private transient SubscriptionType topicSharedSubscriptionType = SubscriptionType.Shared;
   private transient long waitForServerStartupTimeout = 60000;
   private transient boolean usePulsarAdmin = true;
@@ -326,6 +328,9 @@ public class PulsarConnectionFactory
 
       this.queueSubscriptionName =
           getAndRemoveString("jms.queueSubscriptionName", "jms-queue", configurationCopy);
+
+      this.queueBrowserSubscriptionName =
+          getAndRemoveString("jms.queueBrowserSubscriptionName", null, configurationCopy);
 
       this.usePulsarAdmin =
           Boolean.parseBoolean(getAndRemoveString("jms.usePulsarAdmin", "true", configurationCopy));
@@ -1577,6 +1582,9 @@ public class PulsarConnectionFactory
               .startMessageId(seekMessageId)
               .startMessageIdInclusive()
               .topic(fullQualifiedTopicName);
+      if (queueBrowserSubscriptionName != null) {
+        builder.subscriptionName(queueBrowserSubscriptionName);
+      }
       Reader<?> newReader = builder.create();
       readers.add(newReader);
       return newReader;
