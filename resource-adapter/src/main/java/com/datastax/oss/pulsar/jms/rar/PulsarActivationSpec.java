@@ -115,20 +115,20 @@ public class PulsarActivationSpec implements ActivationSpec, ResourceAdapterAsso
     boolean isTopic;
     switch (destinationType) {
       case "queue":
-      case "javax.jms.Queue":
+      case "jakarta.jms.Queue":
       case "Queue":
         isTopic = false;
         break;
       case "topic":
       case "Topic":
-      case "javax.jms.Topic":
+      case "jakarta.jms.Topic":
         isTopic = true;
         break;
       default:
         throw new InvalidPropertyException(
             "Invalid destinationType '"
                 + destinationType
-                + "', only 'queue','topic','javax.jms.Queue','javax.jms.Topic'");
+                + "', only 'queue','topic','jakarta.jms.Queue','jakarta.jms.Topic'");
     }
     if (destination == null || destination.isEmpty()) {
       throw new InvalidPropertyException(

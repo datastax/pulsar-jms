@@ -57,7 +57,7 @@ public class makeListFunction implements FilterFunction {
    * @return java.util.List - the result of the evaluation.
    */
   public Object evaluate(FunctionCallExpression expr, MessageEvaluationContext message)
-      throws javax.jms.JMSException {
+      throws jakarta.jms.JMSException {
     java.util.ArrayList ele_arr;
     int num_arg;
     int cur;

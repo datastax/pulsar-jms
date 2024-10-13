@@ -15,12 +15,12 @@
  */
 package com.datastax.oss.pulsar.jms;
 
+import jakarta.jms.Destination;
+import jakarta.jms.InvalidDestinationException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import javax.jms.Destination;
-import javax.jms.InvalidDestinationException;
 
 public abstract class PulsarDestination implements Destination {
   protected String topicName;

@@ -34,8 +34,8 @@ public class PulsarActivationSpecTest {
     validateDestinationType("topic", false);
     validateDestinationType("Queue", false);
     validateDestinationType("Topic", false);
-    validateDestinationType("javax.jms.Queue", false);
-    validateDestinationType("javax.jms.Topic", false);
+    validateDestinationType("jakarta.jms.Queue", false);
+    validateDestinationType("jakarta.jms.Topic", false);
 
     validateDestinationType("", true);
     validateDestinationType(null, true);

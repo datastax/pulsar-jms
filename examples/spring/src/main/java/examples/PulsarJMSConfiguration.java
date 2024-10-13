@@ -16,9 +16,9 @@
 package examples;
 
 import com.datastax.oss.pulsar.jms.PulsarConnectionFactory;
+import jakarta.jms.ConnectionFactory;
 import java.util.HashMap;
 import java.util.Map;
-import javax.jms.ConnectionFactory;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.jms.DefaultJmsListenerContainerFactoryConfigurer;
 import org.springframework.context.annotation.Bean;

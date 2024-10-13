@@ -15,12 +15,12 @@
  */
 package com.datastax.oss.pulsar.jms.tests;
 
-import javax.ejb.ActivationConfigProperty;
-import javax.ejb.MessageDriven;
-import javax.enterprise.event.Event;
+import jakarta.ejb.ActivationConfigProperty;
+import jakarta.ejb.MessageDriven;
+import jakarta.enterprise.event.Event;
+import jakarta.jms.Message;
+import jakarta.jms.MessageListener;
 import javax.inject.Inject;
-import javax.jms.Message;
-import javax.jms.MessageListener;
 
 @MessageDriven(
   activationConfig = {

@@ -16,11 +16,11 @@
 package com.datastax.oss.pulsar.jms.rar;
 
 import com.datastax.oss.pulsar.jms.PulsarConnectionFactory;
+import jakarta.jms.JMSException;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
-import javax.jms.JMSException;
 import javax.resource.ResourceException;
 import javax.resource.spi.ActivationSpec;
 import javax.resource.spi.BootstrapContext;
