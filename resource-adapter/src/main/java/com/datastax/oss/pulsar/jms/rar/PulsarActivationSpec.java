@@ -17,14 +17,14 @@ package com.datastax.oss.pulsar.jms.rar;
 
 import com.datastax.oss.pulsar.jms.Utils;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.resource.ResourceException;
+import jakarta.resource.spi.ActivationSpec;
+import jakarta.resource.spi.InvalidPropertyException;
+import jakarta.resource.spi.ResourceAdapter;
+import jakarta.resource.spi.ResourceAdapterAssociation;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
-import javax.resource.ResourceException;
-import javax.resource.spi.ActivationSpec;
-import javax.resource.spi.InvalidPropertyException;
-import javax.resource.spi.ResourceAdapter;
-import javax.resource.spi.ResourceAdapterAssociation;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j

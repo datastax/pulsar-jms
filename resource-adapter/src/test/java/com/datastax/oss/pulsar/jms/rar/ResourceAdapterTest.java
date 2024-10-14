@@ -30,8 +30,8 @@ import com.datastax.oss.pulsar.jms.PulsarJMSContext;
 import jakarta.jms.Destination;
 import jakarta.jms.JMSConsumer;
 import jakarta.jms.JMSContext;
-import javax.resource.spi.UnavailableException;
-import javax.resource.spi.endpoint.MessageEndpointFactory;
+import jakarta.resource.spi.UnavailableException;
+import jakarta.resource.spi.endpoint.MessageEndpointFactory;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 

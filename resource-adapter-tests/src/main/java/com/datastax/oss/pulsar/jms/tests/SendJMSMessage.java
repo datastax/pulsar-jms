@@ -23,8 +23,8 @@ import jakarta.jms.JMSContext;
 import jakarta.jms.Queue;
 import java.util.Date;
 
-// import javax.resource.AdministeredObjectDefinition;
-// import javax.resource.ConnectionFactoryDefinition;
+// import jakarta.resource.AdministeredObjectDefinition;
+// import jakarta.resource.ConnectionFactoryDefinition;
 
 @Stateless
 public class SendJMSMessage {

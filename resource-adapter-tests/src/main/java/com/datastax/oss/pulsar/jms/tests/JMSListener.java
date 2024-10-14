@@ -18,9 +18,9 @@ package com.datastax.oss.pulsar.jms.tests;
 import jakarta.ejb.ActivationConfigProperty;
 import jakarta.ejb.MessageDriven;
 import jakarta.enterprise.event.Event;
+import jakarta.inject.Inject;
 import jakarta.jms.Message;
 import jakarta.jms.MessageListener;
-import javax.inject.Inject;
 
 @MessageDriven(
   activationConfig = {

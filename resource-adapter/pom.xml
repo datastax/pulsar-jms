@@ -42,9 +42,9 @@
       <version>3.2.6</version>
     </dependency>
     <dependency>
-      <groupId>javax.resource</groupId>
-      <artifactId>javax.resource-api</artifactId>
-      <version>1.7.1</version>
+      <groupId>jakarta.resource</groupId>
+      <artifactId>jakarta.resource-api</artifactId>
+      <version>2.1.0</version>
     </dependency>
     <dependency>
       <groupId>org.projectlombok</groupId>
