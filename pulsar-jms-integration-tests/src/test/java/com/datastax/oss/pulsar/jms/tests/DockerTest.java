@@ -41,6 +41,7 @@ import jakarta.jms.JMSConsumer;
 import jakarta.jms.JMSContext;
 import jakarta.jms.Session;
 import lombok.extern.slf4j.Slf4j;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.testcontainers.shaded.org.apache.commons.io.IOUtils;
@@ -119,6 +120,7 @@ public class DockerTest {
   }
 
   @Test
+  @Disabled("Pulsar 2.10.1 runs on JDK11 and now Filters are built for JDK17")
   public void testLunaStreaming210ServerSideSelectors() throws Exception {
     test(LUNASTREAMING, false, true);
   }
