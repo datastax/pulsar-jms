@@ -15,7 +15,7 @@
  */
 package com.datastax.oss.pulsar.jms;
 
-import javax.jms.Message;
+import jakarta.jms.Message;
 
 public final class PulsarJMSConstants {
 

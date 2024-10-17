@@ -15,8 +15,8 @@
  */
 package com.datastax.oss.pulsar.jms;
 
-import javax.jms.InvalidDestinationException;
-import javax.jms.JMSException;
+import jakarta.jms.InvalidDestinationException;
+import jakarta.jms.JMSException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.admin.PulsarAdminException;
 import org.apache.pulsar.common.policies.data.TopicStats;

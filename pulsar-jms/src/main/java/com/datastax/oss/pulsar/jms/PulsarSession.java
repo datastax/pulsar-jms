@@ -22,6 +22,35 @@ import com.datastax.oss.pulsar.jms.messages.PulsarSimpleMessage;
 import com.datastax.oss.pulsar.jms.messages.PulsarStreamMessage;
 import com.datastax.oss.pulsar.jms.messages.PulsarTextMessage;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import jakarta.jms.Connection;
+import jakarta.jms.Destination;
+import jakarta.jms.IllegalStateException;
+import jakarta.jms.InvalidDestinationException;
+import jakarta.jms.InvalidSelectorException;
+import jakarta.jms.JMSException;
+import jakarta.jms.JMSRuntimeException;
+import jakarta.jms.MapMessage;
+import jakarta.jms.Message;
+import jakarta.jms.MessageConsumer;
+import jakarta.jms.MessageListener;
+import jakarta.jms.ObjectMessage;
+import jakarta.jms.Queue;
+import jakarta.jms.QueueBrowser;
+import jakarta.jms.QueueReceiver;
+import jakarta.jms.QueueSender;
+import jakarta.jms.QueueSession;
+import jakarta.jms.ServerSession;
+import jakarta.jms.ServerSessionPool;
+import jakarta.jms.Session;
+import jakarta.jms.StreamMessage;
+import jakarta.jms.TemporaryQueue;
+import jakarta.jms.TemporaryTopic;
+import jakarta.jms.TextMessage;
+import jakarta.jms.Topic;
+import jakarta.jms.TopicPublisher;
+import jakarta.jms.TopicSession;
+import jakarta.jms.TopicSubscriber;
+import jakarta.jms.TransactionRolledBackException;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -43,35 +72,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import javax.jms.Connection;
-import javax.jms.Destination;
-import javax.jms.IllegalStateException;
-import javax.jms.InvalidDestinationException;
-import javax.jms.InvalidSelectorException;
-import javax.jms.JMSException;
-import javax.jms.JMSRuntimeException;
-import javax.jms.MapMessage;
-import javax.jms.Message;
-import javax.jms.MessageConsumer;
-import javax.jms.MessageListener;
-import javax.jms.ObjectMessage;
-import javax.jms.Queue;
-import javax.jms.QueueBrowser;
-import javax.jms.QueueReceiver;
-import javax.jms.QueueSender;
-import javax.jms.QueueSession;
-import javax.jms.ServerSession;
-import javax.jms.ServerSessionPool;
-import javax.jms.Session;
-import javax.jms.StreamMessage;
-import javax.jms.TemporaryQueue;
-import javax.jms.TemporaryTopic;
-import javax.jms.TextMessage;
-import javax.jms.Topic;
-import javax.jms.TopicPublisher;
-import javax.jms.TopicSession;
-import javax.jms.TopicSubscriber;
-import javax.jms.TransactionRolledBackException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.api.Consumer;
 import org.apache.pulsar.client.api.ConsumerInterceptor;
@@ -182,7 +182,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
 
   /**
    * Build a new Sessopm that shares the same Connection, as {@link
-   * javax.jms.JMSContext#createContext(int)}. But you can override some configuration settings,
+   * jakarta.jms.JMSContext#createContext(int)}. But you can override some configuration settings,
    * like "consumerConfig"
    *
    * @param sessionMode
@@ -692,7 +692,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
    * session is closed.
    *
    * <p>However if the close method is called from a message listener on its own {@code Session},
-   * then it will either fail and throw a {@code javax.jms.IllegalStateException}, or it will
+   * then it will either fail and throw a {@code jakarta.jms.IllegalStateException}, or it will
    * succeed and close the {@code Session}, blocking until any pending receive call in progress has
    * completed. If close succeeds and the acknowledge mode of the {@code Session} is set to {@code
    * AUTO_ACKNOWLEDGE}, the current message will still be acknowledged automatically when the {@code

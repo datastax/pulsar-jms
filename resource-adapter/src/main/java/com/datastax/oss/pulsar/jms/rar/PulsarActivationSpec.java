@@ -17,14 +17,14 @@ package com.datastax.oss.pulsar.jms.rar;
 
 import com.datastax.oss.pulsar.jms.Utils;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.resource.ResourceException;
+import jakarta.resource.spi.ActivationSpec;
+import jakarta.resource.spi.InvalidPropertyException;
+import jakarta.resource.spi.ResourceAdapter;
+import jakarta.resource.spi.ResourceAdapterAssociation;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
-import javax.resource.ResourceException;
-import javax.resource.spi.ActivationSpec;
-import javax.resource.spi.InvalidPropertyException;
-import javax.resource.spi.ResourceAdapter;
-import javax.resource.spi.ResourceAdapterAssociation;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -115,20 +115,20 @@ public class PulsarActivationSpec implements ActivationSpec, ResourceAdapterAsso
     boolean isTopic;
     switch (destinationType) {
       case "queue":
-      case "javax.jms.Queue":
+      case "jakarta.jms.Queue":
       case "Queue":
         isTopic = false;
         break;
       case "topic":
       case "Topic":
-      case "javax.jms.Topic":
+      case "jakarta.jms.Topic":
         isTopic = true;
         break;
       default:
         throw new InvalidPropertyException(
             "Invalid destinationType '"
                 + destinationType
-                + "', only 'queue','topic','javax.jms.Queue','javax.jms.Topic'");
+                + "', only 'queue','topic','jakarta.jms.Queue','jakarta.jms.Topic'");
     }
     if (destination == null || destination.isEmpty()) {
       throw new InvalidPropertyException(

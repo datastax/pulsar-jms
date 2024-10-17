@@ -17,12 +17,12 @@ package com.datastax.oss.pulsar.jms;
 
 import static org.junit.jupiter.api.Assertions.fail;
 
+import jakarta.jms.Connection;
+import jakarta.jms.InvalidClientIDException;
+import jakarta.jms.InvalidClientIDRuntimeException;
+import jakarta.jms.JMSContext;
 import java.util.HashMap;
 import java.util.Map;
-import javax.jms.Connection;
-import javax.jms.InvalidClientIDException;
-import javax.jms.InvalidClientIDRuntimeException;
-import javax.jms.JMSContext;
 import org.junit.jupiter.api.Test;
 
 public class ClientIDTest {

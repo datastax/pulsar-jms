@@ -15,7 +15,7 @@
  */
 package org.apache.activemq.filter;
 
-import javax.jms.JMSException;
+import jakarta.jms.JMSException;
 
 /** Used to evaluate an XQuery Expression in a JMS selector. */
 public final class XQueryExpression implements BooleanExpression {

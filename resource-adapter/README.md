@@ -45,12 +45,12 @@ If you do not set a configuration, or set an empty value, then the general confi
 When you define a MessageListener you define a PulsarActivationSpec, that holds these properties:
 - Configuration: this is the configuration for the underlying PulsarConnectionFactory, in JSON encoding
 - Destination: the Name of the destination, or lookup://JDNI-NAME-OF-THE-RESOURCE
-- DestinationType: the type of destination, it defaults to javax.jms.Queue, use javax.jms.Topic in order to use the Pulsar Topic as a topic
+- DestinationType: the type of destination, it defaults to jakarta.jms.Queue, use jakarta.jms.Topic in order to use the Pulsar Topic as a topic
 
 If you want to use as destination a resource bound in the JNDI Context, you can use `destination=lookup://JDNI-NAME-OF-THE-RESOURCE` syntax.
 For instance in Apache TomEE you will write `lookup://openejb:Resource/MyQueue` to refer to a `Queue` defined a MyQueue resource:
 ```
-MyQueue=new://Resource?type=javax.jms.Queue
+MyQueue=new://Resource?type=jakarta.jms.Queue
 MyQueue.destination=my-queue.
 ```
 

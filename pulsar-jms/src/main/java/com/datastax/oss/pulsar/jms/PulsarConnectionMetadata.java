@@ -15,12 +15,12 @@
  */
 package com.datastax.oss.pulsar.jms;
 
+import jakarta.jms.ConnectionMetaData;
+import jakarta.jms.JMSException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Enumeration;
-import javax.jms.ConnectionMetaData;
-import javax.jms.JMSException;
 import org.apache.pulsar.PulsarVersion;
 
 class PulsarConnectionMetadata implements ConnectionMetaData {
@@ -37,7 +37,7 @@ class PulsarConnectionMetadata implements ConnectionMetaData {
    */
   @Override
   public String getJMSVersion() throws JMSException {
-    return "2.0";
+    return "3.0";
   }
 
   /**
@@ -49,7 +49,7 @@ class PulsarConnectionMetadata implements ConnectionMetaData {
    */
   @Override
   public int getJMSMajorVersion() throws JMSException {
-    return 2;
+    return 3;
   }
 
   /**

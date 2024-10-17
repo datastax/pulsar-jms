@@ -76,7 +76,7 @@ public class DockerTest {
         // - ResourceAdapter pulsarra.rar
         // - WebApp
         try (GenericContainer<?> container =
-            new GenericContainer<>("tomee:11-jre-8.0.6-plus")
+            new GenericContainer<>("tomee:9.1.3-jre17-Semeru-ubuntu-plus")
                 .withNetwork(network)
                 .withCopyFileToContainer(
                     MountableFile.forHostPath(pulsarraFile), "/usr/local/tomee/rars/pulsarra.rar")

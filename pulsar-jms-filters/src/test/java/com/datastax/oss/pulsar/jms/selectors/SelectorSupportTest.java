@@ -17,11 +17,11 @@ package com.datastax.oss.pulsar.jms.selectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import jakarta.jms.DeliveryMode;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
-import javax.jms.DeliveryMode;
 import org.apache.activemq.command.ActiveMQQueue;
 import org.apache.activemq.command.ActiveMQTopic;
 import org.junit.jupiter.api.Test;

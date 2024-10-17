@@ -16,6 +16,9 @@
 package com.datastax.oss.pulsar.jms;
 
 import com.datastax.oss.pulsar.jms.selectors.SelectorSupport;
+import jakarta.jms.JMSException;
+import jakarta.jms.Queue;
+import jakarta.jms.QueueBrowser;
 import java.io.IOException;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -24,9 +27,6 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-import javax.jms.JMSException;
-import javax.jms.Queue;
-import javax.jms.QueueBrowser;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.api.Reader;
 import org.apache.pulsar.client.api.SubscriptionMode;

@@ -15,7 +15,7 @@
  */
 package org.apache.activemq.filter;
 
-import javax.jms.JMSException;
+import jakarta.jms.JMSException;
 
 /** Represents an expression */
 public interface Expression {

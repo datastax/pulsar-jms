@@ -15,10 +15,10 @@
  */
 package com.datastax.oss.pulsar.jms;
 
+import jakarta.jms.Message;
+import jakarta.jms.MessageListener;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
-import javax.jms.Message;
-import javax.jms.MessageListener;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
