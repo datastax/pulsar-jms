@@ -52,8 +52,7 @@ abstract class PulsarTemporaryDestination extends PulsarDestination {
         log.warn("Cannot delete a temporary destination {}", this, e);
         return;
       }
-      TopicStats stats =
-          pulsarAdmin.topics().getStats(fullQualifiedTopicName);
+      TopicStats stats = pulsarAdmin.topics().getStats(fullQualifiedTopicName);
       log.info("Stats {}", stats);
 
       int numConsumers =
