@@ -912,11 +912,7 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
     checkNotClosed();
     String name =
         "persistent://" + factory.getSystemNamespace() + "/jms-temp-queue-" + UUID.randomUUID();
-    try {
-      factory.getPulsarAdmin().topics().createNonPartitionedTopic(name);
-    } catch (Exception err) {
-      throw Utils.handleException(err);
-    }
+    createNonPartitionedTopic(name);
     PulsarTemporaryQueue res = new PulsarTemporaryQueue(name, session);
     temporaryDestinations.add(res);
     return res;
@@ -926,11 +922,7 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
     checkNotClosed();
     String name =
         "persistent://" + factory.getSystemNamespace() + "/jms-temp-topic-" + UUID.randomUUID();
-    try {
-      factory.getPulsarAdmin().topics().createNonPartitionedTopic(name);
-    } catch (Exception err) {
-      throw Utils.handleException(err);
-    }
+    createNonPartitionedTopic(name);
     PulsarTemporaryTopic res = new PulsarTemporaryTopic(name, session);
     temporaryDestinations.add(res);
     return res;
@@ -994,6 +986,14 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
         new PulsarConnectionConsumer(dispatcherSession, consumer, sessionPool, maxMessages);
     connectionConsumer.start();
     return connectionConsumer;
+  }
+
+  private void createNonPartitionedTopic(String name) {
+    try {
+      factory.getPulsarAdmin().topics().createNonPartitionedTopic(name);
+    } catch (Exception err) {
+      log.warn("Skipping creation of nonPartitionedTopic {}", name, err);
+    }
   }
 
   void refreshServerSideSelectors() {
