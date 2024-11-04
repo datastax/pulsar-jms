@@ -21,6 +21,22 @@ import static org.apache.pulsar.client.util.MathUtils.signSafeMod;
 import com.datastax.oss.pulsar.jms.api.JMSAdmin;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import jakarta.jms.ConnectionFactory;
+import jakarta.jms.Destination;
+import jakarta.jms.IllegalStateException;
+import jakarta.jms.InvalidClientIDException;
+import jakarta.jms.InvalidDestinationException;
+import jakarta.jms.JMSContext;
+import jakarta.jms.JMSException;
+import jakarta.jms.JMSRuntimeException;
+import jakarta.jms.JMSSecurityException;
+import jakarta.jms.JMSSecurityRuntimeException;
+import jakarta.jms.Queue;
+import jakarta.jms.QueueConnection;
+import jakarta.jms.QueueConnectionFactory;
+import jakarta.jms.Topic;
+import jakarta.jms.TopicConnection;
+import jakarta.jms.TopicConnectionFactory;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
@@ -51,22 +67,6 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
-import javax.jms.ConnectionFactory;
-import javax.jms.Destination;
-import javax.jms.IllegalStateException;
-import javax.jms.InvalidClientIDException;
-import javax.jms.InvalidDestinationException;
-import javax.jms.JMSContext;
-import javax.jms.JMSException;
-import javax.jms.JMSRuntimeException;
-import javax.jms.JMSSecurityException;
-import javax.jms.JMSSecurityRuntimeException;
-import javax.jms.Queue;
-import javax.jms.QueueConnection;
-import javax.jms.QueueConnectionFactory;
-import javax.jms.Topic;
-import javax.jms.TopicConnection;
-import javax.jms.TopicConnectionFactory;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.admin.PulsarAdmin;
 import org.apache.pulsar.client.admin.PulsarAdminException;
@@ -479,7 +479,7 @@ public class PulsarConnectionFactory
           if (authPluginClassName.equals(AuthenticationToken.class.getName())) {
             authParamsString = connectPassword;
           } else {
-            throw new javax.jms.IllegalStateRuntimeException(
+            throw new jakarta.jms.IllegalStateRuntimeException(
                 "With jms.useCredentialsFromConnect:true "
                     + "only JWT (AuthenticationToken) authentication is currently supported");
           }
@@ -636,9 +636,9 @@ public class PulsarConnectionFactory
     return pulsarClient;
   }
 
-  public synchronized PulsarAdmin getPulsarAdmin() throws javax.jms.IllegalStateException {
+  public synchronized PulsarAdmin getPulsarAdmin() throws jakarta.jms.IllegalStateException {
     if (!usePulsarAdmin) {
-      throw new javax.jms.IllegalStateException(
+      throw new jakarta.jms.IllegalStateException(
           "jms.usePulsarAdmin is set to false, this feature is not available");
     }
     return pulsarAdmin;

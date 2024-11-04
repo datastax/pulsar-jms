@@ -15,17 +15,20 @@
  */
 package com.datastax.oss.pulsar.examples;
 
+import jakarta.ejb.ActivationConfigProperty;
+import jakarta.ejb.MessageDriven;
+import jakarta.jms.Message;
+import jakarta.jms.MessageListener;
 import java.util.concurrent.atomic.AtomicInteger;
-import javax.ejb.ActivationConfigProperty;
-import javax.ejb.MessageDriven;
-import javax.jms.Message;
-import javax.jms.MessageListener;
 
 @MessageDriven(
   name = "testmdbtopic",
   activationConfig = {
     @ActivationConfigProperty(propertyName = "resourceAdapter", propertyValue = "pulsarra"),
-    @ActivationConfigProperty(propertyName = "destinationType", propertyValue = "javax.jms.Topic"),
+    @ActivationConfigProperty(
+      propertyName = "destinationType",
+      propertyValue = "jakarta.jms.Topic"
+    ),
     @ActivationConfigProperty(propertyName = "subscriptionType", propertyValue = "Durable"),
     @ActivationConfigProperty(propertyName = "subscriptionName", propertyValue = "mysub"),
     @ActivationConfigProperty(propertyName = "subscriptionMode", propertyValue = "Shared"),

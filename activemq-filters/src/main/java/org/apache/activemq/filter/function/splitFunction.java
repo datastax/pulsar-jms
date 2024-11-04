@@ -58,7 +58,7 @@ public class splitFunction implements FilterFunction {
    * @return List - a list of Strings resulting from the split.
    */
   public Object evaluate(FunctionCallExpression expr, MessageEvaluationContext message_ctx)
-      throws javax.jms.JMSException {
+      throws jakarta.jms.JMSException {
     String src;
     String split_pat;
     String[] result;

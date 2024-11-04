@@ -42,9 +42,9 @@
           <config-property-type>java.lang.String</config-property-type>
           <config-property-value></config-property-value>
         </config-property>
-        <connectionfactory-interface>javax.jms.ConnectionFactory</connectionfactory-interface>
+        <connectionfactory-interface>jakarta.jms.ConnectionFactory</connectionfactory-interface>
         <connectionfactory-impl-class>com.datastax.oss.pulsar.jms.PulsarConnectionFactory</connectionfactory-impl-class>
-        <connection-interface>javax.jms.Connection</connection-interface>
+        <connection-interface>jakarta.jms.Connection</connection-interface>
         <connection-impl-class>com.datastax.oss.pulsar.jms.PulsarConnection</connection-impl-class>
       </connection-definition>
       <connection-definition>
@@ -55,9 +55,9 @@
           <config-property-type>java.lang.String</config-property-type>
           <config-property-value></config-property-value>
         </config-property>
-        <connectionfactory-interface>javax.jms.QueueConnectionFactory</connectionfactory-interface>
+        <connectionfactory-interface>jakarta.jms.QueueConnectionFactory</connectionfactory-interface>
         <connectionfactory-impl-class>com.datastax.oss.pulsar.jms.PulsarConnectionFactory</connectionfactory-impl-class>
-        <connection-interface>javax.jms.QueueConnection</connection-interface>
+        <connection-interface>jakarta.jms.QueueConnection</connection-interface>
         <connection-impl-class>com.datastax.oss.pulsar.jms.PulsarConnection</connection-impl-class>
       </connection-definition>
       <connection-definition>
@@ -68,9 +68,9 @@
           <config-property-type>java.lang.String</config-property-type>
           <config-property-value></config-property-value>
         </config-property>
-        <connectionfactory-interface>javax.jms.TopicConnectionFactory</connectionfactory-interface>
+        <connectionfactory-interface>jakarta.jms.TopicConnectionFactory</connectionfactory-interface>
         <connectionfactory-impl-class>com.datastax.oss.pulsar.jms.PulsarConnectionFactory</connectionfactory-impl-class>
-        <connection-interface>javax.jms.TopicConnection</connection-interface>
+        <connection-interface>jakarta.jms.TopicConnection</connection-interface>
         <connection-impl-class>com.datastax.oss.pulsar.jms.PulsarConnection</connection-impl-class>
       </connection-definition>
       <transaction-support>NoTransaction</transaction-support>
@@ -79,7 +79,7 @@
     <inbound-resourceadapter>
       <messageadapter>
         <messagelistener>
-          <messagelistener-type>javax.jms.MessageListener</messagelistener-type>
+          <messagelistener-type>jakarta.jms.MessageListener</messagelistener-type>
           <activationspec>
             <activationspec-class>com.datastax.oss.pulsar.jms.rar.PulsarActivationSpec</activationspec-class>
             <required-config-property>
@@ -103,7 +103,7 @@
       </messageadapter>
     </inbound-resourceadapter>
     <adminobject>
-      <adminobject-interface>javax.jms.Queue</adminobject-interface>
+      <adminobject-interface>jakarta.jms.Queue</adminobject-interface>
       <adminobject-class>com.datastax.oss.pulsar.jms.PulsarQueue</adminobject-class>
       <config-property>
         <config-property-name>Name</config-property-name>
@@ -112,7 +112,7 @@
       </config-property>
     </adminobject>
     <adminobject>
-      <adminobject-interface>javax.jms.Topic</adminobject-interface>
+      <adminobject-interface>jakarta.jms.Topic</adminobject-interface>
       <adminobject-class>com.datastax.oss.pulsar.jms.PulsarTopic</adminobject-class>
       <config-property>
         <config-property-name>Name</config-property-name>

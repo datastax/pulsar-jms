@@ -15,15 +15,15 @@
  */
 package com.datastax.oss.pulsar.jms;
 
+import jakarta.jms.ConnectionConsumer;
+import jakarta.jms.IllegalStateException;
+import jakarta.jms.JMSException;
+import jakarta.jms.Message;
+import jakarta.jms.ServerSession;
+import jakarta.jms.ServerSessionPool;
 import java.util.List;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
-import javax.jms.ConnectionConsumer;
-import javax.jms.IllegalStateException;
-import javax.jms.JMSException;
-import javax.jms.Message;
-import javax.jms.ServerSession;
-import javax.jms.ServerSessionPool;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j

@@ -19,8 +19,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import jakarta.resource.spi.InvalidPropertyException;
 import java.util.Map;
-import javax.resource.spi.InvalidPropertyException;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 
@@ -34,8 +34,8 @@ public class PulsarActivationSpecTest {
     validateDestinationType("topic", false);
     validateDestinationType("Queue", false);
     validateDestinationType("Topic", false);
-    validateDestinationType("javax.jms.Queue", false);
-    validateDestinationType("javax.jms.Topic", false);
+    validateDestinationType("jakarta.jms.Queue", false);
+    validateDestinationType("jakarta.jms.Topic", false);
 
     validateDestinationType("", true);
     validateDestinationType(null, true);
