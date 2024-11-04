@@ -148,7 +148,7 @@ public class PulsarConnectionFactory
   private transient SubscriptionType topicSharedSubscriptionType = SubscriptionType.Shared;
   private transient long waitForServerStartupTimeout = 60000;
   private transient boolean usePulsarAdmin = true;
-  private transient boolean allowTemporaryTopicWithoutAdmin = true;
+  private transient boolean allowTemporaryTopicWithoutAdmin = false;
   private transient boolean precreateQueueSubscription = true;
   private transient int precreateQueueSubscriptionConsumerQueueSize = 0;
   private transient boolean initialized;

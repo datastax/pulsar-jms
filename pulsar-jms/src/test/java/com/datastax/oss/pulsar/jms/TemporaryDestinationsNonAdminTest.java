@@ -71,7 +71,7 @@ public class TemporaryDestinationsNonAdminTest {
                 connection.start();
                 try (Session session = connection.createSession()) {
                     if (expectAdminErrors) {
-                        assertThrows(IllegalStateException.class, session::createTemporaryTopic);
+                        assertThrows(JMSException.class, session::createTemporaryTopic);
                         return;
                     }
                     Destination clientAddress = session.createTemporaryTopic();
