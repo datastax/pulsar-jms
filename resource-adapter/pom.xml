@@ -49,9 +49,9 @@
     <!-- this dependency is required by the Pulsar client implementation, it contains javax.annotation.Priority
         Pulsar client uses some old Glassfish Jersey implementation -->
     <dependency>
-      <groupId>jakarta.annotation</groupId>
-      <artifactId>jakarta.annotation-api</artifactId>
-      <version>3.0.0</version>
+      <groupId>javax.annotation</groupId>
+      <artifactId>javax.annotation-api</artifactId>
+      <version>1.3.2</version>
     </dependency>
     <dependency>
       <groupId>org.projectlombok</groupId>
