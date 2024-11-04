@@ -15,9 +15,11 @@
  */
 package com.datastax.oss.pulsar.jms;
 
+import javax.jms.IllegalStateException;
 import javax.jms.InvalidDestinationException;
 import javax.jms.JMSException;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.pulsar.client.admin.PulsarAdmin;
 import org.apache.pulsar.client.admin.PulsarAdminException;
 import org.apache.pulsar.common.policies.data.TopicStats;
 
@@ -44,8 +46,20 @@ abstract class PulsarTemporaryDestination extends PulsarDestination {
       log.info("Deleting {}", this);
       String topicName = getInternalTopicName();
       String fullQualifiedTopicName = session.getFactory().applySystemNamespace(topicName);
-      TopicStats stats =
-          session.getFactory().getPulsarAdmin().topics().getStats(fullQualifiedTopicName);
+      PulsarAdmin pulsarAdmin;
+      try {
+        pulsarAdmin = session.getFactory().getPulsarAdmin();
+      } catch (IllegalStateException err) {
+        if (!session.getFactory().isAllowTemporaryTopicWithoutAdmin()) {
+          throw Utils.handleException(err);
+        }
+        log.warn(
+            "Cannot delete a temporary destination {}. Skipping because jms.allowTemporaryTopicWithoutAdmin=true",
+            this,
+            err);
+        return;
+      }
+      TopicStats stats = pulsarAdmin.topics().getStats(fullQualifiedTopicName);
       log.info("Stats {}", stats);
 
       int numConsumers =
