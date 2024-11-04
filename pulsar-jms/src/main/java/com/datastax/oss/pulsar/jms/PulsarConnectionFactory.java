@@ -148,6 +148,7 @@ public class PulsarConnectionFactory
   private transient SubscriptionType topicSharedSubscriptionType = SubscriptionType.Shared;
   private transient long waitForServerStartupTimeout = 60000;
   private transient boolean usePulsarAdmin = true;
+  private transient boolean allowTemporaryTopicWithoutAdmin = true;
   private transient boolean precreateQueueSubscription = true;
   private transient int precreateQueueSubscriptionConsumerQueueSize = 0;
   private transient boolean initialized;
@@ -329,6 +330,11 @@ public class PulsarConnectionFactory
 
       this.usePulsarAdmin =
           Boolean.parseBoolean(getAndRemoveString("jms.usePulsarAdmin", "true", configurationCopy));
+
+      this.allowTemporaryTopicWithoutAdmin =
+          Boolean.parseBoolean(
+              getAndRemoveString(
+                  "jms.allowTemporaryTopicWithoutAdmin", "false", configurationCopy));
 
       this.precreateQueueSubscription =
           Boolean.parseBoolean(
@@ -1724,6 +1730,10 @@ public class PulsarConnectionFactory
 
   public boolean isAcknowledgeRejectedMessages() {
     return acknowledgeRejectedMessages;
+  }
+
+  public boolean isAllowTemporaryTopicWithoutAdmin() {
+    return allowTemporaryTopicWithoutAdmin;
   }
 
   public synchronized boolean isClosed() {
