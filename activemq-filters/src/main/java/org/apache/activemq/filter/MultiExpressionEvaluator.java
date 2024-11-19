@@ -15,13 +15,13 @@
  */
 package org.apache.activemq.filter;
 
+import jakarta.jms.JMSException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import javax.jms.JMSException;
 
 /**
  * A MultiExpressionEvaluator is used to evaluate multiple expressions in single method call.

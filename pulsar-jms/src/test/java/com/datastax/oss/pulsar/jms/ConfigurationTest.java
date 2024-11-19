@@ -18,10 +18,10 @@ package com.datastax.oss.pulsar.jms;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.datastax.oss.pulsar.jms.utils.PulsarContainerExtension;
+import jakarta.jms.Queue;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
-import javax.jms.Queue;
 import org.apache.pulsar.client.api.Consumer;
 import org.apache.pulsar.client.api.Producer;
 import org.junit.jupiter.api.Test;

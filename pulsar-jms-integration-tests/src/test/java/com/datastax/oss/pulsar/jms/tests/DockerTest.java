@@ -33,14 +33,15 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
-import javax.jms.Connection;
-import javax.jms.Destination;
-import javax.jms.IllegalStateException;
-import javax.jms.IllegalStateRuntimeException;
-import javax.jms.JMSConsumer;
-import javax.jms.JMSContext;
-import javax.jms.Session;
+import jakarta.jms.Connection;
+import jakarta.jms.Destination;
+import jakarta.jms.IllegalStateException;
+import jakarta.jms.IllegalStateRuntimeException;
+import jakarta.jms.JMSConsumer;
+import jakarta.jms.JMSContext;
+import jakarta.jms.Session;
 import lombok.extern.slf4j.Slf4j;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.testcontainers.shaded.org.apache.commons.io.IOUtils;
@@ -119,6 +120,7 @@ public class DockerTest {
   }
 
   @Test
+  @Disabled("Pulsar 2.10.1 runs on JDK11 and now Filters are built for JDK17")
   public void testLunaStreaming210ServerSideSelectors() throws Exception {
     test(LUNASTREAMING, false, true);
   }

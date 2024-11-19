@@ -21,10 +21,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
+import jakarta.jms.InvalidDestinationException;
+import jakarta.jms.InvalidDestinationRuntimeException;
 import java.util.List;
 import java.util.function.BiConsumer;
-import javax.jms.InvalidDestinationException;
-import javax.jms.InvalidDestinationRuntimeException;
 import org.junit.jupiter.api.Test;
 
 public class PulsarDestinationTest {

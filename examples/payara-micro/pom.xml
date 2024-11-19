@@ -24,7 +24,7 @@
   <parent>
     <groupId>com.datastax.oss</groupId>
     <artifactId>pulsar-jms-parent</artifactId>
-    <version>6.0.2-SNAPSHOT</version>
+    <version>7.0.0-SNAPSHOT</version>
     <relativePath>../../pom.xml</relativePath>
   </parent>
   <properties>
@@ -34,13 +34,13 @@
     <dependency>
       <groupId>jakarta.platform</groupId>
       <artifactId>jakarta.jakartaee-api</artifactId>
-      <version>8.0.0</version>
+      <version>9.1.0</version>
       <scope>provided</scope>
     </dependency>
     <dependency>
       <groupId>org.eclipse.microprofile</groupId>
       <artifactId>microprofile</artifactId>
-      <version>3.2</version>
+      <version>6.1</version>
       <type>pom</type>
       <scope>provided</scope>
     </dependency>
@@ -51,7 +51,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-ejb-plugin</artifactId>
-        <version>3.0.1</version>
+        <version>3.2.1</version>
         <configuration>
           <ejbVersion>3.1</ejbVersion>
         </configuration>

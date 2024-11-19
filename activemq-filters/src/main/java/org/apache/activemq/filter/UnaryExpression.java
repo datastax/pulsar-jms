@@ -15,12 +15,12 @@
  */
 package org.apache.activemq.filter;
 
+import jakarta.jms.JMSException;
 import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import javax.jms.JMSException;
 
 /** An expression which performs an operation on two expression values */
 public abstract class UnaryExpression implements Expression {
