@@ -21,7 +21,7 @@
   <groupId>com.datastax.oss</groupId>
   <artifactId>pulsar-jms-parent</artifactId>
   <packaging>pom</packaging>
-  <version>6.0.3-SNAPSHOT</version>
+  <version>6.0.3</version>
   <name>DataStax Starlight for JMS</name>
   <description>Implementation of the Java Messaging Service Client API around Apache Pulsar Java Client</description>
   <url>https://github.com/datastax/pulsar-jms</url>
@@ -135,10 +135,10 @@
             <groupId>org.apache.avro</groupId>
             <artifactId>avro</artifactId>
           </exclusion>
-            <exclusion>
-              <groupId>org.apache.avro</groupId>
-              <artifactId>avro-protobuf</artifactId>
-            </exclusion>
+          <exclusion>
+            <groupId>org.apache.avro</groupId>
+            <artifactId>avro-protobuf</artifactId>
+          </exclusion>
         </exclusions>
       </dependency>
       <dependency>
@@ -459,7 +459,7 @@ limitations under the License.]]></inlineHeader>
     <connection>scm:git:git@github.com:datastax/pulsar-jms.git</connection>
     <developerConnection>scm:git:git@github.com:datastax/pulsar-jms.git</developerConnection>
     <url>https://github.com/datastax/pulsar-jms</url>
-    <tag>HEAD</tag>
+    <tag>6.0.3</tag>
   </scm>
   <developers>
     <developer>

@@ -20,7 +20,7 @@
   <parent>
     <artifactId>pulsar-jms-parent</artifactId>
     <groupId>com.datastax.oss</groupId>
-    <version>6.0.3-SNAPSHOT</version>
+    <version>6.0.3</version>
   </parent>
   <modelVersion>4.0.0</modelVersion>
   <artifactId>pulsar-jms</artifactId>
@@ -148,10 +148,10 @@
             <configuration>
               <target>
                 <echo>copy filters</echo>
-                <mkdir dir="${project.build.outputDirectory}/filters" />
-                <mkdir dir="${project.build.outputDirectory}/interceptors" />
-                <copy verbose="true" file="${basedir}/../pulsar-jms-filters/target/pulsar-jms-${project.version}-nar.nar" tofile="${project.build.outputDirectory}/filters/jms-filter.nar" />
-                <copy verbose="true" file="${basedir}/../pulsar-jms-filters/target/pulsar-jms-${project.version}-nar.nar" tofile="${project.build.outputDirectory}/interceptors/jms-filter.nar" />
+                <mkdir dir="${project.build.outputDirectory}/filters"/>
+                <mkdir dir="${project.build.outputDirectory}/interceptors"/>
+                <copy verbose="true" file="${basedir}/../pulsar-jms-filters/target/pulsar-jms-${project.version}-nar.nar" tofile="${project.build.outputDirectory}/filters/jms-filter.nar"/>
+                <copy verbose="true" file="${basedir}/../pulsar-jms-filters/target/pulsar-jms-${project.version}-nar.nar" tofile="${project.build.outputDirectory}/interceptors/jms-filter.nar"/>
               </target>
             </configuration>
           </execution>
