@@ -990,7 +990,7 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
 
   private void createPulsarTemporaryTopic(String name) throws JMSException {
     try {
-      factory.getPulsarAdmin().topics().createNonPartitionedTopic(name);
+      factory.getPulsarAdmin().createNonPartitionedTopic(name);
     } catch (IllegalStateException err) {
       if (!factory.isAllowTemporaryTopicWithoutAdmin()) {
         throw Utils.handleException(err);
