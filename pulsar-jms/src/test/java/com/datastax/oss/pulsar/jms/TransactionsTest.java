@@ -1224,7 +1224,7 @@ public class TransactionsTest {
         connection.start();
 
         // create a topic with 4 partitions
-        factory.getPulsarAdmin().topics().createPartitionedTopic(topicName, 4);
+        factory.getPulsarAdmin().createPartitionedTopic(topicName, 4);
 
         try (Session consumerSession = connection.createSession(); ) {
           Destination destination = consumerSession.createQueue(topicName);

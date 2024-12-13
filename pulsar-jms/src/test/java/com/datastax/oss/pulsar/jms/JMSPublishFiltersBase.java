@@ -176,7 +176,7 @@ public abstract class JMSPublishFiltersBase {
       try (PulsarConnection connection = factory.createConnection()) {
         connection.start();
         try (PulsarSession session = connection.createSession(Session.AUTO_ACKNOWLEDGE); ) {
-          factory.getPulsarAdmin().topics().createPartitionedTopic(topicName, 20);
+          factory.getPulsarAdmin().createPartitionedTopic(topicName, 20);
 
           Queue destination = session.createQueue(topicName);
 
@@ -227,7 +227,7 @@ public abstract class JMSPublishFiltersBase {
                 .untilAsserted(
                     () -> {
                       PartitionedTopicStats partitionedInternalStats =
-                          factory.getPulsarAdmin().topics().getPartitionedStats(topicName, true);
+                          factory.getPulsarAdmin().getPartitionedTopicStats(topicName, true);
                       AtomicLong sum = new AtomicLong();
                       partitionedInternalStats
                           .getPartitions()
