@@ -46,7 +46,7 @@
     <dependency>
       <!-- DataStax Apache Pulsar JMS Client -->
       <groupId>com.datastax.oss</groupId>
-      <artifactId>pulsar-jms-all</artifactId>
+      <artifactId>pulsar-jms</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
