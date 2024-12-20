@@ -55,7 +55,7 @@
     <maven.compiler.release>17</maven.compiler.release>
     <jms.version>3.0.0</jms.version>
     <pulsar.groupId>org.apache.pulsar</pulsar.groupId>
-    <pulsar.version>3.3.2</pulsar.version>
+    <pulsar.version>3.2.2</pulsar.version>
     <activemq.version>6.0.0</activemq.version>
     <hawtbuf.version>1.11</hawtbuf.version>
     <curator.version>5.1.0</curator.version>
@@ -130,6 +130,26 @@
         <groupId>${pulsar.groupId}</groupId>
         <artifactId>pulsar-client-original</artifactId>
         <version>${pulsar.version}</version>
+        <exclusions>
+          <exclusion>
+            <groupId>org.apache.avro</groupId>
+            <artifactId>avro</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>org.apache.avro</groupId>
+            <artifactId>avro-protobuf</artifactId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.avro</groupId>
+        <artifactId>avro</artifactId>
+        <version>1.11.4</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.avro</groupId>
+        <artifactId>avro-protobuf</artifactId>
+        <version>1.11.4</version>
       </dependency>
       <dependency>
         <groupId>${pulsar.groupId}</groupId>
