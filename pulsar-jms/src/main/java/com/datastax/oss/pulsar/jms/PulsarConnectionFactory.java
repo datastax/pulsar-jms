@@ -68,7 +68,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.pulsar.client.admin.PulsarAdmin;
 import org.apache.pulsar.client.admin.PulsarAdminException;
 import org.apache.pulsar.client.api.Authentication;
 import org.apache.pulsar.client.api.AuthenticationFactory;
@@ -123,7 +122,7 @@ public class PulsarConnectionFactory
   private final transient List<Reader<?>> readers = new CopyOnWriteArrayList<>();
 
   private transient PulsarClient pulsarClient;
-  private transient PulsarAdmin pulsarAdmin;
+  private transient PulsarAdminWrapper pulsarAdmin;
   private transient Map<String, Object> producerConfiguration;
   private transient ConsumerConfiguration defaultConsumerConfiguration;
   private transient String systemNamespace = "public/default";
@@ -466,7 +465,7 @@ public class PulsarConnectionFactory
       String brokenServiceUrl = getAndRemoveString("brokerServiceUrl", "", configurationCopy);
 
       PulsarClient pulsarClient = null;
-      PulsarAdmin pulsarAdmin = null;
+      PulsarAdminWrapper pulsarAdmin = null;
       try {
 
         // must be the same as
@@ -515,17 +514,18 @@ public class PulsarConnectionFactory
             getAndRemoveString("tlsTrustStorePassword", "", configurationCopy);
 
         pulsarAdmin =
-            PulsarAdmin.builder()
-                .serviceHttpUrl(webServiceUrl)
-                .allowTlsInsecureConnection(tlsAllowInsecureConnection)
-                .enableTlsHostnameVerification(tlsEnableHostnameVerification)
-                .tlsTrustCertsFilePath(tlsTrustCertsFilePath)
-                .useKeyStoreTls(useKeyStoreTls)
-                .tlsTrustStoreType(tlsTrustStoreType)
-                .tlsTrustStorePath(tlsTrustStorePath)
-                .tlsTrustStorePassword(tlsTrustStorePassword)
-                .authentication(authentication)
-                .build();
+            usePulsarAdmin
+                ? RealPulsarAdminWrapperFactory.createPulsarAdmin(
+                    webServiceUrl,
+                    tlsAllowInsecureConnection,
+                    tlsEnableHostnameVerification,
+                    tlsTrustCertsFilePath,
+                    useKeyStoreTls,
+                    tlsTrustStoreType,
+                    tlsTrustStorePath,
+                    tlsTrustStorePassword,
+                    authentication)
+                : null;
 
         ClientBuilder clientBuilder =
             PulsarClient.builder()
@@ -642,7 +642,7 @@ public class PulsarConnectionFactory
     return pulsarClient;
   }
 
-  public synchronized PulsarAdmin getPulsarAdmin() throws jakarta.jms.IllegalStateException {
+  public synchronized PulsarAdminWrapper getPulsarAdmin() throws jakarta.jms.IllegalStateException {
     if (!usePulsarAdmin) {
       throw new jakarta.jms.IllegalStateException(
           "jms.usePulsarAdmin is set to false, this feature is not available");
@@ -1158,7 +1158,6 @@ public class PulsarConnectionFactory
       try {
         if (isUsePulsarAdmin()) {
           getPulsarAdmin()
-              .topics()
               .createSubscription(fullQualifiedTopicName, subscriptionName, MessageId.earliest);
         } else {
           // if we cannot use PulsarAdmin,
@@ -1432,9 +1431,7 @@ public class PulsarConnectionFactory
     while (true) {
       try {
         Map<String, String> subscriptionPropertiesFromBroker =
-            pulsarAdmin
-                .topics()
-                .getSubscriptionProperties(fullQualifiedTopicName, subscriptionName);
+            pulsarAdmin.getSubscriptionProperties(fullQualifiedTopicName, subscriptionName);
         if (subscriptionPropertiesFromBroker != null) {
           log.debug("subscriptionPropertiesFromBroker {}", subscriptionPropertiesFromBroker);
           boolean filtering = "true".equals(subscriptionPropertiesFromBroker.get("jms.filtering"));
@@ -1509,7 +1506,7 @@ public class PulsarConnectionFactory
 
       try {
         PartitionedTopicMetadata partitionedTopicMetadata =
-            getPulsarAdmin().topics().getPartitionedTopicMetadata(fullQualifiedTopicName);
+            getPulsarAdmin().getPartitionedTopicMetadata(fullQualifiedTopicName);
         List<Reader<?>> readers = new ArrayList<>();
         if (partitionedTopicMetadata.partitions == 0) {
           Reader<?> readerForBrowserForNonPartitionedTopic =
@@ -1550,7 +1547,7 @@ public class PulsarConnectionFactory
 
       // peekMessages works only for non-partitioned topics
       List<Message<byte[]>> messages =
-          getPulsarAdmin().topics().peekMessages(fullQualifiedTopicName, queueSubscriptionName, 1);
+          getPulsarAdmin().peekMessages(fullQualifiedTopicName, queueSubscriptionName, 1);
 
       MessageId seekMessageId;
       if (messages.isEmpty()) {
@@ -1614,7 +1611,7 @@ public class PulsarConnectionFactory
         String fullQualifiedTopicName = getPulsarTopicName(destination);
         log.info("deleteSubscription topic {} name {}", fullQualifiedTopicName, name);
         try {
-          pulsarAdmin.topics().deleteSubscription(fullQualifiedTopicName, name, true);
+          pulsarAdmin.deleteSubscription(fullQualifiedTopicName, name, true);
           somethingDone = true;
         } catch (PulsarAdminException.NotFoundException notFound) {
           log.error("Cannot unsubscribe {} from {}: not found", name, fullQualifiedTopicName);
@@ -1622,7 +1619,7 @@ public class PulsarConnectionFactory
       }
       if (!somethingDone) {
         // required for TCK, scan for all subscriptions
-        List<String> allTopics = pulsarAdmin.topics().getList(systemNamespace);
+        List<String> allTopics = pulsarAdmin.getTopicList(systemNamespace);
         for (String topic : allTopics) {
           if (topic.endsWith(PENDING_ACK_STORE_SUFFIX)) {
             // skip Transaction related system topics
@@ -1632,7 +1629,7 @@ public class PulsarConnectionFactory
           log.info("Scanning topic {}", topic);
           List<String> subscriptions;
           try {
-            subscriptions = pulsarAdmin.topics().getSubscriptions(topic);
+            subscriptions = pulsarAdmin.getSubscriptions(topic);
             log.info("Subscriptions {}", subscriptions);
           } catch (PulsarAdminException.NotFoundException notFound) {
             log.error("Skipping topic {}", topic);
@@ -1642,7 +1639,7 @@ public class PulsarConnectionFactory
             log.info("Found subscription {} ", subscription);
             if (subscription.equals(name)) {
               log.info("deleteSubscription topic {} name {}", topic, name);
-              pulsarAdmin.topics().deleteSubscription(topic, name, true);
+              pulsarAdmin.deleteSubscription(topic, name, true);
               somethingDone = true;
             }
           }
@@ -1858,7 +1855,7 @@ public class PulsarConnectionFactory
     return pulsarClient;
   }
 
-  PulsarAdmin ensurePulsarAdmin() throws JMSException {
+  PulsarAdminWrapper ensurePulsarAdmin() throws JMSException {
     createConnection().close();
     if (pulsarAdmin == null) {
       throw new IllegalStateException(
