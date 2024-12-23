@@ -15,11 +15,16 @@
  */
 package org.apache.activemq.command;
 
-/** */
-public interface DataStructure {
+import java.io.IOException;
+import org.apache.activemq.wireformat.WireFormat;
 
-  /** @return The type of the data structure */
-  byte getDataStructureType();
+public interface MarshallAware {
 
-  boolean isMarshallAware();
+  void beforeMarshall(WireFormat wireFormat) throws IOException;
+
+  void afterMarshall(WireFormat wireFormat) throws IOException;
+
+  void beforeUnmarshall(WireFormat wireFormat) throws IOException;
+
+  void afterUnmarshall(WireFormat wireFormat) throws IOException;
 }

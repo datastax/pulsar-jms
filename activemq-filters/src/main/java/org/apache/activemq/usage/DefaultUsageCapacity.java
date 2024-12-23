@@ -13,13 +13,33 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.activemq.command;
+package org.apache.activemq.usage;
 
-/** */
-public interface DataStructure {
+/**
+ * Identify if a limit has been reached
+ *
+ * @org.apache.xbean.XBean
+ */
+public class DefaultUsageCapacity implements UsageCapacity {
 
-  /** @return The type of the data structure */
-  byte getDataStructureType();
+  private long limit;
 
-  boolean isMarshallAware();
+  /**
+   * @param size
+   * @return true if the limit is reached
+   * @see UsageCapacity#isLimit(long)
+   */
+  public boolean isLimit(long size) {
+    return size >= limit;
+  }
+
+  /** @return the limit */
+  public final long getLimit() {
+    return this.limit;
+  }
+
+  /** @param limit the limit to set */
+  public final void setLimit(long limit) {
+    this.limit = limit;
+  }
 }

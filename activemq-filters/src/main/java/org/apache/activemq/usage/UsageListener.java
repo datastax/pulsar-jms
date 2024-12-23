@@ -13,13 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.activemq.command;
+package org.apache.activemq.usage;
 
-/** */
-public interface DataStructure {
-
-  /** @return The type of the data structure */
-  byte getDataStructureType();
-
-  boolean isMarshallAware();
+public interface UsageListener {
+  void onUsageChanged(Usage usage, int oldPercentUsage, int newPercentUsage);
 }

@@ -1,12 +1,11 @@
-/**
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
+/*
+ * Copyright DataStax, Inc.
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -21,43 +20,27 @@ import java.io.DataOutput;
 import java.io.IOException;
 import org.apache.activemq.util.ByteSequence;
 
-
 /**
- * Provides a mechanism to marshal commands into and out of packets
- * or into and out of streams, Channels and Datagrams.
- *
- * 
+ * Provides a mechanism to marshal commands into and out of packets or into and out of streams,
+ * Channels and Datagrams.
  */
 public interface WireFormat {
 
-    /**
-     * Packet based marshaling 
-     */
-    ByteSequence marshal(Object command) throws IOException;
-    
-    /**
-     * Packet based un-marshaling 
-     */
-    Object unmarshal(ByteSequence packet) throws IOException;
+  /** Packet based marshaling */
+  ByteSequence marshal(Object command) throws IOException;
 
-    /**
-     * Stream based marshaling 
-     */
-    void marshal(Object command, DataOutput out) throws IOException;
-    
-    /**
-     * Packet based un-marshaling 
-     */
-    Object unmarshal(DataInput in) throws IOException;
-    
-    /**
-     * @param version the version of the wire format
-     */
-    void setVersion(int version);
-    
-    /**
-     * @return the version of the wire format
-     */
-    int getVersion();
-    
+  /** Packet based un-marshaling */
+  Object unmarshal(ByteSequence packet) throws IOException;
+
+  /** Stream based marshaling */
+  void marshal(Object command, DataOutput out) throws IOException;
+
+  /** Packet based un-marshaling */
+  Object unmarshal(DataInput in) throws IOException;
+
+  /** @param version the version of the wire format */
+  void setVersion(int version);
+
+  /** @return the version of the wire format */
+  int getVersion();
 }

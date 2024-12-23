@@ -15,11 +15,30 @@
  */
 package org.apache.activemq.command;
 
-/** */
-public interface DataStructure {
+/** @openwire:marshaller code="30" */
+public class Response extends BaseCommand {
 
-  /** @return The type of the data structure */
-  byte getDataStructureType();
+  public static final byte DATA_STRUCTURE_TYPE = CommandTypes.RESPONSE;
+  int correlationId;
 
-  boolean isMarshallAware();
+  public byte getDataStructureType() {
+    return DATA_STRUCTURE_TYPE;
+  }
+
+  /** @openwire:property version=1 */
+  public int getCorrelationId() {
+    return correlationId;
+  }
+
+  public void setCorrelationId(int responseId) {
+    this.correlationId = responseId;
+  }
+
+  public boolean isResponse() {
+    return true;
+  }
+
+  public boolean isException() {
+    return false;
+  }
 }

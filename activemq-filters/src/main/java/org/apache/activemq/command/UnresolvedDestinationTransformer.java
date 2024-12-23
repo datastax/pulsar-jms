@@ -15,11 +15,12 @@
  */
 package org.apache.activemq.command;
 
-/** */
-public interface DataStructure {
+import jakarta.jms.Destination;
+import jakarta.jms.JMSException;
 
-  /** @return The type of the data structure */
-  byte getDataStructureType();
+public interface UnresolvedDestinationTransformer {
 
-  boolean isMarshallAware();
+  public ActiveMQDestination transform(Destination dest) throws JMSException;
+
+  public ActiveMQDestination transform(String dest) throws JMSException;
 }

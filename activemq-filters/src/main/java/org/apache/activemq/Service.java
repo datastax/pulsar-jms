@@ -13,13 +13,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.activemq.command;
+package org.apache.activemq;
 
-/** */
-public interface DataStructure {
+/**
+ * The core lifecyle interface for ActiveMQ components.
+ *
+ * <p>If there was a standard way to do so, it'd be good to register this interface with Spring so
+ * it treats the start/stop methods as those of {@link
+ * org.springframework.beans.factory.InitializingBean} and {@link
+ * org.springframework.beans.factory.DisposableBean}
+ */
+public interface Service {
 
-  /** @return The type of the data structure */
-  byte getDataStructureType();
+  void start() throws Exception;
 
-  boolean isMarshallAware();
+  void stop() throws Exception;
 }
