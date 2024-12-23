@@ -28,7 +28,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.zip.DeflaterOutputStream;
-import org.apache.activemq.advisory.AdvisorySupport;
 import org.apache.activemq.broker.region.MessageReference;
 import org.apache.activemq.usage.MemoryUsage;
 import org.apache.activemq.util.ByteArrayInputStream;
@@ -46,6 +45,7 @@ import org.fusesource.hawtbuf.UTF8Buffer;
  */
 public abstract class Message extends BaseCommand implements MarshallAware, MessageReference {
     public static final String ORIGINAL_EXPIRATION = "originalExpiration";
+    public static final String ADIVSORY_MESSAGE_TYPE = "Advisory";
 
     /**
      * The default minimum amount of memory a message is assumed to use
@@ -511,7 +511,7 @@ public abstract class Message extends BaseCommand implements MarshallAware, Mess
 
     @Override
 	public boolean isAdvisory() {
-        return type != null && type.equals(AdvisorySupport.ADIVSORY_MESSAGE_TYPE);
+        return type != null && type.equals(ADIVSORY_MESSAGE_TYPE);
     }
 
     /**
