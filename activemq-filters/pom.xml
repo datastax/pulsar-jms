@@ -59,14 +59,7 @@
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-shade-plugin</artifactId>
         <configuration>
-          <filters>
-            <filter>
-              <artifact>org.apache.activemq:*</artifact>
-              <excludes>
-                <exclude>org/apache/activemq/filter/**</exclude>
-              </excludes>
-            </filter>
-          </filters>
+          <filters/>
         </configuration>
         <executions>
           <execution>
