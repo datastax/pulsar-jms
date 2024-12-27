@@ -32,7 +32,7 @@
   <dependencies>
     <dependency>
       <groupId>${project.groupId}</groupId>
-      <artifactId>pulsar-jms-filters</artifactId>
+      <artifactId>pulsar-jms-filters-common</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>

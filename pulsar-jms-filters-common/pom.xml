@@ -23,33 +23,31 @@
     <version>7.0.2-SNAPSHOT</version>
   </parent>
   <modelVersion>4.0.0</modelVersion>
-  <artifactId>pulsar-jms-filters</artifactId>
+  <artifactId>pulsar-jms-filters-common</artifactId>
   <packaging>jar</packaging>
-  <name>DataStax Starlight for JMS - Broker Side Filters</name>
+  <name>DataStax Starlight for JMS - Filters Common</name>
   <properties>
     <build.dir>${project.build.directory}</build.dir>
-    <maven.compiler.source>17</maven.compiler.source>
-    <maven.compiler.target>17</maven.compiler.target>
-    <maven.compiler.release>17</maven.compiler.release>
   </properties>
   <dependencies>
     <dependency>
       <groupId>${project.groupId}</groupId>
-      <artifactId>pulsar-jms-filters-common</artifactId>
+      <artifactId>pulsar-jms-activemq-filters</artifactId>
       <version>${project.version}</version>
+      <exclusions>
+        <exclusion>
+          <groupId>*</groupId>
+          <artifactId>*</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>jakarta.jms</groupId>
+      <artifactId>jakarta.jms-api</artifactId>
     </dependency>
     <dependency>
       <groupId>org.projectlombok</groupId>
       <artifactId>lombok</artifactId>
-      <scope>provided</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.fusesource.hawtbuf</groupId>
-      <artifactId>hawtbuf</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>com.github.spotbugs</groupId>
-      <artifactId>spotbugs-annotations</artifactId>
       <scope>provided</scope>
     </dependency>
     <dependency>
@@ -58,37 +56,8 @@
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>org.junit.jupiter</groupId>
-      <artifactId>junit-jupiter-params</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>${pulsar.groupId}</groupId>
-      <artifactId>pulsar-broker</artifactId>
-      <scope>provided</scope>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
     </dependency>
   </dependencies>
-  <build>
-    <plugins>
-      <plugin>
-        <groupId>org.apache.nifi</groupId>
-        <artifactId>nifi-nar-maven-plugin</artifactId>
-        <version>1.3.2</version>
-        <extensions>true</extensions>
-        <configuration>
-          <finalName>pulsar-jms-${project.version}</finalName>
-          <classifier>nar</classifier>
-        </configuration>
-        <executions>
-          <execution>
-            <id>default-nar</id>
-            <phase>package</phase>
-            <goals>
-              <goal>nar</goal>
-            </goals>
-          </execution>
-        </executions>
-      </plugin>
-    </plugins>
-  </build>
 </project>
