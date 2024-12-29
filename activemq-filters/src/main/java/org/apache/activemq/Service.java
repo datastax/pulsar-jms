@@ -19,9 +19,7 @@ package org.apache.activemq;
  * The core lifecyle interface for ActiveMQ components.
  *
  * <p>If there was a standard way to do so, it'd be good to register this interface with Spring so
- * it treats the start/stop methods as those of {@link
- * org.springframework.beans.factory.InitializingBean} and {@link
- * org.springframework.beans.factory.DisposableBean}
+ * it treats the start/stop methods as those of InitializingBean and DisposableBean
  */
 public interface Service {
 
