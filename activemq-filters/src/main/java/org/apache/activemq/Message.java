@@ -20,8 +20,8 @@ public interface Message extends jakarta.jms.Message {
 
   /**
    * Returns the MIME type of this mesage. This can be used in selectors to filter on the MIME types
-   * of the different JMS messages, or in the case of BlobMessage it
-   * allows you to create a selector on the MIME type of the BLOB body
+   * of the different JMS messages, or in the case of BlobMessage it allows you to create a selector
+   * on the MIME type of the BLOB body
    */
   String getJMSXMimeType();
 }
