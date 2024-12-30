@@ -15,10 +15,7 @@
  */
 package org.apache.activemq.usage;
 
-/**
- * Identify if a limit has been reached
- *
- */
+/** Identify if a limit has been reached */
 public class DefaultUsageCapacity implements UsageCapacity {
 
   private long limit;

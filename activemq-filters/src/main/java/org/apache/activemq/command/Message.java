@@ -36,10 +36,7 @@ import org.apache.activemq.util.MarshallingSupport;
 import org.apache.activemq.wireformat.WireFormat;
 import org.fusesource.hawtbuf.UTF8Buffer;
 
-/**
- * Represents an ActiveMQ message
- *
- */
+/** Represents an ActiveMQ message */
 public abstract class Message extends BaseCommand implements MarshallAware, MessageReference {
   public static final String ORIGINAL_EXPIRATION = "originalExpiration";
   public static final String ADIVSORY_MESSAGE_TYPE = "Advisory";

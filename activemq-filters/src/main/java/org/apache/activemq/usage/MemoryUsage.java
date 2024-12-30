@@ -20,7 +20,6 @@ import java.util.concurrent.TimeUnit;
 /**
  * Used to keep track of how much of something is being used so that a productive working set usage
  * can be controlled. Main use case is manage memory usage.
- *
  */
 public class MemoryUsage extends Usage<MemoryUsage> {
 

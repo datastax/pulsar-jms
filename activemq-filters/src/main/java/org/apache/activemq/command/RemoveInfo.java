@@ -15,10 +15,7 @@
  */
 package org.apache.activemq.command;
 
-/**
- * Removes a consumer, producer, session or connection.
- *
- */
+/** Removes a consumer, producer, session or connection. */
 public class RemoveInfo extends BaseCommand {
 
   public static final byte DATA_STRUCTURE_TYPE = CommandTypes.REMOVE_INFO;

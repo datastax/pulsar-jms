@@ -23,7 +23,6 @@ import org.apache.activemq.util.MarshallingSupport;
  * When a client connects to a broker, the broker send the client a BrokerInfo so that the client
  * knows which broker node he's talking to and also any peers that the node has in his cluster. This
  * is the broker helping the client out in discovering other nodes in the cluster.
- *
  */
 public class BrokerInfo extends BaseCommand {
   private static final String PASSIVE_SLAVE_KEY = "passiveSlave";

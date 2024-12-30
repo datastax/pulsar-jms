@@ -18,9 +18,7 @@ package org.apache.activemq.command;
 import jakarta.jms.JMSException;
 import jakarta.jms.TemporaryTopic;
 
-/**
- * element="tempTopic" description="An ActiveMQ Temporary Topic Destination"
- */
+/** element="tempTopic" description="An ActiveMQ Temporary Topic Destination" */
 public class ActiveMQTempTopic extends ActiveMQTempDestination implements TemporaryTopic {
 
   public static final byte DATA_STRUCTURE_TYPE = CommandTypes.ACTIVEMQ_TEMP_TOPIC;

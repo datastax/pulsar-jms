@@ -18,9 +18,7 @@ package org.apache.activemq.command;
 import jakarta.jms.JMSException;
 import jakarta.jms.Queue;
 
-/**
- * element="queue" description="An ActiveMQ Queue Destination"
- */
+/** element="queue" description="An ActiveMQ Queue Destination" */
 public class ActiveMQQueue extends ActiveMQDestination implements Queue {
 
   public static final byte DATA_STRUCTURE_TYPE = CommandTypes.ACTIVEMQ_QUEUE;

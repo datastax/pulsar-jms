@@ -18,10 +18,7 @@ package org.apache.activemq.command;
 import jakarta.jms.JMSException;
 import jakarta.jms.Topic;
 
-/**
- * element="topic" description="An ActiveMQ Topic Destination"
- * code="101"
- */
+/** element="topic" description="An ActiveMQ Topic Destination" code="101" */
 public class ActiveMQTopic extends ActiveMQDestination implements Topic {
 
   public static final byte DATA_STRUCTURE_TYPE = CommandTypes.ACTIVEMQ_TOPIC;

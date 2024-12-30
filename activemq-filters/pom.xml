@@ -25,7 +25,7 @@
   <modelVersion>4.0.0</modelVersion>
   <artifactId>pulsar-jms-activemq-filters</artifactId>
   <packaging>jar</packaging>
-  <name>DataStax Starlight for JMS - Apache ActiveMQ Filters (waiting for next ActiveMQ release)</name>
+  <name>DataStax Starlight for JMS - Apache ActiveMQ Filters</name>
   <properties>
     <build.dir>${project.build.directory}</build.dir>
   </properties>
@@ -48,6 +48,16 @@
   </dependencies>
   <build>
     <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-javadoc-plugin</artifactId>
+        <version>3.2.0</version>
+        <configuration>
+          <additionalOptions>
+            <additionalOption>-Xdoclint:none</additionalOption>
+          </additionalOptions>
+        </configuration>
+      </plugin>
       <plugin>
         <groupId>com.github.spotbugs</groupId>
         <artifactId>spotbugs-maven-plugin</artifactId>

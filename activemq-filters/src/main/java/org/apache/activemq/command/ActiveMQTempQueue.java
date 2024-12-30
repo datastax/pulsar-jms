@@ -18,10 +18,7 @@ package org.apache.activemq.command;
 import jakarta.jms.JMSException;
 import jakarta.jms.TemporaryQueue;
 
-/**
- * element="tempQueue" description="An ActiveMQ Temporary Queue Destination"
- * code="102"
- */
+/** element="tempQueue" description="An ActiveMQ Temporary Queue Destination" */
 public class ActiveMQTempQueue extends ActiveMQTempDestination implements TemporaryQueue {
 
   public static final byte DATA_STRUCTURE_TYPE = CommandTypes.ACTIVEMQ_TEMP_QUEUE;
