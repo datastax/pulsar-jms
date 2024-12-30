@@ -32,7 +32,7 @@
   <dependencies>
     <dependency>
       <groupId>${project.groupId}</groupId>
-      <artifactId>pulsar-jms-filters</artifactId>
+      <artifactId>pulsar-jms-filters-common</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
@@ -93,10 +93,6 @@
       <artifactId>jackson-annotations</artifactId>
     </dependency>
     <dependency>
-      <groupId>org.apache.activemq</groupId>
-      <artifactId>activemq-client</artifactId>
-    </dependency>
-    <dependency>
       <groupId>org.fusesource.hawtbuf</groupId>
       <artifactId>hawtbuf</artifactId>
     </dependency>
@@ -155,10 +151,10 @@
             <configuration>
               <target>
                 <echo>copy filters</echo>
-                <mkdir dir="${project.build.outputDirectory}/filters" />
-                <mkdir dir="${project.build.outputDirectory}/interceptors" />
-                <copy verbose="true" file="${basedir}/../pulsar-jms-filters/target/pulsar-jms-${project.version}-nar.nar" tofile="${project.build.outputDirectory}/filters/jms-filter.nar" />
-                <copy verbose="true" file="${basedir}/../pulsar-jms-filters/target/pulsar-jms-${project.version}-nar.nar" tofile="${project.build.outputDirectory}/interceptors/jms-filter.nar" />
+                <mkdir dir="${project.build.outputDirectory}/filters"/>
+                <mkdir dir="${project.build.outputDirectory}/interceptors"/>
+                <copy verbose="true" file="${basedir}/../pulsar-jms-filters/target/pulsar-jms-${project.version}-nar.nar" tofile="${project.build.outputDirectory}/filters/jms-filter.nar"/>
+                <copy verbose="true" file="${basedir}/../pulsar-jms-filters/target/pulsar-jms-${project.version}-nar.nar" tofile="${project.build.outputDirectory}/interceptors/jms-filter.nar"/>
               </target>
             </configuration>
           </execution>

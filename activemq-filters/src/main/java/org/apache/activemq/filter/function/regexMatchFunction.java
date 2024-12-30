@@ -24,8 +24,6 @@ import org.apache.activemq.util.LRUCache;
 /**
  * Filter function that matches a value against a regular expression.
  *
- * <p>
- *
  * <p style="margin-left: 4em">REGEX( 'A.B', 'A-B' )
  *
  * <p>Note that the regular expression is not anchored; use the anchor characters, ^ and $,

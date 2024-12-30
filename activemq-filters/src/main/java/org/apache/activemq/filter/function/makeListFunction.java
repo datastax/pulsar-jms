@@ -22,8 +22,6 @@ import org.apache.activemq.filter.MessageEvaluationContext;
  * Filter function that creates a list with each argument being one element in the list. For
  * example:
  *
- * <p>
- *
  * <p style="margin-left: 4em">MAKELIST( '1', '2', '3' )
  */
 public class makeListFunction implements FilterFunction {
