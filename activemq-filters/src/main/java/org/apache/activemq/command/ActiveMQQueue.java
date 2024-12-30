@@ -19,8 +19,7 @@ import jakarta.jms.JMSException;
 import jakarta.jms.Queue;
 
 /**
- * @org.apache.xbean.XBean element="queue" description="An ActiveMQ Queue Destination"
- * @openwire:marshaller code="100"
+ * element="queue" description="An ActiveMQ Queue Destination"
  */
 public class ActiveMQQueue extends ActiveMQDestination implements Queue {
 

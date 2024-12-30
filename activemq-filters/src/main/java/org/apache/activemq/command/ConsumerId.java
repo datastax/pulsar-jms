@@ -15,7 +15,6 @@
  */
 package org.apache.activemq.command;
 
-/** @openwire:marshaller code="122" */
 public class ConsumerId implements DataStructure {
 
   public static final byte DATA_STRUCTURE_TYPE = CommandTypes.CONSUMER_ID;

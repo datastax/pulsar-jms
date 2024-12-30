@@ -15,7 +15,6 @@
  */
 package org.apache.activemq.command;
 
-/** @openwire:marshaller code="120" */
 public class ConnectionId implements DataStructure, Comparable<ConnectionId> {
 
   public static final byte DATA_STRUCTURE_TYPE = CommandTypes.CONNECTION_ID;

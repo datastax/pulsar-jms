@@ -19,8 +19,8 @@ import jakarta.jms.JMSException;
 import jakarta.jms.Topic;
 
 /**
- * @org.apache.xbean.XBean element="topic" description="An ActiveMQ Topic Destination"
- * @openwire:marshaller code="101"
+ * element="topic" description="An ActiveMQ Topic Destination"
+ * code="101"
  */
 public class ActiveMQTopic extends ActiveMQDestination implements Topic {
 

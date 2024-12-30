@@ -18,7 +18,6 @@ package org.apache.activemq.usage;
 /**
  * Identify if a limit has been reached
  *
- * @org.apache.xbean.XBean
  */
 public class DefaultUsageCapacity implements UsageCapacity {
 

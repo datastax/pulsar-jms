@@ -39,7 +39,6 @@ import org.fusesource.hawtbuf.UTF8Buffer;
 /**
  * Represents an ActiveMQ message
  *
- * @openwire:marshaller
  */
 public abstract class Message extends BaseCommand implements MarshallAware, MessageReference {
   public static final String ORIGINAL_EXPIRATION = "originalExpiration";

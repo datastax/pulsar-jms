@@ -15,7 +15,6 @@
  */
 package org.apache.activemq.command;
 
-/** @openwire:marshaller code="123" */
 public class ProducerId implements DataStructure {
 
   public static final byte DATA_STRUCTURE_TYPE = CommandTypes.PRODUCER_ID;

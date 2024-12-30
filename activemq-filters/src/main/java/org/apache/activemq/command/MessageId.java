@@ -17,7 +17,6 @@ package org.apache.activemq.command;
 
 import java.util.concurrent.atomic.AtomicReference;
 
-/** @openwire:marshaller code="110" */
 public class MessageId implements DataStructure, Comparable<MessageId> {
 
   public static final byte DATA_STRUCTURE_TYPE = CommandTypes.MESSAGE_ID;

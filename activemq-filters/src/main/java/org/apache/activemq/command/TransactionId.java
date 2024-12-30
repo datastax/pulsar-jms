@@ -15,7 +15,6 @@
  */
 package org.apache.activemq.command;
 
-/** @openwire:marshaller */
 public abstract class TransactionId implements DataStructure {
 
   public abstract boolean isXATransaction();

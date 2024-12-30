@@ -15,7 +15,6 @@
  */
 package org.apache.activemq.command;
 
-/** @openwire:marshaller code="121" */
 public class SessionId implements DataStructure {
 
   public static final byte DATA_STRUCTURE_TYPE = CommandTypes.SESSION_ID;

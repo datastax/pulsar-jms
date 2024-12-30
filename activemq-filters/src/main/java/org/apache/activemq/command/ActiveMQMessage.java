@@ -33,7 +33,6 @@ import org.apache.activemq.util.JMSExceptionSupport;
 import org.apache.activemq.util.TypeConversionSupport;
 import org.fusesource.hawtbuf.UTF8Buffer;
 
-/** @openwire:marshaller code="23" */
 public class ActiveMQMessage extends Message
     implements org.apache.activemq.Message, ScheduledMessage {
   public static final byte DATA_STRUCTURE_TYPE = CommandTypes.ACTIVEMQ_MESSAGE;

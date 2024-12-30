@@ -21,8 +21,8 @@ import java.util.Map;
 /**
  * A Simple LRU Cache
  *
- * @param <K>
- * @param <V>
+ * @param <K> Key
+ * @param <V> Value
  */
 public class LRUCache<K, V> extends LinkedHashMap<K, V> {
   private static final long serialVersionUID = -342098639681884413L;

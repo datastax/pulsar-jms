@@ -21,9 +21,6 @@ import org.apache.activemq.filter.MessageEvaluationContext;
 /**
  * Filter function that matches a value against a list of values and evaluates to an indicator of
  * membership in the list. For example:
- *
- * <p>
- *
  * <p style="margin-left: 4em">INLIST( SPLIT('1,2,3', ',') , '2' )
  *
  * <p>Note that the first argument must be a List. Strings containing lists are not acceptable; for

@@ -31,7 +31,6 @@ import org.slf4j.LoggerFactory;
  * Used to keep track of how much of something is being used so that a productive working set usage
  * can be controlled. Main use case is manage memory usage.
  *
- * @org.apache.xbean.XBean
  */
 public abstract class Usage<T extends Usage> implements Service {
 

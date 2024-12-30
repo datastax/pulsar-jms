@@ -18,7 +18,6 @@ package org.apache.activemq.command;
 import java.util.Map;
 import org.apache.activemq.util.IntrospectionSupport;
 
-/** @openwire:marshaller */
 public abstract class BaseCommand implements Command {
 
   protected int commandId;

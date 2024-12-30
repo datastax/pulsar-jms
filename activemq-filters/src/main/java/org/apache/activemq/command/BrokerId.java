@@ -15,7 +15,6 @@
  */
 package org.apache.activemq.command;
 
-/** @openwire:marshaller code="124" */
 public class BrokerId implements DataStructure {
 
   public static final byte DATA_STRUCTURE_TYPE = CommandTypes.BROKER_ID;

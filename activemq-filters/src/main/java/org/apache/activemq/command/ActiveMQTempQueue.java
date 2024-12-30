@@ -19,8 +19,8 @@ import jakarta.jms.JMSException;
 import jakarta.jms.TemporaryQueue;
 
 /**
- * @org.apache.xbean.XBean element="tempQueue" description="An ActiveMQ Temporary Queue Destination"
- * @openwire:marshaller code="102"
+ * element="tempQueue" description="An ActiveMQ Temporary Queue Destination"
+ * code="102"
  */
 public class ActiveMQTempQueue extends ActiveMQTempDestination implements TemporaryQueue {
 

@@ -19,7 +19,6 @@ import jakarta.jms.JMSException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** @openwire:marshaller */
 public abstract class ActiveMQTempDestination extends ActiveMQDestination {
 
   private static final Logger LOG = LoggerFactory.getLogger(ActiveMQTempDestination.class);

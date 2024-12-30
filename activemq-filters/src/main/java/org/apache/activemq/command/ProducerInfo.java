@@ -17,7 +17,6 @@ package org.apache.activemq.command;
 
 import java.util.concurrent.atomic.AtomicLong;
 
-/** @openwire:marshaller code="6" */
 public class ProducerInfo extends BaseCommand {
 
   public static final byte DATA_STRUCTURE_TYPE = CommandTypes.PRODUCER_INFO;

@@ -31,21 +31,21 @@ public abstract class JNDIBaseStorable implements JNDIStorableInterface, Externa
   /**
    * Set the properties that will represent the instance in JNDI
    *
-   * @param props
+   * @param props properties
    */
   protected abstract void buildFromProperties(Properties props);
 
   /**
    * Initialize the instance from properties stored in JNDI
    *
-   * @param props
+   * @param props properties
    */
   protected abstract void populateProperties(Properties props);
 
   /**
    * set the properties for this instance as retrieved from JNDI
    *
-   * @param props
+   * @param props properties
    */
   public synchronized void setProperties(Properties props) {
     this.properties = props;
@@ -76,9 +76,9 @@ public abstract class JNDIBaseStorable implements JNDIStorableInterface, Externa
   }
 
   /**
-   * @param in
-   * @throws IOException
-   * @throws ClassNotFoundException
+   * @param in in
+   * @throws IOException IOException
+   * @throws ClassNotFoundException ClassNotFoundException
    * @see Externalizable#readExternal(ObjectInput)
    */
   public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
@@ -89,8 +89,8 @@ public abstract class JNDIBaseStorable implements JNDIStorableInterface, Externa
   }
 
   /**
-   * @param out
-   * @throws IOException
+   * @param out out
+   * @throws IOException IOException
    * @see Externalizable#writeExternal(ObjectOutput)
    */
   public void writeExternal(ObjectOutput out) throws IOException {

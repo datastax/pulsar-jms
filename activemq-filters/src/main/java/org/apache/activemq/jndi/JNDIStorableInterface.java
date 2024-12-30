@@ -24,7 +24,7 @@ public interface JNDIStorableInterface extends Referenceable {
   /**
    * set the properties for this instance as retrieved from JNDI
    *
-   * @param properties
+   * @param properties properties
    */
   void setProperties(Properties properties);
 

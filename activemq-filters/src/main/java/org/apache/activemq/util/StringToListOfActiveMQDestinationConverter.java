@@ -22,7 +22,8 @@ import java.util.List;
 import org.apache.activemq.command.ActiveMQDestination;
 
 /**
- * Special converter for String -> List<ActiveMQDestination> to be used instead of a {@link
+ * Special converter for String -> List of ActiveMQDestination to
+ * be used instead of a {@link
  * java.beans.PropertyEditor} which otherwise causes memory leaks as the JDK {@link
  * java.beans.PropertyEditorManager} is a static class and has strong references to classes, causing
  * problems in hot-deployment environments.

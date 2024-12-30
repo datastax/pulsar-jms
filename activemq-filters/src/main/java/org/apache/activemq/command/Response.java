@@ -15,7 +15,6 @@
  */
 package org.apache.activemq.command;
 
-/** @openwire:marshaller code="30" */
 public class Response extends BaseCommand {
 
   public static final byte DATA_STRUCTURE_TYPE = CommandTypes.RESPONSE;

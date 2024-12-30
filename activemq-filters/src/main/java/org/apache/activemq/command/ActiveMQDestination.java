@@ -40,7 +40,9 @@ import org.apache.activemq.jndi.JNDIBaseStorable;
 import org.apache.activemq.util.IntrospectionSupport;
 import org.apache.activemq.util.URISupport;
 
-/** @openwire:marshaller */
+/**
+ * ActiveMQDestination
+ */
 public abstract class ActiveMQDestination extends JNDIBaseStorable
     implements DataStructure, Destination, Externalizable, Comparable<Object> {
 
@@ -231,7 +233,6 @@ public abstract class ActiveMQDestination extends JNDIBaseStorable
 
   protected abstract String getQualifiedPrefix();
 
-  /** @openwire:property version=1 */
   public String getPhysicalName() {
     return physicalName;
   }

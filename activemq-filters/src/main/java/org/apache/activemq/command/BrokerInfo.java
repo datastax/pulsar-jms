@@ -24,7 +24,6 @@ import org.apache.activemq.util.MarshallingSupport;
  * knows which broker node he's talking to and also any peers that the node has in his cluster. This
  * is the broker helping the client out in discovering other nodes in the cluster.
  *
- * @openwire:marshaller code="2"
  */
 public class BrokerInfo extends BaseCommand {
   private static final String PASSIVE_SLAVE_KEY = "passiveSlave";

@@ -19,8 +19,7 @@ import jakarta.jms.JMSException;
 import jakarta.jms.TemporaryTopic;
 
 /**
- * @org.apache.xbean.XBean element="tempTopic" description="An ActiveMQ Temporary Topic Destination"
- * @openwire:marshaller code="103"
+ * element="tempTopic" description="An ActiveMQ Temporary Topic Destination"
  */
 public class ActiveMQTempTopic extends ActiveMQTempDestination implements TemporaryTopic {
 

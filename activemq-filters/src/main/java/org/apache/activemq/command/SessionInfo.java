@@ -15,7 +15,6 @@
  */
 package org.apache.activemq.command;
 
-/** @openwire:marshaller code="4" */
 public class SessionInfo extends BaseCommand {
 
   public static final byte DATA_STRUCTURE_TYPE = CommandTypes.SESSION_INFO;

@@ -18,7 +18,6 @@ package org.apache.activemq.command;
 /**
  * Removes a consumer, producer, session or connection.
  *
- * @openwire:marshaller code="12"
  */
 public class RemoveInfo extends BaseCommand {
 
