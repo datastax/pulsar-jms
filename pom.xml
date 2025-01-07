@@ -33,6 +33,7 @@
   <modules>
     <module>activemq-filters</module>
     <module>pulsar-jms-filters</module>
+    <module>pulsar-jms-filters-common</module>
     <module>pulsar-jms-admin-api</module>
     <module>pulsar-jms</module>
     <module>resource-adapter</module>
@@ -50,9 +51,9 @@
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <java.version>1.8</java.version>
     <java.release.version>8</java.release.version>
-    <maven.compiler.source>17</maven.compiler.source>
-    <maven.compiler.target>17</maven.compiler.target>
-    <maven.compiler.release>17</maven.compiler.release>
+    <maven.compiler.source>11</maven.compiler.source>
+    <maven.compiler.target>11</maven.compiler.target>
+    <maven.compiler.release>11</maven.compiler.release>
     <jms.version>3.0.0</jms.version>
     <pulsar.groupId>org.apache.pulsar</pulsar.groupId>
     <pulsar.version>3.2.2</pulsar.version>
@@ -165,17 +166,6 @@
         <groupId>${pulsar.groupId}</groupId>
         <artifactId>pulsar-broker</artifactId>
         <version>${pulsar.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>org.apache.activemq</groupId>
-        <artifactId>activemq-client</artifactId>
-        <version>${activemq.version}</version>
-        <exclusions>
-          <exclusion>
-            <groupId>*</groupId>
-            <artifactId>*</artifactId>
-          </exclusion>
-        </exclusions>
       </dependency>
       <dependency>
         <groupId>org.fusesource.hawtbuf</groupId>

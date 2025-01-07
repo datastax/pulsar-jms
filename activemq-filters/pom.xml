@@ -25,15 +25,11 @@
   <modelVersion>4.0.0</modelVersion>
   <artifactId>pulsar-jms-activemq-filters</artifactId>
   <packaging>jar</packaging>
-  <name>DataStax Starlight for JMS - Apache ActiveMQ Filters (waiting for next ActiveMQ release)</name>
+  <name>DataStax Starlight for JMS - Apache ActiveMQ Filters</name>
   <properties>
     <build.dir>${project.build.directory}</build.dir>
   </properties>
   <dependencies>
-    <dependency>
-      <groupId>org.apache.activemq</groupId>
-      <artifactId>activemq-client</artifactId>
-    </dependency>
     <dependency>
       <groupId>jakarta.jms</groupId>
       <artifactId>jakarta.jms-api</artifactId>
@@ -44,9 +40,24 @@
       <artifactId>slf4j-api</artifactId>
       <scope>provided</scope>
     </dependency>
+    <dependency>
+      <groupId>org.fusesource.hawtbuf</groupId>
+      <artifactId>hawtbuf</artifactId>
+      <version>${hawtbuf.version}</version>
+    </dependency>
   </dependencies>
   <build>
     <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-javadoc-plugin</artifactId>
+        <version>3.2.0</version>
+        <configuration>
+          <additionalOptions>
+            <additionalOption>-Xdoclint:none</additionalOption>
+          </additionalOptions>
+        </configuration>
+      </plugin>
       <plugin>
         <groupId>com.github.spotbugs</groupId>
         <artifactId>spotbugs-maven-plugin</artifactId>
@@ -58,14 +69,7 @@
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-shade-plugin</artifactId>
         <configuration>
-          <filters>
-            <filter>
-              <artifact>org.apache.activemq:*</artifact>
-              <excludes>
-                <exclude>org/apache/activemq/filter/**</exclude>
-              </excludes>
-            </filter>
-          </filters>
+          <filters/>
         </configuration>
         <executions>
           <execution>
