@@ -1509,7 +1509,7 @@ public class PulsarConnectionFactory
 
       try {
         PartitionedTopicMetadata partitionedTopicMetadata =
-            getPulsarAdmin().topics().getPartitionedTopicMetadata(fullQualifiedTopicName);
+            pulsarAdmin.topics().getPartitionedTopicMetadata(fullQualifiedTopicName);
         List<Reader<?>> readers = new ArrayList<>();
         if (partitionedTopicMetadata.partitions == 0) {
           Reader<?> readerForBrowserForNonPartitionedTopic =
