@@ -32,6 +32,7 @@
   </organization>
   <modules>
     <module>activemq-filters</module>
+    <module>pulsar-client-shaded</module>
     <module>pulsar-jms-filters</module>
     <module>pulsar-jms-filters-common</module>
     <module>pulsar-jms-admin-api</module>
@@ -57,6 +58,9 @@
     <jms.version>3.0.0</jms.version>
     <pulsar.groupId>org.apache.pulsar</pulsar.groupId>
     <pulsar.version>3.2.2</pulsar.version>
+    <asynchttpclient.version>2.12.1</asynchttpclient.version>
+    <exec-maven-plugin.version>3.0.0</exec-maven-plugin.version>
+    <rename.netty.native.libs>rename-netty-native-libs.sh</rename.netty.native.libs>
     <activemq.version>6.0.0</activemq.version>
     <hawtbuf.version>1.11</hawtbuf.version>
     <curator.version>5.1.0</curator.version>
@@ -126,6 +130,36 @@
         <groupId>org.projectlombok</groupId>
         <artifactId>lombok</artifactId>
         <version>1.18.30</version>
+      </dependency>
+      <dependency>
+        <groupId>${pulsar.groupId}</groupId>
+        <artifactId>pulsar-client-api</artifactId>
+        <version>${pulsar.version}</version>
+        <exclusions>
+          <exclusion>
+            <groupId>org.apache.avro</groupId>
+            <artifactId>avro</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>org.apache.avro</groupId>
+            <artifactId>avro-protobuf</artifactId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>${pulsar.groupId}</groupId>
+        <artifactId>pulsar-client-messagecrypto-bc</artifactId>
+        <version>${pulsar.version}</version>
+        <exclusions>
+          <exclusion>
+            <groupId>org.apache.avro</groupId>
+            <artifactId>avro</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>org.apache.avro</groupId>
+            <artifactId>avro-protobuf</artifactId>
+          </exclusion>
+        </exclusions>
       </dependency>
       <dependency>
         <groupId>${pulsar.groupId}</groupId>
