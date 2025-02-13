@@ -1550,7 +1550,7 @@ public class PulsarConnectionFactory
 
       // peekMessages works only for non-partitioned topics
       List<Message<byte[]>> messages =
-          getPulsarAdmin().topics().peekMessages(fullQualifiedTopicName, queueSubscriptionName, 1);
+          pulsarAdmin.topics().peekMessages(fullQualifiedTopicName, queueSubscriptionName, 1);
 
       MessageId seekMessageId;
       if (messages.isEmpty()) {
