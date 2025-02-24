@@ -1509,7 +1509,7 @@ public class PulsarConnectionFactory
 
       try {
         PartitionedTopicMetadata partitionedTopicMetadata =
-            getPulsarAdmin().topics().getPartitionedTopicMetadata(fullQualifiedTopicName);
+            pulsarAdmin.topics().getPartitionedTopicMetadata(fullQualifiedTopicName);
         List<Reader<?>> readers = new ArrayList<>();
         if (partitionedTopicMetadata.partitions == 0) {
           Reader<?> readerForBrowserForNonPartitionedTopic =
@@ -1550,7 +1550,7 @@ public class PulsarConnectionFactory
 
       // peekMessages works only for non-partitioned topics
       List<Message<byte[]>> messages =
-          getPulsarAdmin().topics().peekMessages(fullQualifiedTopicName, queueSubscriptionName, 1);
+          pulsarAdmin.topics().peekMessages(fullQualifiedTopicName, queueSubscriptionName, 1);
 
       MessageId seekMessageId;
       if (messages.isEmpty()) {
