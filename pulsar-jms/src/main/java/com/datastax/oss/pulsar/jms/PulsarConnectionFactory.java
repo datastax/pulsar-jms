@@ -117,6 +117,7 @@ public class PulsarConnectionFactory
 
   // see resetDefaultValues for final fields
   private final transient Map<String, Producer<byte[]>> producers = new ConcurrentHashMap<>();
+  private final transient Map<String, Producer<byte[]>> tempProducers = new ConcurrentHashMap<>();
   private final transient Set<PulsarConnection> connections =
       Collections.synchronizedSet(new HashSet<>());
   private final transient List<Consumer<?>> consumers = new CopyOnWriteArrayList<>();
@@ -125,6 +126,8 @@ public class PulsarConnectionFactory
   private transient PulsarClient pulsarClient;
   private transient PulsarAdmin pulsarAdmin;
   private transient Map<String, Object> producerConfiguration;
+  private transient boolean useTempProducer = false;
+  private transient String tempTopicNamePrefix = "jms-temp-queue";
   private transient ConsumerConfiguration defaultConsumerConfiguration;
   private transient String systemNamespace = "public/default";
   private transient String defaultClientId = null;
@@ -275,6 +278,17 @@ public class PulsarConnectionFactory
     }
     Map<String, Object> configurationCopy = Utils.deepCopyMap(this.configuration);
     try {
+
+      Map<String, Object> tempProducerConfiguration =
+          (Map<String, Object>) configurationCopy.remove("tempProducerConfig");
+      if (tempProducerConfiguration != null) {
+
+        this.useTempProducer =
+            Boolean.parseBoolean(
+                tempProducerConfiguration.getOrDefault("useTempProducer", false).toString());
+        this.tempTopicNamePrefix =
+            getAndRemoveString("tempTopicNamePrefix", "jms-temp-queue", tempProducerConfiguration);
+      }
 
       Map<String, Object> producerConfiguration =
           (Map<String, Object>) configurationCopy.remove("producerConfig");
@@ -650,6 +664,14 @@ public class PulsarConnectionFactory
     return pulsarAdmin;
   }
 
+  public synchronized String getTempTopicNamePrefix() {
+    return tempTopicNamePrefix;
+  }
+
+  public synchronized boolean isUseTempProducer() {
+    return useTempProducer;
+  }
+
   public synchronized String getSystemNamespace() {
     return systemNamespace;
   }
@@ -1019,6 +1041,15 @@ public class PulsarConnectionFactory
       }
     }
 
+    for (Producer<?> producer : tempProducers.values()) {
+      try {
+        producer.close();
+      } catch (PulsarClientException ignore) {
+        // ignore
+        Utils.handleException(ignore);
+      }
+    }
+
     if (this.pulsarAdmin != null) {
       this.pulsarAdmin.close();
     }
@@ -1064,65 +1095,125 @@ public class PulsarConnectionFactory
       boolean enableJMSPriority = isEnableJMSPriority();
       boolean producerJMSPriorityUseLinearMapping =
           enableJMSPriority && isPriorityUseLinearMapping();
-      return producers.computeIfAbsent(
-          key,
-          d -> {
-            try {
-              return Utils.invoke(
-                  () -> {
-                    Map<String, Object> producerConfiguration = getProducerConfiguration();
-                    ProducerBuilder<byte[]> producerBuilder =
-                        pulsarClient
-                            .newProducer()
-                            .topic(applySystemNamespace(fullQualifiedTopicName))
-                            .loadConf(producerConfiguration);
-                    if (producerConfiguration.containsKey("batcherBuilder")) {
-                      producerBuilder.batcherBuilder(
-                          (BatcherBuilder) producerConfiguration.get("batcherBuilder"));
-                    }
-                    Map<String, String> properties = new HashMap<>();
-                    if (transactions) {
-                      properties.put("jms.transactions", "enabled");
-                    } else {
-                      properties.put("jms.transactions", "disabled");
-                    }
-                    if (enableJMSPriority) {
-                      properties.put("jms.priority", "enabled");
-                      properties.put(
-                          "jms.priorityMapping",
-                          producerJMSPriorityUseLinearMapping ? "linear" : "non-linear");
-                      producerBuilder.messageRouter(
-                          new MessageRouter() {
-                            @Override
-                            public int choosePartition(Message<?> msg, TopicMetadata metadata) {
 
-                              int key = PulsarMessage.readJMSPriority(msg);
-                              return Utils.mapPriorityToPartition(
-                                  key,
-                                  metadata.numPartitions(),
-                                  producerJMSPriorityUseLinearMapping);
-                            }
-                          });
-                    } else if (transactions && transactionsStickyPartitions) {
-                      producerBuilder.messageRouter(
-                          new MessageRouter() {
-                            @Override
-                            public int choosePartition(Message<?> msg, TopicMetadata metadata) {
-                              long key = Long.parseLong(msg.getProperty("JMSTX"));
-                              return signSafeMod(key, metadata.numPartitions());
-                            }
-                          });
-                    }
-                    producerBuilder.properties(properties);
-                    return producerBuilder.create();
-                  });
-            } catch (JMSException err) {
-              throw new RuntimeException(err);
-            }
-          });
+      if (isTempTopic(fullQualifiedTopicName))
+        return getProducer(
+            tempProducers,
+            key,
+            transactions,
+            enableJMSPriority,
+            fullQualifiedTopicName,
+            transactionsStickyPartitions,
+            producerJMSPriorityUseLinearMapping);
+      else
+        return getProducer(
+            producers,
+            key,
+            transactions,
+            enableJMSPriority,
+            fullQualifiedTopicName,
+            transactionsStickyPartitions,
+            producerJMSPriorityUseLinearMapping);
     } catch (RuntimeException err) {
       throw (JMSException) err.getCause();
     }
+  }
+
+  private boolean isTempTopic(String fullQualifiedTopicName) {
+    return isUseTempProducer() && fullQualifiedTopicName.contains(getTempTopicNamePrefix());
+  }
+
+  private Producer<byte[]> getProducer(
+      Map<String, Producer<byte[]>> producerCache,
+      String key,
+      boolean transactions,
+      boolean enableJMSPriority,
+      String fullQualifiedTopicName,
+      boolean transactionsStickyPartitions,
+      boolean producerJMSPriorityUseLinearMapping) {
+
+    return producerCache.computeIfAbsent(
+        key,
+        d -> {
+          try {
+            return Utils.invoke(
+                () ->
+                    createProducer(
+                        transactions,
+                        fullQualifiedTopicName,
+                        enableJMSPriority,
+                        producerJMSPriorityUseLinearMapping,
+                        transactionsStickyPartitions));
+          } catch (JMSException err) {
+            throw new RuntimeException(err);
+          }
+        });
+  }
+
+  void closeTempProducer(Producer<byte[]> producer) {
+    if (isUseTempProducer() && producer != null) {
+      var topicName = producer.getTopic();
+
+      if (tempProducers.containsKey(topicName)) {
+        var tempProducer = tempProducers.remove(topicName);
+        tempProducer.closeAsync();
+
+        log.debug(
+            "Temporary producer {} with destination {} is closed",
+            producer.getProducerName(),
+            topicName);
+      }
+    }
+  }
+
+  private Producer<byte[]> createProducer(
+      boolean transactions,
+      String fullQualifiedTopicName,
+      boolean enableJMSPriority,
+      boolean producerJMSPriorityUseLinearMapping,
+      boolean transactionsStickyPartitions)
+      throws PulsarClientException {
+    Map<String, Object> producerConfiguration = getProducerConfiguration();
+    ProducerBuilder<byte[]> producerBuilder =
+        pulsarClient
+            .newProducer()
+            .topic(applySystemNamespace(fullQualifiedTopicName))
+            .loadConf(producerConfiguration);
+    if (producerConfiguration.containsKey("batcherBuilder")) {
+      producerBuilder.batcherBuilder((BatcherBuilder) producerConfiguration.get("batcherBuilder"));
+    }
+    Map<String, String> properties = new HashMap<>();
+    if (transactions) {
+      properties.put("jms.transactions", "enabled");
+    } else {
+      properties.put("jms.transactions", "disabled");
+    }
+    if (enableJMSPriority) {
+      properties.put("jms.priority", "enabled");
+      properties.put(
+          "jms.priorityMapping", producerJMSPriorityUseLinearMapping ? "linear" : "non-linear");
+      producerBuilder.messageRouter(
+          new MessageRouter() {
+            @Override
+            public int choosePartition(Message<?> msg, TopicMetadata metadata) {
+
+              int key = PulsarMessage.readJMSPriority(msg);
+              return Utils.mapPriorityToPartition(
+                  key, metadata.numPartitions(), producerJMSPriorityUseLinearMapping);
+            }
+          });
+    } else if (transactions && transactionsStickyPartitions) {
+      producerBuilder.messageRouter(
+          new MessageRouter() {
+            @Override
+            public int choosePartition(Message<?> msg, TopicMetadata metadata) {
+              long key = Long.parseLong(msg.getProperty("JMSTX"));
+              return signSafeMod(key, metadata.numPartitions());
+            }
+          });
+    }
+    producerBuilder.properties(properties);
+    return producerBuilder.create();
   }
 
   synchronized boolean isUsePulsarAdmin() {
