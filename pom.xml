@@ -32,6 +32,7 @@
   </organization>
   <modules>
     <module>activemq-filters</module>
+    <module>pulsar-client-shaded</module>
     <module>pulsar-jms-filters</module>
     <module>pulsar-jms-admin-api</module>
     <module>pulsar-jms</module>
@@ -56,6 +57,9 @@
     <jms.version>2.0.3</jms.version>
     <pulsar.groupId>org.apache.pulsar</pulsar.groupId>
     <pulsar.version>3.2.2</pulsar.version>
+    <asynchttpclient.version>2.12.1</asynchttpclient.version>
+    <exec-maven-plugin.version>3.0.0</exec-maven-plugin.version>
+    <rename.netty.native.libs>rename-netty-native-libs.sh</rename.netty.native.libs>
     <activemq.version>5.16.7</activemq.version>
     <hawtbuf.version>1.11</hawtbuf.version>
     <curator.version>5.1.0</curator.version>
@@ -128,6 +132,36 @@
       </dependency>
       <dependency>
         <groupId>${pulsar.groupId}</groupId>
+        <artifactId>pulsar-client-api</artifactId>
+        <version>${pulsar.version}</version>
+        <exclusions>
+          <exclusion>
+            <groupId>org.apache.avro</groupId>
+            <artifactId>avro</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>org.apache.avro</groupId>
+            <artifactId>avro-protobuf</artifactId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>${pulsar.groupId}</groupId>
+        <artifactId>pulsar-client-messagecrypto-bc</artifactId>
+        <version>${pulsar.version}</version>
+        <exclusions>
+          <exclusion>
+            <groupId>org.apache.avro</groupId>
+            <artifactId>avro</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>org.apache.avro</groupId>
+            <artifactId>avro-protobuf</artifactId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>${pulsar.groupId}</groupId>
         <artifactId>pulsar-client-original</artifactId>
         <version>${pulsar.version}</version>
         <exclusions>
@@ -140,6 +174,16 @@
             <artifactId>avro-protobuf</artifactId>
           </exclusion>
         </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.avro</groupId>
+        <artifactId>avro</artifactId>
+        <version>1.11.4</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.avro</groupId>
+        <artifactId>avro-protobuf</artifactId>
+        <version>1.11.4</version>
       </dependency>
       <dependency>
         <groupId>${pulsar.groupId}</groupId>
@@ -197,16 +241,6 @@
         <groupId>jakarta.jms</groupId>
         <artifactId>jakarta.jms-api</artifactId>
         <version>${jms.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>org.apache.avro</groupId>
-        <artifactId>avro</artifactId>
-        <version>1.11.4</version>
-      </dependency>
-      <dependency>
-        <groupId>org.apache.avro</groupId>
-        <artifactId>avro-protobuf</artifactId>
-        <version>1.11.4</version>
       </dependency>
       <dependency>
         <groupId>org.awaitility</groupId>
