@@ -32,9 +32,7 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.pulsar.client.admin.PulsarAdmin;
 import org.apache.pulsar.client.admin.PulsarAdminException;
-import org.apache.pulsar.client.admin.Topics;
 import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.api.SubscriptionType;
 import org.apache.pulsar.common.policies.data.AutoTopicCreationOverride;
@@ -183,11 +181,10 @@ public class BasicServerSideFilterTest {
 
           // PreconditionFailedException
 
-          PulsarAdmin original = factory.getPulsarAdmin();
-          PulsarAdmin mockPulsarAdmin = mock(PulsarAdmin.class);
-          Topics topics = mock(Topics.class);
+          PulsarAdminWrapper original = factory.getPulsarAdmin();
+          PulsarAdminWrapper mockPulsarAdmin = mock(PulsarAdminWrapper.class);
           AtomicBoolean done = new AtomicBoolean();
-          when(topics.getSubscriptionProperties(anyString(), anyString()))
+          when(mockPulsarAdmin.getSubscriptionProperties(anyString(), anyString()))
               .thenAnswer(
                   i -> {
                     done.set(true);
@@ -197,7 +194,6 @@ public class BasicServerSideFilterTest {
                     throw new PulsarAdminException.PreconditionFailedException(
                         new Exception(), "", 404);
                   });
-          when(mockPulsarAdmin.topics()).thenReturn(topics);
           Whitebox.setInternalState(factory, "pulsarAdmin", mockPulsarAdmin);
 
           try (PulsarMessageConsumer consumer1 =
