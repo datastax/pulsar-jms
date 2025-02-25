@@ -265,6 +265,11 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     return getFactory().getProducerForDestination(destination, transacted);
   }
 
+  void closeTemporaryProducerForDestination(PulsarDestination defaultDestination)
+      throws JMSException {
+    getFactory().closeTemporaryProducerForDestination(defaultDestination, transacted);
+  }
+
   /**
    * Creates a {@code BytesMessage} object. A {@code BytesMessage} object is used to send a message
    * containing a stream of uninterpreted bytes.
