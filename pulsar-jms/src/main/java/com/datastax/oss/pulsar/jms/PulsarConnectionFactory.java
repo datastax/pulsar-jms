@@ -117,6 +117,7 @@ public class PulsarConnectionFactory
 
   // see resetDefaultValues for final fields
   private final transient Map<String, Producer<byte[]>> producers = new ConcurrentHashMap<>();
+  private final transient Map<String, Producer<byte[]>> tempProducers = new ConcurrentHashMap<>();
   private final transient Set<PulsarConnection> connections =
       Collections.synchronizedSet(new HashSet<>());
   private final transient List<Consumer<?>> consumers = new CopyOnWriteArrayList<>();
@@ -1010,14 +1011,8 @@ public class PulsarConnectionFactory
       }
     }
 
-    for (Producer<?> producer : producers.values()) {
-      try {
-        producer.close();
-      } catch (PulsarClientException ignore) {
-        // ignore
-        Utils.handleException(ignore);
-      }
-    }
+    closePulsarProducers(producers);
+    closePulsarProducers(tempProducers);
 
     if (this.pulsarAdmin != null) {
       this.pulsarAdmin.close();
@@ -1034,6 +1029,17 @@ public class PulsarConnectionFactory
     if (sessionListenersThreadPool != null) {
       sessionListenersThreadPool.shutdown();
       sessionListenersThreadPool = null;
+    }
+  }
+
+  private static void closePulsarProducers(Map<String, Producer<byte[]>> producers) {
+    for (Producer<?> producer : producers.values()) {
+      try {
+        producer.close();
+      } catch (PulsarClientException ignore) {
+        // ignore
+        Utils.handleException(ignore);
+      }
     }
   }
 
@@ -1059,7 +1065,7 @@ public class PulsarConnectionFactory
       throws JMSException {
     try {
       String fullQualifiedTopicName = getPulsarTopicName(defaultDestination);
-      String key = transactions ? fullQualifiedTopicName + "-tx" : fullQualifiedTopicName;
+      String key = computeKeyFromTopicName(transactions, fullQualifiedTopicName);
       boolean transactionsStickyPartitions = transactions && isTransactionsStickyPartitions();
       boolean enableJMSPriority = isEnableJMSPriority();
       boolean producerJMSPriorityUseLinearMapping =
@@ -1123,6 +1129,11 @@ public class PulsarConnectionFactory
     } catch (RuntimeException err) {
       throw (JMSException) err.getCause();
     }
+  }
+
+  private static String computeKeyFromTopicName(
+      boolean transactions, String fullQualifiedTopicName) {
+    return transactions ? fullQualifiedTopicName + "-tx" : fullQualifiedTopicName;
   }
 
   synchronized boolean isUsePulsarAdmin() {
@@ -1892,6 +1903,26 @@ public class PulsarConnectionFactory
 
   public synchronized int getConnectionConsumerStopTimeout() {
     return connectionConsumerStopTimeout;
+  }
+
+  public void closeTemporaryProducerForDestination(
+      PulsarDestination defaultDestination, boolean transactions) throws JMSException {
+    String fullyQualifiedTopicName = getPulsarTopicName(defaultDestination);
+    String key = computeKeyFromTopicName(transactions, fullyQualifiedTopicName);
+    tempProducers.computeIfPresent(
+        key,
+        (k, tempProducer) -> {
+          try {
+            tempProducer.close();
+          } catch (Exception e) {
+            log.error(
+                "Failed to close temporary Producer for topic: {}",
+                fullyQualifiedTopicName,
+                Utils.handleException(e));
+          }
+          return null;
+        });
+    log.info("Temporary Producer removed for topic: {}", fullyQualifiedTopicName);
   }
 
   private static class SessionListenersThreadFactory implements ThreadFactory {
