@@ -265,6 +265,11 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     return getFactory().getProducerForDestination(destination, transacted);
   }
 
+  void closeTemporaryProducerForDestination(PulsarDestination defaultDestination)
+      throws JMSException {
+    getFactory().closeTemporaryProducerForDestination(defaultDestination, transacted);
+  }
+
   /**
    * Creates a {@code BytesMessage} object. A {@code BytesMessage} object is used to send a message
    * containing a stream of uninterpreted bytes.
@@ -958,7 +963,9 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   @Override
   public PulsarMessageProducer createProducer(Destination destination) throws JMSException {
     connection.setAllowSetClientId(false);
-    return new PulsarMessageProducer(this, destination);
+    return getFactory().isUseTemporaryProducers()
+        ? new PulsarMessageTemporaryProducer(this, destination)
+        : new PulsarMessageProducer(this, destination);
   }
 
   /**
