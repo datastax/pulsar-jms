@@ -963,7 +963,9 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   @Override
   public PulsarMessageProducer createProducer(Destination destination) throws JMSException {
     connection.setAllowSetClientId(false);
-    return new PulsarMessageProducer(this, destination);
+    return getFactory().isUseTemporaryProducers()
+        ? new PulsarMessageTemporaryProducer(this, destination)
+        : new PulsarMessageProducer(this, destination);
   }
 
   /**
