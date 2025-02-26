@@ -1931,7 +1931,7 @@ public class PulsarConnectionFactory
           }
           return null;
         });
-    log.info("Temporary Producer removed for topic: {}", fullyQualifiedTopicName);
+    log.debug("Temporary Producer removed for topic: {}", fullyQualifiedTopicName);
   }
 
   private static class SessionListenersThreadFactory implements ThreadFactory {
