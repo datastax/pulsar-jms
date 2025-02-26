@@ -19,7 +19,7 @@ import jakarta.jms.Destination;
 import jakarta.jms.IllegalStateException;
 import jakarta.jms.JMSException;
 
-public class PulsarMessageTemporaryProducer extends PulsarMessageProducer {
+class PulsarMessageTemporaryProducer extends PulsarMessageProducer {
 
   public PulsarMessageTemporaryProducer(PulsarSession session, Destination defaultDestination)
       throws JMSException {
