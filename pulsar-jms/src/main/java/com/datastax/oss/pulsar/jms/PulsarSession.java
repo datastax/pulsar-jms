@@ -261,13 +261,17 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     }
   }
 
-  Producer<byte[]> getProducerForDestination(Destination destination) throws JMSException {
-    return getFactory().getProducerForDestination(destination, transacted);
+  Producer<byte[]> getProducerForDestination(
+      Destination destination, PulsarMessageProducer pulsarMessageProducer) throws JMSException {
+    return getFactory().getProducerForDestination(destination, transacted, pulsarMessageProducer);
   }
 
-  void closeTemporaryProducerForDestination(PulsarDestination defaultDestination)
+  void closeTemporaryProducerForDestination(
+      PulsarDestination defaultDestination, PulsarMessageProducer pulsarMessageProducer)
       throws JMSException {
-    getFactory().closeTemporaryProducerForDestination(defaultDestination, transacted);
+    getFactory()
+        .closeTemporaryProducerForDestination(
+            defaultDestination, transacted, pulsarMessageProducer);
   }
 
   /**

@@ -50,7 +50,7 @@ class PulsarMessageTemporaryProducer extends PulsarMessageProducer {
   @Override
   public void close() throws JMSException {
     Utils.checkNotOnMessageProducer(session, this);
-    session.closeTemporaryProducerForDestination(defaultDestination);
+    session.closeTemporaryProducerForDestination(defaultDestination, this);
     closed = true;
   }
 }

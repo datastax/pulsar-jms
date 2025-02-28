@@ -116,8 +116,8 @@ public class PulsarConnectionFactory
   private static final Set<String> clientIdentifiers = new ConcurrentSkipListSet<>();
 
   // see resetDefaultValues for final fields
-  private final transient Map<String, Producer<byte[]>> producers = new ConcurrentHashMap<>();
-  private final transient Map<String, Producer<byte[]>> tempProducers = new ConcurrentHashMap<>();
+  private final transient Map<Object, Producer<byte[]>> producers = new ConcurrentHashMap<>();
+  private final transient Map<Object, Producer<byte[]>> tempProducers = new ConcurrentHashMap<>();
   private final transient Set<PulsarConnection> connections =
       Collections.synchronizedSet(new HashSet<>());
   private final transient List<Consumer<?>> consumers = new CopyOnWriteArrayList<>();
@@ -1043,7 +1043,7 @@ public class PulsarConnectionFactory
     }
   }
 
-  private Map<String, Producer<byte[]>> getProducers() {
+  private Map<Object, Producer<byte[]>> getProducers() {
     return isUseTemporaryProducers() ? tempProducers : producers;
   }
 
@@ -1065,11 +1065,15 @@ public class PulsarConnectionFactory
     return applySystemNamespace(topicName);
   }
 
-  Producer<byte[]> getProducerForDestination(Destination defaultDestination, boolean transactions)
+  Producer<byte[]> getProducerForDestination(
+      Destination defaultDestination,
+      boolean transactions,
+      PulsarMessageProducer pulsarMessageProducer)
       throws JMSException {
     try {
       String fullQualifiedTopicName = getPulsarTopicName(defaultDestination);
-      String key = computeKeyFromTopicName(transactions, fullQualifiedTopicName);
+      Object key =
+          computeKeyFromTopicName(transactions, fullQualifiedTopicName, pulsarMessageProducer);
       boolean transactionsStickyPartitions = transactions && isTransactionsStickyPartitions();
       boolean enableJMSPriority = isEnableJMSPriority();
       boolean producerJMSPriorityUseLinearMapping =
@@ -1136,8 +1140,13 @@ public class PulsarConnectionFactory
     }
   }
 
-  private static String computeKeyFromTopicName(
-      boolean transactions, String fullQualifiedTopicName) {
+  private Object computeKeyFromTopicName(
+      boolean transactions,
+      String fullQualifiedTopicName,
+      PulsarMessageProducer pulsarMessageProducer) {
+    if (isUseTemporaryProducers()) {
+      return pulsarMessageProducer;
+    }
     return transactions ? fullQualifiedTopicName + "-tx" : fullQualifiedTopicName;
   }
 
@@ -1915,9 +1924,13 @@ public class PulsarConnectionFactory
   }
 
   public void closeTemporaryProducerForDestination(
-      PulsarDestination defaultDestination, boolean transactions) throws JMSException {
+      PulsarDestination defaultDestination,
+      boolean transactions,
+      PulsarMessageProducer pulsarMessageProducer)
+      throws JMSException {
     String fullyQualifiedTopicName = getPulsarTopicName(defaultDestination);
-    String key = computeKeyFromTopicName(transactions, fullyQualifiedTopicName);
+    Object key =
+        computeKeyFromTopicName(transactions, fullyQualifiedTopicName, pulsarMessageProducer);
     tempProducers.computeIfPresent(
         key,
         (k, tempProducer) -> {
