@@ -53,4 +53,14 @@ class PulsarMessageTemporaryProducer extends PulsarMessageProducer {
     session.closeTemporaryProducerForDestination(defaultDestination, this);
     closed = true;
   }
+
+  @Override
+  public boolean equals(Object obj) {
+    return this == obj;
+  }
+
+  @Override
+  public int hashCode() {
+    return System.identityHashCode(this);
+  }
 }
