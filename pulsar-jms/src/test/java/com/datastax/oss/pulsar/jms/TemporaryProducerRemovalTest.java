@@ -16,6 +16,8 @@
 package com.datastax.oss.pulsar.jms;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.datastax.oss.pulsar.jms.utils.PulsarContainerExtension;
 import jakarta.jms.Connection;
@@ -56,7 +58,8 @@ public class TemporaryProducerRemovalTest {
           // called.
           producer.send(session.createTextMessage("foo-1"));
 
-          // Assert that there is one producer on the topic from broker stats
+          // Assert that there is one producer on the topic from broker stats and in hashmap of factory
+          assertNotNull(factory.getProducers().get(producer));
           assertEquals(1, fetchProducerCount(tempQueue));
 
           // Close the temporary producer. This should trigger its removal from the map and from the
@@ -64,6 +67,7 @@ public class TemporaryProducerRemovalTest {
           producer.close();
 
           // Assert that there is zero producers on the topic from broker stats
+          assertNull(factory.getProducers().get(producer));
           assertEquals(0, fetchProducerCount(tempQueue));
         } catch (PulsarAdminException e) {
           throw Utils.handleException(e);
@@ -93,14 +97,16 @@ public class TemporaryProducerRemovalTest {
           // called.
           producer.send(session.createTextMessage("foo-1"));
 
-          // Assert that there is one producer on the topic from broker stats
+          // Assert that there is one producer on the topic from broker stats and in factory
+          assertNotNull(factory.getProducers().get(tempQueue));
           assertEquals(1, fetchProducerCount(tempQueue));
 
           // Close the producer. This should not trigger its removal from the map and from the
           // broker.
           producer.close();
 
-          // Assert that there is still one producer on the topic from broker stats
+          // Assert that there is still one producer on the topic from broker stats and in factory
+          assertNotNull(factory.getProducers().get(tempQueue));
           assertEquals(1, fetchProducerCount(tempQueue));
         } catch (PulsarAdminException e) {
           throw Utils.handleException(e);

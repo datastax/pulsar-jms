@@ -17,7 +17,6 @@ package com.datastax.oss.pulsar.jms;
 
 import static com.datastax.oss.pulsar.jms.Utils.getAndRemoveString;
 import static org.apache.pulsar.client.util.MathUtils.signSafeMod;
-
 import com.datastax.oss.pulsar.jms.api.JMSAdmin;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -1043,7 +1042,7 @@ public class PulsarConnectionFactory
     }
   }
 
-  private Map<Object, Producer<byte[]>> getProducers() {
+  Map<Object, Producer<byte[]>> getProducers() {
     return isUseTemporaryProducers() ? tempProducers : producers;
   }
 
