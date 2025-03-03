@@ -17,6 +17,7 @@ package com.datastax.oss.pulsar.jms;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+
 import com.datastax.oss.pulsar.jms.utils.PulsarContainerExtension;
 import jakarta.jms.Connection;
 import jakarta.jms.JMSException;
