@@ -1145,8 +1145,8 @@ public class PulsarConnectionFactory
       boolean transactions,
       String fullQualifiedTopicName,
       PulsarMessageProducer pulsarMessageProducer) {
-    if (isUseTemporaryProducers()) {
-      return pulsarMessageProducer.getId();
+    if (pulsarMessageProducer instanceof PulsarMessageTemporaryProducer) {
+      return pulsarMessageProducer.getUniqueID();
     }
     return transactions ? fullQualifiedTopicName + "-tx" : fullQualifiedTopicName;
   }

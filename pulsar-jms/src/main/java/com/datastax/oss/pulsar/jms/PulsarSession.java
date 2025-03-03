@@ -109,6 +109,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   private final int sessionMode;
   private final boolean transacted;
   private final boolean emulateTransactions;
+  private final boolean useTemporaryProducers;
   // this is to emulate QueueSession/TopicSession
   private boolean allowQueueOperations = true;
   private boolean allowTopicOperations = true;
@@ -170,6 +171,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     if (transacted && factory.isTransactionsStickyPartitions()) {
       generateNewTransactionStickyKey();
     }
+    this.useTemporaryProducers = getFactory().isUseTemporaryProducers();
     validateSessionMode(sessionMode);
   }
 
@@ -967,7 +969,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   @Override
   public PulsarMessageProducer createProducer(Destination destination) throws JMSException {
     connection.setAllowSetClientId(false);
-    return getFactory().isUseTemporaryProducers()
+    return useTemporaryProducers
         ? new PulsarMessageTemporaryProducer(this, destination)
         : new PulsarMessageProducer(this, destination);
   }

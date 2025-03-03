@@ -58,7 +58,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
   protected final PulsarSession session;
   protected final PulsarDestination defaultDestination;
   private final boolean jms20;
-  private final String id;
+  private final String uniqueID;
   // only for "emulated transactions"
   private List<PreparedMessage> uncommittedMessages;
 
@@ -67,7 +67,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
     this.jms20 = session.isJms20();
     session.checkNotClosed();
     this.session = session;
-    this.id = UUID.randomUUID().toString();
+    this.uniqueID = UUID.randomUUID().toString();
     try {
       this.defaultDestination = (PulsarDestination) defaultDestination;
     } catch (ClassCastException err) {
@@ -206,8 +206,8 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
     }
   }
 
-  String getId() {
-    return id;
+  String getUniqueID() {
+    return uniqueID;
   }
 
   /**
