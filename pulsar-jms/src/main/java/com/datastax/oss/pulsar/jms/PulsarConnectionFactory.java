@@ -19,6 +19,7 @@ import static com.datastax.oss.pulsar.jms.Utils.getAndRemoveString;
 import static org.apache.pulsar.client.util.MathUtils.signSafeMod;
 import com.datastax.oss.pulsar.jms.api.JMSAdmin;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.annotations.VisibleForTesting;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import jakarta.jms.ConnectionFactory;
 import jakarta.jms.Destination;
@@ -116,7 +117,6 @@ public class PulsarConnectionFactory
 
   // see resetDefaultValues for final fields
   private final transient Map<Object, Producer<byte[]>> producers = new ConcurrentHashMap<>();
-  private final transient Map<Object, Producer<byte[]>> tempProducers = new ConcurrentHashMap<>();
   private final transient Set<PulsarConnection> connections =
       Collections.synchronizedSet(new HashSet<>());
   private final transient List<Consumer<?>> consumers = new CopyOnWriteArrayList<>();
@@ -1042,8 +1042,9 @@ public class PulsarConnectionFactory
     }
   }
 
+  @VisibleForTesting
   Map<Object, Producer<byte[]>> getProducers() {
-    return isUseTemporaryProducers() ? tempProducers : producers;
+    return producers;
   }
 
   public static PulsarDestination toPulsarDestination(Destination destination) throws JMSException {
@@ -1930,7 +1931,7 @@ public class PulsarConnectionFactory
     String fullyQualifiedTopicName = getPulsarTopicName(defaultDestination);
     Object key =
         computeKeyFromTopicName(transactions, fullyQualifiedTopicName, pulsarMessageProducer);
-    tempProducers.computeIfPresent(
+    getProducers().computeIfPresent(
         key,
         (k, tempProducer) -> {
           try {
