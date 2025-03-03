@@ -44,6 +44,7 @@ import jakarta.jms.TopicPublisher;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
@@ -57,6 +58,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
   protected final PulsarSession session;
   protected final PulsarDestination defaultDestination;
   private final boolean jms20;
+  private final String id;
   // only for "emulated transactions"
   private List<PreparedMessage> uncommittedMessages;
 
@@ -65,6 +67,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
     this.jms20 = session.isJms20();
     session.checkNotClosed();
     this.session = session;
+    this.id = UUID.randomUUID().toString();
     try {
       this.defaultDestination = (PulsarDestination) defaultDestination;
     } catch (ClassCastException err) {
@@ -201,6 +204,10 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
     if (closed) {
       throw new IllegalStateException("this producer is closed");
     }
+  }
+
+  String getId() {
+    return id;
   }
 
   /**

@@ -17,6 +17,7 @@ package com.datastax.oss.pulsar.jms;
 
 import static com.datastax.oss.pulsar.jms.Utils.getAndRemoveString;
 import static org.apache.pulsar.client.util.MathUtils.signSafeMod;
+
 import com.datastax.oss.pulsar.jms.api.JMSAdmin;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
@@ -1072,7 +1073,7 @@ public class PulsarConnectionFactory
       throws JMSException {
     try {
       String fullQualifiedTopicName = getPulsarTopicName(defaultDestination);
-      Object key =
+      String key =
           computeKeyFromTopicName(transactions, fullQualifiedTopicName, pulsarMessageProducer);
       boolean transactionsStickyPartitions = transactions && isTransactionsStickyPartitions();
       boolean enableJMSPriority = isEnableJMSPriority();
@@ -1140,12 +1141,12 @@ public class PulsarConnectionFactory
     }
   }
 
-  private Object computeKeyFromTopicName(
+  private String computeKeyFromTopicName(
       boolean transactions,
       String fullQualifiedTopicName,
       PulsarMessageProducer pulsarMessageProducer) {
     if (isUseTemporaryProducers()) {
-      return pulsarMessageProducer;
+      return pulsarMessageProducer.getId();
     }
     return transactions ? fullQualifiedTopicName + "-tx" : fullQualifiedTopicName;
   }
@@ -1929,21 +1930,22 @@ public class PulsarConnectionFactory
       PulsarMessageProducer pulsarMessageProducer)
       throws JMSException {
     String fullyQualifiedTopicName = getPulsarTopicName(defaultDestination);
-    Object key =
+    String key =
         computeKeyFromTopicName(transactions, fullyQualifiedTopicName, pulsarMessageProducer);
-    getProducers().computeIfPresent(
-        key,
-        (k, tempProducer) -> {
-          try {
-            tempProducer.close();
-          } catch (Exception e) {
-            log.error(
-                "Failed to close temporary Producer for topic: {}",
-                fullyQualifiedTopicName,
-                Utils.handleException(e));
-          }
-          return null;
-        });
+    getProducers()
+        .computeIfPresent(
+            key,
+            (k, tempProducer) -> {
+              try {
+                tempProducer.close();
+              } catch (Exception e) {
+                log.error(
+                    "Failed to close temporary Producer for topic: {}",
+                    fullyQualifiedTopicName,
+                    Utils.handleException(e));
+              }
+              return null;
+            });
     log.debug("Temporary Producer removed for topic: {}", fullyQualifiedTopicName);
   }
 

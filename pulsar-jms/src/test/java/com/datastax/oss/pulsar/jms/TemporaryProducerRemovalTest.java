@@ -58,7 +58,8 @@ public class TemporaryProducerRemovalTest {
           // called.
           producer.send(session.createTextMessage("foo-1"));
 
-          // Assert that there is one producer on the topic from broker stats and in hashmap of factory
+          // Assert that there is one producer on the topic from broker stats and in hashmap of
+          // factory
           assertNotNull(factory.getProducers().get(producer));
           assertEquals(1, fetchProducerCount(tempQueue));
 
