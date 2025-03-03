@@ -117,7 +117,7 @@ public class PulsarConnectionFactory
   private static final Set<String> clientIdentifiers = new ConcurrentSkipListSet<>();
 
   // see resetDefaultValues for final fields
-  private final transient Map<Object, Producer<byte[]>> producers = new ConcurrentHashMap<>();
+  private final transient Map<String, Producer<byte[]>> producers = new ConcurrentHashMap<>();
   private final transient Set<PulsarConnection> connections =
       Collections.synchronizedSet(new HashSet<>());
   private final transient List<Consumer<?>> consumers = new CopyOnWriteArrayList<>();
@@ -1044,7 +1044,7 @@ public class PulsarConnectionFactory
   }
 
   @VisibleForTesting
-  Map<Object, Producer<byte[]>> getProducers() {
+  Map<String, Producer<byte[]>> getProducers() {
     return producers;
   }
 
