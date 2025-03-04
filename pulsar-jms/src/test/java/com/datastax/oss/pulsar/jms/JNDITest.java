@@ -83,7 +83,7 @@ public class JNDITest {
         PulsarDestination queue = (PulsarDestination) jndiContext.lookup("queues/" + queueName);
         PulsarDestination topic = (PulsarDestination) jndiContext.lookup("topics/" + topicName);
 
-        Producer<byte[]> producer = factory.getProducerForDestination(queue, false);
+        Producer<byte[]> producer = factory.getProducerForDestination(queue, false, null);
         // test that configuration is fully passed
         assertEquals("the-name", producer.getProducerName());
 

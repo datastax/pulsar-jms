@@ -54,8 +54,8 @@ import org.apache.pulsar.common.util.FutureUtil;
 
 @Slf4j
 class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSender {
-  private final PulsarSession session;
-  private final PulsarDestination defaultDestination;
+  protected final PulsarSession session;
+  protected final PulsarDestination defaultDestination;
   private final boolean jms20;
   // only for "emulated transactions"
   private List<PreparedMessage> uncommittedMessages;
@@ -73,7 +73,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
     }
   }
 
-  private boolean closed;
+  protected boolean closed;
   private boolean disableMessageId;
   private boolean disableMessageTimestamp;
   private int deliveryMode = Message.DEFAULT_DELIVERY_MODE;
@@ -1211,7 +1211,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
     }
     session.executeCriticalOperation(
         () -> {
-          Producer<byte[]> producer = session.getProducerForDestination(defaultDestination);
+          Producer<byte[]> producer = session.getProducerForDestination(defaultDestination, this);
           message.setJMSDestination(defaultDestination);
           PulsarMessage pulsarMessage = prepareMessageForSend(message);
           final TypedMessageBuilder<byte[]> typedMessageBuilder;
@@ -1269,7 +1269,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
     }
     session.executeCriticalOperation(
         () -> {
-          Producer<byte[]> producer = session.getProducerForDestination(defaultDestination);
+          Producer<byte[]> producer = session.getProducerForDestination(defaultDestination, this);
           message.setJMSDestination(defaultDestination);
           PulsarMessage pulsarMessage = prepareMessageForSend(message);
           CompletionListener endActivityCompletionListener =

@@ -109,6 +109,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   private final int sessionMode;
   private final boolean transacted;
   private final boolean emulateTransactions;
+  private final boolean useTemporaryProducers;
   // this is to emulate QueueSession/TopicSession
   private boolean allowQueueOperations = true;
   private boolean allowTopicOperations = true;
@@ -170,6 +171,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     if (transacted && factory.isTransactionsStickyPartitions()) {
       generateNewTransactionStickyKey();
     }
+    this.useTemporaryProducers = getFactory().isUseTemporaryProducers();
     validateSessionMode(sessionMode);
   }
 
@@ -261,8 +263,17 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     }
   }
 
-  Producer<byte[]> getProducerForDestination(Destination destination) throws JMSException {
-    return getFactory().getProducerForDestination(destination, transacted);
+  Producer<byte[]> getProducerForDestination(
+      Destination destination, PulsarMessageProducer pulsarMessageProducer) throws JMSException {
+    return getFactory().getProducerForDestination(destination, transacted, pulsarMessageProducer);
+  }
+
+  void closeTemporaryProducerForDestination(
+      PulsarDestination defaultDestination, PulsarMessageProducer pulsarMessageProducer)
+      throws JMSException {
+    getFactory()
+        .closeTemporaryProducerForDestination(
+            defaultDestination, transacted, pulsarMessageProducer);
   }
 
   /**
@@ -958,7 +969,9 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
   @Override
   public PulsarMessageProducer createProducer(Destination destination) throws JMSException {
     connection.setAllowSetClientId(false);
-    return new PulsarMessageProducer(this, destination);
+    return useTemporaryProducers
+        ? new PulsarMessageTemporaryProducer(this, destination)
+        : new PulsarMessageProducer(this, destination);
   }
 
   /**
