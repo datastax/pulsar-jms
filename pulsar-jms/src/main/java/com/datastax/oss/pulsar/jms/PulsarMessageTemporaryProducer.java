@@ -18,12 +18,20 @@ package com.datastax.oss.pulsar.jms;
 import jakarta.jms.Destination;
 import jakarta.jms.IllegalStateException;
 import jakarta.jms.JMSException;
+import java.util.UUID;
 
 class PulsarMessageTemporaryProducer extends PulsarMessageProducer {
+
+  private final String uniqueID;
 
   public PulsarMessageTemporaryProducer(PulsarSession session, Destination defaultDestination)
       throws JMSException {
     super(session, defaultDestination);
+    this.uniqueID = UUID.randomUUID().toString();
+  }
+
+  String getUniqueID() {
+    return uniqueID;
   }
 
   /**
