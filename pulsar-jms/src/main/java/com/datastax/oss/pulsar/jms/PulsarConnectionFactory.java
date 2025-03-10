@@ -20,6 +20,7 @@ import static org.apache.pulsar.client.util.MathUtils.signSafeMod;
 
 import com.datastax.oss.pulsar.jms.api.JMSAdmin;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalListener;
@@ -1930,6 +1931,11 @@ public class PulsarConnectionFactory
 
   public synchronized int getConnectionConsumerStopTimeout() {
     return connectionConsumerStopTimeout;
+  }
+
+  @VisibleForTesting
+  Cache<String, Producer<byte[]>> getProducers() {
+    return producers;
   }
 
   private static class SessionListenersThreadFactory implements ThreadFactory {
