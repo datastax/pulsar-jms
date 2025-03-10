@@ -17,6 +17,7 @@ package com.datastax.oss.pulsar.jms;
 
 import static com.datastax.oss.pulsar.jms.Utils.getAndRemoveString;
 import static org.apache.pulsar.client.util.MathUtils.signSafeMod;
+
 import com.datastax.oss.pulsar.jms.api.JMSAdmin;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.cache.Cache;
@@ -464,10 +465,11 @@ public class PulsarConnectionFactory
             "You cannot set both enableTransaction and jms.emulateTransactions");
       }
 
-      long maxNumOfProducers = Long.parseLong(
-              getAndRemoveString("jms.maxNumOfProducers", "1000", configurationCopy));
+      long maxNumOfProducers =
+          Long.parseLong(getAndRemoveString("jms.maxNumOfProducers", "1000", configurationCopy));
 
-      long producerAutoCloseTimeoutSec = Long.parseLong(
+      long producerAutoCloseTimeoutSec =
+          Long.parseLong(
               getAndRemoveString("jms.producerAutoCloseTimeoutSec", "-1", configurationCopy));
 
       this.producers = buildProducerCache(maxNumOfProducers, producerAutoCloseTimeoutSec);
@@ -593,28 +595,34 @@ public class PulsarConnectionFactory
     }
   }
 
-  private static Cache<String, Producer<byte[]>> buildProducerCache(long maxNumOfProducers,
-                                                                    long producerAutoCloseTimeoutSec) {
-    CacheBuilder<Object, Object> producerCacheBuilder =  CacheBuilder.newBuilder();
-    if (producerAutoCloseTimeoutSec >=0) {
+  private static Cache<String, Producer<byte[]>> buildProducerCache(
+      long maxNumOfProducers, long producerAutoCloseTimeoutSec) {
+    CacheBuilder<Object, Object> producerCacheBuilder = CacheBuilder.newBuilder();
+    if (producerAutoCloseTimeoutSec >= 0) {
       producerCacheBuilder.expireAfterAccess(producerAutoCloseTimeoutSec, TimeUnit.SECONDS);
     }
 
     return producerCacheBuilder
-            .maximumSize(maxNumOfProducers)
-            .removalListener((RemovalListener<String, Producer<byte[]>>) notification -> {
-              Producer<byte[]> producer = notification.getValue();
-              if (producer != null) {
-                try {
-                  producer.close();
-                } catch (PulsarClientException e) {
-                  // ignore
-                  Utils.handleException(e);
-                }
-              }
-              log.debug("Removed producer for key: " + notification.getKey() + ", reason: " + notification.getCause());
-            })
-            .build();
+        .maximumSize(maxNumOfProducers)
+        .removalListener(
+            (RemovalListener<String, Producer<byte[]>>)
+                notification -> {
+                  Producer<byte[]> producer = notification.getValue();
+                  if (producer != null) {
+                    try {
+                      producer.close();
+                    } catch (PulsarClientException e) {
+                      // ignore
+                      Utils.handleException(e);
+                    }
+                  }
+                  log.debug(
+                      "Removed producer for key: "
+                          + notification.getKey()
+                          + ", reason: "
+                          + notification.getCause());
+                })
+        .build();
   }
 
   protected PulsarClient buildPulsarClient(ClientBuilder builder) throws PulsarClientException {
@@ -1087,56 +1095,69 @@ public class PulsarConnectionFactory
   }
 
   Producer<byte[]> getProducerForDestination(Destination defaultDestination, boolean transactions)
-          throws JMSException {
+      throws JMSException {
     try {
       String fullQualifiedTopicName = getPulsarTopicName(defaultDestination);
       String key = transactions ? fullQualifiedTopicName + "-tx" : fullQualifiedTopicName;
       boolean transactionsStickyPartitions = transactions && isTransactionsStickyPartitions();
       boolean enableJMSPriority = isEnableJMSPriority();
       boolean producerJMSPriorityUseLinearMapping =
-              enableJMSPriority && isPriorityUseLinearMapping();
+          enableJMSPriority && isPriorityUseLinearMapping();
       // Use the Guava Cache to load the producer
-      return producers.get(key, () -> Utils.invoke(() -> {
-        Map<String, Object> producerConfiguration = getProducerConfiguration();
-        ProducerBuilder<byte[]> producerBuilder = pulsarClient.newProducer()
-                .topic(applySystemNamespace(fullQualifiedTopicName))
-                .loadConf(producerConfiguration);
+      return producers.get(
+          key,
+          () ->
+              Utils.invoke(
+                  () -> {
+                    Map<String, Object> producerConfiguration = getProducerConfiguration();
+                    ProducerBuilder<byte[]> producerBuilder =
+                        pulsarClient
+                            .newProducer()
+                            .topic(applySystemNamespace(fullQualifiedTopicName))
+                            .loadConf(producerConfiguration);
 
-        if (producerConfiguration.containsKey("batcherBuilder")) {
-          producerBuilder.batcherBuilder((BatcherBuilder) producerConfiguration.get("batcherBuilder"));
-        }
+                    if (producerConfiguration.containsKey("batcherBuilder")) {
+                      producerBuilder.batcherBuilder(
+                          (BatcherBuilder) producerConfiguration.get("batcherBuilder"));
+                    }
 
-        Map<String, String> properties = new HashMap<>();
-        if (transactions) {
-          properties.put("jms.transactions", "enabled");
-        } else {
-          properties.put("jms.transactions", "disabled");
-        }
+                    Map<String, String> properties = new HashMap<>();
+                    if (transactions) {
+                      properties.put("jms.transactions", "enabled");
+                    } else {
+                      properties.put("jms.transactions", "disabled");
+                    }
 
-        if (enableJMSPriority) {
-          properties.put("jms.priority", "enabled");
-          properties.put("jms.priorityMapping", producerJMSPriorityUseLinearMapping ? "linear" : "non-linear");
-          producerBuilder.messageRouter(new MessageRouter() {
-            @Override
-            public int choosePartition(Message<?> msg, TopicMetadata metadata) {
-              int priority = PulsarMessage.readJMSPriority(msg);
-              return Utils.mapPriorityToPartition(priority, metadata.numPartitions(),
-                      producerJMSPriorityUseLinearMapping);
-            }
-          });
-        } else if (transactions && transactionsStickyPartitions) {
-          producerBuilder.messageRouter(new MessageRouter() {
-            @Override
-            public int choosePartition(Message<?> msg, TopicMetadata metadata) {
-              long txKey = Long.parseLong(msg.getProperty("JMSTX"));
-              return signSafeMod(txKey, metadata.numPartitions());
-            }
-          });
-        }
+                    if (enableJMSPriority) {
+                      properties.put("jms.priority", "enabled");
+                      properties.put(
+                          "jms.priorityMapping",
+                          producerJMSPriorityUseLinearMapping ? "linear" : "non-linear");
+                      producerBuilder.messageRouter(
+                          new MessageRouter() {
+                            @Override
+                            public int choosePartition(Message<?> msg, TopicMetadata metadata) {
+                              int priority = PulsarMessage.readJMSPriority(msg);
+                              return Utils.mapPriorityToPartition(
+                                  priority,
+                                  metadata.numPartitions(),
+                                  producerJMSPriorityUseLinearMapping);
+                            }
+                          });
+                    } else if (transactions && transactionsStickyPartitions) {
+                      producerBuilder.messageRouter(
+                          new MessageRouter() {
+                            @Override
+                            public int choosePartition(Message<?> msg, TopicMetadata metadata) {
+                              long txKey = Long.parseLong(msg.getProperty("JMSTX"));
+                              return signSafeMod(txKey, metadata.numPartitions());
+                            }
+                          });
+                    }
 
-        producerBuilder.properties(properties);
-        return producerBuilder.create();
-      }));
+                    producerBuilder.properties(properties);
+                    return producerBuilder.create();
+                  }));
     } catch (ExecutionException err) {
       throw Utils.handleException(err);
     }
