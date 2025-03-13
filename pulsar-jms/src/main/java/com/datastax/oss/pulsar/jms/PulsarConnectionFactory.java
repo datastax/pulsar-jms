@@ -1858,7 +1858,6 @@ public class PulsarConnectionFactory
     }
 
     // final fields
-    setFinalField("producers", new ConcurrentHashMap<>());
     setFinalField("connections", Collections.synchronizedSet(new HashSet<>()));
     setFinalField("consumers", new CopyOnWriteArrayList<>());
     setFinalField("readers", new CopyOnWriteArrayList<>());
