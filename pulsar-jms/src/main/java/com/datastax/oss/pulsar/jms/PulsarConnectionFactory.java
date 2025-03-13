@@ -614,7 +614,8 @@ public class PulsarConnectionFactory
                       producer.close();
                     } catch (PulsarClientException e) {
                       // ignore
-                      Utils.handleException(e);
+                      log.debug(
+                          "Exception while closing pulsar producer", Utils.handleException(e));
                     }
                   }
                   log.debug(
