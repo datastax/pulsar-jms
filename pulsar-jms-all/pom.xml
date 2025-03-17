@@ -84,7 +84,7 @@
     <dependency>
       <groupId>${pulsar.groupId}</groupId>
       <artifactId>pulsar-client-jms</artifactId>
-      <version>${pulsar.version}</version>
+      <version>${project.version}</version>
       <exclusions>
         <exclusion>
           <groupId>*</groupId>
