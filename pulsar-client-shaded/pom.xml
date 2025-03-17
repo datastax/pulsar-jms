@@ -25,8 +25,10 @@
   </parent>
   <groupId>${pulsar.groupId}</groupId>
   <artifactId>pulsar-client-jms</artifactId>
-  <version>${pulsar.version}</version>
   <name>Pulsar Client Java</name>
+  <properties>
+    <maven.release.skip>true</maven.release.skip>
+  </properties>
   <dependencies>
     <dependency>
       <groupId>${pulsar.groupId}</groupId>
@@ -327,6 +329,20 @@
             </configuration>
           </execution>
         </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-deploy-plugin</artifactId>
+        <configuration>
+          <skip>true</skip>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.sonatype.plugins</groupId>
+        <artifactId>nexus-staging-maven-plugin</artifactId>
+        <configuration>
+          <skipNexusStagingDeployMojo>true</skipNexusStagingDeployMojo>
+        </configuration>
       </plugin>
     </plugins>
   </build>
