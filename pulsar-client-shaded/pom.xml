@@ -103,7 +103,7 @@
             <configuration>
               <target>
                 <!-- shade the AsyncHttpClient ahc-default.properties files -->
-                <replace token="org.asynchttpclient." value="org.apache.pulsar.shade.org.asynchttpclient." file="${project.build.directory}/classes/org/asynchttpclient/config/ahc-default.properties" />
+                <replace token="org.asynchttpclient." value="org.apache.pulsar.shade.org.asynchttpclient." file="${project.build.directory}/classes/org/asynchttpclient/config/ahc-default.properties"/>
               </target>
             </configuration>
           </execution>
@@ -298,8 +298,8 @@
                 </relocation>
               </relocations>
               <transformers>
-                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
-                <transformer implementation="org.apache.maven.plugins.shade.resource.PluginXmlResourceTransformer" />
+                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+                <transformer implementation="org.apache.maven.plugins.shade.resource.PluginXmlResourceTransformer"/>
               </transformers>
             </configuration>
           </execution>
