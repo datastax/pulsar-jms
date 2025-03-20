@@ -469,6 +469,8 @@ limitations under the License.]]></inlineHeader>
         <extensions>true</extensions>
         <configuration>
           <publishingServerId>ossrh</publishingServerId>
+          <autoPublish>true</autoPublish>
+          <skipPublishing>false</skipPublishing>
         </configuration>
       </plugin>
     </plugins>
