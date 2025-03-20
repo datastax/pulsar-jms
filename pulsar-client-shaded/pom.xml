@@ -23,7 +23,6 @@
     <groupId>com.datastax.oss</groupId>
     <version>6.0.4-SNAPSHOT</version>
   </parent>
-  <groupId>${pulsar.groupId}</groupId>
   <artifactId>pulsar-client-jms</artifactId>
   <name>Pulsar Client Java</name>
   <properties>
@@ -338,10 +337,10 @@
         </configuration>
       </plugin>
       <plugin>
-        <groupId>org.sonatype.plugins</groupId>
-        <artifactId>nexus-staging-maven-plugin</artifactId>
+        <groupId>org.sonatype.central</groupId>
+        <artifactId>central-publishing-maven-plugin</artifactId>
         <configuration>
-          <skipNexusStagingDeployMojo>true</skipNexusStagingDeployMojo>
+          <skipPublishing>true</skipPublishing>
         </configuration>
       </plugin>
     </plugins>
