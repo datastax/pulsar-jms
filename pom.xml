@@ -64,7 +64,7 @@
     <activemq.version>6.0.0</activemq.version>
     <hawtbuf.version>1.11</hawtbuf.version>
     <curator.version>5.1.0</curator.version>
-    <slf4j.version>1.7.30</slf4j.version>
+    <slf4j.version>1.7.36</slf4j.version>
     <junit.version>5.7.1</junit.version>
     <surefire.version>3.1.0</surefire.version>
     <jackson.version>2.14.2</jackson.version>
@@ -74,6 +74,7 @@
     <maven.antrun.plugin.version>3.1.0</maven.antrun.plugin.version>
     <snakeyaml.version>2.0</snakeyaml.version>
     <testcontainers.version>1.18.3</testcontainers.version>
+    <lombok.version>1.18.30</lombok.version>
     <!-- required for running tests on JDK11+ -->
     <test.additional.args>--add-opens java.base/java.lang.reflect=ALL-UNNAMED --add-opens java.base/jdk.internal.loader=ALL-UNNAMED --add-opens java.base/java.lang=ALL-UNNAMED
       <!--Mockito-->--add-opens java.base/java.io=ALL-UNNAMED
@@ -129,7 +130,8 @@
       <dependency>
         <groupId>org.projectlombok</groupId>
         <artifactId>lombok</artifactId>
-        <version>1.18.30</version>
+        <version>${lombok.version}</version>
+        <scope>provided</scope>
       </dependency>
       <dependency>
         <groupId>${pulsar.groupId}</groupId>
@@ -291,6 +293,13 @@
           <configuration>
             <compilerArgs>-Xlint:unchecked</compilerArgs>
             <fork>false</fork>
+            <annotationProcessorPaths>
+              <path>
+                <groupId>org.projectlombok</groupId>
+                <artifactId>lombok</artifactId>
+                <version>${lombok.version}</version>
+              </path>
+            </annotationProcessorPaths>
           </configuration>
         </plugin>
         <plugin>
@@ -508,6 +517,10 @@ limitations under the License.]]></inlineHeader>
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-javadoc-plugin</artifactId>
             <version>3.2.0</version>
+            <configuration>
+              <sourcepath>src/main/java</sourcepath>
+              <excludedocfilessubdir>com/datastax/oss/pulsar/jms/cli/**</excludedocfilessubdir>
+            </configuration>
             <executions>
               <execution>
                 <id>attach-javadocs</id>
