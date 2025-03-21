@@ -51,8 +51,9 @@ import org.apache.pulsar.common.policies.data.SubscriptionStats;
 import org.apache.pulsar.common.policies.data.TopicStats;
 import org.apache.pulsar.common.util.ObjectMapperFactory;
 
-@Slf4j
 public class Main {
+
+  private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(Main.class);
 
   public static void main(String... args) {
     try {
