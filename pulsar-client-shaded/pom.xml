@@ -21,7 +21,7 @@
   <parent>
     <artifactId>pulsar-jms-parent</artifactId>
     <groupId>com.datastax.oss</groupId>
-    <version>7.0.6</version>
+    <version>7.0.7-SNAPSHOT</version>
   </parent>
   <artifactId>pulsar-client-jms</artifactId>
   <name>Pulsar Client Java</name>
