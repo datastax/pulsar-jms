@@ -21,7 +21,7 @@
   <groupId>com.datastax.oss</groupId>
   <artifactId>pulsar-jms-parent</artifactId>
   <packaging>pom</packaging>
-  <version>7.0.8-SNAPSHOT</version>
+  <version>7.0.8</version>
   <name>DataStax Starlight for JMS</name>
   <description>Implementation of the Java Messaging Service Client API around Apache Pulsar Java Client</description>
   <url>https://github.com/datastax/pulsar-jms</url>
@@ -508,7 +508,7 @@ limitations under the License.]]></inlineHeader>
     <connection>scm:git:git@github.com:datastax/pulsar-jms.git</connection>
     <developerConnection>scm:git:git@github.com:datastax/pulsar-jms.git</developerConnection>
     <url>https://github.com/datastax/pulsar-jms</url>
-    <tag>HEAD</tag>
+    <tag>7.0.8</tag>
   </scm>
   <developers>
     <developer>
@@ -571,17 +571,17 @@ limitations under the License.]]></inlineHeader>
       </build>
     </profile>
   </profiles>
-<!--  <distributionManagement>-->
-<!--    &lt;!&ndash; releases go to Maven central &ndash;&gt;-->
-<!--    <snapshotRepository>-->
-<!--      <id>ossrh</id>-->
-<!--      <url>https://s01.oss.sonatype.org/content/repositories/snapshots</url>-->
-<!--    </snapshotRepository>-->
-<!--    <repository>-->
-<!--      <id>ossrh</id>-->
-<!--      <url>https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/</url>-->
-<!--    </repository>-->
-<!--  </distributionManagement>-->
+  <!--  <distributionManagement>-->
+  <!--    &lt;!&ndash; releases go to Maven central &ndash;&gt;-->
+  <!--    <snapshotRepository>-->
+  <!--      <id>ossrh</id>-->
+  <!--      <url>https://s01.oss.sonatype.org/content/repositories/snapshots</url>-->
+  <!--    </snapshotRepository>-->
+  <!--    <repository>-->
+  <!--      <id>ossrh</id>-->
+  <!--      <url>https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/</url>-->
+  <!--    </repository>-->
+  <!--  </distributionManagement>-->
   <!-- to use Luna Straaming -->
   <repositories>
     <repository>
