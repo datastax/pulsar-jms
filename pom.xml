@@ -425,11 +425,13 @@ limitations under the License.]]></inlineHeader>
         <plugin>
           <groupId>org.sonatype.central</groupId>
           <artifactId>central-publishing-maven-plugin</artifactId>
+          <version>0.7.0</version>
           <extensions>true</extensions>
           <configuration>
-            <publishingServerId>central</publishingServerId>
+            <publishingServerId>ossrh</publishingServerId>
             <checksums>all</checksums>
             <autoPublish>false</autoPublish>
+            <skipPublishing>false</skipPublishing>
           </configuration>
         </plugin>
       </plugins>
@@ -482,17 +484,6 @@ limitations under the License.]]></inlineHeader>
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>animal-sniffer-maven-plugin</artifactId>
-      </plugin>
-      <plugin>
-        <groupId>org.sonatype.central</groupId>
-        <artifactId>central-publishing-maven-plugin</artifactId>
-        <version>0.7.0</version>
-        <extensions>true</extensions>
-        <configuration>
-          <publishingServerId>ossrh</publishingServerId>
-          <autoPublish>true</autoPublish>
-          <skipPublishing>false</skipPublishing>
-        </configuration>
       </plugin>
     </plugins>
   </build>
@@ -571,17 +562,17 @@ limitations under the License.]]></inlineHeader>
       </build>
     </profile>
   </profiles>
-  <!--  <distributionManagement>-->
-  <!--    &lt;!&ndash; releases go to Maven central &ndash;&gt;-->
-  <!--    <snapshotRepository>-->
-  <!--      <id>ossrh</id>-->
-  <!--      <url>https://s01.oss.sonatype.org/content/repositories/snapshots</url>-->
-  <!--    </snapshotRepository>-->
-  <!--    <repository>-->
-  <!--      <id>ossrh</id>-->
-  <!--      <url>https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/</url>-->
-  <!--    </repository>-->
-  <!--  </distributionManagement>-->
+  <distributionManagement>
+    <!-- releases go to Maven central -->
+    <snapshotRepository>
+      <id>ossrh</id>
+      <url>https://s01.oss.sonatype.org/content/repositories/snapshots</url>
+    </snapshotRepository>
+    <repository>
+      <id>ossrh</id>
+      <url>https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/</url>
+    </repository>
+  </distributionManagement>
   <!-- to use Luna Straaming -->
   <repositories>
     <repository>
