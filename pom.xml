@@ -58,7 +58,9 @@
     <jms.version>3.0.0</jms.version>
     <pulsar.groupId>org.apache.pulsar</pulsar.groupId>
     <pulsar.version>3.2.2</pulsar.version>
-    <asynchttpclient.version>2.12.1</asynchttpclient.version>
+    <asynchttpclient.version>2.12.4</asynchttpclient.version>
+    <aircompressor.version>0.27</aircompressor.version>
+    <protobuf.version>3.25.5</protobuf.version>
     <exec-maven-plugin.version>3.0.0</exec-maven-plugin.version>
     <rename.netty.native.libs>rename-netty-native-libs.sh</rename.netty.native.libs>
     <activemq.version>6.0.0</activemq.version>
@@ -111,6 +113,21 @@
         <groupId>org.slf4j</groupId>
         <artifactId>slf4j-simple</artifactId>
         <version>${slf4j.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.airlift</groupId>
+        <artifactId>aircompressor</artifactId>
+        <version>${aircompressor.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.google.protobuf</groupId>
+        <artifactId>protobuf-java</artifactId>
+        <version>${protobuf.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.asynchttpclient</groupId>
+        <artifactId>async-http-client</artifactId>
+        <version>${asynchttpclient.version}</version>
       </dependency>
       <dependency>
         <groupId>org.junit.jupiter</groupId>
@@ -202,6 +219,16 @@
         <groupId>${pulsar.groupId}</groupId>
         <artifactId>pulsar-broker</artifactId>
         <version>${pulsar.version}</version>
+        <exclusions>
+          <exclusion>
+            <groupId>org.apache.bookkeeper</groupId>
+            <artifactId>stream-storage-java-client</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>com.google.protobuf</groupId>
+            <artifactId>protobuf-java-util</artifactId>
+          </exclusion>
+        </exclusions>
       </dependency>
       <dependency>
         <groupId>org.fusesource.hawtbuf</groupId>
