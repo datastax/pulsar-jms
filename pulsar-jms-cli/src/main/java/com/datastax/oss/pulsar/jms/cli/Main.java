@@ -43,7 +43,6 @@ import javax.jms.MessageListener;
 import javax.jms.Queue;
 import javax.jms.TextMessage;
 import javax.jms.Topic;
-import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.admin.PulsarAdmin;
 import org.apache.pulsar.client.admin.PulsarAdminException;
 import org.apache.pulsar.client.api.MessageId;
