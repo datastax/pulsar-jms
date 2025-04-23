@@ -88,6 +88,10 @@
       <artifactId>spotbugs-annotations</artifactId>
     </dependency>
     <dependency>
+      <groupId>com.google.guava</groupId>
+      <artifactId>guava</artifactId>
+    </dependency>
+    <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter-engine</artifactId>
       <scope>test</scope>
@@ -148,10 +152,10 @@
             <configuration>
               <target>
                 <echo>copy filters</echo>
-                <mkdir dir="${project.build.outputDirectory}/filters" />
-                <mkdir dir="${project.build.outputDirectory}/interceptors" />
-                <copy verbose="true" file="${basedir}/../pulsar-jms-filters/target/pulsar-jms-${project.version}-nar.nar" tofile="${project.build.outputDirectory}/filters/jms-filter.nar" />
-                <copy verbose="true" file="${basedir}/../pulsar-jms-filters/target/pulsar-jms-${project.version}-nar.nar" tofile="${project.build.outputDirectory}/interceptors/jms-filter.nar" />
+                <mkdir dir="${project.build.outputDirectory}/filters"/>
+                <mkdir dir="${project.build.outputDirectory}/interceptors"/>
+                <copy verbose="true" file="${basedir}/../pulsar-jms-filters/target/pulsar-jms-${project.version}-nar.nar" tofile="${project.build.outputDirectory}/filters/jms-filter.nar"/>
+                <copy verbose="true" file="${basedir}/../pulsar-jms-filters/target/pulsar-jms-${project.version}-nar.nar" tofile="${project.build.outputDirectory}/interceptors/jms-filter.nar"/>
               </target>
             </configuration>
           </execution>

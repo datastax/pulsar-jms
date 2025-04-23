@@ -24,7 +24,6 @@
     <version>6.0.4-SNAPSHOT</version>
     <relativePath>../../pom.xml</relativePath>
   </parent>
-  <groupId>com.example</groupId>
   <artifactId>pulsar-jms-spring-example</artifactId>
   <name>Pulsar JMS Spring Example</name>
   <description>Demo project for Spring Boot and Pulsar JMS</description>
@@ -72,20 +71,6 @@
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
         <version>2.4.5</version>
-      </plugin>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-deploy-plugin</artifactId>
-        <configuration>
-          <skip>true</skip>
-        </configuration>
-      </plugin>
-      <plugin>
-        <groupId>org.sonatype.plugins</groupId>
-        <artifactId>nexus-staging-maven-plugin</artifactId>
-        <configuration>
-          <skipNexusStagingDeployMojo>true</skipNexusStagingDeployMojo>
-        </configuration>
       </plugin>
     </plugins>
   </build>

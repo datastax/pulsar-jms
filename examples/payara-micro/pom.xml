@@ -20,7 +20,7 @@
   <modelVersion>4.0.0</modelVersion>
   <artifactId>payara-example</artifactId>
   <packaging>ejb</packaging>
-  <name>Payara Micro® JMS Pulsar Example</name>
+  <name>Payara Micro JMS Pulsar Example</name>
   <parent>
     <groupId>com.datastax.oss</groupId>
     <artifactId>pulsar-jms-parent</artifactId>
@@ -107,20 +107,6 @@
             </option>
           </commandLineOptions>
           <contextRoot>/</contextRoot>
-        </configuration>
-      </plugin>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-deploy-plugin</artifactId>
-        <configuration>
-          <skip>true</skip>
-        </configuration>
-      </plugin>
-      <plugin>
-        <groupId>org.sonatype.plugins</groupId>
-        <artifactId>nexus-staging-maven-plugin</artifactId>
-        <configuration>
-          <skipNexusStagingDeployMojo>true</skipNexusStagingDeployMojo>
         </configuration>
       </plugin>
     </plugins>
