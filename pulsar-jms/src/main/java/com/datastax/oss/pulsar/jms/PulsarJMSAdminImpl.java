@@ -109,7 +109,7 @@ class PulsarJMSAdminImpl implements JMSAdmin {
 
   private JMSDestinationMetadata describeDestination(PulsarDestination destination)
       throws JMSException {
-    PulsarAdmin pulsarAdmin = factory.ensurePulsarAdmin();
+    PulsarAdmin pulsarAdmin = factory.ensurePulsarAdmin().getPulsarAdmin();
     String pulsarTopic = factory.getPulsarTopicName(destination);
     String queueSubscription;
     if (destination.isQueue()) {
@@ -335,7 +335,8 @@ class PulsarJMSAdminImpl implements JMSAdmin {
         properties.put("jms.selector", selector);
       }
       String topicName = factory.getPulsarTopicName(dest);
-      Topics topics = factory.ensurePulsarAdmin().topics();
+      PulsarAdmin pulsarAdmin = factory.ensurePulsarAdmin().getPulsarAdmin();
+      Topics topics = pulsarAdmin.topics();
       topics.createSubscription(
           topicName,
           subscriptionName,
@@ -358,7 +359,8 @@ class PulsarJMSAdminImpl implements JMSAdmin {
           destination, d -> !dest.isVirtualDestination(), "Cannot create a VirtualDestination");
 
       String topicName = factory.getPulsarTopicName(dest);
-      Topics topics = factory.ensurePulsarAdmin().topics();
+      PulsarAdmin pulsarAdmin = factory.ensurePulsarAdmin().getPulsarAdmin();
+      Topics topics = pulsarAdmin.topics();
       boolean exists = false;
       try {
         PartitionedTopicMetadata partitionedTopicMetadata =
@@ -409,7 +411,8 @@ class PulsarJMSAdminImpl implements JMSAdmin {
           destination, d -> !dest.isVirtualDestination(), "Cannot create a VirtualDestination");
 
       String topicName = factory.getPulsarTopicName(dest);
-      Topics topics = factory.ensurePulsarAdmin().topics();
+      PulsarAdmin pulsarAdmin = factory.ensurePulsarAdmin().getPulsarAdmin();
+      Topics topics = pulsarAdmin.topics();
       try {
         PartitionedTopicMetadata partitionedTopicMetadata =
             topics.getPartitionedTopicMetadata(topicName);
@@ -454,7 +457,8 @@ class PulsarJMSAdminImpl implements JMSAdmin {
       boolean enableFilters, String selector, String topicName, String subscriptionName)
       throws JMSException, PulsarAdminException {
     validateSelector(enableFilters, selector);
-    Topics topics = factory.ensurePulsarAdmin().topics();
+    PulsarAdmin pulsarAdmin = factory.ensurePulsarAdmin().getPulsarAdmin();
+    Topics topics = pulsarAdmin.topics();
     Map<String, String> currentProperties = new HashMap<>();
     try {
       currentProperties = topics.getSubscriptionProperties(topicName, subscriptionName);
