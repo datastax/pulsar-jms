@@ -1422,9 +1422,15 @@ public abstract class PulsarMessage implements Message {
     assignSystemMessageId(msg.getMessageId());
 
     if (msg.hasProperty(SystemMessageProperty.JMSCorrelationID.toString())) {
-      this.correlationId =
-          Base64.getDecoder()
-              .decode(msg.getProperty(SystemMessageProperty.JMSCorrelationID.toString()));
+      try {
+        this.correlationId =
+            Base64.getDecoder()
+                .decode(msg.getProperty(SystemMessageProperty.JMSCorrelationID.toString()));
+      } catch (IllegalArgumentException iae) {
+        String cId = msg.getProperty(SystemMessageProperty.JMSCorrelationID.toString());
+        log.error("Correlation ID {} is invalid, using raw bytes", cId, iae);
+        this.correlationId = cId.getBytes(StandardCharsets.UTF_8);
+      }
     }
     if (msg.hasProperty(SystemMessageProperty.JMSPriority.toString())) {
       this.jmsPriority = readJMSPriority(msg);
