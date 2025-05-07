@@ -21,6 +21,7 @@ import com.datastax.oss.pulsar.jms.messages.PulsarObjectMessage;
 import com.datastax.oss.pulsar.jms.messages.PulsarSimpleMessage;
 import com.datastax.oss.pulsar.jms.messages.PulsarStreamMessage;
 import com.datastax.oss.pulsar.jms.messages.PulsarTextMessage;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import jakarta.jms.CompletionListener;
@@ -554,6 +555,7 @@ public abstract class PulsarMessage implements Message {
   @Override
   public void setJMSExpiration(long expiration) throws JMSException {
     this.jmsExpiration = expiration;
+    setLongPropertyNoCheck(SystemMessageProperty.JMSExpiration.toString(), expiration);
   }
 
   /**
@@ -997,6 +999,10 @@ public abstract class PulsarMessage implements Message {
   @Override
   public void setLongProperty(String name, long value) throws JMSException {
     checkWritableProperty(name);
+    setLongPropertyNoCheck(name, value);
+  }
+
+  protected void setLongPropertyNoCheck(String name, long value) throws JMSException {
     properties.put(name, Long.toString(value));
     properties.put(propertyType(name), "long");
   }
@@ -1045,8 +1051,13 @@ public abstract class PulsarMessage implements Message {
   @Override
   public void setStringProperty(String name, String value) throws JMSException {
     checkWritableProperty(name);
-    properties.put(name, value);
+    setStringPropertyNoCheck(name, value);
     // not type, not needed
+  }
+
+  @VisibleForTesting
+  protected void setStringPropertyNoCheck(String name, String value) throws JMSException {
+    properties.put(name, value);
   }
 
   /**
@@ -1279,7 +1290,7 @@ public abstract class PulsarMessage implements Message {
 
     // we can use JMSXGroupID as key in order to provide
     // a behaviour similar to https://activemq.apache.org/message-groups
-    String JMSXGroupID = properties.get("JMSXGroupID");
+    String JMSXGroupID = properties.get(SystemMessageProperty.JMSXGroupID.toString());
     if (JMSXGroupID != null) {
       message.key(JMSXGroupID);
     }
