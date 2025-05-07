@@ -38,13 +38,7 @@ import jakarta.jms.Session;
 import java.io.EOFException;
 import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.Collections;
-import java.util.Enumeration;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
@@ -1375,7 +1369,15 @@ public abstract class PulsarMessage implements Message {
     assignSystemMessageId(msg.getMessageId());
 
     if (msg.hasProperty("JMSCorrelationID")) {
-      this.correlationId = Base64.getDecoder().decode(msg.getProperty("JMSCorrelationID"));
+      String correlationId = msg.getProperty("JMSCorrelationID");
+      try {
+        this.correlationId = Base64.getDecoder().decode(correlationId);
+      } catch (IllegalArgumentException err) {
+        log.debug("Cannot decode correlationId {}, do force decode", correlationId);
+        this.correlationId =
+            Base64.getDecoder()
+                .decode(Base64.getEncoder().encode(correlationId.getBytes(StandardCharsets.UTF_8)));
+      }
     }
     if (msg.hasProperty("JMSPriority")) {
       this.jmsPriority = readJMSPriority(msg);
