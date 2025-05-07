@@ -21,6 +21,7 @@ import com.datastax.oss.pulsar.jms.messages.PulsarObjectMessage;
 import com.datastax.oss.pulsar.jms.messages.PulsarSimpleMessage;
 import com.datastax.oss.pulsar.jms.messages.PulsarStreamMessage;
 import com.datastax.oss.pulsar.jms.messages.PulsarTextMessage;
+import com.google.common.collect.ImmutableSet;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import jakarta.jms.CompletionListener;
 import jakarta.jms.DeliveryMode;
@@ -39,12 +40,14 @@ import java.io.EOFException;
 import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
@@ -78,6 +81,40 @@ public abstract class PulsarMessage implements Message {
   private Consumer<?> pulsarConsumer;
   private boolean negativeAcked;
   private org.apache.pulsar.client.api.Message<?> receivedPulsarMessage;
+
+  public enum SystemMessageProperty {
+    JMSMessageId("JMSMessageId"),
+    JMSDeliveryTime("JMSDeliveryTime"),
+    JMSXDeliveryCount("JMSXDeliveryCount"),
+    JMSExpiration("JMSExpiration"),
+    JMSXGroupID("JMSXGroupID"),
+    JMSXGroupSeq("JMSXGroupSeq"),
+    JMSPulsarMessageType("JMSPulsarMessageType"),
+    JMSReplyTo("JMSReplyTo"),
+    JMSReplyToType("JMSReplyToType"),
+    JMSType("JMSType"),
+    JMSCorrelationID("JMSCorrelationID"),
+    JMSDeliveryMode("JMSDeliveryMode"),
+    JMSPriority("JMSPriority"),
+    JMSTX("JMSTX");
+
+    public final String label;
+
+    private SystemMessageProperty(String label) {
+      this.label = label;
+    }
+
+    @Override
+    public String toString() {
+      return this.label;
+    }
+  }
+
+  static final Set<String> systemPropertyNames =
+      ImmutableSet.copyOf(
+          Arrays.stream(SystemMessageProperty.values())
+              .map(SystemMessageProperty::toString)
+              .collect(Collectors.toSet()));
 
   /**
    * Gets the message ID.
@@ -1137,6 +1174,14 @@ public abstract class PulsarMessage implements Message {
     if (!writable) {
       throw new MessageNotWriteableException("Not writeable");
     }
+
+    if (systemPropertyNames.contains(name)) {
+      throw new IllegalArgumentException(
+          "System property '"
+              + name
+              + "' either cannot be set externally "
+              + "or has to be set using corresponding setter");
+    }
   }
 
   protected abstract String messageType();
@@ -1185,32 +1230,34 @@ public abstract class PulsarMessage implements Message {
     consumer = null;
     message.properties(properties);
     // useful for deserialization
-    message.property("JMSPulsarMessageType", messageType());
+    message.property(SystemMessageProperty.JMSPulsarMessageType.toString(), messageType());
     if (messageId != null) {
-      message.property("JMSMessageId", messageId);
+      message.property(SystemMessageProperty.JMSMessageId.toString(), messageId);
     }
     if (jmsReplyTo != null) {
       // here we want to keep the original name passed by the user
       // if we have the subscription name in the form Queue:Subscription
       // then here we want to keep the Subscription name
       message.property(
-          "JMSReplyTo",
+          SystemMessageProperty.JMSReplyTo.toString(),
           session.getFactory().applySystemNamespace(((PulsarDestination) jmsReplyTo).topicName));
       if (((PulsarDestination) jmsReplyTo).isTopic()) {
-        message.property("JMSReplyToType", "topic");
+        message.property(SystemMessageProperty.JMSReplyToType.toString(), "topic");
       }
     }
     if (jmsType != null) {
-      message.property("JMSType", jmsType);
+      message.property(SystemMessageProperty.JMSType.toString(), jmsType);
     }
     if (correlationId != null) {
-      message.property("JMSCorrelationID", Base64.getEncoder().encodeToString(correlationId));
+      message.property(
+          SystemMessageProperty.JMSCorrelationID.toString(),
+          Base64.getEncoder().encodeToString(correlationId));
     }
     if (deliveryMode != DeliveryMode.PERSISTENT) {
-      message.property("JMSDeliveryMode", deliveryMode + "");
+      message.property(SystemMessageProperty.JMSDeliveryMode.toString(), deliveryMode + "");
     }
     if (jmsPriority != Message.DEFAULT_PRIORITY) {
-      message.property("JMSPriority", jmsPriority + "");
+      message.property(SystemMessageProperty.JMSPriority.toString(), jmsPriority + "");
     }
 
     this.jmsTimestamp = System.currentTimeMillis();
@@ -1223,11 +1270,11 @@ public abstract class PulsarMessage implements Message {
       this.jmsDeliveryTime = System.currentTimeMillis();
     }
 
-    message.property("JMSDeliveryTime", jmsDeliveryTime + "");
+    message.property(SystemMessageProperty.JMSDeliveryTime.toString(), jmsDeliveryTime + "");
 
     long stickyKey = session.getTransactionStickyKey();
     if (stickyKey > 0) {
-      message.property("JMSTX", Long.toString(stickyKey));
+      message.property(SystemMessageProperty.JMSTX.toString(), Long.toString(stickyKey));
     }
 
     // we can use JMSXGroupID as key in order to provide
@@ -1260,7 +1307,7 @@ public abstract class PulsarMessage implements Message {
     }
     Object value = msg.getValue();
     if (value instanceof byte[] || value == null) {
-      String type = msg.getProperty("JMSPulsarMessageType");
+      String type = msg.getProperty(SystemMessageProperty.JMSPulsarMessageType.toString());
       if (type == null) {
         type = "bytes"; // non JMS clients
       }
@@ -1354,9 +1401,9 @@ public abstract class PulsarMessage implements Message {
     if (consumer != null) {
       this.destination = consumer.getDestination();
     }
-    String jmsReplyTo = msg.getProperty("JMSReplyTo");
+    String jmsReplyTo = msg.getProperty(SystemMessageProperty.JMSReplyTo.toString());
     if (jmsReplyTo != null) {
-      String jmsReplyToType = msg.getProperty("JMSReplyToType") + "";
+      String jmsReplyToType = msg.getProperty(SystemMessageProperty.JMSReplyToType.toString()) + "";
       switch (jmsReplyToType) {
         case "topic":
           this.jmsReplyTo = new PulsarTopic(jmsReplyTo);
@@ -1365,31 +1412,35 @@ public abstract class PulsarMessage implements Message {
           this.jmsReplyTo = new PulsarQueue(jmsReplyTo);
       }
     }
-    if (msg.hasProperty("JMSType")) {
-      this.jmsType = msg.getProperty("JMSType");
+    if (msg.hasProperty(SystemMessageProperty.JMSType.toString())) {
+      this.jmsType = msg.getProperty(SystemMessageProperty.JMSType.toString());
     }
 
-    if (msg.hasProperty("JMSMessageId")) {
-      this.messageId = msg.getProperty("JMSMessageId");
+    if (msg.hasProperty(SystemMessageProperty.JMSMessageId.toString())) {
+      this.messageId = msg.getProperty(SystemMessageProperty.JMSMessageId.toString());
     }
     assignSystemMessageId(msg.getMessageId());
 
-    if (msg.hasProperty("JMSCorrelationID")) {
-      this.correlationId = Base64.getDecoder().decode(msg.getProperty("JMSCorrelationID"));
+    if (msg.hasProperty(SystemMessageProperty.JMSCorrelationID.toString())) {
+      this.correlationId =
+          Base64.getDecoder()
+              .decode(msg.getProperty(SystemMessageProperty.JMSCorrelationID.toString()));
     }
-    if (msg.hasProperty("JMSPriority")) {
+    if (msg.hasProperty(SystemMessageProperty.JMSPriority.toString())) {
       this.jmsPriority = readJMSPriority(msg);
     }
-    if (msg.hasProperty("JMSDeliveryMode")) {
+    if (msg.hasProperty(SystemMessageProperty.JMSDeliveryMode.toString())) {
       try {
-        this.deliveryMode = Integer.parseInt(msg.getProperty("JMSDeliveryMode"));
+        this.deliveryMode =
+            Integer.parseInt(msg.getProperty(SystemMessageProperty.JMSDeliveryMode.toString()));
       } catch (NumberFormatException err) {
         // cannot decode deliveryMode, not a big deal as it is not supported in Pulsar
       }
     }
-    if (msg.hasProperty("JMSExpiration")) {
+    if (msg.hasProperty(SystemMessageProperty.JMSExpiration.toString())) {
       try {
-        this.jmsExpiration = Long.parseLong(msg.getProperty("JMSExpiration"));
+        this.jmsExpiration =
+            Long.parseLong(msg.getProperty(SystemMessageProperty.JMSExpiration.toString()));
       } catch (NumberFormatException err) {
         // cannot decode JMSExpiration
       }
@@ -1398,22 +1449,24 @@ public abstract class PulsarMessage implements Message {
     this.jmsTimestamp = msg.getEventTime();
 
     this.jmsDeliveryTime = jmsTimestamp;
-    if (msg.hasProperty("JMSDeliveryTime")) {
+    if (msg.hasProperty(SystemMessageProperty.JMSDeliveryTime.toString())) {
       try {
-        this.jmsDeliveryTime = Long.parseLong(msg.getProperty("JMSDeliveryTime"));
+        this.jmsDeliveryTime =
+            Long.parseLong(msg.getProperty(SystemMessageProperty.JMSDeliveryTime.toString()));
       } catch (NumberFormatException err) {
         // cannot decode JMSDeliveryTime
       }
     }
 
-    this.properties.put("JMSXDeliveryCount", (msg.getRedeliveryCount() + 1) + "");
+    this.properties.put(
+        SystemMessageProperty.JMSXDeliveryCount.toString(), (msg.getRedeliveryCount() + 1) + "");
     if (msg.getKey() != null) {
-      this.properties.put("JMSXGroupID", msg.getKey());
+      this.properties.put(SystemMessageProperty.JMSXGroupID.toString(), msg.getKey());
     } else {
-      this.properties.put("JMSXGroupID", "");
+      this.properties.put(SystemMessageProperty.JMSXGroupID.toString(), "");
     }
-    if (!properties.containsKey("JMSXGroupSeq")) {
-      this.properties.put("JMSXGroupSeq", msg.getSequenceId() + "");
+    if (!properties.containsKey(SystemMessageProperty.JMSXGroupSeq.toString())) {
+      this.properties.put(SystemMessageProperty.JMSXGroupSeq.toString(), msg.getSequenceId() + "");
     }
 
     this.jmsRedelivered = msg.getRedeliveryCount() > 0;
@@ -1479,9 +1532,9 @@ public abstract class PulsarMessage implements Message {
   }
 
   public static int readJMSPriority(org.apache.pulsar.client.api.Message<?> msg) {
-    if (msg.hasProperty("JMSPriority")) {
+    if (msg.hasProperty(SystemMessageProperty.JMSPriority.toString())) {
       try {
-        int value = Integer.parseInt(msg.getProperty("JMSPriority"));
+        int value = Integer.parseInt(msg.getProperty(SystemMessageProperty.JMSPriority.toString()));
         if (value < 0 || value >= 10) { // impossible values according to JMS Specs
           return PulsarMessage.DEFAULT_PRIORITY;
         }
