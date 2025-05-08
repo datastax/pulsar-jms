@@ -114,8 +114,9 @@ public abstract class PulsarMessage implements Message {
   static final Set<String> systemPropertyNames =
       ImmutableSet.copyOf(
           Arrays.stream(SystemMessageProperty.values())
-              // have to allow setting JMSXGroupID externally
+              // have to allow setting JMSXGroupID and JMSXGroupSeq externally
               .filter(x -> x != SystemMessageProperty.JMSXGroupID)
+              .filter(x -> x != SystemMessageProperty.JMSXGroupSeq)
               .map(SystemMessageProperty::toString)
               .collect(Collectors.toSet()));
 

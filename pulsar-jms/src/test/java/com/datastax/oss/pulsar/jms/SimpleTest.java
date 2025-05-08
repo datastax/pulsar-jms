@@ -71,6 +71,8 @@ public class SimpleTest {
     for (PulsarMessage.SystemMessageProperty prop : PulsarMessage.SystemMessageProperty.values()) {
       if (prop == PulsarMessage.SystemMessageProperty.JMSXGroupID) {
         simpleMessage.setStringProperty("JMSXGroupID", "groupId");
+      } else if (prop == PulsarMessage.SystemMessageProperty.JMSXGroupSeq) {
+        simpleMessage.setIntProperty("JMSXGroupID", 1);
       } else {
         String name = prop.toString();
         assertThrows(
