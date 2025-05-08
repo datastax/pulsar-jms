@@ -36,7 +36,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import lombok.Data;
-import org.apache.commons.lang3.reflect.MethodUtils;
 import org.apache.pulsar.client.api.Consumer;
 import org.apache.pulsar.client.api.Message;
 import org.apache.pulsar.client.api.Producer;
@@ -74,8 +73,7 @@ public class PulsarInteropTest {
 
               try (MessageProducer producer = session.createProducer(destination)) {
                 TextMessage textMsg = session.createTextMessage("foo");
-                MethodUtils.invokeMethod(
-                    textMsg, true, "setStringPropertyNoCheck", "JMSXGroupID", "bar");
+                textMsg.setStringProperty("JMSXGroupID", "bar");
                 producer.send(textMsg);
 
                 Message<String> receivedMessage = consumer.receive();

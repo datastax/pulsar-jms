@@ -69,25 +69,29 @@ public class SimpleTest {
   public void testSystemPropertySetters() throws Exception {
     Message simpleMessage = new PulsarSimpleMessage();
     for (PulsarMessage.SystemMessageProperty prop : PulsarMessage.SystemMessageProperty.values()) {
-      String name = prop.toString();
-      assertThrows(
-          IllegalArgumentException.class, () -> simpleMessage.setByteProperty(name, (byte) 1));
-      assertThrows(
-          IllegalArgumentException.class, () -> simpleMessage.setLongProperty(name, 123232323233L));
-      assertThrows(
-          IllegalArgumentException.class, () -> simpleMessage.setIntProperty(name, 1232323));
-      assertThrows(
-          IllegalArgumentException.class, () -> simpleMessage.setStringProperty(name, "ttt"));
-      assertThrows(
-          IllegalArgumentException.class, () -> simpleMessage.setBooleanProperty(name, true));
-      assertThrows(
-          IllegalArgumentException.class, () -> simpleMessage.setFloatProperty(name, 1.3f));
-      assertThrows(
-          IllegalArgumentException.class, () -> simpleMessage.setDoubleProperty(name, 1.9d));
-      assertThrows(
-          IllegalArgumentException.class, () -> simpleMessage.setShortProperty(name, (short) 89));
-      assertThrows(
-          IllegalArgumentException.class, () -> simpleMessage.setObjectProperty(name, 1.3d));
+      if (prop == PulsarMessage.SystemMessageProperty.JMSXGroupID) {
+        simpleMessage.setStringProperty("JMSXGroupID", "groupId");
+      } else {
+        String name = prop.toString();
+        assertThrows(
+                IllegalArgumentException.class, () -> simpleMessage.setByteProperty(name, (byte) 1));
+        assertThrows(
+                IllegalArgumentException.class, () -> simpleMessage.setLongProperty(name, 123232323233L));
+        assertThrows(
+                IllegalArgumentException.class, () -> simpleMessage.setIntProperty(name, 1232323));
+        assertThrows(
+                IllegalArgumentException.class, () -> simpleMessage.setStringProperty(name, "ttt"));
+        assertThrows(
+                IllegalArgumentException.class, () -> simpleMessage.setBooleanProperty(name, true));
+        assertThrows(
+                IllegalArgumentException.class, () -> simpleMessage.setFloatProperty(name, 1.3f));
+        assertThrows(
+                IllegalArgumentException.class, () -> simpleMessage.setDoubleProperty(name, 1.9d));
+        assertThrows(
+                IllegalArgumentException.class, () -> simpleMessage.setShortProperty(name, (short) 89));
+        assertThrows(
+                IllegalArgumentException.class, () -> simpleMessage.setObjectProperty(name, 1.3d));
+      }
     }
   }
 

@@ -47,7 +47,6 @@ import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.reflect.MethodUtils;
 import org.apache.pulsar.client.api.PulsarClientException;
 import org.apache.pulsar.client.api.SubscriptionType;
 import org.apache.pulsar.client.impl.BatchMessageIdImpl;
@@ -454,8 +453,7 @@ public class TopicTest {
             try (MessageProducer producer = session.createProducer(destination); ) {
               for (int i = 0; i < 100; i++) {
                 TextMessage textMessage = session.createTextMessage("foo-" + i);
-                MethodUtils.invokeMethod(
-                    textMessage, true, "setStringPropertyNoCheck", "JMSXGroupID", "key" + (i % 10));
+                textMessage.setStringProperty("JMSXGroupID", "key" + (i % 10));
                 textMessage.setIntProperty("ordinal", i);
                 producer.send(
                     textMessage,
