@@ -19,9 +19,11 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
+import com.datastax.oss.pulsar.jms.messages.PulsarSimpleMessage;
 import com.datastax.oss.pulsar.jms.utils.PulsarContainerExtension;
 import jakarta.jms.BytesMessage;
 import jakarta.jms.CompletionListener;
@@ -62,6 +64,38 @@ public class SimpleTest {
 
   @RegisterExtension
   static PulsarContainerExtension pulsarContainer = new PulsarContainerExtension();
+
+  @Test
+  public void testSystemPropertySetters() throws Exception {
+    Message simpleMessage = new PulsarSimpleMessage();
+    for (PulsarMessage.SystemMessageProperty prop : PulsarMessage.SystemMessageProperty.values()) {
+      if (prop == PulsarMessage.SystemMessageProperty.JMSXGroupID) {
+        simpleMessage.setStringProperty("JMSXGroupID", "groupId");
+      } else if (prop == PulsarMessage.SystemMessageProperty.JMSXGroupSeq) {
+        simpleMessage.setIntProperty("JMSXGroupSeq", 1);
+      } else {
+        String name = prop.toString();
+        assertThrows(
+                IllegalArgumentException.class, () -> simpleMessage.setByteProperty(name, (byte) 1));
+        assertThrows(
+                IllegalArgumentException.class, () -> simpleMessage.setLongProperty(name, 123232323233L));
+        assertThrows(
+                IllegalArgumentException.class, () -> simpleMessage.setIntProperty(name, 1232323));
+        assertThrows(
+                IllegalArgumentException.class, () -> simpleMessage.setStringProperty(name, "ttt"));
+        assertThrows(
+                IllegalArgumentException.class, () -> simpleMessage.setBooleanProperty(name, true));
+        assertThrows(
+                IllegalArgumentException.class, () -> simpleMessage.setFloatProperty(name, 1.3f));
+        assertThrows(
+                IllegalArgumentException.class, () -> simpleMessage.setDoubleProperty(name, 1.9d));
+        assertThrows(
+                IllegalArgumentException.class, () -> simpleMessage.setShortProperty(name, (short) 89));
+        assertThrows(
+                IllegalArgumentException.class, () -> simpleMessage.setObjectProperty(name, 1.3d));
+      }
+    }
+  }
 
   @Test
   public void sendMessageTest() throws Exception {

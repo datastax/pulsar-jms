@@ -1194,7 +1194,6 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
   private void applyTimeToLive(Message message, long timeToLive) throws JMSException {
     if (timeToLive > 0) {
       long time = System.currentTimeMillis() + timeToLive;
-      message.setLongProperty("JMSExpiration", System.currentTimeMillis() + timeToLive);
       message.setJMSExpiration(time);
     }
   }

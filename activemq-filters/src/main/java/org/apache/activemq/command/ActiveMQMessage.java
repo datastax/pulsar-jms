@@ -32,6 +32,8 @@ import org.apache.activemq.util.Callback;
 import org.apache.activemq.util.JMSExceptionSupport;
 import org.apache.activemq.util.TypeConversionSupport;
 import org.fusesource.hawtbuf.UTF8Buffer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ActiveMQMessage extends Message
     implements org.apache.activemq.Message, ScheduledMessage {
@@ -41,6 +43,7 @@ public class ActiveMQMessage extends Message
 
   private static final Map<String, PropertySetter> JMS_PROPERTY_SETERS =
       new HashMap<String, PropertySetter>();
+  private static final Logger log = LoggerFactory.getLogger(ActiveMQMessage.class);
 
   protected transient Callback acknowledgeCallback;
 
@@ -274,6 +277,11 @@ public class ActiveMQMessage extends Message
   @Override
   public void setJMSExpiration(long expiration) {
     this.setExpiration(expiration);
+      try {
+          this.setLongProperty("JMSExpiration", expiration);
+      } catch (JMSException e) {
+          log.error("Error setting JMSExpiration property", e);
+      }
   }
 
   @Override

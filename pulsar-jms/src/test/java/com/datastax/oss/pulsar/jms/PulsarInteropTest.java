@@ -71,7 +71,7 @@ public class PulsarInteropTest {
                     .topic(topic)
                     .subscribe()) {
 
-              try (MessageProducer producer = session.createProducer(destination); ) {
+              try (MessageProducer producer = session.createProducer(destination)) {
                 TextMessage textMsg = session.createTextMessage("foo");
                 textMsg.setStringProperty("JMSXGroupID", "bar");
                 producer.send(textMsg);
