@@ -57,13 +57,14 @@
     <maven.compiler.release>11</maven.compiler.release>
     <jms.version>3.0.0</jms.version>
     <pulsar.groupId>org.apache.pulsar</pulsar.groupId>
-    <pulsar.version>3.2.2</pulsar.version>
+    <pulsar.version>3.2.3</pulsar.version>
     <asynchttpclient.version>2.12.4</asynchttpclient.version>
     <aircompressor.version>0.27</aircompressor.version>
     <protobuf.version>3.25.5</protobuf.version>
     <exec-maven-plugin.version>3.0.0</exec-maven-plugin.version>
     <rename.netty.native.libs>rename-netty-native-libs.sh</rename.netty.native.libs>
     <activemq.version>6.0.0</activemq.version>
+    <netty.version>4.1.118.Final</netty.version>
     <hawtbuf.version>1.11</hawtbuf.version>
     <curator.version>5.1.0</curator.version>
     <slf4j.version>1.7.36</slf4j.version>
@@ -90,6 +91,21 @@
   </properties>
   <dependencyManagement>
     <dependencies>
+      <dependency>
+        <groupId>io.netty</groupId>
+        <artifactId>netty-codec-http</artifactId>
+        <version>${netty.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.netty</groupId>
+        <artifactId>netty-common</artifactId>
+        <version>${netty.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.netty</groupId>
+        <artifactId>netty-handler</artifactId>
+        <version>${netty.version}</version>
+      </dependency>
       <dependency>
         <groupId>com.fasterxml.jackson</groupId>
         <artifactId>jackson-bom</artifactId>
@@ -193,6 +209,10 @@
             <groupId>org.apache.avro</groupId>
             <artifactId>avro-protobuf</artifactId>
           </exclusion>
+          <exclusion>
+            <groupId>commons-configuration</groupId>
+            <artifactId>commons-configuration</artifactId>
+          </exclusion>
         </exclusions>
       </dependency>
       <dependency>
@@ -227,6 +247,10 @@
           <exclusion>
             <groupId>com.google.protobuf</groupId>
             <artifactId>protobuf-java-util</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>commons-configuration</groupId>
+            <artifactId>commons-configuration</artifactId>
           </exclusion>
         </exclusions>
       </dependency>
