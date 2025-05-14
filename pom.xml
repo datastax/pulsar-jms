@@ -65,6 +65,8 @@
     <rename.netty.native.libs>rename-netty-native-libs.sh</rename.netty.native.libs>
     <activemq.version>6.0.0</activemq.version>
     <netty.version>4.1.118.Final</netty.version>
+    <commons-lang.version>2.6</commons-lang.version>
+    <commons-logging.version>1.1.1</commons-logging.version>
     <hawtbuf.version>1.11</hawtbuf.version>
     <curator.version>5.1.0</curator.version>
     <slf4j.version>1.7.36</slf4j.version>
@@ -324,6 +326,19 @@
       </dependency>
     </dependencies>
   </dependencyManagement>
+  <dependencies>
+<!-- commons-lang & commons-logging were added here as we are excluding commons-configuration to fix vulnerabilities which has these two as transitive dependencies. -->
+    <dependency>
+      <groupId>commons-lang</groupId>
+      <artifactId>commons-lang</artifactId>
+      <version>${commons-lang.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>commons-logging</groupId>
+      <artifactId>commons-logging</artifactId>
+      <version>${commons-logging.version}</version>
+    </dependency>
+  </dependencies>
   <build>
     <pluginManagement>
       <plugins>
