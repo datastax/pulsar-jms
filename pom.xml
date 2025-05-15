@@ -21,7 +21,7 @@
   <groupId>com.datastax.oss</groupId>
   <artifactId>pulsar-jms-parent</artifactId>
   <packaging>pom</packaging>
-  <version>7.0.14-SNAPSHOT</version>
+  <version>7.0.14</version>
   <name>DataStax Starlight for JMS</name>
   <description>Implementation of the Java Messaging Service Client API around Apache Pulsar Java Client</description>
   <url>https://github.com/datastax/pulsar-jms</url>
@@ -327,7 +327,7 @@
     </dependencies>
   </dependencyManagement>
   <dependencies>
-<!-- commons-lang & commons-logging were added here as we are excluding commons-configuration to fix vulnerabilities which has these two as transitive dependencies. -->
+    <!-- commons-lang & commons-logging were added here as we are excluding commons-configuration to fix vulnerabilities which has these two as transitive dependencies. -->
     <dependency>
       <groupId>commons-lang</groupId>
       <artifactId>commons-lang</artifactId>
@@ -621,7 +621,7 @@ limitations under the License.]]></inlineHeader>
     <connection>scm:git:git@github.com:datastax/pulsar-jms.git</connection>
     <developerConnection>scm:git:git@github.com:datastax/pulsar-jms.git</developerConnection>
     <url>https://github.com/datastax/pulsar-jms</url>
-    <tag>HEAD</tag>
+    <tag>7.0.14</tag>
   </scm>
   <developers>
     <developer>
