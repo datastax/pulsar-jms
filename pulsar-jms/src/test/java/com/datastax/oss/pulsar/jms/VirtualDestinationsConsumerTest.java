@@ -87,9 +87,9 @@ public class VirtualDestinationsConsumerTest {
           for (int i = 0; i < 4; i++) {
             String topicName = "test-" + prefix + "-" + i;
             if (numPartitions > 0) {
-              factory.getPulsarAdmin().topics().createPartitionedTopic(topicName, numPartitions);
+              factory.getPulsarAdmin().createPartitionedTopic(topicName, numPartitions);
             } else {
-              factory.getPulsarAdmin().topics().createNonPartitionedTopic(topicName);
+              factory.getPulsarAdmin().createNonPartitionedTopic(topicName);
             }
             destinationsToWrite.add(session.createTopic(topicName));
           }
@@ -424,7 +424,7 @@ public class VirtualDestinationsConsumerTest {
           List<Topic> destinationsToWrite = new ArrayList<>();
           for (int i = 0; i < 4; i++) {
             String topicName = "test-" + prefix + "-" + nextDestinationId;
-            factory.getPulsarAdmin().topics().createNonPartitionedTopic(topicName);
+            factory.getPulsarAdmin().createNonPartitionedTopic(topicName);
             destinationsToWrite.add(session.createTopic(topicName));
             nextDestinationId = i + 1;
           }
@@ -459,7 +459,7 @@ public class VirtualDestinationsConsumerTest {
             // add a new topic matching the pattern
             // the new topic has server side filters on the jms-queue subscription
             String topicName = "test-" + prefix + "-" + nextDestinationId;
-            factory.getPulsarAdmin().topics().createNonPartitionedTopic(topicName);
+            factory.getPulsarAdmin().createNonPartitionedTopic(topicName);
             // await that the consumer session creates the subscription, then we update it
             Awaitility.await()
                 .untilAsserted(
