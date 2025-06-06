@@ -57,10 +57,9 @@
     <jms.version>2.0.3</jms.version>
     <pulsar.groupId>org.apache.pulsar</pulsar.groupId>
     <pulsar.version>3.2.3</pulsar.version>
-    <asynchttpclient.version>2.12.1</asynchttpclient.version>
     <exec-maven-plugin.version>3.0.0</exec-maven-plugin.version>
     <rename.netty.native.libs>rename-netty-native-libs.sh</rename.netty.native.libs>
-    <activemq.version>5.16.7</activemq.version>
+    <activemq.version>5.16.8</activemq.version>
     <netty.version>4.1.118.Final</netty.version>
     <commons-lang.version>2.6</commons-lang.version>
     <commons-logging.version>1.1.1</commons-logging.version>
