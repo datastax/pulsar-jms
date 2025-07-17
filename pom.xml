@@ -63,7 +63,7 @@
     <netty.version>4.1.118.Final</netty.version>
     <commons-lang.version>2.6</commons-lang.version>
     <commons-logging.version>1.1.1</commons-logging.version>
-    <asynchttpclient.version>2.12.4</asynchttpclient.version>
+    <asynchttpclient.version>3.0.0</asynchttpclient.version>
     <aircompressor.version>0.27</aircompressor.version>
     <protobuf.version>3.25.5</protobuf.version>
     <hawtbuf.version>1.11</hawtbuf.version>
