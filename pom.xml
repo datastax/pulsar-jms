@@ -60,8 +60,9 @@
     <exec-maven-plugin.version>3.0.0</exec-maven-plugin.version>
     <rename.netty.native.libs>rename-netty-native-libs.sh</rename.netty.native.libs>
     <activemq.version>5.16.8</activemq.version>
-    <netty.version>4.1.118.Final</netty.version>
+    <netty.version>4.1.125.Final</netty.version>
     <commons-lang.version>2.6</commons-lang.version>
+    <commons-lang3.version>3.18.0</commons-lang3.version>
     <commons-logging.version>1.1.1</commons-logging.version>
     <asynchttpclient.version>2.12.4</asynchttpclient.version>
     <aircompressor.version>0.27</aircompressor.version>
@@ -71,9 +72,9 @@
     <slf4j.version>1.7.36</slf4j.version>
     <junit.version>5.7.1</junit.version>
     <surefire.version>3.1.0</surefire.version>
-    <jackson.version>2.14.2</jackson.version>
+    <jackson.version>2.15.3</jackson.version>
     <gson.version>2.8.9</gson.version>
-    <commons-compress.version>1.21</commons-compress.version>
+    <commons-compress.version>1.26.0</commons-compress.version>
     <awaitility.version>4.0.3</awaitility.version>
     <maven.antrun.plugin.version>3.1.0</maven.antrun.plugin.version>
     <snakeyaml.version>2.0</snakeyaml.version>
@@ -342,6 +343,12 @@
       <groupId>commons-lang</groupId>
       <artifactId>commons-lang</artifactId>
       <version>${commons-lang.version}</version>
+    </dependency>
+    <!-- Override the transitive commons-lang3@3.11 to resolve vulnerability -->
+    <dependency>
+      <groupId>org.apache.commons</groupId>
+      <artifactId>commons-lang3</artifactId>
+      <version>${commons-lang3.version}</version>
     </dependency>
     <dependency>
       <groupId>commons-logging</groupId>
