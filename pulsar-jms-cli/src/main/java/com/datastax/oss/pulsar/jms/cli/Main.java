@@ -204,7 +204,7 @@ public class Main {
       PulsarConnectionFactory factory = getFactory();
       String topicName = factory.getPulsarTopicName(destination);
       log.info("JMS Destination {} maps to Pulsar Topic {}", destination, topicName);
-      PulsarAdmin pulsarAdmin = factory.getPulsarAdmin();
+      PulsarAdmin pulsarAdmin = factory.getPulsarAdmin().getPulsarAdmin();
       try {
         TopicStats stats = pulsarAdmin.topics().getStats(topicName);
         Map<String, ? extends SubscriptionStats> subscriptions = stats.getSubscriptions();
@@ -250,7 +250,7 @@ public class Main {
       PulsarConnectionFactory factory = getFactory();
       String topicName = factory.getPulsarTopicName(destination);
       log.info("JMS Destination {} maps to Pulsar Topic {}", destination, topicName);
-      PulsarAdmin pulsarAdmin = factory.getPulsarAdmin();
+      PulsarAdmin pulsarAdmin = factory.getPulsarAdmin().getPulsarAdmin();
       TopicStats stats = pulsarAdmin.topics().getStats(topicName);
       Map<String, ? extends SubscriptionStats> subscriptions = stats.getSubscriptions();
       if (subscriptions.isEmpty()) {

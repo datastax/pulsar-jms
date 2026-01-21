@@ -19,7 +19,6 @@ import jakarta.jms.IllegalStateException;
 import jakarta.jms.InvalidDestinationException;
 import jakarta.jms.JMSException;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.pulsar.client.admin.PulsarAdmin;
 import org.apache.pulsar.client.admin.PulsarAdminException;
 import org.apache.pulsar.common.policies.data.TopicStats;
 
@@ -46,7 +45,7 @@ abstract class PulsarTemporaryDestination extends PulsarDestination {
       log.info("Deleting {}", this);
       String topicName = getInternalTopicName();
       String fullQualifiedTopicName = session.getFactory().applySystemNamespace(topicName);
-      PulsarAdmin pulsarAdmin;
+      PulsarAdminWrapper pulsarAdmin;
       try {
         pulsarAdmin = session.getFactory().getPulsarAdmin();
       } catch (IllegalStateException err) {
@@ -59,7 +58,7 @@ abstract class PulsarTemporaryDestination extends PulsarDestination {
             err);
         return;
       }
-      TopicStats stats = pulsarAdmin.topics().getStats(fullQualifiedTopicName);
+      TopicStats stats = pulsarAdmin.getStats(fullQualifiedTopicName);
       log.info("Stats {}", stats);
 
       int numConsumers =
@@ -68,25 +67,20 @@ abstract class PulsarTemporaryDestination extends PulsarDestination {
         throw new JMSException("Cannot delete a temporary destination with active consumers");
       }
 
-      if (session
-          .getFactory()
-          .getPulsarAdmin()
-          .topics()
+      if (pulsarAdmin
           .getPartitionedTopicList(session.getFactory().getSystemNamespace())
           .stream()
           .anyMatch(t -> t.equals(fullQualifiedTopicName))) {
         session
             .getFactory()
             .getPulsarAdmin()
-            .topics()
             .deletePartitionedTopic(
                 fullQualifiedTopicName, session.getFactory().isForceDeleteTemporaryDestinations());
       } else {
         session
             .getFactory()
             .getPulsarAdmin()
-            .topics()
-            .delete(
+            .deleteTopic(
                 fullQualifiedTopicName, session.getFactory().isForceDeleteTemporaryDestinations());
       }
 
