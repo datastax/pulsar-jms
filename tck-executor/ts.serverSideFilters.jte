@@ -176,6 +176,7 @@ command.testExecute=com.sun.ts.lib.harness.ExecTSTestCmd \
 		windir=${windir} \
 		SYSTEMROOT=${SYSTEMROOT} \
         ${JAVA_HOME}/bin/java \
+  -Djava.security.manager=allow \
   -Dlog4j2.debug=true \
 		-Dorg.slf4j.simpleLogger.defaultLogLevel=warn \
 		-DJMS_TCK_CLIENT_jms_useServerSideFiltering=true \
