@@ -32,6 +32,8 @@ wget -O - http://localhost:8080/lookup/v2/topic/persistent/pulsar/system/transac
 # move to the directory that contains the test you want to run
 cd $TS_HOME/src/com/sun/ts/tests
 
+# Set ANT_OPTS to disable Security Manager for JDK 21 compatibility
+export ANT_OPTS="-Djava.security.manager=disallow"
 
 ant runclient
 ANTEXITCODE=$?
