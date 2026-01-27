@@ -176,7 +176,9 @@ command.testExecute=com.sun.ts.lib.harness.ExecTSTestCmd \
 		windir=${windir} \
 		SYSTEMROOT=${SYSTEMROOT} \
         ${JAVA_HOME}/bin/java \
-  -Dlog4j2.debug=true \
+		-Djava.security.policy="${bin.dir}/harness.policy" \
+		-Djava.security.manager \
+		-Dlog4j2.debug=true \
 		-Dorg.slf4j.simpleLogger.defaultLogLevel=warn \
 		-DJMS_TCK_CLIENT_jms_useServerSideFiltering=true \
 		-Djava.naming.factory.initial=${java.naming.factory.initial} \
