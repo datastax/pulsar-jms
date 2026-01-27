@@ -32,10 +32,6 @@ wget -O - http://localhost:8080/lookup/v2/topic/persistent/pulsar/system/transac
 # move to the directory that contains the test you want to run
 cd $TS_HOME/src/com/sun/ts/tests
 
-# Pass JVM args to disable Security Manager for JDK 21 compatibility
-# This needs to be passed to both Ant itself and the JavaTest harness it launches
-export ANT_OPTS="-Djava.security.manager=disallow"
-export JAVA_TOOL_OPTIONS="-Djava.security.manager=disallow"
 
 ant runclient
 ANTEXITCODE=$?

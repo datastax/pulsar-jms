@@ -176,7 +176,6 @@ command.testExecute=com.sun.ts.lib.harness.ExecTSTestCmd \
 		windir=${windir} \
 		SYSTEMROOT=${SYSTEMROOT} \
         ${JAVA_HOME}/bin/java \
-  -Djava.security.manager=disallow \
   -Dlog4j2.debug=true \
 		-Dorg.slf4j.simpleLogger.defaultLogLevel=warn \
 		-Djava.naming.factory.initial=${java.naming.factory.initial} \
