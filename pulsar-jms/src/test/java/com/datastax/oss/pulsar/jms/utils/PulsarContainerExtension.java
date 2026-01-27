@@ -37,7 +37,7 @@ import org.testcontainers.utility.MountableFile;
 
 @Slf4j
 public class PulsarContainerExtension implements BeforeAllCallback, AfterAllCallback {
-  public static final String PULSAR_IMAGE = "datastax/lunastreaming:3.1_3.1";
+  public static final String PULSAR_IMAGE = "datastax/lunastreaming:4.0.7_2";
   private PulsarContainer pulsarContainer;
   private Consumer<PulsarContainerExtension> onContainerReady;
   private Map<String, String> env = new HashMap<>();
