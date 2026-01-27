@@ -15,6 +15,7 @@
  */
 package com.datastax.oss.pulsar.jms;
 
+import static com.datastax.oss.pulsar.jms.utils.ReflectionUtils.setField;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -42,7 +43,6 @@ import org.awaitility.Awaitility;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.mockito.internal.util.reflection.Whitebox;
 
 @Slf4j
 public class BasicServerSideFilterTest {
@@ -192,13 +192,13 @@ public class BasicServerSideFilterTest {
                   i -> {
                     done.set(true);
                     // restore the original PulsarAdmin
-                    Whitebox.setInternalState(factory, "pulsarAdmin", original);
+                    setField(factory, "pulsarAdmin", original);
                     // throw an error
                     throw new PulsarAdminException.PreconditionFailedException(
                         new Exception(), "", 404);
                   });
           when(mockPulsarAdmin.topics()).thenReturn(topics);
-          Whitebox.setInternalState(factory, "pulsarAdmin", mockPulsarAdmin);
+          setField(factory, "pulsarAdmin", mockPulsarAdmin);
 
           try (PulsarMessageConsumer consumer1 =
               session.createSharedDurableConsumer(destination, subscriptionName, null); ) {

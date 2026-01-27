@@ -15,6 +15,7 @@
  */
 package com.datastax.oss.pulsar.jms;
 
+import static com.datastax.oss.pulsar.jms.utils.ReflectionUtils.getField;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.datastax.oss.pulsar.jms.utils.PulsarContainerExtension;
@@ -27,7 +28,6 @@ import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
-import org.mockito.internal.util.reflection.Whitebox;
 
 @Slf4j
 public class QueryStringTest {
@@ -62,7 +62,7 @@ public class QueryStringTest {
               session.createConsumer(destinationWithCustomReceiverQueueSize, null, true); ) {
             int maxReceiverQueueSize =
                 (int)
-                    Whitebox.getInternalState(
+                    getField(
                         ((PulsarMessageConsumer) consumer1).getConsumer(), "maxReceiverQueueSize");
             assertEquals(10, maxReceiverQueueSize);
           }
@@ -71,7 +71,7 @@ public class QueryStringTest {
               session.createConsumer(destinationWithDefaultReceiverQueueSize, null, true); ) {
             int maxReceiverQueueSize =
                 (int)
-                    Whitebox.getInternalState(
+                    getField(
                         ((PulsarMessageConsumer) consumer2).getConsumer(), "maxReceiverQueueSize");
             assertEquals(18, maxReceiverQueueSize);
           }
@@ -81,7 +81,7 @@ public class QueryStringTest {
                   destinationWithCustomReceiverQueueSize, null, true); ) {
             int maxReceiverQueueSize =
                 (int)
-                    Whitebox.getInternalState(
+                    getField(
                         ((PulsarMessageConsumer) consumer3).getConsumer(), "maxReceiverQueueSize");
             assertEquals(10, maxReceiverQueueSize);
           }
@@ -91,7 +91,7 @@ public class QueryStringTest {
                   destinationWithDefaultReceiverQueueSize, null, true); ) {
             int maxReceiverQueueSize =
                 (int)
-                    Whitebox.getInternalState(
+                    getField(
                         ((PulsarMessageConsumer) consumer4).getConsumer(), "maxReceiverQueueSize");
             assertEquals(19, maxReceiverQueueSize);
           }
@@ -102,7 +102,7 @@ public class QueryStringTest {
               session.createConsumer(multiDestinationWithCustomReceiverQueueSize, null, true); ) {
             int maxReceiverQueueSize =
                 (int)
-                    Whitebox.getInternalState(
+                    getField(
                         ((PulsarMessageConsumer) consumer1).getConsumer(), "maxReceiverQueueSize");
             assertEquals(10, maxReceiverQueueSize);
           }
@@ -115,7 +115,7 @@ public class QueryStringTest {
                   multiDoubleDestinationWithCustomReceiverQueueSize, null, true); ) {
             int maxReceiverQueueSize =
                 (int)
-                    Whitebox.getInternalState(
+                    getField(
                         ((PulsarMessageConsumer) consumer1).getConsumer(), "maxReceiverQueueSize");
             assertEquals(10, maxReceiverQueueSize);
           }
@@ -126,7 +126,7 @@ public class QueryStringTest {
               session.createConsumer(regExDestinationWithCustomReceiverQueueSize, null, true); ) {
             int maxReceiverQueueSize =
                 (int)
-                    Whitebox.getInternalState(
+                    getField(
                         ((PulsarMessageConsumer) consumer1).getConsumer(), "maxReceiverQueueSize");
             assertEquals(10, maxReceiverQueueSize);
           }

@@ -15,6 +15,7 @@
  */
 package com.datastax.oss.pulsar.jms;
 
+import static com.datastax.oss.pulsar.jms.utils.ReflectionUtils.getField;
 import static org.awaitility.Awaitility.await;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -52,7 +53,6 @@ import org.apache.pulsar.common.util.FutureUtil;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
-import org.mockito.internal.util.reflection.Whitebox;
 
 @Slf4j
 public class ConnectionConsumerTest {
@@ -260,12 +260,11 @@ public class ConnectionConsumerTest {
       // stop waiting for messages
       connection.stop();
 
-      List<PulsarSession> sessions =
-          (List<PulsarSession>) Whitebox.getInternalState(connection, "sessions");
+      List<PulsarSession> sessions = (List<PulsarSession>) getField(connection, "sessions");
       int numSessionsWithConsumers = 0;
       for (PulsarSession s : sessions) {
         List<PulsarMessageConsumer> consumers =
-            (List<PulsarMessageConsumer>) Whitebox.getInternalState(s, "consumers");
+            (List<PulsarMessageConsumer>) getField(s, "consumers");
         if (!consumers.isEmpty()) {
           assertEquals(1, consumers.size());
           assertEquals(selector, consumers.get(0).getMessageSelector());
