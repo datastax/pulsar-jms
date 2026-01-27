@@ -6,13 +6,13 @@ on:
       - master
   pull_request:
 
-concurrency: 
+concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build:
-    name: Build
+  build-and-test:
+    name: Build and Unit Tests
     runs-on: ubuntu-latest
     
     steps:
@@ -32,55 +32,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-maven-
 
-      - name: Build with Maven
-        run: mvn -B clean install -DskipTests -Dspotbugs.skip=true -Dmaven.javadoc.skip=true
-
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-artifacts
-          path: |
-            **/target/*.jar
-            **/target/classes
-            **/target/test-classes
-          retention-days: 1
-
-  test:
-    name: Unit Tests
-    needs: build
-    runs-on: ubuntu-latest
-    
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4
-        with:
-          java-version: '21'
-          distribution: 'temurin'
-
-      - name: Cache local Maven repository
-        uses: actions/cache@v4
-        with:
-          path: ~/.m2/repository
-          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
-          restore-keys: |
-            ${{ runner.os }}-maven-
-
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: build-artifacts
-
-      - name: Run tests
-        run: mvn -B test -DrerunFailingTestsCount=3
-
-      - name: Generate Javadoc
-        run: mvn -B javadoc:javadoc
+      - name: Build and test
+        run: mvn -B clean javadoc:javadoc verify -DrerunFailingTestsCount=3
 
   tck-client-side:
     name: TCK Client Side Filters
-    needs: build
     runs-on: ubuntu-latest
     
     steps:
@@ -100,17 +56,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-maven-
 
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: build-artifacts
-
-      - name: Run TCK with client side filters
-        run: mvn -B verify -DskipTests -Dmaven.main.skip=true -Dmaven.test.skip=true -Prun-tck
+      - name: Build and run TCK with client side filters
+        run: mvn -B clean install -DskipTests -Dspotbugs.skip=true && mvn -B verify -DskipTests -Dmaven.main.skip=true -Dmaven.test.skip=true -Prun-tck
 
   tck-server-side:
     name: TCK Server Side Filters
-    needs: build
     runs-on: ubuntu-latest
     
     steps:
@@ -130,12 +80,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-maven-
 
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: build-artifacts
-
-      - name: Run TCK with server side filters
-        run: mvn -B verify -DskipTests -Dmaven.main.skip=true -Dmaven.test.skip=true -Prun-tck-server-side-filters
+      - name: Build and run TCK with server side filters
+        run: mvn -B clean install -DskipTests -Dspotbugs.skip=true && mvn -B verify -DskipTests -Dmaven.main.skip=true -Dmaven.test.skip=true -Prun-tck-server-side-filters
 
 # Made with Bob
