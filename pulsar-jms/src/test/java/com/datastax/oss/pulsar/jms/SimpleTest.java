@@ -76,23 +76,24 @@ public class SimpleTest {
       } else {
         String name = prop.toString();
         assertThrows(
-                IllegalArgumentException.class, () -> simpleMessage.setByteProperty(name, (byte) 1));
+            IllegalArgumentException.class, () -> simpleMessage.setByteProperty(name, (byte) 1));
         assertThrows(
-                IllegalArgumentException.class, () -> simpleMessage.setLongProperty(name, 123232323233L));
+            IllegalArgumentException.class,
+            () -> simpleMessage.setLongProperty(name, 123232323233L));
         assertThrows(
-                IllegalArgumentException.class, () -> simpleMessage.setIntProperty(name, 1232323));
+            IllegalArgumentException.class, () -> simpleMessage.setIntProperty(name, 1232323));
         assertThrows(
-                IllegalArgumentException.class, () -> simpleMessage.setStringProperty(name, "ttt"));
+            IllegalArgumentException.class, () -> simpleMessage.setStringProperty(name, "ttt"));
         assertThrows(
-                IllegalArgumentException.class, () -> simpleMessage.setBooleanProperty(name, true));
+            IllegalArgumentException.class, () -> simpleMessage.setBooleanProperty(name, true));
         assertThrows(
-                IllegalArgumentException.class, () -> simpleMessage.setFloatProperty(name, 1.3f));
+            IllegalArgumentException.class, () -> simpleMessage.setFloatProperty(name, 1.3f));
         assertThrows(
-                IllegalArgumentException.class, () -> simpleMessage.setDoubleProperty(name, 1.9d));
+            IllegalArgumentException.class, () -> simpleMessage.setDoubleProperty(name, 1.9d));
         assertThrows(
-                IllegalArgumentException.class, () -> simpleMessage.setShortProperty(name, (short) 89));
+            IllegalArgumentException.class, () -> simpleMessage.setShortProperty(name, (short) 89));
         assertThrows(
-                IllegalArgumentException.class, () -> simpleMessage.setObjectProperty(name, 1.3d));
+            IllegalArgumentException.class, () -> simpleMessage.setObjectProperty(name, 1.3d));
       }
     }
   }

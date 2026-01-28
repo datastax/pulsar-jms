@@ -99,7 +99,7 @@ public class VirtualDestinationsConsumerTest {
           for (int i = 0; i < numMessagesPerDestination; i++) {
             for (Topic destination : destinationsToWrite) {
               String payload = "foo - " + count * i;
-              log.info("write {} to {}", payload, destination);
+              log.debug("write {} to {}", payload, destination);
               producer.send(destination, session.createTextMessage(payload));
               count++;
             }
@@ -125,7 +125,7 @@ public class VirtualDestinationsConsumerTest {
           try (MessageConsumer consumer = session.createConsumer(destination); ) {
             for (int i = 0; i < count; i++) {
               String payload = consumer.receive().getBody(String.class);
-              log.info("Received {}, remaining {}", payload, payloads.size());
+              log.debug("Received {}, remaining {}", payload, payloads.size());
               assertFalse(payloads.remove(payload));
             }
           }
@@ -228,7 +228,7 @@ public class VirtualDestinationsConsumerTest {
                 }
                 for (Queue queue : destinationsToWrite) {
                   producer.send(queue, textMessage);
-                  log.info("Sent {} to {}", textMessage.getText(), queue);
+                  log.debug("Sent {} to {}", textMessage.getText(), queue);
                 }
               }
             }
@@ -248,7 +248,7 @@ public class VirtualDestinationsConsumerTest {
             for (int i = 0; i < 10 * destinationsToWrite.size(); i++) {
               if (i % 2 == 0) {
                 TextMessage textMessage = (TextMessage) consumer1.receive();
-                log.info(
+                log.debug(
                     "Received {} from {}", textMessage.getText(), textMessage.getJMSDestination());
                 received.add(textMessage.getText());
               }
@@ -262,7 +262,7 @@ public class VirtualDestinationsConsumerTest {
               for (int j = 0; j < destinationsToWrite.size(); j++) {
                 if (i % 2 == 0) {
                   String expected = "foo-" + i;
-                  log.info("Removing {} from {}", expected, received);
+                  log.debug("Removing {} from {}", expected, received);
                   assertTrue(received.remove("foo-" + i));
                 }
               }
@@ -434,7 +434,7 @@ public class VirtualDestinationsConsumerTest {
           for (int i = 0; i < numMessagesPerDestination; i++) {
             for (Topic destination : destinationsToWrite) {
               String payload = "foo - " + count * i;
-              log.info("write {} to {}", payload, destination);
+              log.debug("write {} to {}", payload, destination);
               producer.send(destination, session.createTextMessage(payload));
               count++;
             }
@@ -450,7 +450,7 @@ public class VirtualDestinationsConsumerTest {
           try (MessageConsumer consumer = session.createConsumer(destination); ) {
             for (int i = 0; i < count; i++) {
               String payload = consumer.receive().getBody(String.class);
-              log.info("Received {}, remaining {}", payload, payloads.size());
+              log.debug("Received {}, remaining {}", payload, payloads.size());
               assertFalse(payloads.remove(payload));
             }
 
@@ -481,7 +481,7 @@ public class VirtualDestinationsConsumerTest {
             TextMessage nextMessage = session.createTextMessage("new");
             nextMessage.setBooleanProperty("keepme", true);
             producer.send(newDestination, nextMessage);
-            log.info("id: {}", nextMessage.getJMSMessageID());
+            log.debug("id: {}", nextMessage.getJMSMessageID());
 
             TextMessage received = (TextMessage) consumer.receive();
             assertEquals("new", received.getText());

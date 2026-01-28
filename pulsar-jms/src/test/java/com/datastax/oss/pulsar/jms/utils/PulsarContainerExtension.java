@@ -37,7 +37,7 @@ import org.testcontainers.utility.MountableFile;
 
 @Slf4j
 public class PulsarContainerExtension implements BeforeAllCallback, AfterAllCallback {
-  public static final String PULSAR_IMAGE = "datastax/lunastreaming:3.1_3.1";
+  public static final String PULSAR_IMAGE = "datastax/lunastreaming:4.0.7_2";
   private PulsarContainer pulsarContainer;
   private Consumer<PulsarContainerExtension> onContainerReady;
   private Map<String, String> env = new HashMap<>();
@@ -75,7 +75,7 @@ public class PulsarContainerExtension implements BeforeAllCallback, AfterAllCall
   public void beforeAll(ExtensionContext extensionContext) {
     network = Network.newNetwork();
     CountDownLatch pulsarReady = new CountDownLatch(1);
-    log.info("ENV: {}", env);
+    log.debug("ENV: {}", env);
     pulsarContainer =
         new PulsarContainer(
                 DockerImageName.parse(PULSAR_IMAGE)
@@ -89,7 +89,7 @@ public class PulsarContainerExtension implements BeforeAllCallback, AfterAllCall
                     pulsarReady.countDown();
                   }
                   if (logContainerOutput) {
-                    log.info(text);
+                    log.debug(text);
                   } else {
                     log.debug(text);
                   }
@@ -109,12 +109,12 @@ public class PulsarContainerExtension implements BeforeAllCallback, AfterAllCall
         .until(
             () -> {
               List<String> tenants = admin.tenants().getTenants();
-              log.info("Tenants: {}", tenants);
+              log.debug("Tenants: {}", tenants);
               if (!tenants.contains("public")) {
                 return false;
               }
               List<String> namespaces = admin.namespaces().getNamespaces("public");
-              log.info("Namespaces: {}", namespaces);
+              log.debug("Namespaces: {}", namespaces);
               return namespaces.contains("public/default");
             });
     if (onContainerReady != null) {

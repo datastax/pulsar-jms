@@ -1,0 +1,365 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build All Modules
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Cache local Maven repository
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+
+      - name: Build all modules
+        run: mvn -B clean install -DskipTests -Dspotbugs.skip=true -Dmaven.javadoc.skip=true
+        env:
+          MAVEN_OPTS: "-Xmx4g"
+
+      - name: Cache build output
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            **/target
+            ~/.m2/repository
+          key: build-${{ github.sha }}-${{ github.run_id }}
+
+  test-activemq-filters:
+    name: Test activemq-filters
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+      - name: Restore build cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            **/target
+            ~/.m2/repository
+          key: build-${{ github.sha }}-${{ github.run_id }}
+      - name: Run tests
+        run: mvn -B test -pl activemq-filters -DrerunFailingTestsCount=3
+
+  test-pulsar-jms-filters:
+    name: Test pulsar-jms-filters
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+      - name: Restore build cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            **/target
+            ~/.m2/repository
+          key: build-${{ github.sha }}-${{ github.run_id }}
+      - name: Run tests
+        run: mvn -B test -pl pulsar-jms-filters -DrerunFailingTestsCount=3
+
+  test-pulsar-jms:
+    name: Test pulsar-jms (group ${{ matrix.group }})
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+      - name: Restore build cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            **/target
+            ~/.m2/repository
+          key: build-${{ github.sha }}-${{ github.run_id }}
+      - name: Run tests (group ${{ matrix.group }})
+
+        run: |
+          case ${{ matrix.group }} in
+          1)
+            PATTERN="A*,B*,C*,D*,E*,F*,G*"
+            ;;
+          2)
+            PATTERN="H*,I*,J*,K*,L*"
+            ;;
+          3)
+            # todo: Optimize PriorityTests 
+            PATTERN="M*,N*,O*,P*,Q*,R*"
+            ;;
+          4)
+            PATTERN="S*,T*,U*,V*,W*,X*,Y*,Z*"
+            ;;
+          esac
+          mvn -B test -pl pulsar-jms -Dtest="$PATTERN" -DfailIfNoTests=false -DrerunFailingTestsCount=3
+        env:
+          MAVEN_OPTS: "-Xmx3g"
+
+  test-resource-adapter:
+    name: Test resource-adapter
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+      - name: Restore build cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            **/target
+            ~/.m2/repository
+          key: build-${{ github.sha }}-${{ github.run_id }}
+      - name: Run tests
+        run: mvn -B test -pl resource-adapter -DrerunFailingTestsCount=3
+
+  test-resource-adapter-tests:
+    name: Test resource-adapter-tests
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+      - name: Restore build cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            **/target
+            ~/.m2/repository
+          key: build-${{ github.sha }}-${{ github.run_id }}
+      - name: Run tests
+        run: mvn -B test -pl resource-adapter-tests -DrerunFailingTestsCount=3
+
+  test-pulsar-jms-integration:
+    name: Test pulsar-jms-integration-tests
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+      - name: Restore build cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            **/target
+            ~/.m2/repository
+          key: build-${{ github.sha }}-${{ github.run_id }}
+      - name: Run tests
+        run: mvn -B verify -pl pulsar-jms-integration-tests -DrerunFailingTestsCount=3
+        env:
+          MAVEN_OPTS: "-Xmx3g"
+
+  javadoc:
+    name: Javadoc
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+      - name: Restore build cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            **/target
+            ~/.m2/repository
+          key: build-${{ github.sha }}-${{ github.run_id }}
+      - name: Generate Javadoc
+        run: mvn -B javadoc:javadoc -DskipTests
+
+  spotbugs:
+    name: SpotBugs
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+      - name: Restore build cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            **/target
+            ~/.m2/repository
+          key: build-${{ github.sha }}-${{ github.run_id }}
+      - name: Run SpotBugs
+        run: mvn -B spotbugs:check -DskipTests
+
+  tck-client-side:
+    name: TCK Client Side (${{ matrix.name }})
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Other tests (signaturetest, etc.) - excludes jms directory
+          - name: "others"
+            test-group: "others"
+            pattern: ""
+          # JMS Core tests - rebalanced (5 groups to catch all)
+          - name: "core-a"
+            test-group: "core"
+            pattern: "^./[aA]"
+          - name: "core-b-c"
+            test-group: "core"
+            pattern: "^./[b-cB-C]"
+          - name: "core-d-q"
+            test-group: "core"
+            pattern: "^./[d-qD-Q]"
+          - name: "core-r-z"
+            test-group: "core"
+            pattern: "^./[r-zR-Z]"
+          - name: "core-other"
+            test-group: "core"
+            pattern: "^./[^a-zA-Z]"
+          # JMS 2.0 tests - merged (4 groups to catch all)
+          - name: "core20-a-d"
+            test-group: "core20"
+            pattern: "^./[a-dA-D]"
+          - name: "core20-e-m"
+            test-group: "core20"
+            pattern: "^./[e-mE-M]"
+          - name: "core20-n-z"
+            test-group: "core20"
+            pattern: "^./[n-zN-Z]"
+          - name: "core20-other"
+            test-group: "core20"
+            pattern: "^./[^a-zA-Z]"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+      - name: Restore build cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            **/target
+            ~/.m2/repository
+          key: build-${{ github.sha }}-${{ github.run_id }}
+      - name: Run TCK (${{ matrix.name }})
+        run: |
+          cd tck-executor
+          ./run_tck_group.sh ts.jte ${{ matrix.test-group }} "${{ matrix.pattern }}"
+        env:
+          MAVEN_OPTS: "-Xmx4g"
+
+  tck-server-side:
+    name: TCK Server Side (${{ matrix.name }})
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Other tests (signaturetest, etc.) - excludes jms directory
+          - name: "others"
+            test-group: "others"
+            pattern: ""
+          # JMS Core tests - rebalanced (5 groups to catch all)
+          - name: "core-a"
+            test-group: "core"
+            pattern: "^./[aA]"
+          - name: "core-b-c"
+            test-group: "core"
+            pattern: "^./[b-cB-C]"
+          - name: "core-d-q"
+            test-group: "core"
+            pattern: "^./[d-qD-Q]"
+          - name: "core-r-z"
+            test-group: "core"
+            pattern: "^./[r-zR-Z]"
+          - name: "core-other"
+            test-group: "core"
+            pattern: "^./[^a-zA-Z]"
+          # JMS 2.0 tests - merged (4 groups to catch all)
+          - name: "core20-a-d"
+            test-group: "core20"
+            pattern: "^./[a-dA-D]"
+          - name: "core20-e-m"
+            test-group: "core20"
+            pattern: "^./[e-mE-M]"
+          - name: "core20-n-z"
+            test-group: "core20"
+            pattern: "^./[n-zN-Z]"
+          - name: "core20-other"
+            test-group: "core20"
+            pattern: "^./[^a-zA-Z]"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+      - name: Restore build cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            **/target
+            ~/.m2/repository
+          key: build-${{ github.sha }}-${{ github.run_id }}
+      - name: Run TCK (${{ matrix.name }})
+        run: |
+          cd tck-executor
+          ./run_tck_group.sh ts.serverSideFilters.jte ${{ matrix.test-group }} "${{ matrix.pattern }}"
+        env:
+          MAVEN_OPTS: "-Xmx4g"
+
+# Made with Bob

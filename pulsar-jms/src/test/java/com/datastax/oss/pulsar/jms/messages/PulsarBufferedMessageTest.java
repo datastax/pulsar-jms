@@ -219,108 +219,108 @@ public class PulsarBufferedMessageTest {
     int nCount;
     do {
       nCount = messageReceived.readBytes(bValuesReturned2);
-      log.info("nCount is " + nCount);
+      log.debug("nCount is " + nCount);
       if (nCount != -1) {
         for (int i = 0; i < bValuesReturned2.length; i++) {
           if (bValuesReturned2[i] != bValues2[i]) {
-            log.info("Fail: byte[] " + i + " is not valid");
+            log.debug("Fail: byte[] " + i + " is not valid");
             pass = false;
           } else {
-            log.info("PASS: byte[]" + i + " is valid");
+            log.debug("PASS: byte[]" + i + " is valid");
           }
         }
       }
     } while (nCount >= bValuesReturned2.length);
 
     if (messageReceived.readBoolean() == abool) {
-      log.info("Pass: boolean returned ok");
+      log.debug("Pass: boolean returned ok");
     } else {
-      log.info("Fail: boolean not returned as expected");
+      log.debug("Fail: boolean not returned as expected");
       pass = false;
     }
 
     if (messageReceived.readByte() == bValue) {
-      log.info("Pass: Byte returned ok");
+      log.debug("Pass: Byte returned ok");
     } else {
-      log.info("Fail: Byte not returned as expected");
+      log.debug("Fail: Byte not returned as expected");
       pass = false;
     }
 
     do {
       nCount = messageReceived.readBytes(bValuesReturned);
-      log.info("nCount is " + nCount);
+      log.debug("nCount is " + nCount);
       if (nCount != -1) {
         for (int i = 0; i < bValuesReturned2.length; i++) {
           if (bValuesReturned2[i] != bValues2[i]) {
-            log.info("Fail: byte[] " + i + " is not valid");
+            log.debug("Fail: byte[] " + i + " is not valid");
             pass = false;
           } else {
-            log.info("PASS: byte[]" + i + " is valid");
+            log.debug("PASS: byte[]" + i + " is valid");
           }
         }
       }
     } while (nCount >= bValuesReturned2.length);
 
     if (messageReceived.readChar() == charValue) {
-      log.info("Pass: correct char");
+      log.debug("Pass: correct char");
     } else {
-      log.info("Fail: char not returned as expected");
+      log.debug("Fail: char not returned as expected");
       pass = false;
     }
 
     if (messageReceived.readDouble() == dValue) {
-      log.info("Pass: correct double");
+      log.debug("Pass: correct double");
     } else {
-      log.info("Fail: double not returned as expected");
+      log.debug("Fail: double not returned as expected");
       pass = false;
     }
 
     if (messageReceived.readFloat() == fValue) {
-      log.info("Pass: correct float");
+      log.debug("Pass: correct float");
     } else {
-      log.info("Fail: float not returned as expected");
+      log.debug("Fail: float not returned as expected");
       pass = false;
     }
 
     if (messageReceived.readInt() == iValue) {
-      log.info("Pass: correct int");
+      log.debug("Pass: correct int");
     } else {
-      log.info("Fail: int not returned as expected");
+      log.debug("Fail: int not returned as expected");
       pass = false;
     }
 
     if (messageReceived.readLong() == lValue) {
-      log.info("Pass: correct long");
+      log.debug("Pass: correct long");
     } else {
-      log.info("Fail: long not returned as expected");
+      log.debug("Fail: long not returned as expected");
       pass = false;
     }
 
     if (messageReceived.readObject().equals(sTesting)) {
-      log.info("Pass: correct object");
+      log.debug("Pass: correct object");
     } else {
-      log.info("Fail: object not returned as expected");
+      log.debug("Fail: object not returned as expected");
       pass = false;
     }
 
     if (messageReceived.readShort() == sValue) {
-      log.info("Pass: correct short");
+      log.debug("Pass: correct short");
     } else {
-      log.info("Fail: short not returned as expected");
+      log.debug("Fail: short not returned as expected");
       pass = false;
     }
 
     if (messageReceived.readString().equals(myString)) {
-      log.info("Pass: correct string");
+      log.debug("Pass: correct string");
     } else {
-      log.info("Fail: string not returned as expected");
+      log.debug("Fail: string not returned as expected");
       pass = false;
     }
 
     if (messageReceived.readObject() == null) {
-      log.info("Pass: correct object");
+      log.debug("Pass: correct object");
     } else {
-      log.info("Fail: object not returned as expected");
+      log.debug("Fail: object not returned as expected");
       pass = false;
     }
 

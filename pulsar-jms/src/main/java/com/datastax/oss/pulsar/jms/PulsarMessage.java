@@ -1344,6 +1344,37 @@ public abstract class PulsarMessage implements Message {
       GenericObject genericObject = (GenericObject) value;
       Object nativeObject = genericObject.getNativeObject();
       Object unwrapped = unwrapNativeObject(nativeObject);
+
+      // Check the JMSPulsarMessageType property to determine the correct message type
+      // This is important because an ObjectMessage can contain a Map, but should still
+      // be received as an ObjectMessage, not a MapMessage
+      String type = msg.getProperty(SystemMessageProperty.JMSPulsarMessageType.toString());
+
+      if (type != null) {
+        // If the message type was explicitly set, use it
+        switch (type) {
+          case "text":
+            if (unwrapped instanceof String) {
+              return new PulsarTextMessage((String) unwrapped)
+                  .applyMessage(msg, consumer, pulsarConsumer);
+            }
+            break;
+          case "map":
+            if (unwrapped instanceof Map) {
+              return new PulsarMapMessage((Map) unwrapped, false)
+                  .applyMessage(msg, consumer, pulsarConsumer);
+            }
+            break;
+          case "object":
+            return new PulsarObjectMessage((Serializable) unwrapped)
+                .applyMessage(msg, consumer, pulsarConsumer);
+          default:
+            // Fall through to type-based detection
+            break;
+        }
+      }
+
+      // Fall back to type-based detection for messages without explicit type
       if (unwrapped instanceof String) {
         return new PulsarTextMessage((String) unwrapped)
             .applyMessage(msg, consumer, pulsarConsumer);

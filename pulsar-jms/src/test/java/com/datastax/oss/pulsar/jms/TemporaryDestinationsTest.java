@@ -116,7 +116,7 @@ public class TemporaryDestinationsTest {
     }
 
     List<String> topics = pulsarContainer.getAdmin().topics().getList("public/default");
-    log.info("Topics {}", topics);
+    log.debug("Topics {}", topics);
 
     // verify topic does not exist anymore, as it is deleted on Connection close()
     assertFalse(topics.contains(temporaryDestinationName));

@@ -18,11 +18,18 @@ cp $CONFIGURATION_FILE $TS_HOME/bin/ts.jte
 echo "jms.home=$HERE" >> $TS_HOME/bin/ts.jte
 echo "jms.classes=\${jms.home}/target/tck-executor-$VERSION.jar" >> $TS_HOME/bin/ts.jte
 
-# start Pulsar with docker
+# start Pulsar with docker/podman
 $HERE/start_pulsar.sh
 
-docker logs pulsar-jms-runner
-docker inspect pulsar-jms-runner
+# Use podman if available, otherwise fall back to docker
+if command -v podman &> /dev/null; then
+    CONTAINER_CMD=podman
+else
+    CONTAINER_CMD=docker
+fi
+
+$CONTAINER_CMD logs pulsar-jms-runner
+$CONTAINER_CMD inspect pulsar-jms-runner
 netstat -nlp
 
 set -e

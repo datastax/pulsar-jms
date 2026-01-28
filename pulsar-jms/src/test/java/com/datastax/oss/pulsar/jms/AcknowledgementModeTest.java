@@ -112,7 +112,7 @@ public class AcknowledgementModeTest {
           try (MessageConsumer consumer = session.createConsumer(destination); ) {
             for (int i = 0; i < 1000; i++) {
               assertEquals("foo", consumer.receive().getStringProperty("test"));
-              log.info("ack {}", i);
+              log.debug("ack {}", i);
               // message is automatically acknowledged on receive
             }
           }

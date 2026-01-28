@@ -53,8 +53,8 @@ import org.apache.bookkeeper.mledger.AsyncCallbacks;
 import org.apache.bookkeeper.mledger.Entry;
 import org.apache.bookkeeper.mledger.ManagedLedgerException;
 import org.apache.bookkeeper.mledger.Position;
+import org.apache.bookkeeper.mledger.PositionFactory;
 import org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl;
-import org.apache.bookkeeper.mledger.impl.PositionImpl;
 import org.apache.bookkeeper.util.SafeRunnable;
 import org.apache.pulsar.broker.PulsarService;
 import org.apache.pulsar.broker.intercept.BrokerInterceptor;
@@ -464,7 +464,8 @@ public class JMSPublishFilters implements BrokerInterceptor {
           pendingAcks.inc();
           ackQueue.put(
               new AckFuture(
-                  (PersistentSubscription) subscription, new PositionImpl(ledgerId, entryId)));
+                  (PersistentSubscription) subscription,
+                  PositionFactory.create(ledgerId, entryId)));
         }
       }
     } catch (Throwable error) {
@@ -479,7 +480,7 @@ public class JMSPublishFilters implements BrokerInterceptor {
   @AllArgsConstructor
   private static final class AckFuture {
     private final PersistentSubscription subscription;
-    private final PositionImpl position;
+    private final Position position;
   }
 
   private void drainAckQueue() {
@@ -547,7 +548,7 @@ public class JMSPublishFilters implements BrokerInterceptor {
     readFromLedger.inc();
     CompletableFuture<ByteBuf> entryFuture = new CompletableFuture<>();
 
-    PositionImpl position = new PositionImpl(ledgerId, entryId);
+    Position position = PositionFactory.create(ledgerId, entryId);
     ManagedLedgerImpl managedLedger = (ManagedLedgerImpl) topic.getManagedLedger();
     // asyncReadEntry reads from the Broker cache, and falls bach to the Bookie
     // is also leverage bookie read deduplication

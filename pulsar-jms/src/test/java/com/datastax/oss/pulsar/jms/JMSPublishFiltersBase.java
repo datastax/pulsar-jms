@@ -235,13 +235,13 @@ public abstract class JMSPublishFiltersBase {
                               (partition, stats) -> {
                                 SubscriptionStats subscriptionStats =
                                     stats.getSubscriptions().get("jms-queue");
-                                log.info(
+                                log.debug(
                                     "backlog for partition {}: {}",
                                     partition,
                                     subscriptionStats.getMsgBacklog());
                                 sum.addAndGet(subscriptionStats.getMsgBacklog());
                               });
-                      log.info("total backlog: {}", sum.get());
+                      log.debug("total backlog: {}", sum.get());
                       assertEquals(numMessages / 2, sum.get());
                     });
           }

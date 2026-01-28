@@ -83,13 +83,13 @@ public class TopicTest {
             // all of the two consumers receive all of the messages, in order
             for (int i = 0; i < 10; i++) {
               TextMessage msg = (TextMessage) consumer1.receive();
-              log.info("consumer {} received {}", consumer1, msg.getText());
+              log.debug("consumer {} received {}", consumer1, msg.getText());
               assertEquals("foo-" + i, msg.getText());
             }
 
             for (int i = 0; i < 10; i++) {
               TextMessage msg = (TextMessage) consumer2.receive();
-              log.info("consumer {} received {}", consumer2, msg.getText());
+              log.debug("consumer {} received {}", consumer2, msg.getText());
               assertEquals("foo-" + i, msg.getText());
             }
 
@@ -145,14 +145,14 @@ public class TopicTest {
             // consumer1 receives all messages, in order
             for (int i = 0; i < 10; i++) {
               TextMessage msg = (TextMessage) consumer1.receive();
-              log.info("consumer {} received {}", consumer1, msg.getText());
+              log.debug("consumer {} received {}", consumer1, msg.getText());
               assertEquals("foo-" + i, msg.getText());
             }
 
             // let consumer2a receive the first half of the message
             for (int i = 0; i < 5; i++) {
               TextMessage msg = (TextMessage) consumer2a.receive();
-              log.info("consumer {} received {}", consumer2a, msg.getText());
+              log.debug("consumer {} received {}", consumer2a, msg.getText());
               assertEquals("foo-" + i, msg.getText());
             }
 
@@ -164,7 +164,7 @@ public class TopicTest {
                 session.createDurableSubscriber(destination, "subscription2")) {
               for (int i = 5; i < 10; i++) {
                 TextMessage msg = (TextMessage) consumer2b.receive();
-                log.info("consumer {} received {}", consumer2b, msg.getText());
+                log.debug("consumer {} received {}", consumer2b, msg.getText());
                 assertEquals("foo-" + i, msg.getText());
               }
               assertNull(consumer2b.receiveNoWait());
@@ -247,14 +247,14 @@ public class TopicTest {
             // consumer1 receives all messages, in order
             for (int i = 0; i < 10; i++) {
               TextMessage msg = (TextMessage) consumer1.receive();
-              log.info("consumer {} received {}", consumer1, msg.getText());
+              log.debug("consumer {} received {}", consumer1, msg.getText());
               assertEquals("foo-" + i, msg.getText());
             }
 
             // consumer3, receive a few messages, then close the consumer
             for (int i = 0; i < 5; i++) {
               TextMessage msg = (TextMessage) consumer3.receive();
-              log.info("consumer {} received {}", consumer3, msg.getText());
+              log.debug("consumer {} received {}", consumer3, msg.getText());
               assertEquals("foo-" + i, msg.getText());
             }
             consumer3.close();
@@ -264,7 +264,7 @@ public class TopicTest {
                 session.createSharedDurableConsumer(destination, "subscription3"); ) {
               for (int i = 5; i < 10; i++) {
                 TextMessage msg = (TextMessage) consumer3b.receive();
-                log.info("consumer {} received {}", consumer3b, msg.getText());
+                log.debug("consumer {} received {}", consumer3b, msg.getText());
                 assertEquals("foo-" + i, msg.getText());
               }
             }
@@ -274,12 +274,12 @@ public class TopicTest {
             while (received.size() < 10) {
               TextMessage msg = (TextMessage) consumer2a.receive(100);
               if (msg != null) {
-                log.info("consumer {} received {}", consumer2a, msg.getText());
+                log.debug("consumer {} received {}", consumer2a, msg.getText());
                 received.add(msg);
               }
               msg = (TextMessage) consumer2b.receive(100);
               if (msg != null) {
-                log.info("consumer {} received {}", consumer2b, msg.getText());
+                log.debug("consumer {} received {}", consumer2b, msg.getText());
                 received.add(msg);
               }
             }
@@ -336,14 +336,14 @@ public class TopicTest {
             // consumer1 receives all messages, in order
             for (int i = 0; i < 10; i++) {
               TextMessage msg = (TextMessage) consumer1.receive();
-              log.info("consumer {} received {}", consumer1, msg.getText());
+              log.debug("consumer {} received {}", consumer1, msg.getText());
               assertEquals("foo-" + i, msg.getText());
             }
 
             // consumer3, receive a few messages, then close the consumer
             for (int i = 0; i < 5; i++) {
               TextMessage msg = (TextMessage) consumer3.receive();
-              log.info("consumer {} received {}", consumer1, msg.getText());
+              log.debug("consumer {} received {}", consumer1, msg.getText());
               assertEquals("foo-" + i, msg.getText());
             }
             consumer3.close();
@@ -359,12 +359,12 @@ public class TopicTest {
             while (received.size() < 10) {
               TextMessage msg = (TextMessage) consumer2a.receive(100);
               if (msg != null) {
-                log.info("consumer {} received {}", consumer2a, msg.getText());
+                log.debug("consumer {} received {}", consumer2a, msg.getText());
                 received.add(msg);
               }
               msg = (TextMessage) consumer2b.receive(100);
               if (msg != null) {
-                log.info("consumer {} received {}", consumer2b, msg.getText());
+                log.debug("consumer {} received {}", consumer2b, msg.getText());
                 received.add(msg);
               }
             }
@@ -406,7 +406,7 @@ public class TopicTest {
             // consumer1 receives all messages, in order
             for (int i = 0; i < 10; i++) {
               TextMessage msg = (TextMessage) consumer1.receive();
-              log.info("consumer {} received {}", consumer1, msg.getText());
+              log.debug("consumer {} received {}", consumer1, msg.getText());
               assertEquals("foo-" + i, msg.getText());
             }
           }
@@ -475,7 +475,7 @@ public class TopicTest {
 
             int totalReceived = 0;
             while (totalReceived < 100) {
-              log.info("total {}", totalReceived);
+              log.debug("total {}", totalReceived);
               PulsarTextMessage msg = (PulsarTextMessage) consumer1.receive(100);
               if (msg != null) {
                 handleReceivedMessage(msg, consumer1, receivedByKey, consumerByKey);
@@ -501,7 +501,7 @@ public class TopicTest {
                     try {
                       int ordinal = msg.getIntProperty("ordinal");
                       assertEquals(msg.getReceivedPulsarMessage().getKey(), k);
-                      log.info("key {} ordinal {}", k, ordinal);
+                      log.debug("key {} ordinal {}", k, ordinal);
                       assertTrue(ordinal > last);
                       last = ordinal;
                     } catch (JMSException e) {
@@ -520,7 +520,7 @@ public class TopicTest {
       MessageConsumer consumer,
       Map<String, List<PulsarTextMessage>> receivedByKey,
       Map<String, MessageConsumer> consumerByKey) {
-    log.info(
+    log.debug(
         "consumer {} received {} {} {}",
         consumer,
         msg,

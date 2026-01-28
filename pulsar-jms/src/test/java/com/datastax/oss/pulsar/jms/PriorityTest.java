@@ -39,11 +39,8 @@ import java.util.stream.Stream;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.impl.ConsumerBase;
-import org.apache.pulsar.common.policies.data.PartitionedTopicStats;
-import org.apache.pulsar.common.policies.data.PersistentTopicInternalStats;
 import org.apache.pulsar.common.policies.data.TenantInfo;
 import org.apache.pulsar.common.util.FutureUtil;
-import org.apache.pulsar.common.util.ObjectMapperFactory;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -131,7 +128,7 @@ public class PriorityTest {
               } else {
                 producer.setPriority(HIGH_PRIORITY);
               }
-              log.info("send {} prio {}", textMessage.getText(), producer.getPriority());
+              log.debug("send {} prio {}", textMessage.getText(), producer.getPriority());
               producer.send(textMessage);
             }
           }
@@ -141,7 +138,7 @@ public class PriorityTest {
             List<TextMessage> received = new ArrayList<>();
             for (int i = 0; i < numMessages; i++) {
               TextMessage msg = (TextMessage) consumer1.receive();
-              log.info(
+              log.debug(
                   "got msg {} prio {} from {} actually {}",
                   msg.getText(),
                   msg.getJMSPriority(),
@@ -196,8 +193,8 @@ public class PriorityTest {
     properties.put("jms.priorityMapping", mapping);
     properties.put(
         "producerConfig", ImmutableMap.of("blockIfQueueFull", true, "batchingEnabled", false));
-    properties.put("consumerConfig", ImmutableMap.of("receiverQueueSize", 10));
-    log.info("running basicPriorityBigBacklogTest with {}", properties);
+    properties.put("consumerConfig", ImmutableMap.of("receiverQueueSize", 10_000));
+    log.debug("running basicPriorityBigBacklogTest with {}", properties);
 
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {
@@ -243,6 +240,10 @@ public class PriorityTest {
                 FutureUtil.waitForAll(handles).get();
                 handles.clear();
               }
+              // if (i % 1000 == 0) {
+              //  log.info("sent {}", i);
+              // }
+
             }
             FutureUtil.waitForAll(handles).get();
           }
@@ -262,7 +263,12 @@ public class PriorityTest {
               if (msg.getJMSPriority() == HIGH_PRIORITY) {
                 countHighPriority++;
               }
+              // if (i % 1000 == 0) {
+              //  log.info("received {}", i);
+              // }
               if (!receivedTexts.add(msg.getText())) {
+                /*
+                #### code for debugging ####
                 String topicName = factory.getPulsarTopicName(destination);
                 PartitionedTopicStats partitionedStats =
                     pulsarContainer.getAdmin().topics().getPartitionedStats(topicName, true);
@@ -280,6 +286,7 @@ public class PriorityTest {
                       "stats {}",
                       ObjectMapperFactory.getThreadLocal().writeValueAsString(internalStats));
                 }
+                 */
                 fail(
                     "received message "
                         + msg.getText()
@@ -327,13 +334,13 @@ public class PriorityTest {
     for (int priority : received) {
 
       if (priority == LOW_PRIORITY && foundHighPriority) {
-        log.info(
+        log.debug(
             "received priority {} (low) after {} messages and one high priority", priority, count);
         foundLowPriorityAfterHighPriority = true;
         break;
       }
       if (priority == HIGH_PRIORITY) {
-        log.info("received priority {} (high) after {} messages", priority, count);
+        log.debug("received priority {} (high) after {} messages", priority, count);
         foundHighPriority = true;
       }
       count++;
@@ -376,10 +383,10 @@ public class PriorityTest {
                 producer2.setPriority(HIGH_PRIORITY);
               }
               if (i % 2 == 0) {
-                log.info("send1 {} prio {}", textMessage.getText(), producer1.getPriority());
+                log.debug("send1 {} prio {}", textMessage.getText(), producer1.getPriority());
                 producer1.send(textMessage);
               } else {
-                log.info("send2 {} prio {}", textMessage.getText(), producer2.getPriority());
+                log.debug("send2 {} prio {}", textMessage.getText(), producer2.getPriority());
                 producer2.send(textMessage);
               }
             }
@@ -419,7 +426,7 @@ public class PriorityTest {
       List<TextMessage> received = new ArrayList<>();
       for (int i = 0; i < numMessages; i++) {
         TextMessage msg = (TextMessage) consumer1.receive();
-        log.info(
+        log.debug(
             "got msg {} prio {} from {} actually {}",
             msg.getText(),
             msg.getJMSPriority(),
@@ -460,7 +467,7 @@ public class PriorityTest {
             producer.setPriority(HIGH_PRIORITY);
           }
           String text = "foo-" + i;
-          log.info("send {} prio {}", text, producer.getPriority());
+          log.debug("send {} prio {}", text, producer.getPriority());
           producer.send(destination, text);
         }
 
@@ -473,7 +480,7 @@ public class PriorityTest {
           List<TextMessage> received = new ArrayList<>();
           for (int i = 0; i < numMessages; i++) {
             TextMessage msg = (TextMessage) consumer1.receive();
-            log.info("got msg {} prio {}", msg.getText(), msg.getJMSPriority());
+            log.debug("got msg {} prio {}", msg.getText(), msg.getJMSPriority());
             received.add(msg);
           }
 
@@ -496,7 +503,7 @@ public class PriorityTest {
     properties.put(
         "producerConfig", ImmutableMap.of("blockIfQueueFull", true, "batchingEnabled", false));
     properties.put("consumerConfig", ImmutableMap.of("receiverQueueSize", numMessages));
-    log.info("running testConsumerPriorityQueue with {}", properties);
+    log.debug("running testConsumerPriorityQueue with {}", properties);
 
     try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties); ) {
       try (Connection connection = factory.createConnection()) {

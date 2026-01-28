@@ -74,7 +74,7 @@ public class PulsarContainer implements AutoCloseable {
                   if (text.contains("messaging service is ready")) {
                     pulsarReady.countDown();
                   }
-                  System.out.println(text);
+                  log.debug(text);
                 });
 
     String filename = "/standalone.conf";

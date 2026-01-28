@@ -74,13 +74,13 @@ public class QueueTest {
             while (receivedFrom1.size() + receivedFrom2.size() < 10) {
               TextMessage msg = (TextMessage) consumer1.receive(100);
               if (msg != null) {
-                log.info("received {} from 1", msg.getText());
+                log.debug("received {} from 1", msg.getText());
                 receivedFrom1.add(msg);
               }
 
               msg = (TextMessage) consumer2.receive(100);
               if (msg != null) {
-                log.info("received {} from 2", msg.getText());
+                log.debug("received {} from 2", msg.getText());
                 receivedFrom2.add(msg);
               }
             }
@@ -158,7 +158,7 @@ public class QueueTest {
             int i = 0;
             while (en.hasMoreElements()) {
               TextMessage msg = (TextMessage) en.nextElement();
-              log.info("browsed {}", msg.getText());
+              log.debug("browsed {}", msg.getText());
               assertEquals("foo-" + i, msg.getText());
               i++;
             }
@@ -177,7 +177,7 @@ public class QueueTest {
             int count = 0;
             while (en.hasMoreElements()) {
               TextMessage msg = (TextMessage) en.nextElement();
-              log.info("browsed {}", msg.getText());
+              log.debug("browsed {}", msg.getText());
               assertEquals("foo-" + (numMessages - 1), msg.getText());
               assertTrue(msg.getBooleanProperty("lastMessage"));
               count++;
@@ -204,7 +204,7 @@ public class QueueTest {
             // consume half queue
             for (int i = 0; i < numMessages / 2; i++) {
               TextMessage msg = (TextMessage) consumer1.receive();
-              log.info("consume {}", msg);
+              log.debug("consume {}", msg);
               assertEquals("foo-" + i, msg.getText());
             }
           }
@@ -223,7 +223,7 @@ public class QueueTest {
             // consume half queue
             for (int i = numMessages / 2; i < numMessages; i++) {
               TextMessage msg = (TextMessage) consumer1.receive();
-              log.info("consume2 {} {}", msg, msg.getJMSMessageID());
+              log.debug("consume2 {} {}", msg, msg.getJMSMessageID());
               assertEquals("foo-" + i, msg.getText());
             }
             assertNull(consumer1.receiveNoWait());
@@ -234,7 +234,7 @@ public class QueueTest {
           try (QueueBrowser browser = session.createBrowser(destination)) {
             Enumeration en = browser.getEnumeration();
             TextMessage msg = (TextMessage) en.nextElement();
-            log.info("next {} {}", msg, msg.getJMSMessageID());
+            log.debug("next {} {}", msg, msg.getJMSMessageID());
             assertEquals("foo-" + (numMessages - 1), msg.getText());
             assertFalse(en.hasMoreElements());
           }
@@ -242,7 +242,7 @@ public class QueueTest {
           try (QueueBrowser browser = session.createBrowser(destination)) {
             Enumeration en = browser.getEnumeration();
             TextMessage msg = (TextMessage) en.nextElement();
-            log.info("next {} {}", msg, msg.getJMSMessageID());
+            log.debug("next {} {}", msg, msg.getJMSMessageID());
             assertEquals("foo-" + (numMessages - 1), msg.getText());
             assertFalse(en.hasMoreElements());
           }
@@ -374,7 +374,7 @@ public class QueueTest {
 
             // verify that we have 3 different subscriptions, with the expected names
             TopicStats stats = pulsarContainer.getAdmin().topics().getStats(fullTopicName);
-            log.info("Subscriptions {}", stats.getSubscriptions().keySet());
+            log.debug("Subscriptions {}", stats.getSubscriptions().keySet());
             assertNotNull(stats.getSubscriptions().get("default-sub-name"));
             assertNotNull(stats.getSubscriptions().get("sub1"));
             assertNotNull(stats.getSubscriptions().get("sub2"));

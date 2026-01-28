@@ -487,7 +487,7 @@ public class MessageListenerTest {
           new MessageListener() {
             @Override
             public void onMessage(Message message) {
-              log.info("Received #" + count + " -> " + message);
+              log.debug("Received #" + count + " -> " + message);
               if (count.incrementAndGet() == 1) {
                 throw new RuntimeException("Error !");
               }

@@ -41,7 +41,6 @@ import jakarta.jms.JMSConsumer;
 import jakarta.jms.JMSContext;
 import jakarta.jms.Session;
 import lombok.extern.slf4j.Slf4j;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.testcontainers.shaded.org.apache.commons.io.IOUtils;
@@ -51,83 +50,29 @@ public class DockerTest {
 
   private static final String TEST_PULSAR_DOCKER_IMAGE_NAME =
       System.getProperty("testPulsarDockerImageName");
-  public static final String LUNASTREAMING = "datastax/lunastreaming:2.10_4.4";
-  public static final String LUNASTREAMING_31 = "datastax/lunastreaming:3.1_3.1";
+  public static final String PULSAR_407 = "datastax/lunastreaming:4.0.7_2";
 
   @TempDir Path tempDir;
 
+
   @Test
-  public void testPulsar272() throws Exception {
-    test("apachepulsar/pulsar:2.7.2", false);
+  public void testPulsar407() throws Exception {
+    test(PULSAR_407, false);
   }
 
   @Test
-  public void testPulsar283() throws Exception {
-    test("apachepulsar/pulsar:2.8.3", false);
+  public void testPulsar407NoAuthentication() throws Exception {
+    test(PULSAR_407, false, false, false);
   }
 
   @Test
-  public void testPulsar210() throws Exception {
-    test("apachepulsar/pulsar:2.10.4", false);
+  public void testPulsar407Transactions() throws Exception {
+    test(PULSAR_407, true);
   }
 
   @Test
-  public void testLunaStreaming210() throws Exception {
-    // waiting for Apache Pulsar 2.10.1, in the meantime we use Luna Streaming 2.10.0.x
-    test(LUNASTREAMING, false);
-  }
-  @Test
-  public void testLunaStreaming31() throws Exception {
-    test(LUNASTREAMING_31, false);
-  }
-
-
-  @Test
-  public void testPulsar292Transactions() throws Exception {
-    test("apachepulsar/pulsar:2.9.2", true);
-  }
-
-  @Test
-  public void testPulsar210Transactions() throws Exception {
-    test("apachepulsar/pulsar:2.10.4", true);
-  }
-
-  @Test
-  public void testPulsar211Transactions() throws Exception {
-    test("apachepulsar/pulsar:2.11.1", true);
-  }
-
-  @Test
-  public void testPulsar3Transactions() throws Exception {
-    test("apachepulsar/pulsar:3.2.2", true);
-  }
-
-  @Test
-  public void testNoAuthentication() throws Exception {
-    test("apachepulsar/pulsar:3.2.2", false, false, false);
-  }
-
-  @Test
-  public void testLunaStreaming210Transactions() throws Exception {
-    // waiting for Apache Pulsar 2.10.1, in the meantime we use Luna Streaming 2.10.0.x
-    test(LUNASTREAMING, true);
-  }
-
-  @Test
-  public void testLunaStreaming31Transactions() throws Exception {
-    // waiting for Apache Pulsar 2.10.1, in the meantime we use Luna Streaming 2.10.0.x
-    test(LUNASTREAMING_31, true);
-  }
-
-  @Test
-  @Disabled("Pulsar 2.10.1 runs on JDK11 and now Filters are built for JDK17")
-  public void testLunaStreaming210ServerSideSelectors() throws Exception {
-    test(LUNASTREAMING, false, true);
-  }
-
-  @Test
-  public void testLunaStreaming31ServerSideSelectors() throws Exception {
-    test(LUNASTREAMING_31, false, true);
+  public void testPulsar407ServerSideSelectors() throws Exception {
+    test(PULSAR_407, false, true);
   }
 
   @Test
@@ -157,7 +102,7 @@ public class DockerTest {
       boolean useServerSideFiltering,
       boolean enableAuthentication)
       throws Exception {
-    log.info("Classpath: {}", System.getProperty("java.class.path"));
+    log.debug("Classpath: {}", System.getProperty("java.class.path"));
     try (PulsarContainer pulsarContainer =
         new PulsarContainer(
             image, transactions, useServerSideFiltering, enableAuthentication, tempDir); ) {

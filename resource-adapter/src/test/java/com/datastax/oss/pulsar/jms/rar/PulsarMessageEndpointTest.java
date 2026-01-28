@@ -20,10 +20,10 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyInt;
-import static org.mockito.Matchers.anyMap;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -278,7 +278,7 @@ public class PulsarMessageEndpointTest {
             new Answer() {
               @Override
               public Object answer(InvocationOnMock invocationOnMock) throws Throwable {
-                internalListener.set(invocationOnMock.getArgumentAt(0, MessageListener.class));
+                internalListener.set(invocationOnMock.getArgument(0, MessageListener.class));
                 return null;
               }
             })
@@ -290,8 +290,7 @@ public class PulsarMessageEndpointTest {
             new Answer<MessageEndpoint>() {
               @Override
               public MessageEndpoint answer(InvocationOnMock invocationOnMock) throws Throwable {
-                XAResource resource =
-                    (XAResource) invocationOnMock.getArgumentAt(0, XAResource.class);
+                XAResource resource = invocationOnMock.getArgument(0, XAResource.class);
                 listener.setResource(resource);
                 if (containerStartTransaction) {
                   resource.start(null, 0);

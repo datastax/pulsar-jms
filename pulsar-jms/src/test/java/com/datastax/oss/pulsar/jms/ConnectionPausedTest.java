@@ -124,7 +124,7 @@ public class ConnectionPausedTest {
                               consumerSession.createSharedDurableConsumer(destination, "sub1")) {
                         // no message in the topic, so this consumer will hang
                         beforeReceive.countDown();
-                        log.info("receiving...");
+                        log.debug("receiving...");
                         consumerResult.complete(consumer.receive());
                       } catch (Throwable err) {
                         consumerResult.completeExceptionally(err);
@@ -141,9 +141,9 @@ public class ConnectionPausedTest {
             Awaitility.await()
                 .untilAsserted(
                     () -> {
-                      log.info("Consumer thread status {}", consumerThread);
+                      log.debug("Consumer thread status {}", consumerThread);
                       Stream.of(consumerThread.getStackTrace())
-                          .forEach(t -> log.info(t.toString()));
+                          .forEach(t -> log.debug(t.toString()));
                       assertEquals(Thread.State.TIMED_WAITING, consumerThread.getState());
                     });
 

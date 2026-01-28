@@ -558,10 +558,10 @@ public abstract class SelectorsTestsBase {
                     () -> {
                       try {
                         while (!expected1.isEmpty()) {
-                          log.info(
+                          log.debug(
                               "{} messages left for consumer1: {}", expected1.size(), expected1);
                           PulsarTextMessage textMessage = (PulsarTextMessage) consumer1.receive();
-                          log.info(
+                          log.debug(
                               "consumer1 received {} {}",
                               textMessage.getText(),
                               textMessage.getStringProperty("consumer"));
@@ -591,10 +591,10 @@ public abstract class SelectorsTestsBase {
                     () -> {
                       try {
                         while (!expected2.isEmpty()) {
-                          log.info(
+                          log.debug(
                               "{} messages left for consumer2: {}", expected2.size(), expected2);
                           PulsarTextMessage textMessage = (PulsarTextMessage) consumer2.receive();
-                          log.info(
+                          log.debug(
                               "consumer2 received {} {}",
                               textMessage.getText(),
                               textMessage.getStringProperty("consumer"));
@@ -1049,7 +1049,7 @@ public abstract class SelectorsTestsBase {
             for (int i = 0; i < 20; i++) {
               if ((i % 2 == 0) && (i % 3 == 0)) {
                 TextMessage textMessage = (TextMessage) consumer1.receive();
-                log.info(
+                log.debug(
                     "received {} {}",
                     textMessage.getText(),
                     ((PulsarMessage) textMessage).getReceivedPulsarMessage().getMessageId());
@@ -1061,7 +1061,7 @@ public abstract class SelectorsTestsBase {
             boolean failed = false;
             if (receive != null) {
               failed = true;
-              log.info(
+              log.debug(
                   "FAILED ! received {} {}",
                   receive.getText(),
                   ((PulsarMessage) receive).getReceivedPulsarMessage().getMessageId());

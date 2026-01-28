@@ -85,7 +85,7 @@ public class NoAutoCreateSubscriptionTest {
 
             // verify that we have 1 subscription
             TopicStats stats = pulsarContainer.getAdmin().topics().getStats(shortTopicName);
-            log.info("Subscriptions {}", stats.getSubscriptions().keySet());
+            log.debug("Subscriptions {}", stats.getSubscriptions().keySet());
             assertNotNull(stats.getSubscriptions().get("sub1"));
           }
         }
