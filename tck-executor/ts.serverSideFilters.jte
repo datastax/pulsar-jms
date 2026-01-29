@@ -295,6 +295,12 @@ java.naming.factory.initial="com.datastax.oss.pulsar.jms.tests.JNDIInitialContex
 #jndi.provider.url="java.naming.provider.url=file:///${jndi.fs.dir}"
 
 ###############################################################
+# Standalone vehicle configuration
+# This property tells the TCK which runner class to use for standalone tests
+###############################################################
+standalone.classes=com.sun.ts.tests.common.vehicle.EmptyVehicleRunner
+
+###############################################################
 # @extension.dir - The extension directory of RI.
 # The CTS config.vi target will copy the CTS library
 # jars to this location, used only for RI.

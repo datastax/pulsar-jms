@@ -277,11 +277,11 @@ public class ActiveMQMessage extends Message
   @Override
   public void setJMSExpiration(long expiration) {
     this.setExpiration(expiration);
-      try {
-          this.setLongProperty("JMSExpiration", expiration);
-      } catch (JMSException e) {
-          log.error("Error setting JMSExpiration property", e);
-      }
+    try {
+      this.setLongProperty("JMSExpiration", expiration);
+    } catch (JMSException e) {
+      log.error("Error setting JMSExpiration property", e);
+    }
   }
 
   @Override

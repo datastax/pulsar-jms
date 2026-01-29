@@ -15,6 +15,7 @@
  */
 package com.datastax.oss.pulsar.jms;
 
+import static com.datastax.oss.pulsar.jms.utils.ReflectionUtils.readField;
 import static org.awaitility.Awaitility.await;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -52,7 +53,6 @@ import org.apache.pulsar.common.util.FutureUtil;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
-import org.mockito.internal.util.reflection.Whitebox;
 
 @Slf4j
 public class ConnectionConsumerTest {
@@ -159,7 +159,7 @@ public class ConnectionConsumerTest {
       boolean maxMessagesLimitParallelism)
       throws Exception {
     long start = System.currentTimeMillis();
-    log.info(
+    log.debug(
         "ExecuteTest {} {} {} {} {} {}",
         topic,
         numMessages,
@@ -260,12 +260,11 @@ public class ConnectionConsumerTest {
       // stop waiting for messages
       connection.stop();
 
-      List<PulsarSession> sessions =
-          (List<PulsarSession>) Whitebox.getInternalState(connection, "sessions");
+      List<PulsarSession> sessions = (List<PulsarSession>) readField(connection, "sessions");
       int numSessionsWithConsumers = 0;
       for (PulsarSession s : sessions) {
         List<PulsarMessageConsumer> consumers =
-            (List<PulsarMessageConsumer>) Whitebox.getInternalState(s, "consumers");
+            (List<PulsarMessageConsumer>) readField(s, "consumers");
         if (!consumers.isEmpty()) {
           assertEquals(1, consumers.size());
           assertEquals(selector, consumers.get(0).getMessageSelector());
@@ -279,7 +278,7 @@ public class ConnectionConsumerTest {
       serverSessionPool.close();
 
       long end = System.currentTimeMillis();
-      log.info("ExecuteTest time {} ms", end - start);
+      log.debug("ExecuteTest time {} ms", end - start);
     }
   }
 
@@ -312,7 +311,7 @@ public class ConnectionConsumerTest {
             public void onMessage(Message message) {
               onMessageEntered.complete(null);
               // this method blocks
-              log.info("here", new Exception("here").fillInStackTrace());
+              log.debug("here", new Exception("here").fillInStackTrace());
               condition.join();
               super.onMessage(message);
             }
@@ -359,7 +358,7 @@ public class ConnectionConsumerTest {
           .until(listener.receivedMessages::size, equalTo(1));
 
       long end = System.currentTimeMillis();
-      log.info("ExecuteTest time {} ms", end - start);
+      log.debug("ExecuteTest time {} ms", end - start);
     }
   }
 
@@ -435,7 +434,7 @@ public class ConnectionConsumerTest {
       beforeSubmitTask.complete(null);
 
       long end = System.currentTimeMillis();
-      log.info("ExecuteTest time {} ms", end - start);
+      log.debug("ExecuteTest time {} ms", end - start);
     }
   }
 
@@ -484,7 +483,7 @@ public class ConnectionConsumerTest {
       try {
         workManager.submit(task);
       } catch (RejectedExecutionException expected) {
-        log.info("Task {} was rejected, because the Pool is closed", task);
+        log.debug("Task {} was rejected, because the Pool is closed", task);
       }
     }
 
@@ -517,7 +516,7 @@ public class ConnectionConsumerTest {
     public ServerSession getServerSession() throws JMSException {
       try {
         ServerSession session = sessions.take();
-        // log.info("picked session {}", session);
+        // log.debug("picked session {}", session);
         return session;
       } catch (Exception err) {
         throw Utils.handleException(err);
@@ -544,10 +543,10 @@ public class ConnectionConsumerTest {
         submitTask(
             () -> {
               try {
-                // log.info("executing session {}", this);
+                // log.debug("executing session {}", this);
                 session.run();
               } finally {
-                // log.info("returning session {}", this);
+                // log.debug("returning session {}", this);
                 sessions.add(this);
               }
             });

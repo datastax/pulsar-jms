@@ -53,7 +53,7 @@ public class PulsarContainer implements AutoCloseable {
                   if (text.contains("messaging service is ready")) {
                     pulsarReady.countDown();
                   }
-                  System.out.println(text);
+                  // log.debug(text);
                 });
     pulsarContainer.start();
     assertTrue(pulsarReady.await(1, TimeUnit.MINUTES));

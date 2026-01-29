@@ -54,8 +54,8 @@ import jakarta.jms.TransactionRolledBackException;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -150,7 +150,8 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
     if (sessionMode == SESSION_TRANSACTED && !connection.getFactory().isEnableTransaction()) {
       if (connection.getFactory().isEmulateTransactions()) {
         emulateTransactions = true;
-        producersWithTransactions = new HashSet<>();
+        // Keep the added order of the producers to the tx.
+        producersWithTransactions = new LinkedHashSet<>();
       } else {
         throw new JMSException(
             "Please enable transactions on PulsarConnectionFactory with enableTransaction=true, you can configure "

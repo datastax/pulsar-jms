@@ -85,7 +85,7 @@ public class OverrideConsumerConfigurationTest {
 
           message = consumerDeadLetter.receive();
           assertEquals("foo", message.getBody(String.class));
-          log.info("DLQ MESSAGE {}", message);
+          log.debug("DLQ MESSAGE {}", message);
 
           // this is another topic, and the JMSXDeliveryCount is only handled on the client side
           // so the count is back to 1
@@ -138,7 +138,7 @@ public class OverrideConsumerConfigurationTest {
 
           message = consumerDeadLetter.receive();
           assertEquals("foo", message.getBody(String.class));
-          log.info("DLQ MESSAGE {}", message);
+          log.debug("DLQ MESSAGE {}", message);
 
           // this is another topic, and the JMSXDeliveryCount is only handled on the client side
           // so the count is back to 1

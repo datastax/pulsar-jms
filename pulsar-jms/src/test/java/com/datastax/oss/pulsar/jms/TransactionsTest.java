@@ -447,21 +447,21 @@ public class TransactionsTest {
               }
 
               TextMessage receive = (TextMessage) consumer.receive();
-              log.info("receive and commit {}", receive.getText());
+              log.debug("receive and commit {}", receive.getText());
               assertEquals(numMessages, countMessages(producerSession, destination));
               transaction.commit();
               assertEquals(numMessages - 1, countMessages(producerSession, destination));
 
               receive = (TextMessage) consumer.receive();
-              log.info("receive and rollback {}", receive.getText());
+              log.debug("receive and rollback {}", receive.getText());
               transaction.rollback();
               assertEquals(numMessages - 1, countMessages(producerSession, destination));
 
               receive = (TextMessage) consumer.receive();
 
-              log.info("receive {}", receive.getText());
+              log.debug("receive {}", receive.getText());
               assertEquals(numMessages - 1, countMessages(producerSession, destination));
-              log.info("commit final");
+              log.debug("commit final");
               transaction.commit();
               assertEquals(numMessages - 2, countMessages(producerSession, destination));
             }
@@ -476,7 +476,7 @@ public class TransactionsTest {
     try (QueueBrowser counter = producerSession.createBrowser(destination)) {
       for (Enumeration e = counter.getEnumeration(); e.hasMoreElements(); ) {
         TextMessage msg = (TextMessage) e.nextElement();
-        log.info("count {} msg {}", count, msg.getText());
+        log.debug("count {} msg {}", count, msg.getText());
         count++;
       }
     }
@@ -677,7 +677,7 @@ public class TransactionsTest {
                   message2.getReceivedPulsarMessage();
               BatchMessageIdImpl messageId2 =
                   (BatchMessageIdImpl) receivedPulsarMessage2.getMessageId();
-              log.info("ids {} {}", messageId1, messageId2);
+              log.debug("ids {} {}", messageId1, messageId2);
 
               assertEquals(messageId1.getLedgerId(), messageId2.getLedgerId());
               assertEquals(messageId1.getEntryId(), messageId2.getEntryId());
@@ -723,16 +723,16 @@ public class TransactionsTest {
 
               Message receive1 = consumer.receive();
               assertNotNull(receive1);
-              log.info("received {}", receive1);
+              log.debug("received {}", receive1);
               assertEquals("foo2", receive1.getBody(String.class));
 
               Message receive2 = consumer.receive();
               assertNotNull(receive2);
-              log.info("received {}", receive2);
+              log.debug("received {}", receive2);
               assertEquals("foo3", receive2.getBody(String.class));
 
               Message receive3 = consumer.receiveNoWait();
-              log.info("received {}", receive3);
+              log.debug("received {}", receive3);
               assertNull(receive3);
 
               consumerSession.commit();
@@ -787,16 +787,16 @@ public class TransactionsTest {
 
           Message receive1 = consumer.receive();
           assertNotNull(receive1);
-          log.info("received {}", receive1);
+          log.debug("received {}", receive1);
           assertEquals("foo2", receive1.getBody(String.class));
 
           Message receive2 = consumer.receive();
           assertNotNull(receive2);
-          log.info("received {}", receive2);
+          log.debug("received {}", receive2);
           assertEquals("foo3", receive2.getBody(String.class));
 
           Message receive3 = consumer.receiveNoWait();
-          log.info("received {}", receive3);
+          log.debug("received {}", receive3);
           assertNull(receive3);
 
           consumerContext.commit();
@@ -823,7 +823,7 @@ public class TransactionsTest {
                 new MessageListener() {
                   @Override
                   public void onMessage(Message message) {
-                    log.info("Received message {}", message);
+                    log.debug("Received message {}", message);
                     received.add(message);
                   }
                 });
@@ -891,26 +891,26 @@ public class TransactionsTest {
                   @Override
                   public void onMessage(Message message) {
                     if (error.get() != null) {
-                      log.info("ignoring error on message receive {}", message);
+                      log.debug("ignoring error on message receive {}", message);
                       return;
                     }
-                    log.info("Received message {}", message);
+                    log.debug("Received message {}", message);
 
                     try {
                       if (message.getBody(String.class).equals("commit")) {
-                        log.info("commit!");
+                        log.debug("commit!");
                         consumerSession.commit();
                         commitDone.set(true);
                       } else if (message.getBody(String.class).equals("rollback")) {
                         if (rollbackDone.compareAndSet(false, true)) {
-                          log.info("rollback!");
+                          log.debug("rollback!");
                           consumerSession.rollback();
                         }
                       } else {
                         received.add(message);
                       }
                     } catch (Exception err) {
-                      log.info("Error", err);
+                      log.debug("Error", err);
                       error.set(err);
                     }
                   }
@@ -970,7 +970,7 @@ public class TransactionsTest {
                 new MessageListener() {
                   @Override
                   public void onMessage(Message message) {
-                    log.info("Received message {}", message);
+                    log.debug("Received message {}", message);
                     received.add(message);
                   }
                 });
@@ -1044,7 +1044,7 @@ public class TransactionsTest {
                   transaction.createProducer(destination); ) {
                 TextMessage textMsg = someSession.createTextMessage("foo");
                 transactionProducer.send(textMsg);
-                log.info("sent {}", textMsg.getJMSMessageID());
+                log.debug("sent {}", textMsg.getJMSMessageID());
                 // the message ID is assigned during "send"
                 sentMessageID = textMsg.getJMSMessageID();
                 transaction.commit();
@@ -1052,7 +1052,7 @@ public class TransactionsTest {
 
               Message receive = transactionConsumer.receive();
               assertEquals("foo", receive.getBody(String.class));
-              log.info("received {}", receive.getJMSMessageID());
+              log.debug("received {}", receive.getJMSMessageID());
               assertEquals(sentMessageID, receive.getJMSMessageID());
             }
             ;
@@ -1060,7 +1060,7 @@ public class TransactionsTest {
 
             Message receiveOtherSession = consumerOtherSession.receive();
             assertEquals("foo", receiveOtherSession.getBody(String.class));
-            log.info("receivedOtherSession {}", receiveOtherSession.getJMSMessageID());
+            log.debug("receivedOtherSession {}", receiveOtherSession.getJMSMessageID());
             assertEquals(sentMessageID, receiveOtherSession.getJMSMessageID());
 
             // message has been committed by the transacted session
@@ -1107,13 +1107,13 @@ public class TransactionsTest {
 
                 TextMessage textMsg = someSession.createTextMessage("foo1");
                 transactionProducer1.send(textMsg);
-                log.info("sent {}", textMsg.getJMSMessageID());
+                log.debug("sent {}", textMsg.getJMSMessageID());
                 // the message ID is assigned during "send"
                 sentMessageID = textMsg.getJMSMessageID();
 
                 TextMessage textMsg2 = someSession.createTextMessage("foo2");
                 producerNoTransaction.send(textMsg2);
-                log.info("sent {}", textMsg2.getJMSMessageID());
+                log.debug("sent {}", textMsg2.getJMSMessageID());
                 // the message ID is assigned during "send"
                 sentMessageID2 = textMsg2.getJMSMessageID();
 
@@ -1122,12 +1122,12 @@ public class TransactionsTest {
 
               Message receive = transactionConsumer.receive();
               assertEquals("foo1", receive.getBody(String.class));
-              log.info("received {}", receive.getJMSMessageID());
+              log.debug("received {}", receive.getJMSMessageID());
               assertEquals(sentMessageID, receive.getJMSMessageID());
 
               Message receive2 = transactionConsumer.receive();
               assertEquals("foo2", receive2.getBody(String.class));
-              log.info("received {}", receive2.getJMSMessageID());
+              log.debug("received {}", receive2.getJMSMessageID());
               assertEquals(sentMessageID2, receive2.getJMSMessageID());
             }
 
@@ -1135,12 +1135,12 @@ public class TransactionsTest {
 
             Message receiveOtherSession = consumerOtherSession.receive();
             assertEquals("foo1", receiveOtherSession.getBody(String.class));
-            log.info("receivedOtherSession {}", receiveOtherSession.getJMSMessageID());
+            log.debug("receivedOtherSession {}", receiveOtherSession.getJMSMessageID());
             assertEquals(sentMessageID, receiveOtherSession.getJMSMessageID());
 
             receiveOtherSession = consumerOtherSession.receive();
             assertEquals("foo2", receiveOtherSession.getBody(String.class));
-            log.info("receivedOtherSession {}", receiveOtherSession.getJMSMessageID());
+            log.debug("receivedOtherSession {}", receiveOtherSession.getJMSMessageID());
             assertEquals(sentMessageID2, receiveOtherSession.getJMSMessageID());
           }
         }
@@ -1258,7 +1258,7 @@ public class TransactionsTest {
             for (int i = 0; i < 10 * 4; i++) {
               PulsarMessage message = (PulsarMessage) consumer.receive();
               String receivedTopicName = message.getReceivedPulsarMessage().getTopicName();
-              log.info("message {} {}", receivedTopicName, message);
+              log.debug("message {} {}", receivedTopicName, message);
               messagesByPartition
                   .computeIfAbsent(receivedTopicName, (t) -> new ArrayList<>())
                   .add(message);
@@ -1296,7 +1296,7 @@ public class TransactionsTest {
               for (int i = 0; i < 8; i++) {
                 PulsarMessage message = (PulsarMessage) consumer.receive();
                 String receivedTopicName = message.getReceivedPulsarMessage().getTopicName();
-                log.info("messageAfter {} {}", receivedTopicName, message);
+                log.debug("messageAfter {} {}", receivedTopicName, message);
                 messagesByPartition
                     .computeIfAbsent(receivedTopicName, (t) -> new ArrayList<>())
                     .add(message);

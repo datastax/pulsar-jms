@@ -93,7 +93,7 @@ public class DockerTest {
                       if (text.contains("TOTAL MESSAGES -" + numMessages + "-")) {
                         allMessagesReceived.countDown();
                       }
-                      System.out.println(text);
+                      // log.debug(text);
                     })) {
           container.start();
 

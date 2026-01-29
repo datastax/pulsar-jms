@@ -13,21 +13,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.datastax.oss.pulsar.jms;
+package com.datastax.oss.pulsar.jms.utils;
 
-import jakarta.jms.Message;
-import jakarta.jms.MessageListener;
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
-import lombok.extern.slf4j.Slf4j;
+import lombok.SneakyThrows;
+import org.apache.commons.lang.reflect.FieldUtils;
 
-@Slf4j
-public class SimpleMessageListener implements MessageListener {
-  final List<Message> receivedMessages = new CopyOnWriteArrayList<>();
+/** Utility class for reflection operations in tests. */
+public class ReflectionUtils {
 
-  @Override
-  public void onMessage(Message message) {
-    receivedMessages.add(message);
-    // log.debug("{} - received {}, total {}", this, message, receivedMessages.size());
+  @SneakyThrows
+  public static Object readField(Object target, String fieldName) {
+    return FieldUtils.readField(target, fieldName, true);
+  }
+
+  @SneakyThrows
+  public static void writeField(Object target, String fieldName, Object value) {
+    FieldUtils.writeField(target, fieldName, value, true);
   }
 }
+
+// Made with Bob

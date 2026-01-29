@@ -195,7 +195,7 @@ public class DeadLetterQueueTest {
 
               message = consumerDeadLetter.receive();
               assertEquals("foo", message.getBody(String.class));
-              log.info("DLQ MESSAGE {}", message);
+              log.debug("DLQ MESSAGE {}", message);
               // this is another topic, and the JMSXDeliveryCount is only handled on the client side
               // so the count is back to 1
               assertEquals(1, message.getIntProperty("JMSXDeliveryCount"));
@@ -210,7 +210,7 @@ public class DeadLetterQueueTest {
             Awaitility.await()
                 .untilAsserted(
                     () -> {
-                      log.info("unackedMessages {}", unackedMessages);
+                      log.debug("unackedMessages {}", unackedMessages);
                       assertTrue(unackedMessages.isEmpty());
                     });
           }
@@ -246,7 +246,7 @@ public class DeadLetterQueueTest {
     } else {
       deadLetterTopic = topic + "-" + queueSubscriptionName + "-DLQ";
     }
-    log.info("deadLetterTopic {}", deadLetterTopic);
+    log.debug("deadLetterTopic {}", deadLetterTopic);
 
     Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
     properties.put("jms.queueSubscriptionName", queueSubscriptionName);
@@ -337,7 +337,7 @@ public class DeadLetterQueueTest {
                           + message.getReceivedPulsarMessage().getMessageId().getClass());
                 }
 
-                log.info("counterByMessageId {}", counterByMessageId);
+                log.debug("counterByMessageId {}", counterByMessageId);
                 // wait that all messages have been re-delivered at least 2 times, in order to
                 // trigger the DLQ
                 if ((counterByMessageId.size() == numMessages)
@@ -353,7 +353,7 @@ public class DeadLetterQueueTest {
                   break;
                 }
                 assertEquals("foo", message.getBody(String.class));
-                log.info("DLQ MESSAGE {}", message);
+                log.debug("DLQ MESSAGE {}", message);
                 // this is another topic, and the JMSXDeliveryCount is only handled on the client
                 // side
                 // so the count is back to 1
@@ -385,7 +385,7 @@ public class DeadLetterQueueTest {
             Awaitility.await()
                 .untilAsserted(
                     () -> {
-                      log.info("unackedMessages {}", unackedMessages);
+                      log.debug("unackedMessages {}", unackedMessages);
                       assertTrue(unackedMessages.isEmpty());
                     });
           }

@@ -108,7 +108,7 @@ public class TimeToLiveTest {
             // only foo-1, foo-3, foo-5... can be received
             for (int i = 0; i < 5; i++) {
               TextMessage textMessage = (TextMessage) consumer1.receive(10000);
-              log.info("received {}", textMessage);
+              log.debug("received {}", textMessage);
               assertNotNull(textMessage, "only " + i + " messages have been received");
               assertEquals("foo-" + (i * 2 + 1), textMessage.getText());
             }
