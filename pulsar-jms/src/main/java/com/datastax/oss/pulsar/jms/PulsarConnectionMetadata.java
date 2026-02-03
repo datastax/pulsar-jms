@@ -37,7 +37,7 @@ class PulsarConnectionMetadata implements ConnectionMetaData {
    */
   @Override
   public String getJMSVersion() throws JMSException {
-    return "3.0";
+    return "2.0";
   }
 
   /**
@@ -49,7 +49,7 @@ class PulsarConnectionMetadata implements ConnectionMetaData {
    */
   @Override
   public int getJMSMajorVersion() throws JMSException {
-    return 3;
+    return 2;
   }
 
   /**
