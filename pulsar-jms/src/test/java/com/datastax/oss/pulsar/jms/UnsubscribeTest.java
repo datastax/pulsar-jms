@@ -19,14 +19,14 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.datastax.oss.pulsar.jms.utils.PulsarContainerExtension;
-import jakarta.jms.Connection;
-import jakarta.jms.MessageConsumer;
-import jakarta.jms.MessageProducer;
-import jakarta.jms.Session;
-import jakarta.jms.TextMessage;
-import jakarta.jms.Topic;
 import java.util.Map;
 import java.util.UUID;
+import javax.jms.Connection;
+import javax.jms.MessageConsumer;
+import javax.jms.MessageProducer;
+import javax.jms.Session;
+import javax.jms.TextMessage;
+import javax.jms.Topic;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 

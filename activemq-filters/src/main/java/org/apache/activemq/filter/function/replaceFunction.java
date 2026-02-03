@@ -58,7 +58,7 @@ public class replaceFunction implements FilterFunction {
    * @return String - the result of the replacement.
    */
   public Object evaluate(FunctionCallExpression expr, MessageEvaluationContext message_ctx)
-      throws jakarta.jms.JMSException {
+      throws javax.jms.JMSException {
     String src;
     String match_regex;
     String repl_lit;

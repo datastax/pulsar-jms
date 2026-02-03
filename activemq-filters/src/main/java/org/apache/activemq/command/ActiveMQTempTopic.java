@@ -15,8 +15,8 @@
  */
 package org.apache.activemq.command;
 
-import jakarta.jms.JMSException;
-import jakarta.jms.TemporaryTopic;
+import javax.jms.JMSException;
+import javax.jms.TemporaryTopic;
 
 /** element="tempTopic" description="An ActiveMQ Temporary Topic Destination" */
 public class ActiveMQTempTopic extends ActiveMQTempDestination implements TemporaryTopic {

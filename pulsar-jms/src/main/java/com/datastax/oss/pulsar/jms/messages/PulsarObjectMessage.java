@@ -17,15 +17,15 @@ package com.datastax.oss.pulsar.jms.messages;
 
 import com.datastax.oss.pulsar.jms.PulsarMessage;
 import com.datastax.oss.pulsar.jms.Utils;
-import jakarta.jms.JMSException;
-import jakarta.jms.MessageFormatException;
-import jakarta.jms.MessageNotWriteableException;
-import jakarta.jms.ObjectMessage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
+import javax.jms.JMSException;
+import javax.jms.MessageFormatException;
+import javax.jms.MessageNotWriteableException;
+import javax.jms.ObjectMessage;
 import org.apache.pulsar.client.api.TypedMessageBuilder;
 
 public final class PulsarObjectMessage extends PulsarMessage implements ObjectMessage {

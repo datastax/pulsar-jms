@@ -16,24 +16,24 @@
 package com.datastax.oss.pulsar.jms;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
-import jakarta.jms.CompletionListener;
-import jakarta.jms.DeliveryMode;
-import jakarta.jms.Destination;
-import jakarta.jms.InvalidDestinationException;
-import jakarta.jms.InvalidDestinationRuntimeException;
-import jakarta.jms.JMSException;
-import jakarta.jms.JMSProducer;
-import jakarta.jms.JMSRuntimeException;
-import jakarta.jms.Message;
-import jakarta.jms.MessageFormatException;
-import jakarta.jms.MessageFormatRuntimeException;
-import jakarta.jms.MessageNotWriteableRuntimeException;
 import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import javax.jms.CompletionListener;
+import javax.jms.DeliveryMode;
+import javax.jms.Destination;
+import javax.jms.InvalidDestinationException;
+import javax.jms.InvalidDestinationRuntimeException;
+import javax.jms.JMSException;
+import javax.jms.JMSProducer;
+import javax.jms.JMSRuntimeException;
+import javax.jms.Message;
+import javax.jms.MessageFormatException;
+import javax.jms.MessageFormatRuntimeException;
+import javax.jms.MessageNotWriteableRuntimeException;
 
 public class PulsarJMSProducer implements JMSProducer {
   private final PulsarJMSContext parent;

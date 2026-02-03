@@ -7,7 +7,7 @@ HERE=$(realpath "$HERE")
 CONFIGURATION_FILE=${1:-ts.jte}
 echo "CONFIGURATION_FILE is $CONFIGURATION_FILE"
 
-unzip -o $HERE/jakarta-messaging-tck-3.0.1.zip -d $HERE/target
+unzip -o $HERE/jakarta-messaging-tck-2.0.0.zip -d $HERE/target
 
 TS_HOME=target/messaging-tck
 

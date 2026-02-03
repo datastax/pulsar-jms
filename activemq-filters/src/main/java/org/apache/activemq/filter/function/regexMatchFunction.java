@@ -67,7 +67,7 @@ public class regexMatchFunction implements FilterFunction {
    * @return true - if the value matches the regular expression; false - otherwise.
    */
   public Object evaluate(FunctionCallExpression expr, MessageEvaluationContext message)
-      throws jakarta.jms.JMSException {
+      throws javax.jms.JMSException {
     Object reg;
     Object cand;
     String reg_str;

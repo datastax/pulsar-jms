@@ -15,8 +15,8 @@
  */
 package org.apache.activemq.command;
 
-import jakarta.jms.JMSException;
-import jakarta.jms.Queue;
+import javax.jms.JMSException;
+import javax.jms.Queue;
 
 /** element="queue" description="An ActiveMQ Queue Destination" */
 public class ActiveMQQueue extends ActiveMQDestination implements Queue {

@@ -15,27 +15,6 @@
  */
 package com.datastax.oss.pulsar.jms;
 
-import jakarta.jms.Connection;
-import jakarta.jms.ConnectionConsumer;
-import jakarta.jms.ConnectionMetaData;
-import jakarta.jms.Destination;
-import jakarta.jms.ExceptionListener;
-import jakarta.jms.IllegalStateException;
-import jakarta.jms.InvalidClientIDException;
-import jakarta.jms.InvalidDestinationException;
-import jakarta.jms.InvalidSelectorException;
-import jakarta.jms.JMSException;
-import jakarta.jms.MessageConsumer;
-import jakarta.jms.Queue;
-import jakarta.jms.QueueConnection;
-import jakarta.jms.QueueSession;
-import jakarta.jms.ServerSessionPool;
-import jakarta.jms.Session;
-import jakarta.jms.TemporaryQueue;
-import jakarta.jms.TemporaryTopic;
-import jakarta.jms.Topic;
-import jakarta.jms.TopicConnection;
-import jakarta.jms.TopicSession;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -43,6 +22,27 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import javax.jms.Connection;
+import javax.jms.ConnectionConsumer;
+import javax.jms.ConnectionMetaData;
+import javax.jms.Destination;
+import javax.jms.ExceptionListener;
+import javax.jms.IllegalStateException;
+import javax.jms.InvalidClientIDException;
+import javax.jms.InvalidDestinationException;
+import javax.jms.InvalidSelectorException;
+import javax.jms.JMSException;
+import javax.jms.MessageConsumer;
+import javax.jms.Queue;
+import javax.jms.QueueConnection;
+import javax.jms.QueueSession;
+import javax.jms.ServerSessionPool;
+import javax.jms.Session;
+import javax.jms.TemporaryQueue;
+import javax.jms.TemporaryTopic;
+import javax.jms.Topic;
+import javax.jms.TopicConnection;
+import javax.jms.TopicSession;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -519,7 +519,7 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
    * completing, they must have the full services of the connection available to them.
    *
    * <p>However if the {@code stop} method is called from a message listener on its own connection,
-   * then it will either fail and throw a {@code jakarta.jms.IllegalStateException}, or it will
+   * then it will either fail and throw a {@code javax.jms.IllegalStateException}, or it will
    * succeed and stop the connection, blocking until all other message listeners that may have been
    * running have returned.
    *
@@ -583,7 +583,7 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
    * have returned, and that all pending receives have returned.
    *
    * <p>However if the close method is called from a message listener on its own connection, then it
-   * will either fail and throw a {@code jakarta.jms.IllegalStateException}, or it will succeed and
+   * will either fail and throw a {@code javax.jms.IllegalStateException}, or it will succeed and
    * close the connection, blocking until all other message listeners that may have been running
    * have returned, and all pending receive calls have completed. If close succeeds and the
    * acknowledge mode of the session is set to {@code AUTO_ACKNOWLEDGE}, the current message will

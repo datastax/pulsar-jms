@@ -15,9 +15,9 @@
  */
 package com.datastax.oss.pulsar.jms;
 
-import jakarta.jms.InvalidDestinationException;
-import jakarta.jms.JMSException;
-import jakarta.jms.TemporaryTopic;
+import javax.jms.InvalidDestinationException;
+import javax.jms.JMSException;
+import javax.jms.TemporaryTopic;
 
 class PulsarTemporaryTopic extends PulsarTemporaryDestination implements TemporaryTopic {
 

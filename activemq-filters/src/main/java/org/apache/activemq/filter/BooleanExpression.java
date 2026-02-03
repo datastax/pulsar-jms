@@ -15,7 +15,7 @@
  */
 package org.apache.activemq.filter;
 
-import jakarta.jms.JMSException;
+import javax.jms.JMSException;
 
 /** A BooleanExpression is an expression that always produces a Boolean result. */
 public interface BooleanExpression extends Expression {

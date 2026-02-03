@@ -63,7 +63,7 @@ public class inListFunction implements FilterFunction {
    * @return Boolean - the result of the evaluation.
    */
   public Object evaluate(FunctionCallExpression expr, MessageEvaluationContext message_ctx)
-      throws jakarta.jms.JMSException {
+      throws javax.jms.JMSException {
     java.util.List arr;
     int cur;
     Object cand;

@@ -15,15 +15,15 @@
  */
 package com.datastax.oss.pulsar.jms.selectors;
 
-import jakarta.jms.DeliveryMode;
-import jakarta.jms.Destination;
-import jakarta.jms.InvalidSelectorException;
-import jakarta.jms.JMSException;
-import jakarta.jms.Message;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
+import javax.jms.DeliveryMode;
+import javax.jms.Destination;
+import javax.jms.InvalidSelectorException;
+import javax.jms.JMSException;
+import javax.jms.Message;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.activemq.command.ActiveMQDestination;

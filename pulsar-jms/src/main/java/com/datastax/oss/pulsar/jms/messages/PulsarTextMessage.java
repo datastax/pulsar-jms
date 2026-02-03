@@ -17,10 +17,10 @@ package com.datastax.oss.pulsar.jms.messages;
 
 import com.datastax.oss.pulsar.jms.PulsarMessage;
 import com.datastax.oss.pulsar.jms.Utils;
-import jakarta.jms.JMSException;
-import jakarta.jms.MessageNotWriteableException;
-import jakarta.jms.TextMessage;
 import java.nio.charset.StandardCharsets;
+import javax.jms.JMSException;
+import javax.jms.MessageNotWriteableException;
+import javax.jms.TextMessage;
 import org.apache.pulsar.client.api.TypedMessageBuilder;
 
 public final class PulsarTextMessage extends PulsarMessage implements TextMessage {

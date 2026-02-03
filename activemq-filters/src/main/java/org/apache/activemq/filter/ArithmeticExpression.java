@@ -15,7 +15,7 @@
  */
 package org.apache.activemq.filter;
 
-import jakarta.jms.JMSException;
+import javax.jms.JMSException;
 
 /** An expression which performs an operation on two expression values */
 public abstract class ArithmeticExpression extends BinaryExpression {

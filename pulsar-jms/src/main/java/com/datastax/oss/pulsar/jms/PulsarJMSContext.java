@@ -15,35 +15,35 @@
  */
 package com.datastax.oss.pulsar.jms;
 
-import jakarta.jms.BytesMessage;
-import jakarta.jms.Connection;
-import jakarta.jms.ConnectionFactory;
-import jakarta.jms.ConnectionMetaData;
-import jakarta.jms.Destination;
-import jakarta.jms.ExceptionListener;
-import jakarta.jms.IllegalStateRuntimeException;
-import jakarta.jms.InvalidClientIDRuntimeException;
-import jakarta.jms.InvalidDestinationRuntimeException;
-import jakarta.jms.InvalidSelectorRuntimeException;
-import jakarta.jms.JMSConsumer;
-import jakarta.jms.JMSContext;
-import jakarta.jms.JMSException;
-import jakarta.jms.JMSProducer;
-import jakarta.jms.JMSRuntimeException;
-import jakarta.jms.MapMessage;
-import jakarta.jms.Message;
-import jakarta.jms.ObjectMessage;
-import jakarta.jms.Queue;
-import jakarta.jms.QueueBrowser;
-import jakarta.jms.Session;
-import jakarta.jms.StreamMessage;
-import jakarta.jms.TemporaryQueue;
-import jakarta.jms.TemporaryTopic;
-import jakarta.jms.TextMessage;
-import jakarta.jms.Topic;
-import jakarta.jms.TransactionRolledBackRuntimeException;
 import java.io.Serializable;
 import java.util.Map;
+import javax.jms.BytesMessage;
+import javax.jms.Connection;
+import javax.jms.ConnectionFactory;
+import javax.jms.ConnectionMetaData;
+import javax.jms.Destination;
+import javax.jms.ExceptionListener;
+import javax.jms.IllegalStateRuntimeException;
+import javax.jms.InvalidClientIDRuntimeException;
+import javax.jms.InvalidDestinationRuntimeException;
+import javax.jms.InvalidSelectorRuntimeException;
+import javax.jms.JMSConsumer;
+import javax.jms.JMSContext;
+import javax.jms.JMSException;
+import javax.jms.JMSProducer;
+import javax.jms.JMSRuntimeException;
+import javax.jms.MapMessage;
+import javax.jms.Message;
+import javax.jms.ObjectMessage;
+import javax.jms.Queue;
+import javax.jms.QueueBrowser;
+import javax.jms.Session;
+import javax.jms.StreamMessage;
+import javax.jms.TemporaryQueue;
+import javax.jms.TemporaryTopic;
+import javax.jms.TextMessage;
+import javax.jms.Topic;
+import javax.jms.TransactionRolledBackRuntimeException;
 
 public class PulsarJMSContext implements JMSContext {
   private final PulsarConnection connection;
@@ -347,7 +347,7 @@ public class PulsarJMSContext implements JMSContext {
    *
    * <p>However if the stop method is called from a message listener on its own {@code JMSContext},
    * or any other {@code JMSContext} that uses the same connection, then it will either fail and
-   * throw a {@code jakarta.jms.IllegalStateRuntimeException}, or it will succeed and stop the
+   * throw a {@code javax.jms.IllegalStateRuntimeException}, or it will succeed and stop the
    * connection, blocking until all other message listeners that may have been running have
    * returned.
    *
@@ -448,9 +448,9 @@ public class PulsarJMSContext implements JMSContext {
    * provider.
    *
    * <p>However if the close method is called from a message listener on its own {@code JMSContext},
-   * then it will either fail and throw a {@code jakarta.jms.IllegalStateRuntimeException}, or it
-   * will succeed and close the {@code JMSContext}. If {@code close} succeeds and the session mode
-   * of the {@code JMSContext} is set to {@code AUTO_ACKNOWLEDGE}, the current message will still be
+   * then it will either fail and throw a {@code javax.jms.IllegalStateRuntimeException}, or it will
+   * succeed and close the {@code JMSContext}. If {@code close} succeeds and the session mode of the
+   * {@code JMSContext} is set to {@code AUTO_ACKNOWLEDGE}, the current message will still be
    * acknowledged automatically when the onMessage call completes.
    *
    * <p>Since two alternative behaviors are permitted in this case, applications should avoid

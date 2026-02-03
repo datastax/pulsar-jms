@@ -15,13 +15,13 @@
  */
 package com.datastax.oss.pulsar.jms;
 
-import jakarta.jms.JMSException;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import javax.jms.JMSException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.api.PulsarClient;
 import org.apache.pulsar.client.impl.LookupService;

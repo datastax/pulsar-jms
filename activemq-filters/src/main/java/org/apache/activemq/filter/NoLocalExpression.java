@@ -15,8 +15,8 @@
  */
 package org.apache.activemq.filter;
 
-import jakarta.jms.JMSException;
 import java.io.IOException;
+import javax.jms.JMSException;
 import org.apache.activemq.util.JMSExceptionSupport;
 
 public class NoLocalExpression implements BooleanExpression {

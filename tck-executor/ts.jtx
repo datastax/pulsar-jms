@@ -20,12 +20,12 @@
 
 # Message selectors partially supported:
 # in these tests it is expected that if you can change the "selector" or "noLocal" there is an implicit "unsubscribe"
-# this is currently not possible with FastJMS because those properties are only managed locally in the client
+# this is currently not possible with Pulsar JMS because those properties are only managed locally in the client
 # the broker does not know that the subscription had different configurations for "selector" or "noLocal"
 com/sun/ts/tests/jms/core/topictests/TopicTests.java#durableSubscriberTopicNoLocalTest2_from_standalone
 com/sun/ts/tests/jms/core20/jmscontexttopictests/Client.java#durableConsumerTopicNoLocalTest_from_standalone
 
-# These tests requires fails after "Create second shared consumer with same name but different topic"
+# These tests fail after "Create second shared consumer with same name but different topic"
 # it expects that the consumer name is unique across topics using "createSharedConsumer"
 com/sun/ts/tests/jms/core20/sessiontests/Client.java#jMSExceptionTests_from_standalone
 com/sun/ts/tests/jms/core20/jmscontexttopictests/Client.java#jMSRuntimeExceptionTests_from_standalone

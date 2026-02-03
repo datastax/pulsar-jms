@@ -20,11 +20,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.datastax.oss.pulsar.jms.utils.PulsarContainerExtension;
 import com.google.common.collect.ImmutableMap;
-import jakarta.jms.MessageConsumer;
-import jakarta.jms.Queue;
-import jakarta.jms.Session;
 import java.util.Map;
 import java.util.UUID;
+import javax.jms.MessageConsumer;
+import javax.jms.Queue;
+import javax.jms.Session;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;

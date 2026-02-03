@@ -15,10 +15,10 @@
  */
 package com.datastax.oss.pulsar.jms.cli;
 
-import jakarta.jms.Destination;
-import jakarta.jms.Topic;
 import java.util.Arrays;
 import java.util.List;
+import javax.jms.Destination;
+import javax.jms.Topic;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.admin.cli.extensions.ParameterDescriptor;
 import org.apache.pulsar.admin.cli.extensions.ParameterType;

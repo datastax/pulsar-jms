@@ -22,7 +22,6 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import com.datastax.oss.pulsar.jms.utils.PulsarContainerExtension;
 import com.google.common.collect.ImmutableMap;
-import jakarta.jms.*;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Enumeration;
@@ -36,6 +35,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import javax.jms.*;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.impl.ConsumerBase;

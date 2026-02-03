@@ -48,7 +48,7 @@ public class BooleanFunctionCallExpr extends FunctionCallExpression implements B
    * @param message_ctx - message context against which the expression will be evaluated.
    * @return the boolean evaluation of the function call expression.
    */
-  public boolean matches(MessageEvaluationContext message_ctx) throws jakarta.jms.JMSException {
+  public boolean matches(MessageEvaluationContext message_ctx) throws javax.jms.JMSException {
     Boolean result;
 
     result = (Boolean) evaluate(message_ctx);
