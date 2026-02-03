@@ -26,6 +26,7 @@
   <artifactId>tck-executor</artifactId>
   <packaging>jar</packaging>
   <name>JMS 2.0 TCK Executor</name>
+  <description>Executor for JMS 2.0 TCK tests</description>
   <properties>
     <build.dir>${project.build.directory}</build.dir>
   </properties>
