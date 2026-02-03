@@ -16,7 +16,7 @@
 package org.apache.activemq;
 
 /** Represents the JMS extension methods in Apache ActiveMQ */
-public interface Message extends jakarta.jms.Message {
+public interface Message extends javax.jms.Message {
 
   /**
    * Returns the MIME type of this mesage. This can be used in selectors to filter on the MIME types

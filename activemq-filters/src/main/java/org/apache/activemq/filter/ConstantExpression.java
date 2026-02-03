@@ -15,8 +15,8 @@
  */
 package org.apache.activemq.filter;
 
-import jakarta.jms.JMSException;
 import java.math.BigDecimal;
+import javax.jms.JMSException;
 
 /** Represents a constant expression */
 public class ConstantExpression implements Expression {

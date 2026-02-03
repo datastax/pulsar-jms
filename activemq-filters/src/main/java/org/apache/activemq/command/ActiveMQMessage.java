@@ -15,17 +15,17 @@
  */
 package org.apache.activemq.command;
 
-import jakarta.jms.DeliveryMode;
-import jakarta.jms.Destination;
-import jakarta.jms.JMSException;
-import jakarta.jms.MessageFormatException;
-import jakarta.jms.MessageNotWriteableException;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Vector;
+import javax.jms.DeliveryMode;
+import javax.jms.Destination;
+import javax.jms.JMSException;
+import javax.jms.MessageFormatException;
+import javax.jms.MessageNotWriteableException;
 import org.apache.activemq.ScheduledMessage;
 import org.apache.activemq.filter.PropertyExpression;
 import org.apache.activemq.util.Callback;

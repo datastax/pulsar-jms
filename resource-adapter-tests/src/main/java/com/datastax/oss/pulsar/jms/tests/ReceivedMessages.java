@@ -15,10 +15,10 @@
  */
 package com.datastax.oss.pulsar.jms.tests;
 
-import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.enterprise.event.Observes;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import javax.enterprise.context.ApplicationScoped;
+import javax.enterprise.event.Observes;
 
 @ApplicationScoped
 public class ReceivedMessages {

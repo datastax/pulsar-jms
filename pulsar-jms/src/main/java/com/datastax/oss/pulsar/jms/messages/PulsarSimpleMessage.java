@@ -16,7 +16,7 @@
 package com.datastax.oss.pulsar.jms.messages;
 
 import com.datastax.oss.pulsar.jms.PulsarMessage;
-import jakarta.jms.JMSException;
+import javax.jms.JMSException;
 import org.apache.pulsar.client.api.TypedMessageBuilder;
 
 public final class PulsarSimpleMessage extends PulsarMessage {

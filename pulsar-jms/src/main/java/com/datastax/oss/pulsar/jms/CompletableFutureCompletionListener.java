@@ -15,9 +15,9 @@
  */
 package com.datastax.oss.pulsar.jms;
 
-import jakarta.jms.CompletionListener;
-import jakarta.jms.Message;
 import java.util.concurrent.CompletableFuture;
+import javax.jms.CompletionListener;
+import javax.jms.Message;
 
 /** Utility class to convert a CompletionListener into a CompletableFuture. */
 public class CompletableFutureCompletionListener extends CompletableFuture<Message>

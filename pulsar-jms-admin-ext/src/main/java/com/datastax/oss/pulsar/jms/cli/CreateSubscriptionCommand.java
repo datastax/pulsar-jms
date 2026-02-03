@@ -16,7 +16,7 @@
 package com.datastax.oss.pulsar.jms.cli;
 
 import com.datastax.oss.pulsar.jms.PulsarDestination;
-import jakarta.jms.Topic;
+import javax.jms.Topic;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j

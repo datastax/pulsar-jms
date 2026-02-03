@@ -15,7 +15,6 @@
  */
 package org.apache.activemq.command;
 
-import jakarta.jms.JMSException;
 import java.beans.Transient;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -27,6 +26,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.zip.DeflaterOutputStream;
+import javax.jms.JMSException;
 import org.apache.activemq.broker.region.MessageReference;
 import org.apache.activemq.usage.MemoryUsage;
 import org.apache.activemq.util.ByteArrayInputStream;

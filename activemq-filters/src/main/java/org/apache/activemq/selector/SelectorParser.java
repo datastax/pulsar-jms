@@ -31,7 +31,6 @@
  */
 package org.apache.activemq.selector;
 
-import jakarta.jms.InvalidSelectorException;
 import java.io.InputStream;
 import java.io.Reader;
 import java.io.StringReader;
@@ -39,6 +38,7 @@ import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Map;
+import javax.jms.InvalidSelectorException;
 import org.apache.activemq.filter.ArithmeticExpression;
 import org.apache.activemq.filter.BooleanExpression;
 import org.apache.activemq.filter.ComparisonExpression;

@@ -16,9 +16,9 @@
 package com.datastax.oss.pulsar.jms.cli;
 
 import com.datastax.oss.pulsar.jms.PulsarDestination;
-import jakarta.jms.Queue;
 import java.util.Arrays;
 import java.util.List;
+import javax.jms.Queue;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.admin.cli.extensions.ParameterDescriptor;
 import org.apache.pulsar.admin.cli.extensions.ParameterType;

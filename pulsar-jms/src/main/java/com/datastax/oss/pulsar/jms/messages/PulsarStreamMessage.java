@@ -18,18 +18,18 @@ package com.datastax.oss.pulsar.jms.messages;
 import com.datastax.oss.pulsar.jms.PulsarMessage;
 import com.datastax.oss.pulsar.jms.Utils;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
-import jakarta.jms.JMSException;
-import jakarta.jms.MessageEOFException;
-import jakarta.jms.MessageFormatException;
-import jakarta.jms.MessageNotReadableException;
-import jakarta.jms.MessageNotWriteableException;
-import jakarta.jms.StreamMessage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
+import javax.jms.JMSException;
+import javax.jms.MessageEOFException;
+import javax.jms.MessageFormatException;
+import javax.jms.MessageNotReadableException;
+import javax.jms.MessageNotWriteableException;
+import javax.jms.StreamMessage;
 import org.apache.pulsar.client.api.TypedMessageBuilder;
 
 public final class PulsarStreamMessage extends PulsarMessage implements StreamMessage {

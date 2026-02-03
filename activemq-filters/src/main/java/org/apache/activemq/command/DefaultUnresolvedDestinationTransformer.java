@@ -15,11 +15,11 @@
  */
 package org.apache.activemq.command;
 
-import jakarta.jms.Destination;
-import jakarta.jms.JMSException;
-import jakarta.jms.Queue;
-import jakarta.jms.Topic;
 import java.lang.reflect.Method;
+import javax.jms.Destination;
+import javax.jms.JMSException;
+import javax.jms.Queue;
+import javax.jms.Topic;
 
 public class DefaultUnresolvedDestinationTransformer implements UnresolvedDestinationTransformer {
 

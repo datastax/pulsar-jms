@@ -16,7 +16,6 @@
 package com.datastax.oss.pulsar.jms.rar;
 
 import com.datastax.oss.pulsar.jms.PulsarConnectionFactory;
-import jakarta.jms.JMSException;
 import jakarta.resource.ResourceException;
 import jakarta.resource.spi.ActivationSpec;
 import jakarta.resource.spi.BootstrapContext;
@@ -28,6 +27,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
+import javax.jms.JMSException;
 import javax.transaction.xa.XAResource;
 import lombok.extern.slf4j.Slf4j;
 

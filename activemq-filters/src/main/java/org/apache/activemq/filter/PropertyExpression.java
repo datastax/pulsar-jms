@@ -15,11 +15,11 @@
  */
 package org.apache.activemq.filter;
 
-import jakarta.jms.JMSException;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import javax.jms.JMSException;
 import org.apache.activemq.command.ActiveMQDestination;
 import org.apache.activemq.command.Message;
 import org.apache.activemq.command.TransactionId;

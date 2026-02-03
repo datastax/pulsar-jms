@@ -15,8 +15,8 @@
  */
 package org.apache.activemq.command;
 
-import jakarta.jms.JMSException;
-import jakarta.jms.Topic;
+import javax.jms.JMSException;
+import javax.jms.Topic;
 
 /** element="topic" description="An ActiveMQ Topic Destination" code="101" */
 public class ActiveMQTopic extends ActiveMQDestination implements Topic {
