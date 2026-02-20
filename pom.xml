@@ -21,7 +21,7 @@
   <groupId>com.datastax.oss</groupId>
   <artifactId>pulsar-jms-parent</artifactId>
   <packaging>pom</packaging>
-  <version>8.0.0-SNAPSHOT</version>
+  <version>8.0.0</version>
   <name>DataStax Starlight for JMS</name>
   <description>Implementation of the Java Messaging Service Client API around Apache Pulsar Java Client</description>
   <url>https://github.com/datastax/pulsar-jms</url>
@@ -628,7 +628,7 @@ limitations under the License.]]></inlineHeader>
     <connection>scm:git:git@github.com:datastax/pulsar-jms.git</connection>
     <developerConnection>scm:git:git@github.com:datastax/pulsar-jms.git</developerConnection>
     <url>https://github.com/datastax/pulsar-jms</url>
-    <tag>HEAD</tag>
+    <tag>8.0.0</tag>
   </scm>
   <developers>
     <developer>
