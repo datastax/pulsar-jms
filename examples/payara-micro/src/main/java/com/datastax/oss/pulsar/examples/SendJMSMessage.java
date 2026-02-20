@@ -15,15 +15,15 @@
  */
 package com.datastax.oss.pulsar.examples;
 
-import jakarta.annotation.Resource;
-import jakarta.ejb.Schedule;
-import jakarta.ejb.Stateless;
-import jakarta.jms.*;
-import jakarta.resource.AdministeredObjectDefinition;
-import jakarta.resource.AdministeredObjectDefinitions;
-import jakarta.resource.ConnectionFactoryDefinition;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.annotation.Resource;
+import javax.ejb.Schedule;
+import javax.ejb.Stateless;
+import javax.jms.*;
+import javax.resource.AdministeredObjectDefinition;
+import javax.resource.AdministeredObjectDefinitions;
+import javax.resource.ConnectionFactoryDefinition;
 
 /**
  * An example Timer Bean to send messages to an Pulsar broker
@@ -33,21 +33,21 @@ import java.util.logging.Logger;
 @Stateless
 @ConnectionFactoryDefinition(
   name = "java:app/jms/SendJMS",
-  interfaceName = "jakarta.jms.ConnectionFactory",
+  interfaceName = "javax.jms.ConnectionFactory",
   resourceAdapter = "pulsarra",
   properties = {"configuration=${MPCONFIG=pulsar.config}"}
 )
 @AdministeredObjectDefinitions({
   @AdministeredObjectDefinition(
     resourceAdapter = "pulsarra",
-    interfaceName = "jakarta.jms.Queue",
+    interfaceName = "javax.jms.Queue",
     className = "com.datastax.oss.pulsar.jms.PulsarQueue",
     name = "java:app/jms/MyQueue",
     properties = {"Name=${MPCONFIG=queue.name}"}
   ),
   @AdministeredObjectDefinition(
     resourceAdapter = "pulsarra",
-    interfaceName = "jakarta.jms.Topic",
+    interfaceName = "javax.jms.Topic",
     className = "com.datastax.oss.pulsar.jms.PulsarTopic",
     name = "java:app/jms/MyTopic",
     properties = {"Name=${MPCONFIG=topic.name}"}

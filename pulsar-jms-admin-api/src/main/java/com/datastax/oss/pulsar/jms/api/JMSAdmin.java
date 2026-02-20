@@ -15,11 +15,11 @@
  */
 package com.datastax.oss.pulsar.jms.api;
 
-import jakarta.jms.Destination;
-import jakarta.jms.JMSException;
-import jakarta.jms.Queue;
-import jakarta.jms.Session;
-import jakarta.jms.Topic;
+import javax.jms.Destination;
+import javax.jms.JMSException;
+import javax.jms.Queue;
+import javax.jms.Session;
+import javax.jms.Topic;
 
 /**
  * Admin API for JMS features. This is meant to be like an extension of the PulsarAdmin Java API.

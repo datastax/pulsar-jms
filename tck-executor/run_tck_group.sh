@@ -12,7 +12,7 @@ echo "CONFIGURATION_FILE is $CONFIGURATION_FILE"
 echo "TEST_GROUP is $TEST_GROUP"
 echo "SUBDIR_PATTERN is $SUBDIR_PATTERN"
 
-unzip -o $HERE/jakarta-messaging-tck-3.0.1.zip -d $HERE/target
+unzip -o $HERE/jakarta-messaging-tck-2.0.0.zip -d $HERE/target
 
 TS_HOME=target/messaging-tck
 

@@ -15,9 +15,9 @@
  */
 package org.apache.activemq.filter;
 
-import jakarta.jms.JMSException;
 import java.util.ArrayList;
 import java.util.List;
+import javax.jms.JMSException;
 import org.apache.activemq.command.ActiveMQDestination;
 import org.apache.activemq.command.Message;
 

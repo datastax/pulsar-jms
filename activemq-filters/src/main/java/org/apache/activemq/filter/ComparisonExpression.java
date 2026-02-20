@@ -15,11 +15,11 @@
  */
 package org.apache.activemq.filter;
 
-import jakarta.jms.JMSException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
+import javax.jms.JMSException;
 
 /** A filter performing a comparison of two objects */
 public abstract class ComparisonExpression extends BinaryExpression implements BooleanExpression {

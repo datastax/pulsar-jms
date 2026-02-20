@@ -72,19 +72,14 @@ ts.run.classpath=${ts.home}/lib/tsharness.jar${pathsep}${ts.home}/lib/sigtest.ja
 tools.jar=${jdk.home}/lib/tools.jar
 
 #############################################################################
-# @jimage.dir:       This property specifies the directory where Java 11+
-#                    modules will be expanded by the jimage tool for use
-#                    in sigTestClasspath
 # @sigTestClasspath: This property must be set when running signature
 #                    tests.  This property should be set to a list of
 #                    jar files and/or directories which contain your
-#                    Jakarta EE and Java SE classes. Paths must be
+#                    Java EE and Java SE classes. Paths must be
 #                    separated by the appropriate path separator
-#                    (';' windows, ':' Unix).
+#                    (';' windows, ':' Unixes).
 #############################################################################
-jimage.dir=${ts.home}/tmp/jdk-bundles
-
-sigTestClasspath=${jms.classes}${pathsep}${jimage.dir}/java.base${pathsep}${jimage.dir}/java.rmi${pathsep}${jimage.dir}/java.sql${pathsep}${jimage.dir}/java.naming
+sigTestClasspath=${jms.classes}${pathsep}${JAVA_HOME}/lib/rt.jar
 
 ############################################################################
 # These properties are used by the harness.  "harness.log.port"

@@ -15,9 +15,9 @@
  */
 package com.datastax.oss.pulsar.jms;
 
-import jakarta.jms.InvalidDestinationException;
-import jakarta.jms.JMSException;
-import jakarta.jms.Queue;
+import javax.jms.InvalidDestinationException;
+import javax.jms.JMSException;
+import javax.jms.Queue;
 
 /** Represents a JMS Queue destination. In Pulsar there is no difference between Queue and Topic. */
 public final class PulsarQueue extends PulsarDestination implements Queue {

@@ -20,12 +20,13 @@
   <parent>
     <artifactId>pulsar-jms-parent</artifactId>
     <groupId>com.datastax.oss</groupId>
-    <version>9.0.0-SNAPSHOT</version>
+    <version>8.0.1-SNAPSHOT</version>
   </parent>
   <modelVersion>4.0.0</modelVersion>
   <artifactId>tck-executor</artifactId>
   <packaging>jar</packaging>
   <name>JMS 2.0 TCK Executor</name>
+  <description>Executor for JMS 2.0 TCK tests</description>
   <properties>
     <build.dir>${project.build.directory}</build.dir>
   </properties>

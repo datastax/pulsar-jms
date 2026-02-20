@@ -15,13 +15,13 @@
  */
 package com.datastax.oss.pulsar.jms.tests;
 
-import jakarta.annotation.Resource;
-import jakarta.ejb.Schedule;
-import jakarta.ejb.Stateless;
-import jakarta.jms.ConnectionFactory;
-import jakarta.jms.JMSContext;
-import jakarta.jms.Queue;
 import java.util.Date;
+import javax.annotation.Resource;
+import javax.ejb.Schedule;
+import javax.ejb.Stateless;
+import javax.jms.ConnectionFactory;
+import javax.jms.JMSContext;
+import javax.jms.Queue;
 
 // import jakarta.resource.AdministeredObjectDefinition;
 // import jakarta.resource.ConnectionFactoryDefinition;
@@ -29,10 +29,10 @@ import java.util.Date;
 @Stateless
 public class SendJMSMessage {
 
-  @Resource(name = "pulsar-jakarta.jms.ConnectionFactory")
+  @Resource(name = "pulsar-javax.jms.ConnectionFactory")
   ConnectionFactory factory;
 
-  @Resource(name = "pulsar-jakarta.jms.Queue")
+  @Resource(name = "pulsar-javax.jms.Queue")
   private Queue queue;
 
   @Schedule(
