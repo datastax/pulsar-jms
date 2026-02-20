@@ -35,15 +35,19 @@ You can also use a "fat" JAR that includes all dependencies:
 </dependency>
 ```
 
-## Which version ?
+## Version Compatibility
 
-Starlight for JMS works well with every Pulsar version in case you use basic features.
-But there are some specific features that require you to use a given JMS Client version dependending on your Pulsar server.
+Starlight for JMS works well with every Pulsar version for basic features. However, some specific features require particular version combinations.
 
-If you use Transactions and you are running Pulsar 2.8.x you must use Starlight for JMS with a version starting with 1, like 1.5.0;
-If you run Pulsar 2.10 or above you have to use Starlight for JMS with version 2.0.0 or above.
+### Compatibility Matrix
 
-If you want to use Server Side Filtering then you must use Pulsar 2.10.1 or above and Starlight for JMS 2.0.0 or above.
+| Starlight for JMS Version | JMS API Version | Apache Pulsar Version |
+|---------------------------|-----------------|----------------------|
+| 9.x.x (current)          | JMS 3.0         | 4.x                |
+| 8.x.x                    | JMS 2.0         | 4.x                |
+| 7.x.x                    | JMS 3.0         | 3.x                |
+| 6.x.x                    | JMS 2.0         | 3.x                |
+
 
 ## Getting started
 
