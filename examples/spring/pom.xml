@@ -21,7 +21,7 @@
   <parent>
     <artifactId>pulsar-jms-parent</artifactId>
     <groupId>com.datastax.oss</groupId>
-    <version>9.0.0-SNAPSHOT</version>
+    <version>9.0.0</version>
     <relativePath>../../pom.xml</relativePath>
   </parent>
   <artifactId>pulsar-jms-spring-example</artifactId>
