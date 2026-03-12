@@ -61,11 +61,14 @@
     <rename.netty.native.libs>rename-netty-native-libs.sh</rename.netty.native.libs>
     <activemq.version>5.16.8</activemq.version>
     <netty.version>4.1.125.Final</netty.version>
+    <commons-io.version>2.14.0</commons-io.version>
+    <bcpkix-jdk18on.version>1.79</bcpkix-jdk18on.version>
+    <bcprov-jdk18on.version>1.79</bcprov-jdk18on.version>
     <commons-lang.version>2.6</commons-lang.version>
     <commons-lang3.version>3.18.0</commons-lang3.version>
     <commons-logging.version>1.1.1</commons-logging.version>
     <asynchttpclient.version>2.12.4</asynchttpclient.version>
-    <aircompressor.version>0.27</aircompressor.version>
+    <aircompressor.version>2.0.3</aircompressor.version>
     <protobuf.version>3.25.5</protobuf.version>
     <hawtbuf.version>1.11</hawtbuf.version>
     <curator.version>5.1.0</curator.version>
@@ -107,6 +110,21 @@
         <groupId>io.netty</groupId>
         <artifactId>netty-handler</artifactId>
         <version>${netty.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>commons-io</groupId>
+        <artifactId>commons-io</artifactId>
+        <version>${commons-io.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.bouncycastle</groupId>
+        <artifactId>bcpkix-jdk18on</artifactId>
+        <version>${bcpkix-jdk18on.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.bouncycastle</groupId>
+        <artifactId>bcprov-jdk18on</artifactId>
+        <version>${bcprov-jdk18on.version}</version>
       </dependency>
       <dependency>
         <groupId>com.fasterxml.jackson</groupId>
