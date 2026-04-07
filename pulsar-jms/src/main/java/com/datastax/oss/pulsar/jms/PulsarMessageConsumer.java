@@ -122,9 +122,10 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
 
   public PulsarMessageConsumer subscribe() throws JMSException {
     if (destination.isQueue()) {
-      // to not create eagerly the Consumer for Queues
-      // but create the shared subscription
       session.getFactory().ensureQueueSubscription(destination);
+      if (session.getFactory().isEagerConsumerCreation()) {
+        getConsumer();
+      }
     } else {
       getConsumer();
     }
