@@ -53,25 +53,90 @@ import org.apache.pulsar.client.api.MessageIdAdv;
 public final class Utils {
   private Utils() {}
 
+  //  public static JMSException handleException(Throwable cause) {
+  //    while (cause instanceof CompletionException) {
+  //      cause = cause.getCause();
+  //    }
+  //    if (cause instanceof JMSException) {
+  //      JMSException jms = (JMSException) cause;
+  //      if (jms.getMessage() != null && jms.getMessage().contains("topic=")) {
+  //        return jms;
+  //      }
+  //      String newMsg =
+  //              (jms.getMessage() == null ? "" : jms.getMessage()) + buildContextSuffix();
+  //      try {
+  //        JMSException enriched = jms.getClass().getConstructor(String.class).newInstance(newMsg);
+  //        enriched.initCause(cause);
+  //        return enriched;
+  //      } catch (ReflectiveOperationException e) {
+  //        JMSException fallback = new JMSException(newMsg);
+  //        fallback.initCause(cause);
+  //        return fallback;
+  //      }
+  //    }
+  //    if (cause instanceof InterruptedException) {
+  //      Thread.currentThread().interrupt();
+  //    }
+  //    if (cause instanceof ClassCastException) {
+  //      return (JMSException)
+  //          new MessageFormatException("Invalid cast " + cause.getMessage() +
+  // buildContextSuffix());
+  //    }
+  //    if (cause instanceof NumberFormatException) {
+  //      return (JMSException)
+  //          new MessageFormatException("Invalid conversion " +
+  // cause.getMessage()).initCause(cause);
+  //    }
+  //    JMSException err =
+  //            new JMSException(
+  //                    (cause.getMessage() == null ? cause.toString() : cause.getMessage())
+  //                            + buildContextSuffix());
+  //    err.initCause(cause);
+  //    if (cause instanceof Exception) {
+  //      err.setLinkedException((Exception) cause);
+  //    } else {
+  //      err.setLinkedException(new Exception(cause));
+  //    }
+  //    return err;
+  //  }
   public static JMSException handleException(Throwable cause) {
     while (cause instanceof CompletionException) {
       cause = cause.getCause();
     }
+    String suffix = buildContextSuffix();
     if (cause instanceof JMSException) {
-      return (JMSException) cause;
+      JMSException jms = (JMSException) cause;
+      if (jms.getMessage() != null && jms.getMessage().contains("topic=")) {
+        return jms;
+      }
+      String newMsg = (jms.getMessage() == null ? "" : jms.getMessage()) + suffix;
+      try {
+        JMSException enriched = jms.getClass().getConstructor(String.class).newInstance(newMsg);
+        enriched.initCause(cause);
+        return enriched;
+      } catch (ReflectiveOperationException e) {
+        JMSException fallback = new JMSException(newMsg);
+        fallback.initCause(cause);
+        return fallback;
+      }
     }
+    // Preserve interrupt
     if (cause instanceof InterruptedException) {
       Thread.currentThread().interrupt();
     }
+    // Special cases
     if (cause instanceof ClassCastException) {
-      return (JMSException)
-          new MessageFormatException("Invalid cast " + cause.getMessage()).initCause(cause);
+      JMSException ex = new MessageFormatException("Invalid cast " + safeMsg(cause) + suffix);
+      ex.initCause(cause);
+      return ex;
     }
     if (cause instanceof NumberFormatException) {
-      return (JMSException)
-          new MessageFormatException("Invalid conversion " + cause.getMessage()).initCause(cause);
+      JMSException ex = new MessageFormatException("Invalid conversion " + safeMsg(cause) + suffix);
+      ex.initCause(cause);
+      return ex;
     }
-    JMSException err = new JMSException(cause + "");
+    String msg = safeMsg(cause) + suffix;
+    JMSException err = new JMSException(msg);
     err.initCause(cause);
     if (cause instanceof Exception) {
       err.setLinkedException((Exception) cause);
@@ -79,6 +144,65 @@ public final class Utils {
       err.setLinkedException(new Exception(cause));
     }
     return err;
+  }
+
+  // helper
+  private static String safeMsg(Throwable t) {
+    return (t.getMessage() != null) ? t.getMessage() : t.toString();
+  }
+
+  private static final ThreadLocal<ExecutionContext> CTX = new ThreadLocal<>();
+
+  public static void setContext(String topic) {
+    CTX.set(new ExecutionContext(topic));
+  }
+
+  public static void clearContext() {
+    CTX.remove();
+  }
+
+  private static ExecutionContext getContext() {
+    return CTX.get();
+  }
+
+  private static String buildContextSuffix() {
+    ExecutionContext ctx = CTX.get();
+    if (ctx == null || ctx.topic == null) {
+      return "";
+    }
+    return " [topic=" + ctx.topic + "]";
+  }
+
+  private static class ExecutionContext {
+    final String topic;
+
+    ExecutionContext(String topic) {
+      this.topic = topic;
+    }
+  }
+
+  public static <T> T executeWithTopic(String topic, SupplierWithException<T> code)
+      throws JMSException {
+    try {
+      setContext(topic);
+      return code.run();
+    } catch (Throwable err) {
+      throw handleException(err);
+    } finally {
+      clearContext();
+    }
+  }
+
+  public static void executeWithTopic(String topic, RunnableWithException code)
+      throws JMSException {
+    try {
+      setContext(topic);
+      code.run();
+    } catch (Throwable err) {
+      throw handleException(err);
+    } finally {
+      clearContext();
+    }
   }
 
   public static <T> T get(CompletableFuture<T> future) throws JMSException {
@@ -117,12 +241,12 @@ public final class Utils {
 
   public static boolean executeMessageListenerInSessionContext(
       PulsarSession session, PulsarMessageConsumer consumer, BooleanSupplier code) {
-    currentSession.set(new CallbackContext(session, consumer, null));
+    PulsarDestination dest = consumer.getDestination();
+    String topic = dest != null ? dest.getName() : null;
+    setContext(topic);
     try {
-      return session.executeCriticalOperation(
-          () -> {
-            return code.getAsBoolean();
-          });
+      currentSession.set(new CallbackContext(session, consumer, null));
+      return session.executeCriticalOperation(() -> code.getAsBoolean());
     } catch (IllegalStateException err) {
       log.debug("Ignore error in listener", err);
       return false;
@@ -130,6 +254,7 @@ public final class Utils {
       log.error("Unexpected error in listener", err);
       return false;
     } finally {
+      clearContext();
       currentSession.remove();
     }
   }

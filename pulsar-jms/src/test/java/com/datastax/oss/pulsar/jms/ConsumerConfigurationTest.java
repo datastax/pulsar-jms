@@ -15,20 +15,28 @@
  */
 package com.datastax.oss.pulsar.jms;
 
+import static org.junit.Assert.fail;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.datastax.oss.pulsar.jms.api.JMSAdmin;
+import com.datastax.oss.pulsar.jms.utils.PulsarContainerExtension;
+import jakarta.jms.*;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
 import org.apache.pulsar.client.api.Schema;
 import org.apache.pulsar.common.schema.SchemaType;
+import org.junit.Assert;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
 final class ConsumerConfigurationTest {
+  @RegisterExtension
+  static PulsarContainerExtension pulsarContainer = new PulsarContainerExtension();
 
   private void test(
       Map<String, Object> consumerConfiguration, Consumer<ConsumerConfiguration> test) {
@@ -47,6 +55,183 @@ final class ConsumerConfigurationTest {
 
     // test that the provided configuration applies also when applied to the default configuration
     test.accept(result.applyDefaults(defaultConfiguration));
+  }
+
+  @Test
+  public void producerErrorShouldContainTopic() throws Exception {
+
+    String pulsarToken = System.getenv("PULSAR_TOKEN");
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
+    properties.put("webServiceUrl", "https://pulsar-gcp-useast4.api.dev.streaming.datastax.com");
+    properties.put(
+        "brokerServiceUrl", "pulsar+ssl://pulsar-gcp-useast4.dev.streaming.datastax.com:6651");
+    properties.put("authPlugin", "org.apache.pulsar.client.impl.auth.AuthenticationToken");
+    properties.put("authParams", pulsarToken);
+
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties);
+        PulsarConnection connection = factory.createConnection()) {
+
+      PulsarSession session = connection.createSession();
+
+      PulsarDestination destination =
+          new PulsarQueue("persistent://pulsar-jms-test/pulsar-jms-test-ns/topicname-test1"); // +
+      // UUID.randomUUID());
+
+      MessageProducer producer = session.createProducer(destination);
+
+      try {
+        producer.send(session.createTextMessage("testing"));
+        fail("Expected exception");
+
+      } catch (JMSException e) {
+        System.out.println("EXCEPTION = " + e.getMessage());
+
+        Assert.assertTrue(e.getMessage().contains("topic="));
+      }
+    }
+  }
+
+  @Test
+  public void consumerErrorShouldContainTopic_real() throws Exception {
+
+    String pulsarToken = System.getenv("PULSAR_TOKEN");
+    if (pulsarToken == null || pulsarToken.isEmpty()) {
+      throw new RuntimeException("PULSAR_TOKEN environment variable is not set");
+    }
+
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
+    properties.put("webServiceUrl", "https://pulsar-gcp-useast4.api.dev.streaming.datastax.com");
+    properties.put(
+        "brokerServiceUrl", "pulsar+ssl://pulsar-gcp-useast4.dev.streaming.datastax.com:6651");
+    properties.put("authPlugin", "org.apache.pulsar.client.impl.auth.AuthenticationToken");
+    properties.put("authParams", pulsarToken);
+
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties);
+        PulsarConnection connection = factory.createConnection()) {
+
+      PulsarSession session = connection.createSession();
+
+      PulsarDestination destination =
+          new PulsarQueue("persistent://pulsar-jms-test/pulsar-jms-test-ns/topicname-test");
+
+      MessageConsumer consumer = session.createConsumer(destination);
+
+      consumer.close();
+
+      try {
+        consumer.receive();
+        fail("Expected exception after closing consumer");
+
+      } catch (JMSException e) {
+        System.out.println("CONSUMER EXCEPTION = " + e.getMessage());
+
+        assertTrue(e.getMessage().contains("topic="));
+        assertTrue(e.getMessage().contains(destination.getName())); // strong check
+      }
+    }
+  }
+
+  @Test
+  public void adminErrorShouldContainTopic_real() throws Exception {
+
+    String pulsarToken = System.getenv("PULSAR_TOKEN");
+    if (pulsarToken == null || pulsarToken.isEmpty()) {
+      throw new RuntimeException("PULSAR_TOKEN environment variable is not set");
+    }
+
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
+    properties.put("webServiceUrl", "https://pulsar-gcp-useast4.api.dev.streaming.datastax.com");
+    properties.put(
+        "brokerServiceUrl", "pulsar+ssl://pulsar-gcp-useast4.dev.streaming.datastax.com:6651");
+    properties.put("authPlugin", "org.apache.pulsar.client.impl.auth.AuthenticationToken");
+    properties.put("authParams", "token:" + pulsarToken);
+
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties);
+        PulsarConnection connection = factory.createConnection()) {
+
+      PulsarSession session = connection.createSession();
+      JMSAdmin admin = factory.getAdmin();
+      Topic topic =
+          session.createTopic("persistent://pulsar-jms-test/pulsar-jms-test-ns/topicname-test");
+      try {
+        // FORCE FAILURE (invalid partitions)
+        admin.createTopic(topic, -1);
+
+        fail("Expected exception");
+
+      } catch (JMSException e) {
+        System.out.println("ADMIN EXCEPTION = " + e.getMessage());
+        assertTrue(e.getMessage().contains("topic="));
+        assertTrue(e.getMessage().contains(topic.getTopicName()));
+      }
+    }
+  }
+
+  @Test
+  public void createQueueErrorShouldContainTopic() throws Exception {
+
+    String pulsarToken = System.getenv("PULSAR_TOKEN");
+
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
+    properties.put("webServiceUrl", "https://pulsar-gcp-useast4.api.dev.streaming.datastax.com");
+    properties.put(
+        "brokerServiceUrl", "pulsar+ssl://pulsar-gcp-useast4.dev.streaming.datastax.com:6651");
+    properties.put("authPlugin", "org.apache.pulsar.client.impl.auth.AuthenticationToken");
+    properties.put("authParams", "token:" + pulsarToken);
+
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties);
+        PulsarConnection connection = factory.createConnection()) {
+
+      PulsarSession session = connection.createSession();
+      JMSAdmin admin = factory.getAdmin();
+
+      Queue queue =
+          session.createQueue("persistent://pulsar-jms-test/pulsar-jms-test-ns/topicname-test");
+
+      try {
+        admin.createQueue(queue, -1, false, null); // 🔥 invalid partitions
+        fail("Expected exception");
+
+      } catch (JMSException e) {
+        System.out.println("QUEUE EXCEPTION = " + e.getMessage());
+
+        assertTrue(e.getMessage().contains("topic="));
+      }
+    }
+  }
+
+  @Test
+  public void setQueueSubscriptionSelectorErrorShouldContainTopic() throws Exception {
+
+    String pulsarToken = System.getenv("PULSAR_TOKEN");
+
+    Map<String, Object> properties = pulsarContainer.buildJMSConnectionProperties();
+    properties.put("webServiceUrl", "https://pulsar-gcp-useast4.api.dev.streaming.datastax.com");
+    properties.put(
+        "brokerServiceUrl", "pulsar+ssl://pulsar-gcp-useast4.dev.streaming.datastax.com:6651");
+    properties.put("authPlugin", "org.apache.pulsar.client.impl.auth.AuthenticationToken");
+    properties.put("authParams", "token:" + pulsarToken);
+
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties);
+        PulsarConnection connection = factory.createConnection()) {
+
+      PulsarSession session = connection.createSession();
+      JMSAdmin admin = factory.getAdmin();
+
+      Queue queue =
+          session.createQueue("persistent://pulsar-jms-test/pulsar-jms-test-ns/topicname-test");
+
+      try {
+        //  invalid selector
+        admin.setQueueSubscriptionSelector(queue, true, "INVALID ###");
+        fail("Expected exception");
+
+      } catch (JMSException e) {
+        System.out.println("QUEUE SELECTOR EXCEPTION = " + e.getMessage());
+
+        assertTrue(e.getMessage().contains("topic="));
+      }
+    }
   }
 
   @Test

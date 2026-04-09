@@ -328,43 +328,51 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
 
   synchronized Message receiveWithTimeoutAndValidateType(long timeout, Class expectedType)
       throws JMSException {
-    checkNotClosed();
-    if (listener != null) {
-      throw new IllegalStateException("cannot receive if you have a messageListener");
-    }
-    // time to wait for the Connection to "start"
-    final int acquireConnectionStartTime =
-        timeout == Long.MAX_VALUE ? Integer.MAX_VALUE : (int) timeout;
-    // time to wait for each cycle
-    final int stepTimeout = timeout < 100 ? ((int) timeout) : 100;
-    final long start = System.currentTimeMillis();
-    return session.executeOperationIfConnectionStarted(
-        () -> {
-          do {
-            Message result =
-                session.executeCriticalOperation(
-                    () -> {
-                      try {
-                        Consumer<?> consumer = getConsumer();
-                        org.apache.pulsar.client.api.Message<?> message =
-                            consumer.receive(stepTimeout, TimeUnit.MILLISECONDS);
-                        if (message == null) {
-                          return null;
+    Utils.setContext(destination.getName());
+    try {
+      checkNotClosed();
+      if (listener != null) {
+        throw Utils.handleException(
+            new IllegalStateException("cannot receive if you have a messageListener"));
+      }
+      final int acquireConnectionStartTime =
+          timeout == Long.MAX_VALUE ? Integer.MAX_VALUE : (int) timeout;
+      final int stepTimeout = timeout < 100 ? ((int) timeout) : 100;
+      final long start = System.currentTimeMillis();
+      return session.executeOperationIfConnectionStarted(
+          () -> {
+            do {
+              Message result =
+                  session.executeCriticalOperation(
+                      () -> {
+                        try {
+                          Consumer<?> consumer = getConsumer();
+                          org.apache.pulsar.client.api.Message<?> message =
+                              consumer.receive(stepTimeout, TimeUnit.MILLISECONDS);
+                          if (message == null) {
+                            return null;
+                          }
+                          return handleReceivedMessage(
+                              message, consumer, expectedType, null, noLocal);
+                        } catch (Exception err) {
+                          throw Utils.handleException(err);
                         }
-                        return handleReceivedMessage(
-                            message, consumer, expectedType, null, noLocal);
-                      } catch (Exception err) {
-                        throw Utils.handleException(err);
-                      }
-                    });
-            if (result != null) {
-              return result;
-            }
-          } while (System.currentTimeMillis() - start < timeout && !session.isClosed());
-
-          return null;
-        },
-        acquireConnectionStartTime);
+                      });
+              if (result != null) {
+                return result;
+              }
+            } while (System.currentTimeMillis() - start < timeout && !session.isClosed());
+            return null;
+          },
+          acquireConnectionStartTime);
+    } catch (Throwable t) {
+      //      if (t instanceof JMSException) {
+      //        throw (JMSException) t;
+      //      }
+      throw Utils.handleException(t);
+    } finally {
+      Utils.clearContext();
+    }
   }
 
   /**

@@ -326,15 +326,17 @@ class PulsarJMSAdminImpl implements JMSAdmin {
       String selector,
       boolean fromBeginning)
       throws JMSException {
+
+    PulsarDestination dest = PulsarConnectionFactory.toPulsarDestination(destination);
+    validateSelector(enableFilters, selector);
+    Map<String, String> properties = new HashMap<>();
+    if (enableFilters) {
+      properties.put("jms.filtering", "true");
+      properties.put("jms.selector", selector);
+    }
+    String topicName = factory.getPulsarTopicName(dest);
+    Utils.setContext(topicName); // ✅ moved out
     try {
-      PulsarDestination dest = PulsarConnectionFactory.toPulsarDestination(destination);
-      validateSelector(enableFilters, selector);
-      Map<String, String> properties = new HashMap<>();
-      if (enableFilters) {
-        properties.put("jms.filtering", "true");
-        properties.put("jms.selector", selector);
-      }
-      String topicName = factory.getPulsarTopicName(dest);
       Topics topics = factory.ensurePulsarAdmin().topics();
       topics.createSubscription(
           topicName,
@@ -344,20 +346,22 @@ class PulsarJMSAdminImpl implements JMSAdmin {
           properties);
     } catch (PulsarAdminException error) {
       throw Utils.handleException(error);
+    } finally {
+      Utils.clearContext();
     }
   }
 
   @Override
   public void createQueue(Queue destination, int partitions, boolean enableFilters, String selector)
       throws JMSException {
-    checkArgument(() -> partitions >= 0, "Invalid number of partitions " + partitions);
-    validateSelector(enableFilters, selector);
+    PulsarDestination dest = PulsarConnectionFactory.toPulsarDestination(destination);
+    String topicName = factory.getPulsarTopicName(dest);
+    Utils.setContext(topicName);
     try {
-      PulsarDestination dest = PulsarConnectionFactory.toPulsarDestination(destination);
+      checkArgument(() -> partitions >= 0, "Invalid number of partitions " + partitions);
+      validateSelector(enableFilters, selector);
       checkDestination(
           destination, d -> !dest.isVirtualDestination(), "Cannot create a VirtualDestination");
-
-      String topicName = factory.getPulsarTopicName(dest);
       Topics topics = factory.ensurePulsarAdmin().topics();
       boolean exists = false;
       try {
@@ -397,22 +401,36 @@ class PulsarJMSAdminImpl implements JMSAdmin {
       }
     } catch (PulsarAdminException error) {
       throw Utils.handleException(error);
+    } catch (Throwable t) {
+      //      if (t instanceof JMSException) {
+      //        throw (JMSException) t;
+      //      }
+      throw Utils.handleException(t);
+    } finally {
+      Utils.clearContext();
     }
   }
 
   @Override
   public void createTopic(Topic destination, int partitions) throws JMSException {
-    checkArgument(() -> partitions >= 0, "Invalid number of partitions " + partitions);
+
+    PulsarDestination dest = PulsarConnectionFactory.toPulsarDestination(destination);
+    String topicName = factory.getPulsarTopicName(dest);
+
+    Utils.setContext(topicName);
+
     try {
-      PulsarDestination dest = PulsarConnectionFactory.toPulsarDestination(destination);
+      checkArgument(() -> partitions >= 0, "Invalid number of partitions " + partitions);
+
       checkDestination(
           destination, d -> !dest.isVirtualDestination(), "Cannot create a VirtualDestination");
 
-      String topicName = factory.getPulsarTopicName(dest);
       Topics topics = factory.ensurePulsarAdmin().topics();
+
       try {
         PartitionedTopicMetadata partitionedTopicMetadata =
             topics.getPartitionedTopicMetadata(topicName);
+
         checkDestination(
             destination,
             d -> partitionedTopicMetadata.partitions != partitions,
@@ -420,9 +438,11 @@ class PulsarJMSAdminImpl implements JMSAdmin {
                 + partitionedTopicMetadata.partitions
                 + " is different from "
                 + partitions);
+
       } catch (PulsarAdminException.NotFoundException notFound) {
         // ok
       }
+
       try {
         if (partitions > 0) {
           topics.createPartitionedTopic(topicName, partitions);
@@ -432,21 +452,33 @@ class PulsarJMSAdminImpl implements JMSAdmin {
       } catch (PulsarAdminException.ConflictException exists) {
         throw new InvalidDestinationException("Topic " + topicName + " already exists");
       }
+
     } catch (PulsarAdminException error) {
       throw Utils.handleException(error);
+
+    } catch (Throwable t) {
+      //      if (t instanceof JMSException) {
+      //        throw (JMSException) t;
+      //      }
+      throw Utils.handleException(t);
+    } finally {
+      Utils.clearContext();
     }
   }
 
   @Override
   public void setQueueSubscriptionSelector(
       Queue destination, boolean enableFilters, String selector) throws JMSException {
+    PulsarDestination dest = PulsarConnectionFactory.toPulsarDestination(destination);
+    String topicName = factory.getPulsarTopicName(dest);
+    String subscriptionName = factory.getQueueSubscriptionName(dest);
+    Utils.setContext(topicName);
     try {
-      PulsarDestination dest = PulsarConnectionFactory.toPulsarDestination(destination);
-      String topicName = factory.getPulsarTopicName(dest);
-      String subscriptionName = factory.getQueueSubscriptionName(dest);
       doUpdateSubscriptionSelector(enableFilters, selector, topicName, subscriptionName);
-    } catch (PulsarAdminException error) {
+    } catch (Throwable error) { // catch everything
       throw Utils.handleException(error);
+    } finally {
+      Utils.clearContext();
     }
   }
 
@@ -473,12 +505,15 @@ class PulsarJMSAdminImpl implements JMSAdmin {
   public void setSubscriptionSelector(
       Topic destination, String subscriptionName, boolean enableFilters, String selector)
       throws JMSException {
+    PulsarDestination dest = PulsarConnectionFactory.toPulsarDestination(destination);
+    String topicName = factory.getPulsarTopicName(dest);
+    Utils.setContext(topicName);
     try {
-      PulsarDestination dest = PulsarConnectionFactory.toPulsarDestination(destination);
-      String topicName = factory.getPulsarTopicName(dest);
       doUpdateSubscriptionSelector(enableFilters, selector, topicName, subscriptionName);
-    } catch (PulsarAdminException error) {
+    } catch (Throwable error) {
       throw Utils.handleException(error);
+    } finally {
+      Utils.clearContext();
     }
   }
 }

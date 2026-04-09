@@ -19,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import jakarta.jms.JMSException;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -409,5 +410,16 @@ public class UtilsTest {
     PulsarDestination dest = new PulsarQueue("test?" + queryString);
     Map<String, Object> res = Utils.buildConfigurationOverride(dest);
     verifier.accept(res);
+  }
+
+  @Test
+  public void shouldAppendTopicToException() {
+    Utils.setContext("persistent://topictest/default/topicnametest1");
+
+    JMSException ex = Utils.handleException(new RuntimeException("failure"));
+
+    assertTrue(ex.getMessage().contains("topic=persistent://topictest/default/topicnametest1"));
+    System.out.println(ex.getMessage());
+    Utils.clearContext();
   }
 }
