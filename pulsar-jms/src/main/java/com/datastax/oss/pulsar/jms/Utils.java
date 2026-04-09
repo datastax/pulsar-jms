@@ -38,6 +38,7 @@ import java.net.URLDecoder;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -54,24 +55,40 @@ public final class Utils {
   private Utils() {}
 
   public static JMSException handleException(Throwable cause) {
+    return handleException(cause, null);
+  }
+
+  public static JMSException handleException(Throwable cause, Destination destination) {
+    return handleException(cause, computeTopicContext(destination));
+  }
+
+  public static JMSException handleException(Throwable cause, PulsarDestination destination) {
+    return handleException(cause, computeTopicContext(destination));
+  }
+
+  private static JMSException handleException(Throwable cause, String topicContext) {
     while (cause instanceof CompletionException) {
       cause = cause.getCause();
     }
     if (cause instanceof JMSException) {
-      return (JMSException) cause;
+      return copyJMSExceptionWithTopic((JMSException) cause, topicContext);
     }
     if (cause instanceof InterruptedException) {
       Thread.currentThread().interrupt();
     }
     if (cause instanceof ClassCastException) {
-      return (JMSException)
-          new MessageFormatException("Invalid cast " + cause.getMessage()).initCause(cause);
+      return copyJMSExceptionWithTopic(
+          (JMSException)
+              new MessageFormatException("Invalid cast " + cause.getMessage()).initCause(cause),
+          topicContext);
     }
     if (cause instanceof NumberFormatException) {
-      return (JMSException)
-          new MessageFormatException("Invalid conversion " + cause.getMessage()).initCause(cause);
+      return copyJMSExceptionWithTopic(
+          (JMSException)
+              new MessageFormatException("Invalid conversion " + cause.getMessage()).initCause(cause),
+          topicContext);
     }
-    JMSException err = new JMSException(cause + "");
+    JMSException err = new JMSException(appendTopicContext(cause + "", topicContext));
     err.initCause(cause);
     if (cause instanceof Exception) {
       err.setLinkedException((Exception) cause);
@@ -244,58 +261,153 @@ public final class Utils {
     }
   }
 
-  private static void throwAsRuntimeException(Exception err) {
+  public static void throwAsRuntimeException(Exception err) {
+    throwAsRuntimeException(err, (String) null);
+  }
+
+  public static void throwAsRuntimeException(Exception err, Destination destination) {
+    throwAsRuntimeException(err, computeTopicContext(destination));
+  }
+
+  public static void throwAsRuntimeException(Exception err, PulsarDestination destination) {
+    throwAsRuntimeException(err, computeTopicContext(destination));
+  }
+
+  private static void throwAsRuntimeException(Exception err, String topicContext) {
     if (err instanceof NumberFormatException) {
       throw (MessageFormatRuntimeException)
-          new MessageFormatRuntimeException("Illegal value: " + err.getMessage()).initCause(err);
+          new MessageFormatRuntimeException(
+                  appendTopicContext("Illegal value: " + err.getMessage(), topicContext))
+              .initCause(err);
     }
     if (err instanceof IllegalStateException) {
       IllegalStateException jmsException = (IllegalStateException) err;
       throw new IllegalStateRuntimeException(
-          jmsException.getMessage(), jmsException.getErrorCode(), err);
+          appendTopicContext(jmsException.getMessage(), topicContext),
+          jmsException.getErrorCode(),
+          err);
     }
     if (err instanceof TransactionRolledBackException) {
       TransactionRolledBackException jmsException = (TransactionRolledBackException) err;
       throw new TransactionRolledBackRuntimeException(
-          jmsException.getMessage(), jmsException.getErrorCode(), err);
+          appendTopicContext(jmsException.getMessage(), topicContext),
+          jmsException.getErrorCode(),
+          err);
     }
     if (err instanceof InvalidDestinationException) {
       InvalidDestinationException jmsException = (InvalidDestinationException) err;
       throw new InvalidDestinationRuntimeException(
-          jmsException.getMessage(), jmsException.getErrorCode(), err);
+          appendTopicContext(jmsException.getMessage(), topicContext),
+          jmsException.getErrorCode(),
+          err);
     }
     if (err instanceof InvalidClientIDException) {
       InvalidClientIDException jmsException = (InvalidClientIDException) err;
       throw new InvalidClientIDRuntimeException(
-          jmsException.getMessage(), jmsException.getErrorCode(), err);
+          appendTopicContext(jmsException.getMessage(), topicContext),
+          jmsException.getErrorCode(),
+          err);
     }
     if (err instanceof InvalidSelectorException) {
       InvalidSelectorException jmsException = (InvalidSelectorException) err;
       throw new InvalidSelectorRuntimeException(
-          jmsException.getMessage(), jmsException.getErrorCode(), err);
+          appendTopicContext(jmsException.getMessage(), topicContext),
+          jmsException.getErrorCode(),
+          err);
     }
     if (err instanceof MessageFormatException) {
       MessageFormatException jmsException = (MessageFormatException) err;
       throw new MessageFormatRuntimeException(
-          jmsException.getMessage(), jmsException.getErrorCode(), err);
+          appendTopicContext(jmsException.getMessage(), topicContext),
+          jmsException.getErrorCode(),
+          err);
     }
     if (err instanceof MessageNotWriteableException) {
       MessageNotWriteableException jmsException = (MessageNotWriteableException) err;
       throw new MessageNotWriteableRuntimeException(
-          jmsException.getMessage(), jmsException.getErrorCode(), err);
+          appendTopicContext(jmsException.getMessage(), topicContext),
+          jmsException.getErrorCode(),
+          err);
     }
     if (err instanceof JMSSecurityException) {
       JMSSecurityException jmsException = (JMSSecurityException) err;
       throw new JMSSecurityRuntimeException(
-          jmsException.getMessage(), jmsException.getErrorCode(), err);
+          appendTopicContext(jmsException.getMessage(), topicContext),
+          jmsException.getErrorCode(),
+          err);
     }
     if (err instanceof JMSException) {
       JMSException jmsException = (JMSException) err;
-      throw new JMSRuntimeException(jmsException.getMessage(), jmsException.getErrorCode(), err);
+      throw new JMSRuntimeException(
+          appendTopicContext(jmsException.getMessage(), topicContext),
+          jmsException.getErrorCode(),
+          err);
     }
-    JMSRuntimeException jms = new JMSRuntimeException("Generic error " + err.getMessage());
+    JMSRuntimeException jms =
+        new JMSRuntimeException(
+            appendTopicContext("Generic error " + err.getMessage(), topicContext));
     jms.initCause(err);
     throw jms;
+  }
+
+  private static JMSException copyJMSExceptionWithTopic(JMSException source, String topicContext) {
+    String messageWithTopic = appendTopicContext(source.getMessage(), topicContext);
+    if (Objects.equals(messageWithTopic, source.getMessage())) {
+      return source;
+    }
+    JMSException copy = new JMSException(messageWithTopic, source.getErrorCode());
+    if (source.getCause() != null) {
+      copy.initCause(source.getCause());
+    }
+    if (source.getLinkedException() != null) {
+      copy.setLinkedException(source.getLinkedException());
+    }
+    copy.setStackTrace(source.getStackTrace());
+    return copy;
+  }
+
+  public static String appendTopicContext(String message, Destination destination) {
+    return appendTopicContext(message, computeTopicContext(destination));
+  }
+
+  public static String appendTopicContext(String message, PulsarDestination destination) {
+    return appendTopicContext(message, computeTopicContext(destination));
+  }
+
+  private static String appendTopicContext(String message, String topicContext) {
+    if (topicContext == null || topicContext.isEmpty()) {
+      return message;
+    }
+    String baseMessage = message == null ? "" : message;
+    if (baseMessage.contains(topicContext)) {
+      return baseMessage;
+    }
+    if (baseMessage.isEmpty()) {
+      return topicContext;
+    }
+    return baseMessage + " " + topicContext;
+  }
+
+  public static String computeTopicContext(Destination destination) {
+    if (destination == null) {
+      return null;
+    }
+    try {
+      return computeTopicContext(PulsarConnectionFactory.toPulsarDestination(destination));
+    } catch (JMSException err) {
+      return null;
+    }
+  }
+
+  public static String computeTopicContext(PulsarDestination destination) {
+    if (destination == null || destination.isRegExp() || destination.isMultiTopic()) {
+      return null;
+    }
+    try {
+      return "[topic=" + destination.getInternalTopicName() + "]";
+    } catch (InvalidDestinationException err) {
+      return null;
+    }
   }
 
   private static List deepCopyList(List configuration) {

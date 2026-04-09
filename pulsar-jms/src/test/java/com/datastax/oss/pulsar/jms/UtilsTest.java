@@ -17,7 +17,11 @@ package com.datastax.oss.pulsar.jms;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import jakarta.jms.InvalidDestinationException;
+import jakarta.jms.JMSException;
 
 import java.util.HashSet;
 import java.util.Map;
@@ -368,6 +372,48 @@ public class UtilsTest {
   private static void assertRange(int value, int from, int to) {
     assertTrue(value >= from, "value " + value + " not in range " + from + "-" + to);
     assertTrue(value <= to, "value " + value + " not in range " + from + "-" + to);
+  }
+
+  @Test
+  public void computeTopicContextForTopicAndQueue() throws Exception {
+    assertEquals("[topic=test-topic]", Utils.computeTopicContext(new PulsarTopic("test-topic")));
+    assertEquals(
+        "[topic=test-queue-topic]",
+        Utils.computeTopicContext(new PulsarQueue("test-queue-topic:subscription")));
+  }
+
+  @Test
+  public void computeTopicContextSkipsVirtualDestinations() throws Exception {
+    assertNull(Utils.computeTopicContext(new PulsarTopic("regex:persistent://public/default/test-.*")));
+    assertNull(Utils.computeTopicContext(new PulsarTopic("multi:test1,test2")));
+  }
+
+  @Test
+  public void appendTopicContextAvoidsDuplication() {
+    assertEquals(
+        "failure [topic=test-topic]",
+        Utils.appendTopicContext("failure [topic=test-topic]", new PulsarTopic("test-topic")));
+  }
+
+  @Test
+  public void handleExceptionAddsTopicContextAndPreservesCause() throws Exception {
+    JMSException original = new JMSException("send failed");
+    IllegalArgumentException cause = new IllegalArgumentException("boom");
+    original.initCause(cause);
+
+    JMSException handled = Utils.handleException(original, new PulsarTopic("test-topic"));
+
+    assertEquals("send failed [topic=test-topic]", handled.getMessage());
+    assertSame(cause, handled.getCause());
+  }
+
+  @Test
+  public void handleExceptionReturnsSameExceptionWhenAlreadyEnriched() throws Exception {
+    JMSException original = new JMSException("send failed [topic=test-topic]");
+
+    JMSException handled = Utils.handleException(original, new PulsarTopic("test-topic"));
+
+    assertSame(original, handled);
   }
 
   @Test

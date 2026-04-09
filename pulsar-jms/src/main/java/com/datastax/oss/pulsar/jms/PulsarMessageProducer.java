@@ -481,12 +481,17 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
       throws JMSException {
     checkNotClosed();
     if (message == null) {
-      throw new MessageFormatException("Invalid null message");
+      throw new MessageFormatException(
+          Utils.appendTopicContext("Invalid null message", (Destination) null));
     }
     if (deliveryMode != DeliveryMode.PERSISTENT && deliveryMode != DeliveryMode.NON_PERSISTENT) {
-      throw new JMSException("Invalid deliveryMode " + deliveryMode);
+      throw new JMSException(Utils.appendTopicContext("Invalid deliveryMode " + deliveryMode, destination));
     }
-    validatePriority(priority);
+    try {
+      validatePriority(priority);
+    } catch (JMSException err) {
+      throw Utils.handleException(err, destination);
+    }
     if (destination == null) {
       if (isDefaultDestination) {
         throw new UnsupportedOperationException("please set a destination");
@@ -639,7 +644,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
     try {
       validateMessageSend(message, defaultDestination, true, 0, deliveryMode, priority);
     } catch (JMSException err) {
-      completionListener.onException(message, err);
+      completionListener.onException(message, Utils.handleException(err, defaultDestination));
       return;
     }
     message.setJMSDeliveryMode(deliveryMode);
@@ -797,7 +802,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
     try {
       validateMessageSend(message, defaultDestination, true, timeToLive, deliveryMode, priority);
     } catch (JMSException err) {
-      completionListener.onException(message, err);
+      completionListener.onException(message, Utils.handleException(err, defaultDestination));
       return;
     }
     message.setJMSDestination(defaultDestination);
@@ -1019,7 +1024,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
       validateMessageSend(
           message, destination, false, Message.DEFAULT_TIME_TO_LIVE, deliveryMode, priority);
     } catch (JMSException err) {
-      completionListener.onException(message, err);
+      completionListener.onException(message, Utils.handleException(err, destination));
       return;
     }
     message.setJMSDeliveryMode(deliveryMode);
@@ -1182,7 +1187,7 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
     try {
       validateMessageSend(message, destination, false, timeToLive, deliveryMode, priority);
     } catch (JMSException err) {
-      completionListener.onException(message, err);
+      completionListener.onException(message, Utils.handleException(err, destination));
       return;
     }
     message.setJMSDeliveryMode(deliveryMode);
@@ -1206,7 +1211,8 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
 
   private void sendMessage(Destination defaultDestination, Message message) throws JMSException {
     if (message == null) {
-      throw new MessageFormatException("null message");
+      throw new MessageFormatException(
+          Utils.appendTopicContext("null message", defaultDestination));
     }
     session.executeCriticalOperation(
         () -> {
@@ -1264,7 +1270,8 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
       Destination defaultDestination, Message message, CompletionListener completionListener)
       throws JMSException {
     if (message == null) {
-      throw new MessageFormatException("null message");
+      throw new MessageFormatException(
+          Utils.appendTopicContext("null message", defaultDestination));
     }
     session.executeCriticalOperation(
         () -> {
@@ -1285,7 +1292,12 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
                 @Override
                 public void onException(Message message, Exception exception) {
                   try {
-                    completionListener.onException(message, exception);
+                    if (exception instanceof JMSException) {
+                      completionListener.onException(
+                          message, Utils.handleException(exception, defaultDestination));
+                    } else {
+                      completionListener.onException(message, exception);
+                    }
                   } finally {
                     session.unblockTransactionOperations();
                   }
@@ -1380,7 +1392,9 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
         FutureUtil.waitForAll(callbacks).join();
       } catch (RuntimeException error) {
         throw new JMSException(
-            "Some errors occurred while sending messages during emulated transaction");
+            Utils.appendTopicContext(
+                "Some errors occurred while sending messages during emulated transaction",
+                defaultDestination));
       }
     }
   }

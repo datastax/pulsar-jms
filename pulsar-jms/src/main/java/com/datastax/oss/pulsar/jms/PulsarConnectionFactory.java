@@ -1226,7 +1226,7 @@ public class PulsarConnectionFactory
         // applications start when the server is not available
         long now = System.currentTimeMillis();
         if (now - start > getWaitForServerStartupTimeout()) {
-          throw Utils.handleException(err);
+          throw Utils.handleException(err, destination);
         } else {
           log.info(
               "Got {} error while setting up subscription for queue {}, maybe the namespace/broker is still starting",
@@ -1254,10 +1254,12 @@ public class PulsarConnectionFactory
       PulsarSession session)
       throws JMSException {
     if (destination.isQueue() && subscriptionMode != SubscriptionMode.Durable) {
-      throw new IllegalStateException("only durable mode for queues");
+      throw new IllegalStateException(
+          Utils.appendTopicContext("only durable mode for queues", destination));
     }
     if (destination.isQueue() && subscriptionType == SubscriptionType.Exclusive) {
-      throw new IllegalStateException("only Shared SubscriptionType for queues");
+      throw new IllegalStateException(
+          Utils.appendTopicContext("only Shared SubscriptionType for queues", destination));
     }
     log.debug(
         "createConsumer {} {} {} {}",
@@ -1373,7 +1375,7 @@ public class PulsarConnectionFactory
       }
       return (ConsumerBase) newConsumer;
     } catch (PulsarClientException err) {
-      throw Utils.handleException(err);
+      throw Utils.handleException(err, destination);
     }
   }
 
