@@ -335,7 +335,7 @@ class PulsarJMSAdminImpl implements JMSAdmin {
       properties.put("jms.selector", selector);
     }
     String topicName = factory.getPulsarTopicName(dest);
-    Utils.setContext(topicName); // ✅ moved out
+    Utils.setContext(topicName);
     try {
       Topics topics = factory.ensurePulsarAdmin().topics();
       topics.createSubscription(

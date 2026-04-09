@@ -53,52 +53,6 @@ import org.apache.pulsar.client.api.MessageIdAdv;
 public final class Utils {
   private Utils() {}
 
-  //  public static JMSException handleException(Throwable cause) {
-  //    while (cause instanceof CompletionException) {
-  //      cause = cause.getCause();
-  //    }
-  //    if (cause instanceof JMSException) {
-  //      JMSException jms = (JMSException) cause;
-  //      if (jms.getMessage() != null && jms.getMessage().contains("topic=")) {
-  //        return jms;
-  //      }
-  //      String newMsg =
-  //              (jms.getMessage() == null ? "" : jms.getMessage()) + buildContextSuffix();
-  //      try {
-  //        JMSException enriched = jms.getClass().getConstructor(String.class).newInstance(newMsg);
-  //        enriched.initCause(cause);
-  //        return enriched;
-  //      } catch (ReflectiveOperationException e) {
-  //        JMSException fallback = new JMSException(newMsg);
-  //        fallback.initCause(cause);
-  //        return fallback;
-  //      }
-  //    }
-  //    if (cause instanceof InterruptedException) {
-  //      Thread.currentThread().interrupt();
-  //    }
-  //    if (cause instanceof ClassCastException) {
-  //      return (JMSException)
-  //          new MessageFormatException("Invalid cast " + cause.getMessage() +
-  // buildContextSuffix());
-  //    }
-  //    if (cause instanceof NumberFormatException) {
-  //      return (JMSException)
-  //          new MessageFormatException("Invalid conversion " +
-  // cause.getMessage()).initCause(cause);
-  //    }
-  //    JMSException err =
-  //            new JMSException(
-  //                    (cause.getMessage() == null ? cause.toString() : cause.getMessage())
-  //                            + buildContextSuffix());
-  //    err.initCause(cause);
-  //    if (cause instanceof Exception) {
-  //      err.setLinkedException((Exception) cause);
-  //    } else {
-  //      err.setLinkedException(new Exception(cause));
-  //    }
-  //    return err;
-  //  }
   public static JMSException handleException(Throwable cause) {
     while (cause instanceof CompletionException) {
       cause = cause.getCause();
