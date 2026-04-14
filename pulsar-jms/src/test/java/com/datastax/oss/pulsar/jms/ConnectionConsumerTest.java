@@ -519,7 +519,7 @@ public class ConnectionConsumerTest {
         // log.debug("picked session {}", session);
         return session;
       } catch (Exception err) {
-        throw Utils.handleException(err);
+        throw Utils.handleException(err, null);
       }
     }
 

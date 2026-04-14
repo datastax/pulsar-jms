@@ -61,7 +61,7 @@ public final class PulsarBytesMessage extends PulsarMessage implements BytesMess
       this.dataOutputStream = null;
       writable = false;
     } catch (Exception err) {
-      throw Utils.handleException(err);
+      throw Utils.handleException(err, null);
     }
   }
 
@@ -123,7 +123,7 @@ public final class PulsarBytesMessage extends PulsarMessage implements BytesMess
         producer.value(originalMessage);
       }
     } catch (Exception err) {
-      throw Utils.handleException(err);
+      throw Utils.handleException(err, null);
     }
   }
 
@@ -149,7 +149,7 @@ public final class PulsarBytesMessage extends PulsarMessage implements BytesMess
     if (t instanceof EOFException) {
       throw new MessageEOFException(t + "");
     }
-    throw Utils.handleException(t);
+    throw Utils.handleException(t, null);
   }
 
   /**

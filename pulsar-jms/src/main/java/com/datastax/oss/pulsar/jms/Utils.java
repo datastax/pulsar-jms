@@ -53,17 +53,16 @@ import org.apache.pulsar.client.api.MessageIdAdv;
 public final class Utils {
   private Utils() {}
 
-  public static JMSException handleException(Throwable cause) {
+  public static JMSException handleException(Throwable cause, String topic) {
     while (cause instanceof CompletionException) {
       cause = cause.getCause();
     }
-    String suffix = buildContextSuffix();
     if (cause instanceof JMSException) {
       JMSException jms = (JMSException) cause;
       if (jms.getMessage() != null && jms.getMessage().contains("topic=")) {
         return jms;
       }
-      String newMsg = (jms.getMessage() == null ? "" : jms.getMessage()) + suffix;
+      String newMsg = buildMessage(jms.getMessage(), topic);
       try {
         JMSException enriched = jms.getClass().getConstructor(String.class).newInstance(newMsg);
         enriched.initCause(cause);
@@ -74,22 +73,22 @@ public final class Utils {
         return fallback;
       }
     }
-    // Preserve interrupt
     if (cause instanceof InterruptedException) {
       Thread.currentThread().interrupt();
     }
-    // Special cases
     if (cause instanceof ClassCastException) {
-      JMSException ex = new MessageFormatException("Invalid cast " + safeMsg(cause) + suffix);
+      JMSException ex =
+          new MessageFormatException(buildMessage("Invalid cast " + safeMsg(cause), topic));
       ex.initCause(cause);
       return ex;
     }
     if (cause instanceof NumberFormatException) {
-      JMSException ex = new MessageFormatException("Invalid conversion " + safeMsg(cause) + suffix);
+      JMSException ex =
+          new MessageFormatException(buildMessage("Invalid conversion " + safeMsg(cause), topic));
       ex.initCause(cause);
       return ex;
     }
-    String msg = safeMsg(cause) + suffix;
+    String msg = buildMessage(cause, topic);
     JMSException err = new JMSException(msg);
     err.initCause(cause);
     if (cause instanceof Exception) {
@@ -99,63 +98,37 @@ public final class Utils {
     }
     return err;
   }
-
   // helper
   private static String safeMsg(Throwable t) {
     return (t.getMessage() != null) ? t.getMessage() : t.toString();
   }
 
-  private static final ThreadLocal<ExecutionContext> CTX = new ThreadLocal<>();
-
-  public static void setContext(String topic) {
-    CTX.set(new ExecutionContext(topic));
-  }
-
-  public static void clearContext() {
-    CTX.remove();
-  }
-
-  private static ExecutionContext getContext() {
-    return CTX.get();
-  }
-
-  private static String buildContextSuffix() {
-    ExecutionContext ctx = CTX.get();
-    if (ctx == null || ctx.topic == null) {
-      return "";
+  private static String buildMessage(String base, String topic) {
+    if (topic == null || topic.isEmpty()) {
+      return base;
     }
-    return " [topic=" + ctx.topic + "]";
+    return base + " [topic=" + topic + "]";
   }
 
-  private static class ExecutionContext {
-    final String topic;
-
-    ExecutionContext(String topic) {
-      this.topic = topic;
-    }
+  private static String buildMessage(Throwable t, String topic) {
+    return buildMessage(safeMsg(t), topic);
   }
 
   public static <T> T executeWithTopic(String topic, SupplierWithException<T> code)
       throws JMSException {
     try {
-      setContext(topic);
       return code.run();
     } catch (Throwable err) {
-      throw handleException(err);
-    } finally {
-      clearContext();
+      throw handleException(err, topic);
     }
   }
 
   public static void executeWithTopic(String topic, RunnableWithException code)
       throws JMSException {
     try {
-      setContext(topic);
       code.run();
     } catch (Throwable err) {
-      throw handleException(err);
-    } finally {
-      clearContext();
+      throw handleException(err, topic);
     }
   }
 
@@ -163,9 +136,9 @@ public final class Utils {
     try {
       return future.get();
     } catch (ExecutionException err) {
-      throw handleException(err.getCause());
+      throw handleException(err.getCause(), null);
     } catch (InterruptedException err) {
-      throw handleException(err);
+      throw handleException(err, null);
     }
   }
 
@@ -181,7 +154,7 @@ public final class Utils {
     try {
       return code.run();
     } catch (Throwable err) {
-      throw handleException(err);
+      throw handleException(err, null);
     }
   }
 
@@ -189,7 +162,7 @@ public final class Utils {
     try {
       code.run();
     } catch (Throwable err) {
-      throw handleException(err);
+      throw handleException(err, null);
     }
   }
 
@@ -197,10 +170,16 @@ public final class Utils {
       PulsarSession session, PulsarMessageConsumer consumer, BooleanSupplier code) {
     PulsarDestination dest = consumer.getDestination();
     String topic = dest != null ? dest.getName() : null;
-    setContext(topic);
     try {
       currentSession.set(new CallbackContext(session, consumer, null));
-      return session.executeCriticalOperation(() -> code.getAsBoolean());
+      return session.executeCriticalOperation(
+          () -> {
+            try {
+              return code.getAsBoolean();
+            } catch (Throwable err) {
+              throw handleException(err, topic);
+            }
+          });
     } catch (IllegalStateException err) {
       log.debug("Ignore error in listener", err);
       return false;
@@ -208,7 +187,6 @@ public final class Utils {
       log.error("Unexpected error in listener", err);
       return false;
     } finally {
-      clearContext();
       currentSession.remove();
     }
   }

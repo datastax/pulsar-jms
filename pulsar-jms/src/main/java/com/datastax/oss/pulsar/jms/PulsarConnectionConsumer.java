@@ -108,7 +108,7 @@ class PulsarConnectionConsumer implements ConnectionConsumer {
         this.spool.join();
       }
     } catch (InterruptedException err) {
-      Utils.handleException(err);
+      Utils.handleException(err, null);
     }
     this.consumer.close();
     this.dispatcherSession.close();

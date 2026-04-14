@@ -592,7 +592,7 @@ public class PulsarConnectionFactory
       }
       this.initialized = true;
     } catch (Throwable t) {
-      throw Utils.handleException(t);
+      throw Utils.handleException(t, null);
     }
   }
 
@@ -615,7 +615,8 @@ public class PulsarConnectionFactory
                     } catch (PulsarClientException e) {
                       // ignore
                       log.debug(
-                          "Exception while closing pulsar producer", Utils.handleException(e));
+                          "Exception while closing pulsar producer",
+                          Utils.handleException(e, null));
                     }
                   }
                   log.debug(
@@ -1052,7 +1053,7 @@ public class PulsarConnectionFactory
         con.close();
       } catch (Exception ignore) {
         // ignore
-        Utils.handleException(ignore);
+        Utils.handleException(ignore, null);
       }
     }
 
@@ -1098,8 +1099,8 @@ public class PulsarConnectionFactory
 
   Producer<byte[]> getProducerForDestination(Destination defaultDestination, boolean transactions)
       throws JMSException {
+    String fullQualifiedTopicName = getPulsarTopicName(defaultDestination);
     try {
-      String fullQualifiedTopicName = getPulsarTopicName(defaultDestination);
       String key = transactions ? fullQualifiedTopicName + "-tx" : fullQualifiedTopicName;
       boolean transactionsStickyPartitions = transactions && isTransactionsStickyPartitions();
       boolean enableJMSPriority = isEnableJMSPriority();
@@ -1161,7 +1162,7 @@ public class PulsarConnectionFactory
                     return producerBuilder.create();
                   }));
     } catch (ExecutionException err) {
-      throw Utils.handleException(err);
+      throw Utils.handleException(err, fullQualifiedTopicName);
     }
   }
 
@@ -1226,7 +1227,7 @@ public class PulsarConnectionFactory
         // applications start when the server is not available
         long now = System.currentTimeMillis();
         if (now - start > getWaitForServerStartupTimeout()) {
-          throw Utils.handleException(err);
+          throw Utils.handleException(err, fullQualifiedTopicName);
         } else {
           log.info(
               "Got {} error while setting up subscription for queue {}, maybe the namespace/broker is still starting",
@@ -1237,7 +1238,7 @@ public class PulsarConnectionFactory
             Thread.sleep(1000);
           } catch (InterruptedException interruptedException) {
             Thread.currentThread().interrupt();
-            throw Utils.handleException(err);
+            throw Utils.handleException(err, fullQualifiedTopicName);
           }
         }
       }
@@ -1373,7 +1374,8 @@ public class PulsarConnectionFactory
       }
       return (ConsumerBase) newConsumer;
     } catch (PulsarClientException err) {
-      throw Utils.handleException(err);
+      String topic = getPulsarTopicName(destination);
+      throw Utils.handleException(err, topic);
     }
   }
 
@@ -1497,7 +1499,7 @@ public class PulsarConnectionFactory
         // persistent://xxx/xx/xxxx"
         long now = System.currentTimeMillis();
         if (now - start > getWaitForServerStartupTimeout()) {
-          throw Utils.handleException(notReady);
+          throw Utils.handleException(notReady, fullQualifiedTopicName);
         } else {
           log.info(
               "Temporary error, cannot download server-side filters {}: {}",
@@ -1507,11 +1509,11 @@ public class PulsarConnectionFactory
             Thread.sleep(1000);
           } catch (InterruptedException interruptedException) {
             Thread.currentThread().interrupt();
-            throw Utils.handleException(notReady);
+            throw Utils.handleException(notReady, fullQualifiedTopicName);
           }
         }
       } catch (PulsarAdminException err) {
-        throw Utils.handleException(err);
+        throw Utils.handleException(err, fullQualifiedTopicName);
       }
     }
   }
@@ -1519,10 +1521,11 @@ public class PulsarConnectionFactory
   public List<Reader<?>> createReadersForBrowser(
       PulsarQueue destination, ConsumerConfiguration overrideConsumerConfiguration)
       throws JMSException {
-
     if (destination.isRegExp()) {
+
+      String topicName = null;
       try {
-        String topicName = getPulsarTopicName(destination);
+        topicName = getPulsarTopicName(destination);
         List<String> topicNames =
             TopicDiscoveryUtils.discoverTopicsByPattern(topicName, getPulsarClient(), 1000);
         log.info("createReadersForBrowser {} - {} - {}", destination, topicName, topicNames);
@@ -1534,7 +1537,7 @@ public class PulsarConnectionFactory
         }
         return res;
       } catch (Exception err) {
-        throw Utils.handleException(err);
+        throw Utils.handleException(err, topicName);
       }
     } else if (destination.isMultiTopic()) {
       List<Reader<?>> res = new ArrayList<>();
@@ -1575,7 +1578,7 @@ public class PulsarConnectionFactory
       } catch (PulsarAdminException.NotFoundException err) {
         return Collections.emptyList();
       } catch (PulsarAdminException err) {
-        throw Utils.handleException(err);
+        throw Utils.handleException(err, fullQualifiedTopicName);
       }
     }
   }
@@ -1627,7 +1630,7 @@ public class PulsarConnectionFactory
       readers.add(newReader);
       return newReader;
     } catch (PulsarClientException | PulsarAdminException err) {
-      throw Utils.handleException(err);
+      throw Utils.handleException(err, fullQualifiedTopicName);
     }
   }
 
@@ -1644,6 +1647,7 @@ public class PulsarConnectionFactory
       throws JMSException {
     String systemNamespace = getSystemNamespace();
     boolean somethingDone = false;
+    String fullQualifiedTopicName = null;
     try {
 
       if (destination != null) {
@@ -1651,7 +1655,7 @@ public class PulsarConnectionFactory
           throw new InvalidDestinationException(
               "Virtual destinations are not supported for unsubscribe");
         }
-        String fullQualifiedTopicName = getPulsarTopicName(destination);
+        fullQualifiedTopicName = getPulsarTopicName(destination);
         log.info("deleteSubscription topic {} name {}", fullQualifiedTopicName, name);
         try {
           pulsarAdmin.topics().deleteSubscription(fullQualifiedTopicName, name, true);
@@ -1689,7 +1693,7 @@ public class PulsarConnectionFactory
         }
       }
     } catch (Exception err) {
-      throw Utils.handleException(err);
+      throw Utils.handleException(err, fullQualifiedTopicName);
     }
     return somethingDone;
   }

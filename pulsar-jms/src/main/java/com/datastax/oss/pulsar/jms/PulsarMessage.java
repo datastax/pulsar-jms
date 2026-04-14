@@ -1148,7 +1148,7 @@ public abstract class PulsarMessage implements Message {
     try {
       consumer.acknowledge(receivedPulsarMessage, this, pulsarConsumer);
     } catch (Exception err) {
-      throw Utils.handleException(err);
+      throw Utils.handleException(err, null);
     }
   }
 
@@ -1220,7 +1220,7 @@ public abstract class PulsarMessage implements Message {
                   () -> {
                     this.writable = false;
                     if (error != null) {
-                      completionListener.onException(this, Utils.handleException(error));
+                      completionListener.onException(this, Utils.handleException(error, null));
                     } else {
                       assignSystemMessageId(messageIdFromServer);
 
@@ -1565,7 +1565,7 @@ public abstract class PulsarMessage implements Message {
     if (t instanceof EOFException) {
       throw new MessageEOFException(t + "");
     }
-    throw Utils.handleException(t);
+    throw Utils.handleException(t, null);
   }
 
   public void setWritable(boolean b) {

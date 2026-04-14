@@ -1208,50 +1208,55 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
     if (message == null) {
       throw new MessageFormatException("null message");
     }
-    Utils.setContext(((PulsarDestination) defaultDestination).getName());
+    String topic =
+        defaultDestination != null ? ((PulsarDestination) defaultDestination).getName() : null;
     try {
       session.executeCriticalOperation(
           () -> {
-            Producer<byte[]> producer = session.getProducerForDestination(defaultDestination);
-            message.setJMSDestination(defaultDestination);
-            PulsarMessage pulsarMessage = prepareMessageForSend(message);
-            final TypedMessageBuilder<byte[]> typedMessageBuilder;
-            session.blockTransactionOperations();
             try {
-              if (session.getTransacted()) {
-                Transaction transaction = session.getTransaction();
-                if (transaction != null) {
-                  typedMessageBuilder = producer.newMessage(transaction);
+              Producer<byte[]> producer = session.getProducerForDestination(defaultDestination);
+              message.setJMSDestination(defaultDestination);
+              PulsarMessage pulsarMessage = prepareMessageForSend(message);
+              final TypedMessageBuilder<byte[]> typedMessageBuilder;
+              session.blockTransactionOperations();
+              try {
+                if (session.getTransacted()) {
+                  Transaction transaction = session.getTransaction();
+                  if (transaction != null) {
+                    typedMessageBuilder = producer.newMessage(transaction);
+                  } else {
+                    typedMessageBuilder = producer.newMessage();
+                    if (uncommittedMessages == null) {
+                      uncommittedMessages = new ArrayList<>();
+                    }
+                    uncommittedMessages.add(
+                        new PreparedMessage(typedMessageBuilder, pulsarMessage));
+                    session.registerProducerWithTransaction(this);
+                    if (defaultDeliveryDelay > 0) {
+                      typedMessageBuilder.deliverAfter(defaultDeliveryDelay, TimeUnit.MILLISECONDS);
+                    }
+                    return null;
+                  }
                 } else {
-                  // emulated transactions
                   typedMessageBuilder = producer.newMessage();
-                  if (uncommittedMessages == null) {
-                    uncommittedMessages = new ArrayList<>();
-                  }
-                  uncommittedMessages.add(new PreparedMessage(typedMessageBuilder, pulsarMessage));
-                  session.registerProducerWithTransaction(this);
-                  if (defaultDeliveryDelay > 0) {
-                    typedMessageBuilder.deliverAfter(defaultDeliveryDelay, TimeUnit.MILLISECONDS);
-                  }
-                  return null;
                 }
-              } else {
-                typedMessageBuilder = producer.newMessage();
+                if (defaultDeliveryDelay > 0) {
+                  typedMessageBuilder.deliverAfter(defaultDeliveryDelay, TimeUnit.MILLISECONDS);
+                }
+                pulsarMessage.send(typedMessageBuilder, disableMessageTimestamp, session);
+              } finally {
+                session.unblockTransactionOperations();
               }
-              if (defaultDeliveryDelay > 0) {
-                typedMessageBuilder.deliverAfter(defaultDeliveryDelay, TimeUnit.MILLISECONDS);
+              if (message != pulsarMessage) {
+                applyBackMessageProperties(message, pulsarMessage);
               }
-              pulsarMessage.send(typedMessageBuilder, disableMessageTimestamp, session);
-            } finally {
-              session.unblockTransactionOperations();
+              return null;
+            } catch (Exception err) {
+              throw Utils.handleException(err, topic);
             }
-            if (message != pulsarMessage) {
-              applyBackMessageProperties(message, pulsarMessage);
-            }
-            return null;
           });
-    } finally {
-      Utils.clearContext();
+    } catch (Throwable t) {
+      throw Utils.handleException(t, topic);
     }
   }
 
@@ -1271,89 +1276,90 @@ class PulsarMessageProducer implements MessageProducer, TopicPublisher, QueueSen
     if (message == null) {
       throw new MessageFormatException("null message");
     }
-    Utils.setContext(((PulsarDestination) defaultDestination).getName());
+    String topic =
+        defaultDestination != null ? ((PulsarDestination) defaultDestination).getName() : null;
     try {
       session.executeCriticalOperation(
           () -> {
-            Producer<byte[]> producer = session.getProducerForDestination(defaultDestination);
-            message.setJMSDestination(defaultDestination);
-            PulsarMessage pulsarMessage = prepareMessageForSend(message);
-            CompletionListener endActivityCompletionListener =
-                new CompletionListener() {
-                  @Override
-                  public void onCompletion(Message message) {
-                    try {
-                      completionListener.onCompletion(message);
-                    } finally {
-                      session.unblockTransactionOperations();
-                    }
-                  }
-
-                  @Override
-                  public void onException(Message message, Exception exception) {
-                    try {
-                      completionListener.onException(message, exception);
-                    } finally {
-                      session.unblockTransactionOperations();
-                    }
-                  }
-                };
-            CompletionListener finalCompletionListener = endActivityCompletionListener;
-            if (pulsarMessage != message) {
-              finalCompletionListener =
+            try {
+              Producer<byte[]> producer = session.getProducerForDestination(defaultDestination);
+              message.setJMSDestination(defaultDestination);
+              PulsarMessage pulsarMessage = prepareMessageForSend(message);
+              CompletionListener endActivityCompletionListener =
                   new CompletionListener() {
                     @Override
-                    public void onCompletion(Message completedMessage) {
-                      // we have to pass the original message to the called
-                      applyBackMessageProperties(message, pulsarMessage);
-                      endActivityCompletionListener.onCompletion(message);
+                    public void onCompletion(Message message) {
+                      try {
+                        completionListener.onCompletion(message);
+                      } finally {
+                        session.unblockTransactionOperations();
+                      }
                     }
 
                     @Override
-                    public void onException(Message completedMessage, Exception e) {
-                      // we have to pass the original message to the called
-                      applyBackMessageProperties(message, pulsarMessage);
-                      endActivityCompletionListener.onException(message, e);
+                    public void onException(Message message, Exception exception) {
+                      try {
+                        completionListener.onException(message, exception);
+                      } finally {
+                        session.unblockTransactionOperations();
+                      }
                     }
                   };
-            }
+              CompletionListener finalCompletionListener = endActivityCompletionListener;
+              if (pulsarMessage != message) {
+                finalCompletionListener =
+                    new CompletionListener() {
+                      @Override
+                      public void onCompletion(Message completedMessage) {
+                        applyBackMessageProperties(message, pulsarMessage);
+                        endActivityCompletionListener.onCompletion(message);
+                      }
 
-            session.blockTransactionOperations();
-            TypedMessageBuilder<byte[]> typedMessageBuilder;
-            if (session.getTransacted()) {
-              Transaction transaction = session.getTransaction();
-              if (transaction != null) {
-                typedMessageBuilder = producer.newMessage(transaction);
-              } else {
-                // emulated transactions
-                typedMessageBuilder = producer.newMessage();
-                if (defaultDeliveryDelay > 0) {
-                  typedMessageBuilder.deliverAfter(defaultDeliveryDelay, TimeUnit.MILLISECONDS);
-                }
-                if (uncommittedMessages == null) {
-                  uncommittedMessages = new ArrayList<>();
-                }
-                uncommittedMessages.add(new PreparedMessage(typedMessageBuilder, pulsarMessage));
-                session.registerProducerWithTransaction(this);
-                finalCompletionListener.onCompletion(pulsarMessage);
-                return null;
+                      @Override
+                      public void onException(Message completedMessage, Exception e) {
+                        applyBackMessageProperties(message, pulsarMessage);
+                        endActivityCompletionListener.onException(message, e);
+                      }
+                    };
               }
-            } else {
-              typedMessageBuilder = producer.newMessage();
+              session.blockTransactionOperations();
+              TypedMessageBuilder<byte[]> typedMessageBuilder;
+              if (session.getTransacted()) {
+                Transaction transaction = session.getTransaction();
+                if (transaction != null) {
+                  typedMessageBuilder = producer.newMessage(transaction);
+                } else {
+                  typedMessageBuilder = producer.newMessage();
+                  if (defaultDeliveryDelay > 0) {
+                    typedMessageBuilder.deliverAfter(defaultDeliveryDelay, TimeUnit.MILLISECONDS);
+                  }
+                  if (uncommittedMessages == null) {
+                    uncommittedMessages = new ArrayList<>();
+                  }
+                  uncommittedMessages.add(new PreparedMessage(typedMessageBuilder, pulsarMessage));
+                  session.registerProducerWithTransaction(this);
+                  finalCompletionListener.onCompletion(pulsarMessage);
+                  return null;
+                }
+              } else {
+                typedMessageBuilder = producer.newMessage();
+              }
+              if (defaultDeliveryDelay > 0) {
+                typedMessageBuilder.deliverAfter(defaultDeliveryDelay, TimeUnit.MILLISECONDS);
+              }
+              pulsarMessage.sendAsync(
+                  typedMessageBuilder,
+                  finalCompletionListener,
+                  session,
+                  this,
+                  disableMessageTimestamp);
+              return null;
+            } catch (Exception err) {
+              throw Utils.handleException(err, topic);
             }
-            if (defaultDeliveryDelay > 0) {
-              typedMessageBuilder.deliverAfter(defaultDeliveryDelay, TimeUnit.MILLISECONDS);
-            }
-            pulsarMessage.sendAsync(
-                typedMessageBuilder,
-                finalCompletionListener,
-                session,
-                this,
-                disableMessageTimestamp);
-            return null;
           });
-    } finally {
-      Utils.clearContext();
+    } catch (Throwable t) {
+      throw Utils.handleException(t, topic);
     }
   }
 

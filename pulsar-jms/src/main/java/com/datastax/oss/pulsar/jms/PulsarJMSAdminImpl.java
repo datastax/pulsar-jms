@@ -127,7 +127,7 @@ class PulsarJMSAdminImpl implements JMSAdmin {
     } catch (PulsarAdminException.NotFoundException notFound) {
       partitionedTopicMetadata = new PartitionedTopicMetadata(0);
     } catch (PulsarAdminException err) {
-      throw Utils.handleException(err);
+      throw Utils.handleException(err, pulsarTopic);
     }
     int partitions = partitionedTopicMetadata.partitions;
     final Map<String, ? extends TopicStats> partitionsStats;
@@ -153,7 +153,7 @@ class PulsarJMSAdminImpl implements JMSAdmin {
           publishers = Collections.emptyList();
         }
       } catch (PulsarAdminException err) {
-        throw Utils.handleException(err);
+        throw Utils.handleException(err, pulsarTopic);
       }
     } else {
       partitionsStats = Collections.emptyMap();
@@ -335,7 +335,6 @@ class PulsarJMSAdminImpl implements JMSAdmin {
       properties.put("jms.selector", selector);
     }
     String topicName = factory.getPulsarTopicName(dest);
-    Utils.setContext(topicName);
     try {
       Topics topics = factory.ensurePulsarAdmin().topics();
       topics.createSubscription(
@@ -345,9 +344,7 @@ class PulsarJMSAdminImpl implements JMSAdmin {
           false,
           properties);
     } catch (PulsarAdminException error) {
-      throw Utils.handleException(error);
-    } finally {
-      Utils.clearContext();
+      throw Utils.handleException(error, topicName);
     }
   }
 
@@ -356,7 +353,6 @@ class PulsarJMSAdminImpl implements JMSAdmin {
       throws JMSException {
     PulsarDestination dest = PulsarConnectionFactory.toPulsarDestination(destination);
     String topicName = factory.getPulsarTopicName(dest);
-    Utils.setContext(topicName);
     try {
       checkArgument(() -> partitions >= 0, "Invalid number of partitions " + partitions);
       validateSelector(enableFilters, selector);
@@ -400,14 +396,10 @@ class PulsarJMSAdminImpl implements JMSAdmin {
             "Subscription " + subscriptionName + " already exists on Pulsar Topic " + topicName);
       }
     } catch (PulsarAdminException error) {
-      throw Utils.handleException(error);
+      throw Utils.handleException(error, topicName);
+
     } catch (Throwable t) {
-      //      if (t instanceof JMSException) {
-      //        throw (JMSException) t;
-      //      }
-      throw Utils.handleException(t);
-    } finally {
-      Utils.clearContext();
+      throw Utils.handleException(t, topicName);
     }
   }
 
@@ -416,21 +408,14 @@ class PulsarJMSAdminImpl implements JMSAdmin {
 
     PulsarDestination dest = PulsarConnectionFactory.toPulsarDestination(destination);
     String topicName = factory.getPulsarTopicName(dest);
-
-    Utils.setContext(topicName);
-
     try {
       checkArgument(() -> partitions >= 0, "Invalid number of partitions " + partitions);
-
       checkDestination(
           destination, d -> !dest.isVirtualDestination(), "Cannot create a VirtualDestination");
-
       Topics topics = factory.ensurePulsarAdmin().topics();
-
       try {
         PartitionedTopicMetadata partitionedTopicMetadata =
             topics.getPartitionedTopicMetadata(topicName);
-
         checkDestination(
             destination,
             d -> partitionedTopicMetadata.partitions != partitions,
@@ -438,11 +423,8 @@ class PulsarJMSAdminImpl implements JMSAdmin {
                 + partitionedTopicMetadata.partitions
                 + " is different from "
                 + partitions);
-
       } catch (PulsarAdminException.NotFoundException notFound) {
-        // ok
       }
-
       try {
         if (partitions > 0) {
           topics.createPartitionedTopic(topicName, partitions);
@@ -452,17 +434,10 @@ class PulsarJMSAdminImpl implements JMSAdmin {
       } catch (PulsarAdminException.ConflictException exists) {
         throw new InvalidDestinationException("Topic " + topicName + " already exists");
       }
-
     } catch (PulsarAdminException error) {
-      throw Utils.handleException(error);
-
+      throw Utils.handleException(error, topicName);
     } catch (Throwable t) {
-      //      if (t instanceof JMSException) {
-      //        throw (JMSException) t;
-      //      }
-      throw Utils.handleException(t);
-    } finally {
-      Utils.clearContext();
+      throw Utils.handleException(t, topicName);
     }
   }
 
@@ -472,13 +447,10 @@ class PulsarJMSAdminImpl implements JMSAdmin {
     PulsarDestination dest = PulsarConnectionFactory.toPulsarDestination(destination);
     String topicName = factory.getPulsarTopicName(dest);
     String subscriptionName = factory.getQueueSubscriptionName(dest);
-    Utils.setContext(topicName);
     try {
       doUpdateSubscriptionSelector(enableFilters, selector, topicName, subscriptionName);
-    } catch (Throwable error) { // catch everything
-      throw Utils.handleException(error);
-    } finally {
-      Utils.clearContext();
+    } catch (Throwable error) {
+      throw Utils.handleException(error, topicName);
     }
   }
 
@@ -507,13 +479,10 @@ class PulsarJMSAdminImpl implements JMSAdmin {
       throws JMSException {
     PulsarDestination dest = PulsarConnectionFactory.toPulsarDestination(destination);
     String topicName = factory.getPulsarTopicName(dest);
-    Utils.setContext(topicName);
     try {
       doUpdateSubscriptionSelector(enableFilters, selector, topicName, subscriptionName);
     } catch (Throwable error) {
-      throw Utils.handleException(error);
-    } finally {
-      Utils.clearContext();
+      throw Utils.handleException(error, topicName);
     }
   }
 }

@@ -328,12 +328,12 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
 
   synchronized Message receiveWithTimeoutAndValidateType(long timeout, Class expectedType)
       throws JMSException {
-    Utils.setContext(destination.getName());
+    String topic = destination != null ? destination.getName() : null;
     try {
       checkNotClosed();
       if (listener != null) {
         throw Utils.handleException(
-            new IllegalStateException("cannot receive if you have a messageListener"));
+            new IllegalStateException("cannot receive if you have a messageListener"), topic);
       }
       final int acquireConnectionStartTime =
           timeout == Long.MAX_VALUE ? Integer.MAX_VALUE : (int) timeout;
@@ -355,7 +355,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
                           return handleReceivedMessage(
                               message, consumer, expectedType, null, noLocal);
                         } catch (Exception err) {
-                          throw Utils.handleException(err);
+                          throw Utils.handleException(err, topic);
                         }
                       });
               if (result != null) {
@@ -366,12 +366,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
           },
           acquireConnectionStartTime);
     } catch (Throwable t) {
-      //      if (t instanceof JMSException) {
-      //        throw (JMSException) t;
-      //      }
-      throw Utils.handleException(t);
-    } finally {
-      Utils.clearContext();
+      throw Utils.handleException(t, topic);
     }
   }
 
@@ -414,8 +409,8 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
       java.util.function.Consumer<PulsarMessage> listenerCode,
       boolean noLocalFilter)
       throws JMSException, org.apache.pulsar.client.api.PulsarClientException {
+    String topic = destination != null ? destination.getName() : null;
     receivedMessages.incrementAndGet();
-
     PulsarMessage result = PulsarMessage.decode(this, consumer, message);
     if (expectedType != null && !result.isBodyAssignableTo(expectedType)) {
       if (log.isDebugEnabled()) {
@@ -493,7 +488,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
       } catch (Throwable t) {
         log.error("Listener thrown error, calling negativeAcknowledge", t);
         consumer.negativeAcknowledge(message);
-        throw Utils.handleException(t);
+        throw Utils.handleException(t, topic);
       }
       if (result.isNegativeAcked()) {
         // this may happen if the listener calls "Session.recover"
@@ -559,6 +554,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
    */
   @Override
   public void close() throws JMSException {
+    String topic = destination != null ? destination.getName() : null;
     if (Utils.isOnMessageListener(session, this)) {
       requestClose.set(true);
       return;
@@ -579,7 +575,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
               session.removeConsumer(this);
               return null;
             } catch (Exception err) {
-              throw Utils.handleException(err);
+              throw Utils.handleException(err, topic);
             }
           });
     } else if (session.getTransacted()) {
@@ -644,11 +640,12 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
       PulsarMessage message,
       Consumer<?> consumer)
       throws JMSException {
+    String topic = destination != null ? destination.getName() : null;
     try {
       consumer.acknowledge(receivedPulsarMessage);
       session.unregisterUnacknowledgedMessage(message);
     } catch (PulsarClientException err) {
-      throw Utils.handleException(err);
+      throw Utils.handleException(err, topic);
     }
   }
 
@@ -719,15 +716,17 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
   }
 
   void closeDuringRollback() throws JMSException {
+    String topic = destination != null ? destination.getName() : null;
     try {
       consumer.close();
       session.removeConsumer(this);
     } catch (Exception err) {
-      throw Utils.handleException(err);
+      throw Utils.handleException(err, topic);
     }
   }
 
   public void closeInternal() throws JMSException {
+    String topic = destination != null ? destination.getName() : null;
     if (!closed.compareAndSet(false, true)) {
       return;
     }
@@ -738,7 +737,7 @@ public class PulsarMessageConsumer implements MessageConsumer, TopicSubscriber, 
         consumer = null;
       }
     } catch (Exception err) {
-      throw Utils.handleException(err);
+      throw Utils.handleException(err, topic);
     }
   }
 
