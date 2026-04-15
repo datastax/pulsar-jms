@@ -64,7 +64,7 @@ public final class Utils {
     }
     if (cause instanceof JMSException) {
       JMSException jms = (JMSException) cause;
-      if (topic == null || (jms.getMessage() != null && jms.getMessage().contains("topic="))) {
+      if (topic == null || (jms.getMessage() != null && jms.getMessage().contains("[topic=" + topic + "]"))) {
         return jms;
       }
       JMSException enriched = new JMSException(buildMessage(jms.getMessage(), topic));
