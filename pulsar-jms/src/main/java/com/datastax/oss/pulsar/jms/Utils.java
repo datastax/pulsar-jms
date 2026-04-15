@@ -54,31 +54,55 @@ public final class Utils {
   private Utils() {}
 
   public static JMSException handleException(Throwable cause) {
-    while (cause instanceof CompletionException) {
+    return handleException(cause, null);
+  }
+
+  public static JMSException handleException(Throwable cause, String topic) {
+    while ((cause instanceof CompletionException || cause instanceof ExecutionException)
+        && cause.getCause() != null) {
       cause = cause.getCause();
     }
     if (cause instanceof JMSException) {
-      return (JMSException) cause;
+      JMSException jms = (JMSException) cause;
+      if (topic == null || (jms.getMessage() != null && jms.getMessage().contains("topic="))) {
+        return jms;
+      }
+      JMSException enriched = new JMSException(buildMessage(jms.getMessage(), topic));
+      enriched.initCause(cause);
+      return enriched;
     }
     if (cause instanceof InterruptedException) {
       Thread.currentThread().interrupt();
     }
     if (cause instanceof ClassCastException) {
-      return (JMSException)
-          new MessageFormatException("Invalid cast " + cause.getMessage()).initCause(cause);
+      JMSException ex =
+          new MessageFormatException(buildMessage("Invalid cast " + safeMsg(cause), topic));
+      ex.initCause(cause);
+      return ex;
     }
     if (cause instanceof NumberFormatException) {
-      return (JMSException)
-          new MessageFormatException("Invalid conversion " + cause.getMessage()).initCause(cause);
+      JMSException ex =
+          new MessageFormatException(buildMessage("Invalid conversion " + safeMsg(cause), topic));
+      ex.initCause(cause);
+      return ex;
     }
-    JMSException err = new JMSException(cause + "");
+    JMSException err = new JMSException(buildMessage(safeMsg(cause), topic));
     err.initCause(cause);
     if (cause instanceof Exception) {
       err.setLinkedException((Exception) cause);
-    } else {
-      err.setLinkedException(new Exception(cause));
     }
     return err;
+  }
+
+  private static String safeMsg(Throwable t) {
+    return (t.getMessage() != null) ? t.getMessage() : t.toString();
+  }
+
+  private static String buildMessage(String base, String topic) {
+    if (topic == null || topic.isEmpty()) {
+      return base;
+    }
+    return base + "[topic=" + topic + "] ";
   }
 
   public static <T> T get(CompletableFuture<T> future) throws JMSException {
