@@ -21,6 +21,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import org.apache.pulsar.client.api.DeadLetterPolicy;
 import org.apache.pulsar.client.api.RedeliveryBackoff;
 import org.apache.pulsar.client.api.Schema;
@@ -30,6 +31,36 @@ final class ConsumerConfiguration {
 
   static ConsumerConfiguration DEFAULT =
       new ConsumerConfiguration(Collections.emptyMap(), null, null, null, null);
+
+  /**
+   * Set of properties that are specific to Pulsar Consumer API and not applicable to Pulsar Reader
+   * API (used by QueueBrowser). These properties will be filtered out when creating a
+   * browser-compatible configuration.
+   *
+   * <p>QueueBrowsers use Pulsar Reader API for read-only message browsing, while Consumers use
+   * Pulsar Consumer API for message consumption with acknowledgment. Properties related to
+   * acknowledgment, subscriptions, and consumer-specific behavior are not applicable to readers.
+   */
+  private static final Set<String> BROWSER_INCOMPATIBLE_PROPERTIES =
+      Set.of(
+          // Acknowledgment-related properties (browsers don't acknowledge messages)
+          "batchIndexAckEnabled",
+          "ackTimeout",
+          "ackTimeoutTickTime",
+          "acknowledgmentGroupTime",
+          "negativeAckRedeliveryDelay",
+          "retryEnable",
+
+          // Subscription-related properties (set programmatically for consumers, not for readers)
+          "subscriptionType",
+          "subscriptionMode",
+          "subscriptionInitialPosition",
+
+          // Consumer-specific properties (not applicable to readers)
+          "priorityLevel",
+          "maxTotalReceiverQueueSizeAcrossPartitions",
+          "autoUpdatePartitions",
+          "autoUpdatePartitionsInterval");
 
   private final Map<String, Object> consumerConfiguration;
   private Schema<?> consumerSchema;
@@ -98,6 +129,51 @@ final class ConsumerConfiguration {
         mergedDeadLetterPolicy,
         mergedNegativeAckRedeliveryBackoff,
         mergedAckTimeoutRedeliveryBackoff);
+  }
+
+  /**
+   * Creates a browser-compatible configuration by filtering out consumer-specific properties that
+   * are not applicable to the Pulsar Reader API.
+   *
+   * <p>QueueBrowsers use Pulsar Reader API for read-only message browsing, while Consumers use
+   * Pulsar Consumer API for message consumption with acknowledgment. Many consumer properties
+   * related to acknowledgment, subscriptions, and consumer behavior are not applicable to readers
+   * and should be filtered out to avoid potential compatibility issues.
+   *
+   * <p>This method filters out the following categories of properties:
+   *
+   * <ul>
+   *   <li><b>Acknowledgment-related:</b> batchIndexAckEnabled, ackTimeout, ackTimeoutTickTime,
+   *       acknowledgmentGroupTime, negativeAckRedeliveryDelay, retryEnable
+   *   <li><b>Subscription-related:</b> subscriptionType, subscriptionMode,
+   *       subscriptionInitialPosition
+   *   <li><b>Consumer-specific:</b> priorityLevel, maxTotalReceiverQueueSizeAcrossPartitions,
+   *       autoUpdatePartitions, autoUpdatePartitionsInterval
+   * </ul>
+   *
+   * <p>Additionally, deadLetterPolicy and redelivery backoff configurations are set to null as
+   * browsers don't acknowledge or redeliver messages.
+   *
+   * <p>Common properties that work with both Consumer and Reader APIs (such as receiverQueueSize,
+   * cryptoKeyReader, readCompacted, etc.) are preserved in the filtered configuration.
+   *
+   * @return A new ConsumerConfiguration with browser-incompatible properties filtered out, suitable
+   *     for use with Pulsar Reader API
+   */
+  public ConsumerConfiguration forBrowser() {
+    Map<String, Object> filteredConfig = new HashMap<>(consumerConfiguration);
+
+    // Remove all browser-incompatible properties
+    BROWSER_INCOMPATIBLE_PROPERTIES.forEach(filteredConfig::remove);
+
+    // Browsers don't use dead letter policy or redelivery backoff
+    // as they don't acknowledge or redeliver messages
+    return new ConsumerConfiguration(
+        filteredConfig,
+        consumerSchema,
+        null, // deadLetterPolicy = null for browsers
+        null, // negativeAckRedeliveryBackoff = null for browsers
+        null); // ackTimeoutRedeliveryBackoff = null for browsers
   }
 
   static ConsumerConfiguration buildConsumerConfiguration(
