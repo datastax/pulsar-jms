@@ -142,6 +142,8 @@ public class PulsarConnectionFactory
   private transient boolean enableJMSPriority = false;
 
   private transient boolean priorityUseLinearMapping = true;
+  private transient boolean enablePriorityGroupRouting = false;
+  private transient int priorityThreshold = 5;
   private transient boolean forceDeleteTemporaryDestinations = false;
   private transient boolean useExclusiveSubscriptionsForSimpleConsumers = false;
   private transient boolean acknowledgeRejectedMessages = false;
@@ -429,6 +431,17 @@ public class PulsarConnectionFactory
                   + "' is not valid, only 'linear' and 'non-linear'");
       }
 
+      this.enablePriorityGroupRouting =
+          Boolean.parseBoolean(
+              getAndRemoveString("jms.enablePriorityGroupRouting", "false", configurationCopy));
+
+      this.priorityThreshold =
+          Integer.parseInt(getAndRemoveString("jms.priorityThreshold", "5", configurationCopy));
+      if (this.priorityThreshold < 1 || this.priorityThreshold > 9) {
+        throw new IllegalArgumentException(
+            "jms.priorityThreshold must be between 1 and 9, got: " + this.priorityThreshold);
+      }
+
       // in Exclusive mode Pulsar does not support delayed messages
       // with this flag you force to not use Exclusive subscription and so to support
       // delayed messages are well
@@ -666,6 +679,14 @@ public class PulsarConnectionFactory
 
   public synchronized boolean isEnableJMSPriority() {
     return enableJMSPriority;
+  }
+
+  public synchronized boolean isEnablePriorityGroupRouting() {
+    return enablePriorityGroupRouting;
+  }
+
+  public synchronized int getPriorityThreshold() {
+    return priorityThreshold;
   }
 
   public synchronized boolean isPriorityUseLinearMapping() {
@@ -1132,20 +1153,46 @@ public class PulsarConnectionFactory
 
                     if (enableJMSPriority) {
                       properties.put("jms.priority", "enabled");
-                      properties.put(
-                          "jms.priorityMapping",
-                          producerJMSPriorityUseLinearMapping ? "linear" : "non-linear");
-                      producerBuilder.messageRouter(
-                          new MessageRouter() {
-                            @Override
-                            public int choosePartition(Message<?> msg, TopicMetadata metadata) {
-                              int priority = PulsarMessage.readJMSPriority(msg);
-                              return Utils.mapPriorityToPartition(
-                                  priority,
-                                  metadata.numPartitions(),
-                                  producerJMSPriorityUseLinearMapping);
-                            }
-                          });
+
+                      if (enablePriorityGroupRouting) {
+                        // NEW: Use PriorityGroupPartitionRouter with JMSXGroupID affinity
+                        properties.put("jms.priorityRouting", "group-affinity");
+                        properties.put("jms.priorityThreshold", String.valueOf(priorityThreshold));
+
+                        producerBuilder.messageRouter(
+                            new PriorityGroupPartitionRouter(priorityThreshold));
+
+                        log.info(
+                            "Priority group routing enabled for topic {} with threshold: {} "
+                                + "(0-{} → LOW, {}-9 → HIGH, JMSXGroupID affinity enabled)",
+                            fullQualifiedTopicName,
+                            priorityThreshold,
+                            priorityThreshold - 1,
+                            priorityThreshold);
+                      } else {
+                        // OLD: Use legacy priority routing (backward compatible)
+                        properties.put("jms.priorityRouting", "legacy");
+                        properties.put(
+                            "jms.priorityMapping",
+                            producerJMSPriorityUseLinearMapping ? "linear" : "non-linear");
+
+                        producerBuilder.messageRouter(
+                            new MessageRouter() {
+                              @Override
+                              public int choosePartition(Message<?> msg, TopicMetadata metadata) {
+                                int priority = PulsarMessage.readJMSPriority(msg);
+                                return Utils.mapPriorityToPartition(
+                                    priority,
+                                    metadata.numPartitions(),
+                                    producerJMSPriorityUseLinearMapping);
+                              }
+                            });
+
+                        log.info(
+                            "Legacy priority routing enabled for topic {} with mapping: {}",
+                            fullQualifiedTopicName,
+                            producerJMSPriorityUseLinearMapping ? "linear" : "non-linear");
+                      }
                     } else if (transactions && transactionsStickyPartitions) {
                       producerBuilder.messageRouter(
                           new MessageRouter() {
