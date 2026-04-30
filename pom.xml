@@ -59,15 +59,15 @@
     <pulsar.version>3.2.3</pulsar.version>
     <exec-maven-plugin.version>3.0.0</exec-maven-plugin.version>
     <rename.netty.native.libs>rename-netty-native-libs.sh</rename.netty.native.libs>
-    <activemq.version>5.16.8</activemq.version>
-    <netty.version>4.1.125.Final</netty.version>
+    <activemq.version>5.19.5</activemq.version>
+    <netty.version>4.1.132.Final</netty.version>
     <commons-io.version>2.14.0</commons-io.version>
-    <bcpkix-jdk18on.version>1.79</bcpkix-jdk18on.version>
-    <bcprov-jdk18on.version>1.79</bcprov-jdk18on.version>
+    <bcpkix-jdk18on.version>1.84</bcpkix-jdk18on.version>
+    <bcprov-jdk18on.version>1.84</bcprov-jdk18on.version>
     <commons-lang.version>2.6</commons-lang.version>
     <commons-lang3.version>3.18.0</commons-lang3.version>
     <commons-logging.version>1.1.1</commons-logging.version>
-    <asynchttpclient.version>2.12.4</asynchttpclient.version>
+    <asynchttpclient.version>2.14.5</asynchttpclient.version>
     <aircompressor.version>2.0.3</aircompressor.version>
     <protobuf.version>3.25.5</protobuf.version>
     <hawtbuf.version>1.11</hawtbuf.version>
@@ -75,7 +75,7 @@
     <slf4j.version>1.7.36</slf4j.version>
     <junit.version>5.7.1</junit.version>
     <surefire.version>3.1.0</surefire.version>
-    <jackson.version>2.15.3</jackson.version>
+    <jackson.version>2.21.2</jackson.version>
     <gson.version>2.8.9</gson.version>
     <commons-compress.version>1.26.0</commons-compress.version>
     <awaitility.version>4.0.3</awaitility.version>
