@@ -60,14 +60,14 @@
     <exec-maven-plugin.version>3.0.0</exec-maven-plugin.version>
     <rename.netty.native.libs>rename-netty-native-libs.sh</rename.netty.native.libs>
     <activemq.version>5.16.8</activemq.version>
-    <netty.version>4.1.132.Final</netty.version>
+    <netty.version>4.1.133.Final</netty.version>
     <commons-io.version>2.14.0</commons-io.version>
     <bcpkix-jdk18on.version>1.84</bcpkix-jdk18on.version>
     <bcprov-jdk18on.version>1.84</bcprov-jdk18on.version>
     <commons-lang.version>2.6</commons-lang.version>
     <commons-lang3.version>3.18.0</commons-lang3.version>
     <commons-logging.version>1.1.1</commons-logging.version>
-    <asynchttpclient.version>2.14.5</asynchttpclient.version>
+    <asynchttpclient.version>2.15.0</asynchttpclient.version>
     <aircompressor.version>2.0.3</aircompressor.version>
     <protobuf.version>3.25.5</protobuf.version>
     <hawtbuf.version>1.11</hawtbuf.version>
@@ -103,12 +103,27 @@
       </dependency>
       <dependency>
         <groupId>io.netty</groupId>
+        <artifactId>netty-codec</artifactId>
+        <version>${netty.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.netty</groupId>
+        <artifactId>netty-codec-dns</artifactId>
+        <version>${netty.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.netty</groupId>
         <artifactId>netty-common</artifactId>
         <version>${netty.version}</version>
       </dependency>
       <dependency>
         <groupId>io.netty</groupId>
         <artifactId>netty-handler</artifactId>
+        <version>${netty.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.netty</groupId>
+        <artifactId>netty-handler-proxy</artifactId>
         <version>${netty.version}</version>
       </dependency>
       <dependency>
