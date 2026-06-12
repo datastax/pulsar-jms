@@ -60,7 +60,7 @@
     <exec-maven-plugin.version>3.0.0</exec-maven-plugin.version>
     <rename.netty.native.libs>rename-netty-native-libs.sh</rename.netty.native.libs>
     <activemq.version>5.16.8</activemq.version>
-    <netty.version>4.1.133.Final</netty.version>
+    <netty.version>4.1.135.Final</netty.version>
     <commons-io.version>2.14.0</commons-io.version>
     <bcpkix-jdk18on.version>1.84</bcpkix-jdk18on.version>
     <bcprov-jdk18on.version>1.84</bcprov-jdk18on.version>
@@ -109,6 +109,21 @@
       <dependency>
         <groupId>io.netty</groupId>
         <artifactId>netty-codec-dns</artifactId>
+        <version>${netty.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.netty</groupId>
+        <artifactId>netty-resolver-dns</artifactId>
+        <version>${netty.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.netty</groupId>
+        <artifactId>netty-transport-native-unix-common</artifactId>
+        <version>${netty.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.netty</groupId>
+        <artifactId>netty-codec-haproxy</artifactId>
         <version>${netty.version}</version>
       </dependency>
       <dependency>
