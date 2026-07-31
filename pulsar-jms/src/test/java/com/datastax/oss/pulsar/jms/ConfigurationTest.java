@@ -16,12 +16,15 @@
 package com.datastax.oss.pulsar.jms;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.datastax.oss.pulsar.jms.utils.PulsarContainerExtension;
+import jakarta.jms.Connection;
 import jakarta.jms.MessageConsumer;
 import jakarta.jms.MessageProducer;
 import jakarta.jms.Queue;
+import jakarta.jms.Session;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -67,6 +70,50 @@ public class ConfigurationTest {
         Consumer<?> pulsarConsumer = consumer.getConsumer();
         assertEquals("the-consumer-name", pulsarConsumer.getConsumerName());
       }
+    }
+  }
+
+  @Test
+  public void testEagerConsumerCreationForQueues() throws Exception {
+    Map<String, Object> properties = new HashMap<>();
+    properties.put("webServiceUrl", pulsarContainer.getHttpServiceUrl());
+    properties.put("brokerServiceUrl", pulsarContainer.getBrokerUrl());
+    properties.put("jms.eagerConsumerCreation", "true");
+
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties);
+        Connection connection = factory.createConnection();
+        Session session = connection.createSession()) {
+
+      Queue queue = session.createQueue("test-eager-" + UUID.randomUUID());
+      PulsarMessageConsumer consumer = (PulsarMessageConsumer) session.createConsumer(queue);
+
+      // Verify consumer is created immediately (not null)
+      assertNotNull(consumer.getConsumer());
+
+      consumer.close();
+    }
+  }
+
+  @Test
+  public void testLazyConsumerCreationDefault() throws Exception {
+    Map<String, Object> properties = new HashMap<>();
+    properties.put("webServiceUrl", pulsarContainer.getHttpServiceUrl());
+    properties.put("brokerServiceUrl", pulsarContainer.getBrokerUrl());
+    // jms.eagerConsumerCreation NOT set (defaults to false)
+
+    try (PulsarConnectionFactory factory = new PulsarConnectionFactory(properties);
+        Connection connection = factory.createConnection();
+        Session session = connection.createSession()) {
+
+      Queue queue = session.createQueue("test-lazy-" + UUID.randomUUID());
+      PulsarMessageConsumer consumer = (PulsarMessageConsumer) session.createConsumer(queue);
+
+      // Consumer should be created after receive()
+      connection.start();
+      consumer.receive(100);
+
+      assertNotNull(consumer.getConsumer());
+      consumer.close();
     }
   }
 
