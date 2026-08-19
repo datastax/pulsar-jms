@@ -7,8 +7,7 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
     branches:
-      - 4.0_ds
-      - 3.1_ds
+      - master
   workflow_dispatch:
     inputs:
       scan_type:
