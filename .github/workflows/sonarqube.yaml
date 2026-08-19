@@ -3,8 +3,7 @@ name: SonarQube Scan
 on:
   push:
     branches:
-      - 4.0_ds
-      - 3.1_ds
+      - master
   pull_request:
     types: [opened, synchronize, reopened]
     branches:
