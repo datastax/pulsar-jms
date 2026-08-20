@@ -29,7 +29,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  SONAR_HOST_URL: https://sonarqube-prod.whitewater.ibm.com
   TRUSTSTORE_PATH: ./ibm_castorevpcprod
   # Maven tuning — mirrors settings used across the rest of the CI workflows.
   MAVEN_OPTS: >-
@@ -87,7 +86,7 @@ jobs:
         uses: SonarSource/sonarqube-scan-action@22918119ff8e1ca75a623e15c8296b6ea4fbe28f
         env:
           SONAR_TOKEN: ${{ secrets.IBM_SONARQUBE_API_TOKEN }}
-          SONAR_HOST_URL: ${{ env.SONAR_HOST_URL }}
+          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
         with:
           args: >
             -D sonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
