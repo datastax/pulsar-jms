@@ -67,7 +67,7 @@ public class ProducerCacheTest {
           int totalBrokerProducers = fetchProducerCount(queue1) + fetchProducerCount(queue2);
           assertEquals(1, totalBrokerProducers, "Total broker producers count should be 1");
         } catch (PulsarAdminException e) {
-          throw Utils.handleException(e);
+          throw Utils.handleException(e, null);
         }
       }
     }
@@ -112,7 +112,7 @@ public class ProducerCacheTest {
               fetchProducerCount(tempQueue),
               "Broker should have 0 producers after auto-close timeout");
         } catch (PulsarAdminException e) {
-          throw Utils.handleException(e);
+          throw Utils.handleException(e, null);
         }
       }
     }

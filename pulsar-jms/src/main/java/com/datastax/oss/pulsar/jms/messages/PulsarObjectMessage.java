@@ -48,7 +48,7 @@ public final class PulsarObjectMessage extends PulsarMessage implements ObjectMe
       ObjectInputStream input = new ObjectInputStream(new ByteArrayInputStream(originalMessage));
       return (Serializable) input.readUnshared();
     } catch (Exception err) {
-      throw Utils.handleException(err);
+      throw Utils.handleException(err, null);
     }
   }
 
@@ -96,7 +96,7 @@ public final class PulsarObjectMessage extends PulsarMessage implements ObjectMe
       oo.close();
       return out.toByteArray();
     } catch (Exception err) {
-      throw Utils.handleException(err);
+      throw Utils.handleException(err, null);
     }
   }
 

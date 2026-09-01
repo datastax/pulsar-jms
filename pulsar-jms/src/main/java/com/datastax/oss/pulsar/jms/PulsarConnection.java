@@ -493,7 +493,7 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
       paused = false;
       pausedCondition.signalAll();
     } catch (Throwable err) {
-      throw Utils.handleException(err);
+      throw Utils.handleException(err, null);
     } finally {
       connectionPausedLock.writeLock().unlock();
     }
@@ -555,7 +555,7 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
       paused = true;
       pausedCondition.signalAll();
     } catch (Throwable err) {
-      throw Utils.handleException(err);
+      throw Utils.handleException(err, null);
     } finally {
       connectionPausedLock.writeLock().unlock();
     }
@@ -893,7 +893,7 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
       }
       return run.run();
     } catch (Throwable err) {
-      throw Utils.handleException(err);
+      throw Utils.handleException(err, null);
     } finally {
       connectionPausedLock.readLock().unlock(); // let writers in
     }
@@ -993,14 +993,14 @@ public class PulsarConnection implements Connection, QueueConnection, TopicConne
       factory.getPulsarAdmin().topics().createNonPartitionedTopic(name);
     } catch (IllegalStateException err) {
       if (!factory.isAllowTemporaryTopicWithoutAdmin()) {
-        throw Utils.handleException(err);
+        throw Utils.handleException(err, null);
       }
       log.warn(
           "Skipping creation of nonPartitionedTopic {} as jms.allowTemporaryTopicWithoutAdmin=true",
           name,
           err);
     } catch (Exception err) {
-      throw Utils.handleException(err);
+      throw Utils.handleException(err, null);
     }
   }
 

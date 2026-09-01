@@ -53,25 +53,43 @@ import org.apache.pulsar.client.api.MessageIdAdv;
 public final class Utils {
   private Utils() {}
 
-  public static JMSException handleException(Throwable cause) {
+  public static JMSException handleException(Throwable cause, String topic) {
     while (cause instanceof CompletionException) {
       cause = cause.getCause();
     }
     if (cause instanceof JMSException) {
-      return (JMSException) cause;
+      JMSException jms = (JMSException) cause;
+      if (jms.getMessage() != null && jms.getMessage().contains("topic=")) {
+        return jms;
+      }
+      String newMsg = buildMessage(jms.getMessage(), topic);
+      try {
+        JMSException enriched = jms.getClass().getConstructor(String.class).newInstance(newMsg);
+        enriched.initCause(cause);
+        return enriched;
+      } catch (ReflectiveOperationException e) {
+        JMSException fallback = new JMSException(newMsg);
+        fallback.initCause(cause);
+        return fallback;
+      }
     }
     if (cause instanceof InterruptedException) {
       Thread.currentThread().interrupt();
     }
     if (cause instanceof ClassCastException) {
-      return (JMSException)
-          new MessageFormatException("Invalid cast " + cause.getMessage()).initCause(cause);
+      JMSException ex =
+          new MessageFormatException(buildMessage("Invalid cast " + safeMsg(cause), topic));
+      ex.initCause(cause);
+      return ex;
     }
     if (cause instanceof NumberFormatException) {
-      return (JMSException)
-          new MessageFormatException("Invalid conversion " + cause.getMessage()).initCause(cause);
+      JMSException ex =
+          new MessageFormatException(buildMessage("Invalid conversion " + safeMsg(cause), topic));
+      ex.initCause(cause);
+      return ex;
     }
-    JMSException err = new JMSException(cause + "");
+    String msg = buildMessage(cause, topic);
+    JMSException err = new JMSException(msg);
     err.initCause(cause);
     if (cause instanceof Exception) {
       err.setLinkedException((Exception) cause);
@@ -80,14 +98,47 @@ public final class Utils {
     }
     return err;
   }
+  // helper
+  private static String safeMsg(Throwable t) {
+    return (t.getMessage() != null) ? t.getMessage() : t.toString();
+  }
+
+  private static String buildMessage(String base, String topic) {
+    if (topic == null || topic.isEmpty()) {
+      return base;
+    }
+    return base + " [topic=" + topic + "]";
+  }
+
+  private static String buildMessage(Throwable t, String topic) {
+    return buildMessage(safeMsg(t), topic);
+  }
+
+  public static <T> T executeWithTopic(String topic, SupplierWithException<T> code)
+      throws JMSException {
+    try {
+      return code.run();
+    } catch (Throwable err) {
+      throw handleException(err, topic);
+    }
+  }
+
+  public static void executeWithTopic(String topic, RunnableWithException code)
+      throws JMSException {
+    try {
+      code.run();
+    } catch (Throwable err) {
+      throw handleException(err, topic);
+    }
+  }
 
   public static <T> T get(CompletableFuture<T> future) throws JMSException {
     try {
       return future.get();
     } catch (ExecutionException err) {
-      throw handleException(err.getCause());
+      throw handleException(err.getCause(), null);
     } catch (InterruptedException err) {
-      throw handleException(err);
+      throw handleException(err, null);
     }
   }
 
@@ -103,7 +154,7 @@ public final class Utils {
     try {
       return code.run();
     } catch (Throwable err) {
-      throw handleException(err);
+      throw handleException(err, null);
     }
   }
 
@@ -111,17 +162,23 @@ public final class Utils {
     try {
       code.run();
     } catch (Throwable err) {
-      throw handleException(err);
+      throw handleException(err, null);
     }
   }
 
   public static boolean executeMessageListenerInSessionContext(
       PulsarSession session, PulsarMessageConsumer consumer, BooleanSupplier code) {
-    currentSession.set(new CallbackContext(session, consumer, null));
+    PulsarDestination dest = consumer.getDestination();
+    String topic = dest != null ? dest.getName() : null;
     try {
+      currentSession.set(new CallbackContext(session, consumer, null));
       return session.executeCriticalOperation(
           () -> {
-            return code.getAsBoolean();
+            try {
+              return code.getAsBoolean();
+            } catch (Throwable err) {
+              throw handleException(err, topic);
+            }
           });
     } catch (IllegalStateException err) {
       log.debug("Ignore error in listener", err);

@@ -238,7 +238,7 @@ public final class PulsarStreamMessage extends PulsarMessage implements StreamMe
       this.dataOutputStream = null;
       writable = false;
     } catch (Exception err) {
-      throw Utils.handleException(err);
+      throw Utils.handleException(err, null);
     }
   }
 
@@ -300,7 +300,7 @@ public final class PulsarStreamMessage extends PulsarMessage implements StreamMe
         producer.value(originalMessage);
       }
     } catch (Exception err) {
-      throw Utils.handleException(err);
+      throw Utils.handleException(err, null);
     }
   }
 

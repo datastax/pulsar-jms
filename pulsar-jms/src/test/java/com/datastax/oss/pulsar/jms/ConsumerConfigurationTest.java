@@ -21,14 +21,19 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.datastax.oss.pulsar.jms.utils.PulsarContainerExtension;
+import jakarta.jms.*;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
 import org.apache.pulsar.client.api.Schema;
 import org.apache.pulsar.common.schema.SchemaType;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
 final class ConsumerConfigurationTest {
+  @RegisterExtension
+  static PulsarContainerExtension pulsarContainer = new PulsarContainerExtension();
 
   private void test(
       Map<String, Object> consumerConfiguration, Consumer<ConsumerConfiguration> test) {

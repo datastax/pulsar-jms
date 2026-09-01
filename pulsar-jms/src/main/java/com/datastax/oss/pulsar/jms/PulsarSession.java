@@ -226,11 +226,11 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
             log.info("Transaction service not available {}", err.getCause().getMessage());
             Thread.sleep(1000);
           } else {
-            throw Utils.handleException(err.getCause());
+            throw Utils.handleException(err.getCause(), null);
           }
         }
       } catch (Exception err) {
-        throw Utils.handleException(err);
+        throw Utils.handleException(err, null);
       }
     }
     if (transaction == null) {
@@ -884,7 +884,7 @@ public class PulsarSession implements Session, QueueSession, TopicSession {
             // this message is not tracked by this session
             foreignMessage.acknowledge();
           } catch (Throwable err) {
-            Utils.handleException(err);
+            Utils.handleException(err, null);
             log.info("Error in ConsumerConnection task on message {}", foreignMessage, err);
             ((PulsarMessage) foreignMessage).negativeAck();
           }

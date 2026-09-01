@@ -51,7 +51,7 @@ abstract class PulsarTemporaryDestination extends PulsarDestination {
         pulsarAdmin = session.getFactory().getPulsarAdmin();
       } catch (IllegalStateException err) {
         if (!session.getFactory().isAllowTemporaryTopicWithoutAdmin()) {
-          throw Utils.handleException(err);
+          throw Utils.handleException(err, topicName);
         }
         log.warn(
             "Cannot delete a temporary destination {}. Skipping because jms.allowTemporaryTopicWithoutAdmin=true",
@@ -91,7 +91,7 @@ abstract class PulsarTemporaryDestination extends PulsarDestination {
       }
 
     } catch (final PulsarAdminException paEx) {
-      Utils.handleException(paEx);
+      Utils.handleException(paEx, topicName);
     } finally {
       session.getConnection().removeTemporaryDestination(this);
     }

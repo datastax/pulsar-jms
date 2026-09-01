@@ -48,7 +48,7 @@ public class TopicDiscoveryUtils {
               .getTopics();
       return topicsPatternFilter(list, Pattern.compile(regex));
     } catch (InterruptedException | TimeoutException | ExecutionException err) {
-      throw Utils.handleException(err);
+      throw Utils.handleException(err, null);
     }
   }
 
