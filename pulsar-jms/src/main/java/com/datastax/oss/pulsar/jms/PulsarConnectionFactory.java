@@ -1098,8 +1098,8 @@ public class PulsarConnectionFactory
 
   Producer<byte[]> getProducerForDestination(Destination defaultDestination, boolean transactions)
       throws JMSException {
+    String fullQualifiedTopicName = getPulsarTopicName(defaultDestination);
     try {
-      String fullQualifiedTopicName = getPulsarTopicName(defaultDestination);
       String key = transactions ? fullQualifiedTopicName + "-tx" : fullQualifiedTopicName;
       boolean transactionsStickyPartitions = transactions && isTransactionsStickyPartitions();
       boolean enableJMSPriority = isEnableJMSPriority();
@@ -1161,7 +1161,7 @@ public class PulsarConnectionFactory
                     return producerBuilder.create();
                   }));
     } catch (ExecutionException err) {
-      throw Utils.handleException(err);
+      throw Utils.handleException(err, fullQualifiedTopicName);
     }
   }
 
