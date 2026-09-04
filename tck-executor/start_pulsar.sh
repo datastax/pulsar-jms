@@ -21,11 +21,11 @@ echo "Waiting for Pulsar admin API to be ready"
 for i in $(seq 1 60); do
   CLUSTERS=$(wget -4 -q -O - http://127.0.0.1:8080/admin/v2/clusters || true)
   echo "$CLUSTERS"
-  if [ "$CLUSTERS" = '["standalone"]' ]; then
+  if [[ "$CLUSTERS" == '["standalone"]' ]]; then
     echo "Pulsar admin API is ready"
     break
   fi
-  if [ "$i" -eq 60 ]; then
+  if [[ "$i" -eq 60 ]]; then
     echo "Pulsar admin API did not become ready in time"
     $CONTAINER_CMD logs pulsar-jms-runner
     exit 1

@@ -49,7 +49,7 @@ for i in $(seq 1 60); do
   sleep 5
 done
 
-if [ "$TC_READY" -ne 1 ]; then
+if [[ "$TC_READY" -ne 1 ]]; then
   echo "Transaction coordinator topic never became ready"
   $CONTAINER_CMD logs pulsar-jms-runner
   $HERE/stop_pulsar.sh
