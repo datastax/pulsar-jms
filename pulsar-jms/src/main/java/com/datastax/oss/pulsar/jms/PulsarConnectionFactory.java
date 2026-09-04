@@ -1520,6 +1520,14 @@ public class PulsarConnectionFactory
       PulsarQueue destination, ConsumerConfiguration overrideConsumerConfiguration)
       throws JMSException {
 
+    // Filter consumer-specific properties at the entry point for browser creation.
+    // This ensures all reader creation paths use browser-compatible configuration.
+    // The filtering is done once here rather than in each recursive call for efficiency.
+    ConsumerConfiguration browserConfiguration =
+        overrideConsumerConfiguration != null
+            ? overrideConsumerConfiguration.forBrowser()
+            : null;
+
     if (destination.isRegExp()) {
       try {
         String topicName = getPulsarTopicName(destination);
@@ -1530,7 +1538,7 @@ public class PulsarConnectionFactory
         for (String sub : topicNames) {
           String queueName = sub + ":" + getQueueSubscriptionName(destination);
           PulsarQueue queue = new PulsarQueue(queueName);
-          res.addAll(createReadersForBrowser(queue, overrideConsumerConfiguration));
+          res.addAll(createReadersForBrowser(queue, browserConfiguration));
         }
         return res;
       } catch (Exception err) {
@@ -1540,7 +1548,7 @@ public class PulsarConnectionFactory
       List<Reader<?>> res = new ArrayList<>();
       List<PulsarDestination> destinations = destination.getDestinations();
       for (PulsarDestination sub : destinations) {
-        res.addAll(createReadersForBrowser((PulsarQueue) sub, overrideConsumerConfiguration));
+        res.addAll(createReadersForBrowser((PulsarQueue) sub, browserConfiguration));
       }
       return res;
     } else {
@@ -1556,7 +1564,7 @@ public class PulsarConnectionFactory
               createReaderForBrowserForNonPartitionedTopic(
                   queueSubscriptionName,
                   fullQualifiedTopicName,
-                  overrideConsumerConfiguration,
+                  browserConfiguration,
                   destination);
           readers.add(readerForBrowserForNonPartitionedTopic);
         } else {
@@ -1566,7 +1574,7 @@ public class PulsarConnectionFactory
                 createReaderForBrowserForNonPartitionedTopic(
                     queueSubscriptionName,
                     partitionName,
-                    overrideConsumerConfiguration,
+                    browserConfiguration,
                     destination);
             readers.add(readerForBrowserForNonPartitionedTopic);
           }
@@ -1604,15 +1612,21 @@ public class PulsarConnectionFactory
       }
       log.info("createBrowser {} at {}", fullQualifiedTopicName, seekMessageId);
 
+      // The overrideConsumerConfiguration passed here is already filtered by
+      // createReadersForBrowser() to remove consumer-specific properties that are
+      // not applicable to Reader API. This ensures compatibility and prevents errors.
       ConsumerConfiguration consumerConfiguration =
           getConsumerConfiguration(overrideConsumerConfiguration, destination);
+
       Schema<?> schema = consumerConfiguration.getConsumerSchema();
       if (schema == null) {
         schema = Schema.BYTES;
       }
+
+      // Use the browser-compatible configuration for the reader
       Map<String, Object> readerConfiguration =
           Utils.deepCopyMap(consumerConfiguration.getConsumerConfiguration());
-      readerConfiguration.remove("batchIndexAckEnabled");
+
       ReaderBuilder<?> builder =
           pulsarClient
               .newReader(schema)
