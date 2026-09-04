@@ -39,7 +39,22 @@ netstat -nlp
 
 set -e
 
-wget -O - http://localhost:8080/lookup/v2/topic/persistent/pulsar/system/transaction_coordinator_assign-partition-0
+TC_READY=0
+for i in $(seq 1 60); do
+  if wget -4 -q -O - http://127.0.0.1:8080/lookup/v2/topic/persistent/pulsar/system/transaction_coordinator_assign-partition-0; then
+    TC_READY=1
+    break
+  fi
+  echo "Transaction coordinator topic not ready yet (attempt $i/60), retrying..."
+  sleep 5
+done
+
+if [[ "$TC_READY" -ne 1 ]]; then
+  echo "Transaction coordinator topic never became ready"
+  $CONTAINER_CMD logs pulsar-jms-runner
+  $HERE/stop_pulsar.sh
+  exit 1
+fi
 
 # Determine which test directory to run based on TEST_GROUP
 case $TEST_GROUP in
