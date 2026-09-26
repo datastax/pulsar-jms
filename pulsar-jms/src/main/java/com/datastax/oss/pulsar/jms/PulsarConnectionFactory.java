@@ -156,6 +156,7 @@ public class PulsarConnectionFactory
   private transient boolean usePulsarAdmin = true;
   private transient boolean allowTemporaryTopicWithoutAdmin = false;
   private transient boolean precreateQueueSubscription = true;
+  private transient boolean eagerConsumerCreation = false;
   private transient int precreateQueueSubscriptionConsumerQueueSize = 0;
   private transient boolean initialized;
   private transient boolean closed;
@@ -345,6 +346,10 @@ public class PulsarConnectionFactory
       this.precreateQueueSubscription =
           Boolean.parseBoolean(
               getAndRemoveString("jms.precreateQueueSubscription", "true", configurationCopy));
+
+      this.eagerConsumerCreation =
+          Boolean.parseBoolean(
+              getAndRemoveString("jms.eagerConsumerCreation", "false", configurationCopy));
 
       this.precreateQueueSubscriptionConsumerQueueSize =
           Integer.parseInt(
@@ -1171,6 +1176,10 @@ public class PulsarConnectionFactory
 
   synchronized boolean isPrecreateQueueSubscription() {
     return precreateQueueSubscription;
+  }
+
+  public boolean isEagerConsumerCreation() {
+    return eagerConsumerCreation;
   }
 
   public void ensureQueueSubscription(PulsarDestination destination) throws JMSException {
